@@ -9,8 +9,11 @@ import (
 func Test_DefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
+	assert.NotNil(t, cfg.Services)
+	assert.NotNil(t, cfg.Scopes)
 	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
 	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
+	assert.Equal(t, 1, cfg.Version)
 }
 
 func Test_Load(t *testing.T) {
@@ -39,6 +42,7 @@ func Test_Load(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, cfg)
 				assert.Equal(t, tt.expected.Logging.Level, cfg.Logging.Level)
+				assert.Equal(t, tt.expected.Version, cfg.Version)
 			}
 		})
 	}

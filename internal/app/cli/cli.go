@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 
+	"fuku/internal/app/runner"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -25,15 +28,21 @@ type CLI interface {
 
 // cli represents the command-line interface for the application
 type cli struct {
-	log logger.Logger
+	cfg    *config.Config
+	runner runner.Runner
+	log    logger.Logger
 }
 
 // NewCLI creates a new cli instance
 func NewCLI(
+	cfg *config.Config,
+	runner runner.Runner,
 	log logger.Logger,
 ) CLI {
 	return &cli{
-		log: log,
+		cfg:    cfg,
+		runner: runner,
+		log:    log,
 	}
 }
 
@@ -46,13 +55,23 @@ func (c *cli) Run(args []string) error {
 
 	cmd := args[0]
 
-	switch cmd {
-	case "run", "--run", "-r":
-		c.handleRun()
-	case "help", "--help", "-h":
+	switch {
+	case cmd == "help" || cmd == "--help" || cmd == "-h":
 		c.handleHelp()
-	case "version", "--version", "-v":
+	case cmd == "version" || cmd == "--version" || cmd == "-v":
 		c.handleVersion()
+	case cmd == "run" || cmd == "--run" || cmd == "-r":
+		scope := "default"
+		if len(args) > 1 {
+			scope = args[1]
+		}
+		c.handleRun(scope)
+	case strings.HasPrefix(cmd, "--run="):
+		scope := strings.TrimPrefix(cmd, "--run=")
+		if scope == "" {
+			scope = "default"
+		}
+		c.handleRun(scope)
 	default:
 		c.handleUnknown()
 	}
@@ -62,9 +81,15 @@ func (c *cli) Run(args []string) error {
 }
 
 // handleRun executes the run command with the specified scope
-func (c *cli) handleRun() {
-	c.log.Debug().Msg("Call run command")
-	fmt.Println("Run is not implemented yet")
+func (c *cli) handleRun(scope string) {
+	c.log.Debug().Msgf("Running with scope: %s", scope)
+
+	ctx := context.Background()
+	if err := c.runner.Run(ctx, scope); err != nil {
+		c.log.Error().Err(err).Msgf("Failed to run scope '%s'", scope)
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // handleHelp displays help information

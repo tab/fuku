@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/runner"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -18,23 +19,30 @@ func Test_NewCli(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := config.DefaultConfig()
+	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	commandLineInterface := NewCLI(mockLogger)
+	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
 	assert.NotNil(t, commandLineInterface)
 
 	instance, ok := commandLineInterface.(*cli)
 	assert.True(t, ok)
 	assert.NotNil(t, instance)
+	assert.Equal(t, cfg, instance.cfg)
+	assert.Equal(t, mockRunner, instance.runner)
+	assert.Equal(t, mockLogger, instance.log)
 }
 
 func Test_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := config.DefaultConfig()
+	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	commandLineInterface := NewCLI(mockLogger)
+	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
 
 	tests := []struct {
 		name   string
@@ -42,6 +50,15 @@ func Test_Run(t *testing.T) {
 		before func()
 		output string
 	}{
+		{
+			name: "With run command format --run=API",
+			args: []string{"--run=API"},
+			before: func() {
+				mockLogger.EXPECT().Debug().AnyTimes()
+				mockRunner.EXPECT().Run(gomock.Any(), "API").Return(nil)
+			},
+			output: "",
+		},
 		{
 			name: "With help command",
 			args: []string{"help"},
@@ -93,6 +110,26 @@ func Test_Run(t *testing.T) {
 			_ = commandLineInterface.Run(tt.args)
 		})
 	}
+}
+
+func Test_HandleRun_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockRunner := runner.NewMockRunner(ctrl)
+	cfg := &config.Config{}
+
+	mockLogger.EXPECT().Debug().Times(1)
+	mockRunner.EXPECT().Run(gomock.Any(), "API").Return(nil)
+
+	commandLineInterface := &cli{
+		log:    mockLogger,
+		runner: mockRunner,
+		cfg:    cfg,
+	}
+
+	commandLineInterface.handleRun("API")
 }
 
 func Test_HandleHelp(t *testing.T) {

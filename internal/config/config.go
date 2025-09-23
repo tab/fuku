@@ -15,10 +15,24 @@ const (
 
 // Config represents the application configuration
 type Config struct {
-	Logging struct {
+	Services map[string]*Service `yaml:"services"`
+	Scopes   map[string]*Scope   `yaml:"scopes"`
+	Logging  struct {
 		Level  string `yaml:"level"`
 		Format string `yaml:"format"`
 	}
+	Version int
+}
+
+// Service represents a service configuration
+type Service struct {
+	Dir       string   `yaml:"dir"`
+	DependsOn []string `yaml:"depends_on"`
+}
+
+// Scope represents a scope to run services in
+type Scope struct {
+	Include []string `yaml:"include"`
 }
 
 // Option allows for functional options pattern
@@ -26,7 +40,11 @@ type Option func(*Config)
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
-	cfg := &Config{}
+	cfg := &Config{
+		Version:  1,
+		Services: make(map[string]*Service),
+		Scopes:   make(map[string]*Scope),
+	}
 
 	cfg.Logging.Level = DefaultLogLevel
 	cfg.Logging.Format = DefaultLogFormat
