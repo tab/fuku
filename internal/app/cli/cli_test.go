@@ -178,7 +178,7 @@ func Test_Run_WithScope(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func Test_Run_RunCommandWithoutScope(t *testing.T) {
+func Test_Run_WithoutScope(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -201,7 +201,7 @@ func Test_Run_RunCommandWithoutScope(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func Test_Run_WithOneDash(t *testing.T) {
+func Test_Run_ShortFlag(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -224,7 +224,7 @@ func Test_Run_WithOneDash(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func Test_Run_WithDoubleDash(t *testing.T) {
+func Test_Run_WithLongFlag(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
