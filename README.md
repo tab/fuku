@@ -18,7 +18,7 @@
 ### From Source
 
 ```bash
-git clone <repository-url>
+git clone git@github.com:tab/fuku.git
 cd fuku
 go build -o fuku ./cmd
 ```
