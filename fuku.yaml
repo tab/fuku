@@ -1,0 +1,27 @@
+version: 1
+
+services:
+  api:
+    dir: examples/bookstore/api
+    profiles: [core]
+  frontend-api:
+    dir: examples/bookstore/frontend-api
+    profiles: [core]
+  user:
+    dir: examples/bookstore/user
+  storage:
+    dir: examples/bookstore/storage
+
+defaults:
+  depends_on: [api]
+  profiles: [default]
+  exclude: [api]
+
+profiles:
+  default: "*"
+  core: [api, frontend-api]
+  minimal: [api]
+
+logging:
+  level: debug
+  format: console

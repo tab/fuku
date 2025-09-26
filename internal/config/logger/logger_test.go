@@ -271,3 +271,101 @@ func Test_getLogLevel(t *testing.T) {
 func Test_Module(t *testing.T) {
 	assert.NotNil(t, Module)
 }
+
+func Test_AppLogger_AllMethods(t *testing.T) {
+	cfg := &config.Config{
+		Logging: struct {
+			Level  string `yaml:"level"`
+			Format string `yaml:"format"`
+		}{
+			Level:  DebugLevel,
+			Format: JSONFormat,
+		},
+	}
+
+	logger := NewLogger(cfg)
+	assert.NotNil(t, logger)
+
+	debugEvent := logger.Debug()
+	assert.NotNil(t, debugEvent)
+
+	infoEvent := logger.Info()
+	assert.NotNil(t, infoEvent)
+
+	warnEvent := logger.Warn()
+	assert.NotNil(t, warnEvent)
+
+	errorEvent := logger.Error()
+	assert.NotNil(t, errorEvent)
+}
+
+func Test_NewLogger_AllFormats(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+	}{
+		{"console format", ConsoleFormat},
+		{"json format", JSONFormat},
+		{"empty format", ""},
+		{"unknown format", "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Logging: struct {
+					Level  string `yaml:"level"`
+					Format string `yaml:"format"`
+				}{
+					Level:  InfoLevel,
+					Format: tt.format,
+				},
+			}
+
+			logger := NewLogger(cfg)
+			assert.NotNil(t, logger)
+
+			appLogger, ok := logger.(*AppLogger)
+			assert.True(t, ok)
+			assert.NotNil(t, appLogger.log)
+		})
+	}
+}
+
+func Test_NewLogger_AllLevels(t *testing.T) {
+	tests := []struct {
+		name  string
+		level string
+	}{
+		{"debug level", DebugLevel},
+		{"info level", InfoLevel},
+		{"warn level", WarnLevel},
+		{"error level", ErrorLevel},
+		{"fatal level", FatalLevel},
+		{"panic level", PanicLevel},
+		{"trace level", TraceLevel},
+		{"empty level", ""},
+		{"unknown level", "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Logging: struct {
+					Level  string `yaml:"level"`
+					Format string `yaml:"format"`
+				}{
+					Level:  tt.level,
+					Format: ConsoleFormat,
+				},
+			}
+
+			logger := NewLogger(cfg)
+			assert.NotNil(t, logger)
+
+			appLogger, ok := logger.(*AppLogger)
+			assert.True(t, ok)
+			assert.NotNil(t, appLogger.log)
+		})
+	}
+}
