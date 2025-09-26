@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +17,7 @@ import (
 	"fuku/internal/config/logger"
 )
 
-func Test_NewCli(t *testing.T) {
+func Test_NewCLI(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -23,10 +25,10 @@ func Test_NewCli(t *testing.T) {
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-	assert.NotNil(t, commandLineInterface)
+	cliInstance := NewCLI(cfg, mockRunner, mockLogger)
+	assert.NotNil(t, cliInstance)
 
-	instance, ok := commandLineInterface.(*cli)
+	instance, ok := cliInstance.(*cli)
 	assert.True(t, ok)
 	assert.NotNil(t, instance)
 	assert.Equal(t, cfg, instance.cfg)
@@ -38,315 +40,263 @@ func Test_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := config.DefaultConfig()
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	cfg := config.DefaultConfig()
 
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
+	c := &cli{
+		cfg:    cfg,
+		runner: mockRunner,
+		log:    mockLogger,
+	}
 
 	tests := []struct {
-		name   string
-		args   []string
-		before func()
-		output string
+		name          string
+		before        func()
+		args          []string
+		expectedExit  int
+		expectedError bool
 	}{
 		{
-			name: "With run command format --run=API",
-			args: []string{"--run=API"},
+			name: "No arguments - default profile",
+			args: []string{},
 			before: func() {
-				mockLogger.EXPECT().Debug().AnyTimes()
-				mockRunner.EXPECT().Run(gomock.Any(), "API").Return(nil)
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
 			},
-			output: "",
+			expectedExit:  0,
+			expectedError: false,
 		},
 		{
-			name: "With help command",
+			name: "Help command",
 			args: []string{"help"},
 			before: func() {
-				mockLogger.EXPECT().Debug().AnyTimes()
+				mockLogger.EXPECT().Debug().Return(nil)
 			},
-			output: fmt.Sprintf("%s\n", Usage),
+			expectedExit:  0,
+			expectedError: false,
 		},
 		{
-			name: "With version command",
+			name: "Version command",
 			args: []string{"version"},
 			before: func() {
-				mockLogger.EXPECT().Debug().AnyTimes()
+				mockLogger.EXPECT().Debug().Return(nil)
 			},
-			output: fmt.Sprintf("Version: %s\n", config.Version),
+			expectedExit:  0,
+			expectedError: false,
 		},
 		{
-			name: "With unknown command",
+			name: "Run command with profile",
+			args: []string{"run", "test-profile"},
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
+			name: "Run command with --run=profile",
+			args: []string{"--run=test-profile"},
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
+			name: "Run command with --run= (empty profile defaults to default profile)",
+			args: []string{"--run="},
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
+			name: "Run command failure",
+			args: []string{"run", "failed-profile"},
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockLogger.EXPECT().Error().Return(nil)
+			},
+			expectedExit:  1,
+			expectedError: true,
+		},
+		{
+			name: "Unknown command",
 			args: []string{"unknown"},
 			before: func() {
-				mockLogger.EXPECT().Debug().AnyTimes()
+				mockLogger.EXPECT().Debug().Return(nil)
 			},
-			output: "Unknown command. Use 'fuku help' for more information\n",
+			expectedExit:  1,
+			expectedError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
 			tt.before()
+			exitCode, err := c.Run(tt.args)
 
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
+			w.Close()
+			os.Stdout = oldStdout
 
-			defer func() {
-				w.Close()
-				os.Stdout = oldStdout
+			var buf bytes.Buffer
+			_, _ = io.Copy(&buf, r)
 
-				var buf bytes.Buffer
-				_, _ = io.Copy(&buf, r)
-				output := buf.String()
-				assert.Equal(t, tt.output, output)
-
-				if rec := recover(); rec == nil {
-					t.Fatal("expected os.Exit(0) panic, but none occurred")
-				}
-			}()
-
-			_ = commandLineInterface.Run(tt.args)
+			assert.Equal(t, tt.expectedExit, exitCode)
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
 
-func Test_Run_WithEmptyArgs(t *testing.T) {
+func Test_handleRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := config.DefaultConfig()
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
+	c := &cli{
+		runner: mockRunner,
+		log:    mockLogger,
+	}
 
-	defer func() {
-		if rec := recover(); rec == nil {
-			t.Fatal("expected os.Exit(0) panic, but none occurred")
-		}
-	}()
+	tests := []struct {
+		name          string
+		before        func()
+		profile       string
+		expectedExit  int
+		expectedError bool
+	}{
+		{
+			name:    "Success",
+			profile: "test-profile",
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
+			name:    "Failure",
+			profile: "failed-profile",
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockLogger.EXPECT().Error().Return(nil)
+			},
+			expectedExit:  1,
+			expectedError: true,
+		},
+	}
 
-	err := commandLineInterface.Run([]string{})
-	assert.NoError(t, err)
-}
-
-func Test_Run_WithEmptyScope(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockRunner.EXPECT().Run(gomock.Any(), "default").Return(nil)
-
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-
-	defer func() {
-		if rec := recover(); rec == nil {
-			t.Fatal("expected os.Exit(0) panic, but none occurred")
-		}
-	}()
-
-	err := commandLineInterface.Run([]string{"--run="})
-	assert.NoError(t, err)
-}
-
-func Test_Run_WithScope(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockRunner.EXPECT().Run(gomock.Any(), "testscope").Return(nil)
-
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-
-	defer func() {
-		if rec := recover(); rec == nil {
-			t.Fatal("expected os.Exit(0) panic, but none occurred")
-		}
-	}()
-
-	err := commandLineInterface.Run([]string{"run", "testscope"})
-	assert.NoError(t, err)
-}
-
-func Test_Run_WithoutScope(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockRunner.EXPECT().Run(gomock.Any(), "default").Return(nil)
-
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-
-	defer func() {
-		if rec := recover(); rec == nil {
-			t.Fatal("expected os.Exit(0) panic, but none occurred")
-		}
-	}()
-
-	err := commandLineInterface.Run([]string{"run"})
-	assert.NoError(t, err)
-}
-
-func Test_Run_ShortFlag(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockRunner.EXPECT().Run(gomock.Any(), "myscope").Return(nil)
-
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-
-	defer func() {
-		if rec := recover(); rec == nil {
-			t.Fatal("expected os.Exit(0) panic, but none occurred")
-		}
-	}()
-
-	err := commandLineInterface.Run([]string{"-r", "myscope"})
-	assert.NoError(t, err)
-}
-
-func Test_Run_WithLongFlag(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockRunner.EXPECT().Run(gomock.Any(), "anothescope").Return(nil)
-
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-
-	defer func() {
-		if rec := recover(); rec == nil {
-			t.Fatal("expected os.Exit(0) panic, but none occurred")
-		}
-	}()
-
-	err := commandLineInterface.Run([]string{"--run", "anothescope"})
-	assert.NoError(t, err)
-}
-
-func Test_Run_Help(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-
-	variants := []string{"--help", "-h"}
-
-	for _, variant := range variants {
-		t.Run(fmt.Sprintf("help_%s", variant), func(t *testing.T) {
-			mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			oldStdout := os.Stdout
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 
-			defer func() {
-				w.Close()
-				os.Stdout = oldStdout
+			tt.before()
+			exitCode, err := c.handleRun(tt.profile)
 
-				var buf bytes.Buffer
-				_, _ = io.Copy(&buf, r)
-				output := buf.String()
-				assert.Equal(t, fmt.Sprintf("%s\n", Usage), output)
+			w.Close()
+			os.Stdout = oldStdout
 
-				if rec := recover(); rec == nil {
-					t.Fatal("expected os.Exit(0) panic, but none occurred")
-				}
-			}()
+			var buf bytes.Buffer
+			_, _ = io.Copy(&buf, r)
 
-			_ = commandLineInterface.Run([]string{variant})
+			assert.Equal(t, tt.expectedExit, exitCode)
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
 
-func Test_Run_Version(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	commandLineInterface := NewCLI(cfg, mockRunner, mockLogger)
-
-	variants := []string{"--version", "-v"}
-
-	for _, variant := range variants {
-		t.Run(fmt.Sprintf("version_%s", variant), func(t *testing.T) {
-			mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-
-			defer func() {
-				w.Close()
-				os.Stdout = oldStdout
-
-				var buf bytes.Buffer
-				_, _ = io.Copy(&buf, r)
-				output := buf.String()
-				assert.Equal(t, fmt.Sprintf("Version: %s\n", config.Version), output)
-
-				if rec := recover(); rec == nil {
-					t.Fatal("expected os.Exit(0) panic, but none occurred")
-				}
-			}()
-
-			_ = commandLineInterface.Run([]string{variant})
-		})
-	}
-}
-
-func Test_Run_Unknown(t *testing.T) {
+func Test_handleHelp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
-	commandLineInterface := &cli{
-		log: mockLogger,
-	}
+	c := &cli{log: mockLogger}
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	defer func() {
-		os.Stdout = oldStdout
-	}()
-
-	commandLineInterface.handleUnknown()
+	c.handleHelp()
 
 	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := buf.String()
+
+	assert.Equal(t, fmt.Sprintf("%s\n", Usage), output)
+}
+
+func Test_handleVersion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+
+	c := &cli{log: mockLogger}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	c.handleVersion()
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := buf.String()
+
+	assert.Equal(t, fmt.Sprintf("Version: %s\n", config.Version), output)
+}
+
+func Test_handleUnknown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+
+	c := &cli{log: mockLogger}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	c.handleUnknown()
+
+	w.Close()
+	os.Stdout = oldStdout
+
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()

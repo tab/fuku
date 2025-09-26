@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"fuku/internal/app/runner"
@@ -13,17 +12,20 @@ import (
 
 const (
 	Usage = `Usage:
-  fuku --run=<SCOPE>              Run the fuku with the specified scope
+  fuku --run=<PROFILE>            Run the fuku with the specified profile
   fuku help                       Show help
   fuku version                    Show version
 
 Examples:
-  fuku --run=SAMPLE_SCOPE       Run the fuku with SAMPLE_SCOPE`
+  fuku --run=default              Run all services
+  fuku --run=core                 Run core services
+  fuku --run=minimal              Run minimal services`
 )
 
 // CLI defines the interface for cli operations
 type CLI interface {
-	Run(args []string) error
+	// Run processes command-line arguments and returns an exit code and error
+	Run(args []string) (exitCode int, err error)
 }
 
 // cli represents the command-line interface for the application
@@ -47,65 +49,69 @@ func NewCLI(
 }
 
 // Run processes command-line arguments and executes commands
-func (c *cli) Run(args []string) error {
+func (c *cli) Run(args []string) (int, error) {
 	if len(args) == 0 {
-		os.Exit(0)
-		return nil
+		return c.handleRun(config.DefaultProfile)
 	}
 
 	cmd := args[0]
 
 	switch {
 	case cmd == "help" || cmd == "--help" || cmd == "-h":
-		c.handleHelp()
+		return c.handleHelp()
 	case cmd == "version" || cmd == "--version" || cmd == "-v":
-		c.handleVersion()
+		return c.handleVersion()
 	case cmd == "run" || cmd == "--run" || cmd == "-r":
-		scope := "default"
+		profile := config.DefaultProfile
 		if len(args) > 1 {
-			scope = args[1]
+			profile = args[1]
 		}
-		c.handleRun(scope)
+		return c.handleRun(profile)
 	case strings.HasPrefix(cmd, "--run="):
-		scope := strings.TrimPrefix(cmd, "--run=")
-		if scope == "" {
-			scope = "default"
+		profile := strings.TrimPrefix(cmd, "--run=")
+		if profile == "" {
+			profile = config.DefaultProfile
 		}
-		c.handleRun(scope)
+		return c.handleRun(profile)
 	default:
-		c.handleUnknown()
+		return c.handleUnknown()
 	}
-
-	os.Exit(0)
-	return nil
 }
 
-// handleRun executes the run command with the specified scope
-func (c *cli) handleRun(scope string) {
-	c.log.Debug().Msgf("Running with scope: %s", scope)
+// handleRun executes the run command with the specified profile
+func (c *cli) handleRun(profile string) (int, error) {
+	c.log.Debug().Msgf("Running with profile: %s", profile)
 
 	ctx := context.Background()
-	if err := c.runner.Run(ctx, scope); err != nil {
-		c.log.Error().Err(err).Msgf("Failed to run scope '%s'", scope)
+	if err := c.runner.Run(ctx, profile); err != nil {
+		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
 		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		return 1, err
 	}
+
+	return 0, nil
 }
 
 // handleHelp displays help information
-func (c *cli) handleHelp() {
+func (c *cli) handleHelp() (int, error) {
 	c.log.Debug().Msg("Displaying help information")
 	fmt.Println(Usage)
+
+	return 0, nil
 }
 
 // handleVersion displays version information
-func (c *cli) handleVersion() {
+func (c *cli) handleVersion() (int, error) {
 	c.log.Debug().Msg("Displaying version information")
 	fmt.Printf("Version: %s\n", config.Version)
+
+	return 0, nil
 }
 
 // handleUnknown handles unknown commands
-func (c *cli) handleUnknown() {
+func (c *cli) handleUnknown() (int, error) {
 	c.log.Debug().Msg("Unknown command")
 	fmt.Println("Unknown command. Use 'fuku help' for more information")
+
+	return 1, nil
 }

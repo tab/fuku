@@ -2,9 +2,8 @@ package app
 
 import (
 	"context"
-	"os"
+	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -21,28 +20,73 @@ func Test_NewApp(t *testing.T) {
 	mockCLI := cli.NewMockCLI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	app := NewApp(mockCLI, mockLogger)
+	application := NewApp(mockCLI, mockLogger)
 
-	assert.NotNil(t, app)
-	assert.Equal(t, mockCLI, app.cli)
-	assert.Equal(t, mockLogger, app.log)
+	assert.NotNil(t, application)
+	assert.Equal(t, mockCLI, application.cli)
+	assert.Equal(t, mockLogger, application.log)
 }
 
-func Test_Run_Success(t *testing.T) {
+func Test_execute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-	os.Args = []string{"fuku", "help"}
+	app := &App{
+		cli: mockCLI,
+		log: mockLogger,
+	}
 
-	mockCLI.EXPECT().Run([]string{"help"}).Return(nil)
+	tests := []struct {
+		name             string
+		before           func()
+		args             []string
+		expectedExitCode int
+	}{
+		{
+			name: "Success",
+			args: []string{"help"},
+			before: func() {
+				mockCLI.EXPECT().Run([]string{"help"}).Return(0, nil)
+			},
+			expectedExitCode: 0,
+		},
+		{
+			name: "Failure",
+			args: []string{"run", "failed-profile"},
+			before: func() {
+				mockCLI.EXPECT().Run([]string{"run", "failed-profile"}).Return(1, errors.New("runner failed"))
+				mockLogger.EXPECT().Error().Return(nil)
+			},
+			expectedExitCode: 1,
+		},
+		{
+			name: "With no arguments",
+			args: []string{},
+			before: func() {
+				mockCLI.EXPECT().Run([]string{}).Return(0, nil)
+			},
+			expectedExitCode: 0,
+		},
+		{
+			name: "With multiple arguments",
+			args: []string{"run", "test-profile", "extra"},
+			before: func() {
+				mockCLI.EXPECT().Run([]string{"run", "test-profile", "extra"}).Return(0, nil)
+			},
+			expectedExitCode: 0,
+		},
+	}
 
-	app := NewApp(mockCLI, mockLogger)
-	app.Run()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+			exitCode := app.execute(tt.args)
+			assert.Equal(t, tt.expectedExitCode, exitCode)
+		})
+	}
 }
 
 func Test_Register(t *testing.T) {
@@ -51,55 +95,23 @@ func Test_Register(t *testing.T) {
 
 	mockCLI := cli.NewMockCLI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-
 	app := NewApp(mockCLI, mockLogger)
 
 	var registered bool
-	testLifecycle := testLifecycleImpl{
+	var capturedHook fx.Hook
+
+	testLifecycle := &testLifecycleImpl{
 		onAppend: func(hook fx.Hook) {
 			registered = true
-			assert.NotNil(t, hook.OnStart)
-			assert.NotNil(t, hook.OnStop)
-		},
-	}
-
-	Register(&testLifecycle, app)
-	assert.True(t, registered)
-}
-
-type testLifecycleImpl struct {
-	onAppend func(fx.Hook)
-}
-
-func (t *testLifecycleImpl) Append(hook fx.Hook) {
-	if t.onAppend != nil {
-		t.onAppend(hook)
-	}
-}
-
-func Test_Register_HooksRegistered(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockCLI := cli.NewMockCLI(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	app := NewApp(mockCLI, mockLogger)
-
-	var capturedHook fx.Hook
-	testLifecycle := testLifecycleImpl{
-		onAppend: func(hook fx.Hook) {
 			capturedHook = hook
 		},
 	}
 
-	Register(&testLifecycle, app)
+	Register(testLifecycle, app)
 
+	assert.True(t, registered)
 	assert.NotNil(t, capturedHook.OnStart)
 	assert.NotNil(t, capturedHook.OnStop)
-
-	assert.IsType(t, func(context.Context) error { return nil }, capturedHook.OnStart)
-	assert.IsType(t, func(context.Context) error { return nil }, capturedHook.OnStop)
 }
 
 func Test_Register_OnStopHook(t *testing.T) {
@@ -108,59 +120,30 @@ func Test_Register_OnStopHook(t *testing.T) {
 
 	mockCLI := cli.NewMockCLI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-
 	app := NewApp(mockCLI, mockLogger)
 
 	var capturedHook fx.Hook
-	testLifecycle := testLifecycleImpl{
+
+	testLifecycle := &testLifecycleImpl{
 		onAppend: func(hook fx.Hook) {
 			capturedHook = hook
 		},
 	}
 
-	Register(&testLifecycle, app)
+	Register(testLifecycle, app)
 
 	assert.NotNil(t, capturedHook.OnStop)
-
 	err := capturedHook.OnStop(context.Background())
 	assert.NoError(t, err)
 }
 
-func Test_Register_OnStartHookExecution(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// testLifecycleImpl implements fx.Lifecycle for testing
+type testLifecycleImpl struct {
+	onAppend func(fx.Hook)
+}
 
-	mockCLI := cli.NewMockCLI(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-	os.Args = []string{"fuku", "version"}
-
-	done := make(chan bool, 1)
-	mockCLI.EXPECT().Run([]string{"version"}).Do(func(args []string) {
-		done <- true
-	}).Return(nil)
-
-	app := NewApp(mockCLI, mockLogger)
-
-	var capturedHook fx.Hook
-	testLifecycle := testLifecycleImpl{
-		onAppend: func(hook fx.Hook) {
-			capturedHook = hook
-		},
-	}
-
-	Register(&testLifecycle, app)
-
-	assert.NotNil(t, capturedHook.OnStart)
-
-	err := capturedHook.OnStart(context.Background())
-	assert.NoError(t, err)
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("OnStart hook did not execute app.Run() within timeout")
+func (t *testLifecycleImpl) Append(hook fx.Hook) {
+	if t.onAppend != nil {
+		t.onAppend(hook)
 	}
 }

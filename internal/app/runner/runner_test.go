@@ -127,14 +127,14 @@ func Test_ResolveServiceOrder(t *testing.T) {
 	}
 }
 
-func Test_Run_ScopeNotFound(t *testing.T) {
+func Test_Run_ProfileNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	cfg := &config.Config{
-		Scopes: map[string]*config.Scope{},
+		Profiles: map[string]interface{}{},
 	}
 
 	r := &runner{
@@ -147,7 +147,7 @@ func Test_Run_ScopeNotFound(t *testing.T) {
 
 	err := r.Run(ctx, "nonexistent")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "scope 'nonexistent' not found")
+	assert.Contains(t, err.Error(), "profile nonexistent not found")
 }
 
 func Test_Run_DependencyResolutionError(t *testing.T) {
@@ -157,8 +157,8 @@ func Test_Run_DependencyResolutionError(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	cfg := &config.Config{
-		Scopes: map[string]*config.Scope{
-			"test": {Include: []string{"service1"}},
+		Profiles: map[string]interface{}{
+			"test": []interface{}{"service1"},
 		},
 		Services: map[string]*config.Service{
 			"service1": {Dir: "service1", DependsOn: []string{"service2"}},
@@ -180,7 +180,7 @@ func Test_Run_DependencyResolutionError(t *testing.T) {
 	assert.Contains(t, err.Error(), "circular dependency detected")
 }
 
-func Test_Run_ServiceNotFoundInScope(t *testing.T) {
+func Test_Run_ServiceNotFoundInProfile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -188,8 +188,8 @@ func Test_Run_ServiceNotFoundInScope(t *testing.T) {
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
 	cfg := &config.Config{
-		Scopes: map[string]*config.Scope{
-			"test": {Include: []string{"nonexistent"}},
+		Profiles: map[string]interface{}{
+			"test": []interface{}{"nonexistent"},
 		},
 		Services: map[string]*config.Service{},
 	}
@@ -536,8 +536,8 @@ func Test_Run_SuccessfulExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &config.Config{
-		Scopes: map[string]*config.Scope{
-			"test": {Include: []string{"service1"}},
+		Profiles: map[string]interface{}{
+			"test": []interface{}{"service1"},
 		},
 		Services: map[string]*config.Service{
 			"service1": {Dir: tmpDir, DependsOn: []string{}},
@@ -568,8 +568,8 @@ func Test_Run_StartServiceFailure(t *testing.T) {
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
 	cfg := &config.Config{
-		Scopes: map[string]*config.Scope{
-			"test": {Include: []string{"service1"}},
+		Profiles: map[string]interface{}{
+			"test": []interface{}{"service1"},
 		},
 		Services: map[string]*config.Service{
 			"service1": {Dir: "/nonexistent/directory", DependsOn: []string{}},
@@ -630,4 +630,109 @@ func Test_StartService_GetWorkingDirectoryError(t *testing.T) {
 	assert.Nil(t, process)
 
 	os.Chmod(tempDir, 0755)
+}
+
+func Test_ResolveProfileServices(t *testing.T) {
+	tests := []struct {
+		name         string
+		services     map[string]*config.Service
+		profiles     map[string]interface{}
+		profileName  string
+		expected     []string
+		expectError  bool
+		errorMessage string
+	}{
+		{
+			name: "Wildcard profile includes all services",
+			services: map[string]*config.Service{
+				"api":      {Dir: "api"},
+				"frontend": {Dir: "frontend"},
+			},
+			profiles:    map[string]interface{}{"all": "*"},
+			profileName: "all",
+			expected:    []string{"api", "frontend"},
+		},
+		{
+			name: "Specific services in profile",
+			services: map[string]*config.Service{
+				"api":      {Dir: "api"},
+				"frontend": {Dir: "frontend"},
+			},
+			profiles:    map[string]interface{}{"dev": []interface{}{"api"}},
+			profileName: "dev",
+			expected:    []string{"api"},
+		},
+		{
+			name: "Profile not found",
+			services: map[string]*config.Service{
+				"api": {Dir: "api"},
+			},
+			profiles:     map[string]interface{}{},
+			profileName:  "nonexistent",
+			expectError:  true,
+			errorMessage: "profile nonexistent not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Services: tt.services,
+				Profiles: tt.profiles,
+			}
+
+			result, err := cfg.GetServicesForProfile(tt.profileName)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMessage)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func Test_Run_WithProfile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
+	tmpDir, err := os.MkdirTemp("", "fuku_test_")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	makefile := filepath.Join(tmpDir, "Makefile")
+	err = os.WriteFile(makefile, []byte("run:\n\techo \"service started\"\n"), 0644)
+	require.NoError(t, err)
+
+	cfg := &config.Config{
+		Profiles: map[string]interface{}{
+			"test": []interface{}{"service1"},
+		},
+		Services: map[string]*config.Service{
+			"service1": {Dir: tmpDir, DependsOn: []string{}},
+		},
+	}
+
+	r := &runner{
+		cfg: cfg,
+		log: mockLogger,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		cancel()
+	}()
+
+	err = r.Run(ctx, "test")
+	assert.NoError(t, err)
 }

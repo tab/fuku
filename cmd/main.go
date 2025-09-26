@@ -23,8 +23,8 @@ func runApp() {
 		os.Exit(1)
 	}
 
-	app := createApp(cfg)
-	app.Run()
+	application := createApp(cfg)
+	application.Run()
 }
 
 // loadConfig wraps config.Load for easier testing

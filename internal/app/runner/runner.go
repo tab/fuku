@@ -17,8 +17,10 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// Runner defines the interface for service orchestration and execution
 type Runner interface {
-	Run(ctx context.Context, scope string) error
+	// Run executes the specified profile by starting all services in dependency order
+	Run(ctx context.Context, profile string) error
 }
 
 type runner struct {
@@ -32,6 +34,7 @@ type serviceProcess struct {
 	done chan struct{}
 }
 
+// NewRunner creates a new runner instance with the provided configuration and logger
 func NewRunner(cfg *config.Config, log logger.Logger) Runner {
 	return &runner{
 		cfg: cfg,
@@ -39,18 +42,19 @@ func NewRunner(cfg *config.Config, log logger.Logger) Runner {
 	}
 }
 
-func (r *runner) Run(ctx context.Context, scope string) error {
-	scopeConfig, exists := r.cfg.Scopes[scope]
-	if !exists {
-		return fmt.Errorf("scope '%s' not found in configuration", scope)
+// Run executes the specified profile by starting all services in dependency order
+func (r *runner) Run(ctx context.Context, profile string) error {
+	serviceNames, err := r.cfg.GetServicesForProfile(profile)
+	if err != nil {
+		return fmt.Errorf("failed to resolve profile services: %w", err)
 	}
 
-	services, err := r.resolveServiceOrder(scopeConfig.Include)
+	services, err := r.resolveServiceOrder(serviceNames)
 	if err != nil {
 		return fmt.Errorf("failed to resolve service dependencies: %w", err)
 	}
 
-	r.log.Info().Msgf("Starting services in scope '%s': %v", scope, services)
+	r.log.Info().Msgf("Starting services in profile '%s': %v", profile, services)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

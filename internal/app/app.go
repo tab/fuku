@@ -27,10 +27,17 @@ func NewApp(cli cli.CLI, log logger.Logger) *App {
 // Run executes the application with command line arguments
 func (a *App) Run() {
 	args := os.Args[1:]
-	if err := a.cli.Run(args); err != nil {
+	exitCode := a.execute(args)
+	os.Exit(exitCode)
+}
+
+// execute runs the CLI with given args and handles errors - extracted for testing
+func (a *App) execute(args []string) int {
+	exitCode, err := a.cli.Run(args)
+	if err != nil {
 		a.log.Error().Err(err).Msg("Application error")
-		os.Exit(1)
 	}
+	return exitCode
 }
 
 // Register registers the application's lifecycle hooks with fx

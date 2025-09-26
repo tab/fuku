@@ -92,18 +92,22 @@ func NewLogger(cfg *config.Config) Logger {
 	return &AppLogger{log: logger}
 }
 
+// Debug returns a debug level Event for logging debug messages
 func (l *AppLogger) Debug() *zerolog.Event {
 	return l.log.Debug()
 }
 
+// Info returns an info level Event for logging informational messages
 func (l *AppLogger) Info() *zerolog.Event {
 	return l.log.Info()
 }
 
+// Warn returns a warn level Event for logging warning messages
 func (l *AppLogger) Warn() *zerolog.Event {
 	return l.log.Warn()
 }
 
+// Error returns an error level Event for logging error messages
 func (l *AppLogger) Error() *zerolog.Event {
 	return l.log.Error()
 }

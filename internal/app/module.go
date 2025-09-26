@@ -8,6 +8,7 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// Module provides the fx dependency injection options for the app package
 var Module = fx.Options(
 	cli.Module,
 	runner.Module,
