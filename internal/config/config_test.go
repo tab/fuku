@@ -84,7 +84,7 @@ services: "this should be a map not a string"
 					t.Fatal(err)
 				}
 				return func() {
-					os.Chmod("fuku.yaml", 0644)
+					_ = os.Chmod("fuku.yaml", 0644)
 					os.Remove("fuku.yaml")
 				}
 			},

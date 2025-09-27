@@ -242,7 +242,7 @@ func Test_handleHelp(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	c.handleHelp()
+	_, _ = c.handleHelp()
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -267,7 +267,7 @@ func Test_handleVersion(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	c.handleVersion()
+	_, _ = c.handleVersion()
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -292,7 +292,7 @@ func Test_handleUnknown(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	c.handleUnknown()
+	_, _ = c.handleUnknown()
 
 	w.Close()
 	os.Stdout = oldStdout

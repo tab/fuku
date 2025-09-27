@@ -18,6 +18,9 @@
 # Binaries
 cmd/fuku
 
+# Claude
+.claude/
+
 # Dependency directories (remove the comment below to include it)
 vendor/
 
