@@ -61,6 +61,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 
 	processes := make([]*serviceProcess, 0, len(services))
 	var wg sync.WaitGroup

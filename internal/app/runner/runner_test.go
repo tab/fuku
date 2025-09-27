@@ -231,7 +231,7 @@ func Test_StartService_RelativePath(t *testing.T) {
 
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	err = os.Chdir(tmpDir)
 	require.NoError(t, err)
@@ -511,7 +511,7 @@ func Test_StopAllProcesses_SignalError(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	if process.cmd.Process != nil {
-		process.cmd.Process.Kill()
+		_ = process.cmd.Process.Kill()
 	}
 
 	processes := []*serviceProcess{process}
@@ -609,7 +609,7 @@ func Test_StartService_GetWorkingDirectoryError(t *testing.T) {
 
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	tempDir, err := os.MkdirTemp("", "fuku_test_")
 	require.NoError(t, err)
@@ -620,7 +620,7 @@ func Test_StartService_GetWorkingDirectoryError(t *testing.T) {
 
 	err = os.Chmod(tempDir, 0000)
 	require.NoError(t, err)
-	defer os.Chmod(tempDir, 0755)
+	defer func() { _ = os.Chmod(tempDir, 0755) }()
 
 	ctx := context.Background()
 	process, err := r.startService(ctx, "test", service)
@@ -629,7 +629,7 @@ func Test_StartService_GetWorkingDirectoryError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to get working directory")
 	assert.Nil(t, process)
 
-	os.Chmod(tempDir, 0755)
+	_ = os.Chmod(tempDir, 0755)
 }
 
 func Test_ResolveProfileServices(t *testing.T) {
