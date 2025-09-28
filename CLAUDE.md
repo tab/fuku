@@ -367,8 +367,12 @@ git branch -D feature-branch-name
 - run `go generate` for mock generation
 
 ## Logging Guidelines
-- use structured logging with zerolog
-- never use fmt.Printf for logging, only log methods
+- use structured logging with zerolog for application logging
+- distinguish between application logging and user output:
+  - **Application logging**: use logger methods (Debug(), Info(), Warn(), Error()) for internal application events
+  - **User-facing output**: use fmt.Print* for CLI command responses (help, version, error messages)
+  - **Service log streaming**: use fmt.Printf for proxying/forwarding logs from child processes
+- never use fmt.Printf for internal application logging events
 
 ## Configuration Format
 

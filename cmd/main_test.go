@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx/fxevent"
 
+	"fuku/internal/app"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -78,8 +79,9 @@ func Test_CreateApp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := createApp(tt.config)
-			assert.NotNil(t, app)
+			var appInstance *app.App
+			fxApp := createApp(tt.config, &appInstance)
+			assert.NotNil(t, fxApp)
 		})
 	}
 }

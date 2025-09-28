@@ -54,7 +54,7 @@ logging:
 				if err != nil {
 					t.Fatal(err)
 				}
-				return func() { os.Remove("fuku.yaml") }
+				return func() { _ = os.Remove("fuku.yaml") }
 			},
 			error: nil,
 		},
@@ -68,7 +68,7 @@ services: "this should be a map not a string"
 				if err != nil {
 					t.Fatal(err)
 				}
-				return func() { os.Remove("fuku.yaml") }
+				return func() { _ = os.Remove("fuku.yaml") }
 			},
 			error: errors.ErrFailedToParseConfig,
 		},
@@ -85,7 +85,7 @@ services: "this should be a map not a string"
 				}
 				return func() {
 					_ = os.Chmod("fuku.yaml", 0644)
-					os.Remove("fuku.yaml")
+					_ = os.Remove("fuku.yaml")
 				}
 			},
 			error: errors.ErrFailedToReadConfig,

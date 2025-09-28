@@ -13,6 +13,24 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// mockLifecycle implements fx.Lifecycle for testing
+type mockLifecycle struct {
+	onAppend func(fx.Hook)
+}
+
+func (m *mockLifecycle) Append(hook fx.Hook) {
+	if m.onAppend != nil {
+		m.onAppend(hook)
+	}
+}
+
+// mockShutdowner implements fx.Shutdowner for testing
+type mockShutdowner struct{}
+
+func (m *mockShutdowner) Shutdown(...fx.ShutdownOption) error {
+	return nil
+}
+
 func Test_NewApp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,7 +38,7 @@ func Test_NewApp(t *testing.T) {
 	mockCLI := cli.NewMockCLI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	application := NewApp(mockCLI, mockLogger)
+	application := NewApp(mockCLI, mockLogger, &mockShutdowner{})
 
 	assert.NotNil(t, application)
 	assert.Equal(t, mockCLI, application.cli)
@@ -58,7 +76,7 @@ func Test_execute(t *testing.T) {
 			args: []string{"run", "failed-profile"},
 			before: func() {
 				mockCLI.EXPECT().Run([]string{"run", "failed-profile"}).Return(1, errors.New("runner failed"))
-				mockLogger.EXPECT().Error().Return(nil)
+				mockLogger.EXPECT().Error().Return(&logger.NoopEvent{})
 			},
 			expectedExitCode: 1,
 		},
@@ -95,12 +113,12 @@ func Test_Register(t *testing.T) {
 
 	mockCLI := cli.NewMockCLI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-	app := NewApp(mockCLI, mockLogger)
+	app := NewApp(mockCLI, mockLogger, &mockShutdowner{})
 
 	var registered bool
 	var capturedHook fx.Hook
 
-	testLifecycle := &testLifecycleImpl{
+	testLifecycle := &mockLifecycle{
 		onAppend: func(hook fx.Hook) {
 			registered = true
 			capturedHook = hook
@@ -120,11 +138,11 @@ func Test_Register_OnStopHook(t *testing.T) {
 
 	mockCLI := cli.NewMockCLI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-	app := NewApp(mockCLI, mockLogger)
+	app := NewApp(mockCLI, mockLogger, &mockShutdowner{})
 
 	var capturedHook fx.Hook
 
-	testLifecycle := &testLifecycleImpl{
+	testLifecycle := &mockLifecycle{
 		onAppend: func(hook fx.Hook) {
 			capturedHook = hook
 		},
@@ -137,13 +155,58 @@ func Test_Register_OnStopHook(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// testLifecycleImpl implements fx.Lifecycle for testing
-type testLifecycleImpl struct {
-	onAppend func(fx.Hook)
+func Test_App_Run(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCLI := cli.NewMockCLI(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockShutdowner := &mockShutdowner{}
+
+	app := NewApp(mockCLI, mockLogger, mockShutdowner)
+
+	t.Run("Success case", func(t *testing.T) {
+		mockCLI.EXPECT().Run(gomock.Any()).Return(0, nil)
+
+		exitCode := app.execute([]string{"help"})
+		assert.Equal(t, 0, exitCode)
+	})
+
+	t.Run("Error case", func(t *testing.T) {
+		mockEvent := logger.NewMockEvent(ctrl)
+		mockEvent.EXPECT().Msg("Application error")
+		mockEvent.EXPECT().Err(gomock.Any()).Return(mockEvent)
+		mockLogger.EXPECT().Error().Return(mockEvent)
+
+		testErr := errors.New("test error")
+		mockCLI.EXPECT().Run(gomock.Any()).Return(1, testErr)
+
+		exitCode := app.execute([]string{"invalid"})
+		assert.Equal(t, 1, exitCode)
+	})
 }
 
-func (t *testLifecycleImpl) Append(hook fx.Hook) {
-	if t.onAppend != nil {
-		t.onAppend(hook)
-	}
+func Test_App_ExitCode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCLI := cli.NewMockCLI(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockShutdowner := &mockShutdowner{}
+
+	app := NewApp(mockCLI, mockLogger, mockShutdowner)
+
+	t.Run("Default exit code", func(t *testing.T) {
+		assert.Equal(t, 0, app.ExitCode())
+	})
+
+	t.Run("Exit code after execution", func(t *testing.T) {
+		mockCLI.EXPECT().Run(gomock.Any()).Return(42, nil)
+		mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{}).AnyTimes()
+
+		exitCode := app.execute([]string{"test"})
+		app.exitCode = exitCode
+
+		assert.Equal(t, 42, app.ExitCode())
+	})
 }

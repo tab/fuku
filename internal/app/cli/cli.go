@@ -1,8 +1,11 @@
+//go:generate mockgen -source=cli.go -destination=cli_mock.go -package=cli
+
 package cli
 
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"fuku/internal/app/runner"
@@ -85,7 +88,7 @@ func (c *cli) handleRun(profile string) (int, error) {
 	ctx := context.Background()
 	if err := c.runner.Run(ctx, profile); err != nil {
 		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
-		fmt.Printf("Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1, err
 	}
 
