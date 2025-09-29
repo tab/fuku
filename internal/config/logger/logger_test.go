@@ -1,7 +1,9 @@
 package logger
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -368,4 +370,67 @@ func Test_NewLogger_AllLevels(t *testing.T) {
 			assert.NotNil(t, appLogger.log)
 		})
 	}
+}
+
+func Test_zerologEvent(t *testing.T) {
+	cfg := config.DefaultConfig()
+	logger := NewLogger(cfg)
+
+	t.Run("Event chaining", func(t *testing.T) {
+		event := logger.Debug()
+
+		result := event.Str("key", "value")
+		assert.NotNil(t, result)
+
+		result = event.Int("count", 42)
+		assert.NotNil(t, result)
+
+		result = event.Dur("duration", time.Second)
+		assert.NotNil(t, result)
+
+		result = event.Err(errors.New("test error"))
+		assert.NotNil(t, result)
+
+		event.Msg("test message")
+		event.Msgf("test %s", "formatted")
+	})
+
+	t.Run("All log levels", func(t *testing.T) {
+		debug := logger.Debug()
+		assert.NotNil(t, debug)
+		debug.Msg("debug test")
+
+		info := logger.Info()
+		assert.NotNil(t, info)
+		info.Msg("info test")
+
+		warn := logger.Warn()
+		assert.NotNil(t, warn)
+		warn.Msg("warn test")
+
+		err := logger.Error()
+		assert.NotNil(t, err)
+		err.Msg("error test")
+	})
+}
+
+func Test_NoopEvent(t *testing.T) {
+	event := &NoopEvent{}
+
+	t.Run("All methods return self or do nothing", func(t *testing.T) {
+		result := event.Str("key", "value")
+		assert.Equal(t, event, result)
+
+		result = event.Int("count", 42)
+		assert.Equal(t, event, result)
+
+		result = event.Dur("duration", time.Second)
+		assert.Equal(t, event, result)
+
+		result = event.Err(errors.New("test error"))
+		assert.Equal(t, event, result)
+
+		event.Msg("test message")
+		event.Msgf("test %s", "formatted")
+	})
 }

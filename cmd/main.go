@@ -23,8 +23,19 @@ func runApp() {
 		os.Exit(1)
 	}
 
-	application := createApp(cfg)
+	var appInstance *app.App
+	application := createApp(cfg, &appInstance)
 	application.Run()
+
+	exitCode := 0
+	if appInstance != nil {
+		err := appInstance.Wait()
+		if err != nil {
+			exitCode = 1
+		}
+	}
+
+	os.Exit(exitCode)
 }
 
 // loadConfig wraps config.Load for easier testing
@@ -33,11 +44,12 @@ func loadConfig() (*config.Config, error) {
 }
 
 // createApp creates the FX application with the given config
-func createApp(cfg *config.Config) *fx.App {
+func createApp(cfg *config.Config, appInstance **app.App) *fx.App {
 	return fx.New(
 		fx.WithLogger(createFxLogger(cfg)),
 		fx.Supply(cfg),
 		app.Module,
+		fx.Populate(appInstance),
 	)
 }
 

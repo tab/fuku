@@ -294,6 +294,33 @@ go fmt ./... && make lint && make vet && make test
 - interfaces should be defined on the consumer side (idiomatic Go)
 - aim to pass interfaces but return concrete types when possible
 - consider nested functions when they simplify complex functions
+- always place `ctx context.Context` as the first field/parameter in struct/method definitions for consistency
+- always place `cfg *config.Config` as the second field/parameter in struct/method definitions for consistency (when `ctx` is present) or first (when `ctx` is absent)
+- always place `log logger.Logger` as the last field/parameter in struct/method definitions for consistency
+
+### Interface Implementation Naming
+- when implementing an interface, use lowercase package-style naming for the concrete type
+- avoid "Impl" suffix for implementation types
+- example:
+  ```go
+  // Tracker defines the interface for managing service results
+  type Tracker interface {
+      Add(name string) Result
+  }
+
+  // tracker manages and displays service results (lowercase, private)
+  type tracker struct {
+      results map[string]Result
+      mu      sync.RWMutex
+  }
+
+  // NewTracker creates a new results tracker
+  func NewTracker() Tracker {
+      return &tracker{
+          results: make(map[string]Result),
+      }
+  }
+  ```
 
 ### Code Layout
 - keep cyclomatic complexity under 30
@@ -367,8 +394,12 @@ git branch -D feature-branch-name
 - run `go generate` for mock generation
 
 ## Logging Guidelines
-- use structured logging with zerolog
-- never use fmt.Printf for logging, only log methods
+- use structured logging with zerolog for application logging
+- distinguish between application logging and user output:
+  - **Application logging**: use logger methods (Debug(), Info(), Warn(), Error()) for internal application events
+  - **User-facing output**: use fmt.Print* for CLI command responses (help, version, error messages)
+  - **Service log streaming**: use fmt.Printf for proxying/forwarding logs from child processes
+- never use fmt.Printf for internal application logging events
 
 ## Configuration Format
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -48,92 +47,84 @@ func Test_Run(t *testing.T) {
 		cfg:    cfg,
 		runner: mockRunner,
 		log:    mockLogger,
+		phases: NewPhaseTracker(),
 	}
 
 	tests := []struct {
 		name          string
 		before        func()
 		args          []string
-		expectedExit  int
 		expectedError bool
 	}{
 		{
 			name: "No arguments - default profile",
 			args: []string{},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
 			},
-			expectedExit:  0,
 			expectedError: false,
 		},
 		{
 			name: "Help command",
 			args: []string{"help"},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 			},
-			expectedExit:  0,
 			expectedError: false,
 		},
 		{
 			name: "Version command",
 			args: []string{"version"},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 			},
-			expectedExit:  0,
 			expectedError: false,
 		},
 		{
 			name: "Run command with profile",
 			args: []string{"run", "test-profile"},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
 			},
-			expectedExit:  0,
 			expectedError: false,
 		},
 		{
 			name: "Run command with --run=profile",
 			args: []string{"--run=test-profile"},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
 			},
-			expectedExit:  0,
 			expectedError: false,
 		},
 		{
 			name: "Run command with --run= (empty profile defaults to default profile)",
 			args: []string{"--run="},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
 			},
-			expectedExit:  0,
 			expectedError: false,
 		},
 		{
 			name: "Run command failure",
 			args: []string{"run", "failed-profile"},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
-				mockLogger.EXPECT().Error().Return(nil)
+				mockLogger.EXPECT().Error().Return(&logger.NoopEvent{})
 			},
-			expectedExit:  1,
 			expectedError: true,
 		},
 		{
 			name: "Unknown command",
 			args: []string{"unknown"},
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 			},
-			expectedExit:  1,
-			expectedError: false,
+			expectedError: true,
 		},
 	}
 
@@ -144,15 +135,14 @@ func Test_Run(t *testing.T) {
 			os.Stdout = w
 
 			tt.before()
-			exitCode, err := c.Run(tt.args)
+			err := c.Run(tt.args)
 
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
 			_, _ = io.Copy(&buf, r)
 
-			assert.Equal(t, tt.expectedExit, exitCode)
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -172,34 +162,32 @@ func Test_handleRun(t *testing.T) {
 	c := &cli{
 		runner: mockRunner,
 		log:    mockLogger,
+		phases: NewPhaseTracker(),
 	}
 
 	tests := []struct {
 		name          string
 		before        func()
 		profile       string
-		expectedExit  int
 		expectedError bool
 	}{
 		{
 			name:    "Success",
 			profile: "test-profile",
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
 			},
-			expectedExit:  0,
 			expectedError: false,
 		},
 		{
 			name:    "Failure",
 			profile: "failed-profile",
 			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
+				mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{})
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
-				mockLogger.EXPECT().Error().Return(nil)
+				mockLogger.EXPECT().Error().Return(&logger.NoopEvent{})
 			},
-			expectedExit:  1,
 			expectedError: true,
 		},
 	}
@@ -211,15 +199,14 @@ func Test_handleRun(t *testing.T) {
 			os.Stdout = w
 
 			tt.before()
-			exitCode, err := c.handleRun(tt.profile)
+			err := c.handleRun(tt.profile)
 
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
 			_, _ = io.Copy(&buf, r)
 
-			assert.Equal(t, tt.expectedExit, exitCode)
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -234,7 +221,7 @@ func Test_handleHelp(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{}).AnyTimes()
 
 	c := &cli{log: mockLogger}
 
@@ -242,16 +229,45 @@ func Test_handleHelp(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	_, _ = c.handleHelp()
+	_ = c.handleHelp()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Equal(t, fmt.Sprintf("%s\n", Usage), output)
+	// Since we now have colorized help output, just verify key elements are present
+	assert.Contains(t, output, "fuku")
+	assert.Contains(t, output, "USAGE")
+	assert.Contains(t, output, "COMMANDS")
+	assert.Contains(t, output, "help")
+	assert.Contains(t, output, "version")
+	assert.Contains(t, output, "run")
+	assert.Contains(t, output, "ui")
+}
+
+func Test_handleHelp_DebugLog(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	cfg := config.DefaultConfig()
+
+	mockEvent := &logger.NoopEvent{}
+	mockLogger.EXPECT().Debug().Return(mockEvent)
+
+	c := &cli{
+		cfg:    cfg,
+		runner: mockRunner,
+		log:    mockLogger,
+		phases: NewPhaseTracker(),
+	}
+
+	err := c.handleHelp()
+	assert.NoError(t, err)
 }
 
 func Test_handleVersion(t *testing.T) {
@@ -259,7 +275,7 @@ func Test_handleVersion(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{}).AnyTimes()
 
 	c := &cli{log: mockLogger}
 
@@ -267,16 +283,41 @@ func Test_handleVersion(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	_, _ = c.handleVersion()
+	_ = c.handleVersion()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Equal(t, fmt.Sprintf("Version: %s\n", config.Version), output)
+	// Since we now have colorized version output, just verify key elements are present
+	assert.Contains(t, output, "fuku")
+	assert.Contains(t, output, config.Version)
+	assert.Contains(t, output, "lightweight CLI orchestrator")
+}
+
+func Test_handleVersion_DebugLog(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	cfg := config.DefaultConfig()
+
+	mockEvent := &logger.NoopEvent{}
+	mockLogger.EXPECT().Debug().Return(mockEvent)
+
+	c := &cli{
+		cfg:    cfg,
+		runner: mockRunner,
+		log:    mockLogger,
+		phases: NewPhaseTracker(),
+	}
+
+	err := c.handleVersion()
+	assert.NoError(t, err)
 }
 
 func Test_handleUnknown(t *testing.T) {
@@ -284,7 +325,7 @@ func Test_handleUnknown(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(&logger.NoopEvent{}).AnyTimes()
 
 	c := &cli{log: mockLogger}
 
@@ -292,14 +333,39 @@ func Test_handleUnknown(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	_, _ = c.handleUnknown()
+	_ = c.handleUnknown()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Equal(t, "Unknown command. Use 'fuku help' for more information\n", output)
+	// Since we now have colorized error output, just verify key elements are present
+	assert.Contains(t, output, "Error:")
+	assert.Contains(t, output, "Unknown command")
+	assert.Contains(t, output, "fuku help")
+}
+
+func Test_handleUnknown_DebugLog(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	cfg := config.DefaultConfig()
+
+	mockEvent := &logger.NoopEvent{}
+	mockLogger.EXPECT().Debug().Return(mockEvent)
+
+	c := &cli{
+		cfg:    cfg,
+		runner: mockRunner,
+		log:    mockLogger,
+		phases: NewPhaseTracker(),
+	}
+
+	err := c.handleUnknown()
+	assert.Error(t, err)
 }

@@ -1,3 +1,4 @@
+//go:generate mockgen -source=logger.go -destination=logger_mock.go -package=logger
 package logger
 
 import (
@@ -28,10 +29,10 @@ const (
 
 // Logger interface for application logging
 type Logger interface {
-	Debug() *zerolog.Event
-	Info() *zerolog.Event
-	Warn() *zerolog.Event
-	Error() *zerolog.Event
+	Debug() Event
+	Info() Event
+	Warn() Event
+	Error() Event
 }
 
 type Event interface {
@@ -42,6 +43,45 @@ type Event interface {
 	Dur(key string, value time.Duration) Event
 	Err(err error) Event
 }
+
+// zerologEvent wraps zerolog.Event to implement our Event interface
+type zerologEvent struct {
+	event *zerolog.Event
+}
+
+func (e *zerologEvent) Msg(msg string) {
+	e.event.Msg(msg)
+}
+
+func (e *zerologEvent) Msgf(format string, v ...interface{}) {
+	e.event.Msgf(format, v...)
+}
+
+func (e *zerologEvent) Str(key, value string) Event {
+	return &zerologEvent{event: e.event.Str(key, value)}
+}
+
+func (e *zerologEvent) Int(key string, value int) Event {
+	return &zerologEvent{event: e.event.Int(key, value)}
+}
+
+func (e *zerologEvent) Dur(key string, value time.Duration) Event {
+	return &zerologEvent{event: e.event.Dur(key, value)}
+}
+
+func (e *zerologEvent) Err(err error) Event {
+	return &zerologEvent{event: e.event.Err(err)}
+}
+
+// NoopEvent is a simple no-op implementation
+type NoopEvent struct{}
+
+func (n *NoopEvent) Msg(msg string)                            {}
+func (n *NoopEvent) Msgf(format string, v ...interface{})      {}
+func (n *NoopEvent) Str(key, value string) Event               { return n }
+func (n *NoopEvent) Int(key string, value int) Event           { return n }
+func (n *NoopEvent) Dur(key string, value time.Duration) Event { return n }
+func (n *NoopEvent) Err(err error) Event                       { return n }
 
 // AppLogger represents a logger implementation using zerolog
 type AppLogger struct {
@@ -93,23 +133,23 @@ func NewLogger(cfg *config.Config) Logger {
 }
 
 // Debug returns a debug level Event for logging debug messages
-func (l *AppLogger) Debug() *zerolog.Event {
-	return l.log.Debug()
+func (l *AppLogger) Debug() Event {
+	return &zerologEvent{event: l.log.Debug()}
 }
 
 // Info returns an info level Event for logging informational messages
-func (l *AppLogger) Info() *zerolog.Event {
-	return l.log.Info()
+func (l *AppLogger) Info() Event {
+	return &zerologEvent{event: l.log.Info()}
 }
 
 // Warn returns a warn level Event for logging warning messages
-func (l *AppLogger) Warn() *zerolog.Event {
-	return l.log.Warn()
+func (l *AppLogger) Warn() Event {
+	return &zerologEvent{event: l.log.Warn()}
 }
 
 // Error returns an error level Event for logging error messages
-func (l *AppLogger) Error() *zerolog.Event {
-	return l.log.Error()
+func (l *AppLogger) Error() Event {
+	return &zerologEvent{event: l.log.Error()}
 }
 
 // getLogLevel converts string level to zerolog.Level

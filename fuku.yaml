@@ -23,5 +23,5 @@ profiles:
   minimal: [api]
 
 logging:
-  level: debug
   format: console
+  level: info
