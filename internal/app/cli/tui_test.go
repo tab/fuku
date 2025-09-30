@@ -5,10 +5,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
+
+	"fuku/internal/config"
+	"fuku/internal/config/logger"
 )
 
 func Test_NewTUI(t *testing.T) {
-	tuiInstance := NewTUI()
+	cfg := &config.Config{}
+	log := logger.NewLogger(&config.Config{})
+	tuiInstance := NewTUI(cfg, log)
 	assert.NotNil(t, tuiInstance)
 	assert.Implements(t, (*TUI)(nil), tuiInstance)
 }

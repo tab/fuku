@@ -58,6 +58,10 @@ var (
 	appNameStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
 	appVersionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#BDBDBD"))
 	titleWrapper    = lipgloss.NewStyle().MarginTop(1).MarginBottom(1)
+
+	// Log styles
+	logTimestampStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+	logServiceNameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#2D5016")).Bold(true)
 )
 
 // RenderTitle renders the app title block with name, version, and description

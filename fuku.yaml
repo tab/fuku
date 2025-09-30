@@ -4,13 +4,29 @@ services:
   api:
     dir: examples/bookstore/api
     profiles: [core]
+    readiness:
+      type: log
+      pattern: "ready and listening"
+      timeout: 10s
   frontend-api:
     dir: examples/bookstore/frontend-api
     profiles: [core]
+    readiness:
+      type: log
+      pattern: "ready and listening"
+      timeout: 10s
   user:
     dir: examples/bookstore/user
+    readiness:
+      type: log
+      pattern: "ready and listening"
+      timeout: 10s
   storage:
     dir: examples/bookstore/storage
+    readiness:
+      type: log
+      pattern: "ready and listening"
+      timeout: 10s
 
 defaults:
   depends_on: [api]
@@ -23,5 +39,5 @@ profiles:
   minimal: [api]
 
 logging:
-  level: debug
+  level: info
   format: console

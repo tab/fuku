@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"os"
@@ -66,7 +65,7 @@ func Test_Run(t *testing.T) {
 			args: []string{},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
+				mockTUI.EXPECT().Run(gomock.Any(), config.DefaultProfile).Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -76,7 +75,7 @@ func Test_Run(t *testing.T) {
 			args: []string{"run", "test-profile"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+				mockTUI.EXPECT().Run(gomock.Any(), "test-profile").Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -86,7 +85,7 @@ func Test_Run(t *testing.T) {
 			args: []string{"--run=test-profile"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+				mockTUI.EXPECT().Run(gomock.Any(), "test-profile").Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -96,7 +95,7 @@ func Test_Run(t *testing.T) {
 			args: []string{"--run="},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
+				mockTUI.EXPECT().Run(gomock.Any(), config.DefaultProfile).Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -106,7 +105,7 @@ func Test_Run(t *testing.T) {
 			args: []string{"run", "failed-profile"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockTUI.EXPECT().Run(gomock.Any(), "failed-profile").Return(errors.New("runner failed"))
 				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedExit:  1,
@@ -174,7 +173,7 @@ func Test_handleRun(t *testing.T) {
 			profile: "test-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+				mockTUI.EXPECT().Run(gomock.Any(), "test-profile").Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -184,7 +183,7 @@ func Test_handleRun(t *testing.T) {
 			profile: "failed-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockTUI.EXPECT().Run(gomock.Any(), "failed-profile").Return(errors.New("runner failed"))
 				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedExit:  1,

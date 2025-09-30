@@ -73,9 +73,8 @@ func (c *cli) handleRun(profile string) (int, error) {
 	c.log.Debug().Msgf("Running with profile: %s", profile)
 
 	ctx := context.Background()
-	if err := c.runner.Run(ctx, profile); err != nil {
+	if err := c.tui.Run(ctx, profile); err != nil {
 		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
-		fmt.Printf("Error: %v\n", err)
 		return 1, err
 	}
 

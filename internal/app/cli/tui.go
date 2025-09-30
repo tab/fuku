@@ -1,6 +1,13 @@
 package cli
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"context"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"fuku/internal/config"
+	"fuku/internal/config/logger"
+)
 
 type viewType int
 
@@ -10,12 +17,19 @@ const (
 
 type TUI interface {
 	Help() error
+	Run(ctx context.Context, profile string) error
 }
 
-type tui struct{}
+type tui struct {
+	cfg *config.Config
+	log logger.Logger
+}
 
-func NewTUI() TUI {
-	return &tui{}
+func NewTUI(cfg *config.Config, log logger.Logger) TUI {
+	return &tui{
+		cfg: cfg,
+		log: log,
+	}
 }
 
 type rootModel struct {
@@ -71,6 +85,21 @@ func (t *tui) Help() error {
 		newRootModel(helpView),
 		tea.WithAltScreen(),
 	)
+
 	_, err := p.Run()
+
+	return err
+}
+
+func (t *tui) Run(ctx context.Context, profile string) error {
+	silentLog := logger.NewSilentLogger(t.cfg)
+
+	p := tea.NewProgram(
+		newRunModel(ctx, t.cfg, silentLog, profile),
+		tea.WithAltScreen(),
+	)
+
+	_, err := p.Run()
+
 	return err
 }
