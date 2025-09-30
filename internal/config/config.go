@@ -14,6 +14,9 @@ const (
 	DefaultLogLevel  = "info"
 	DefaultLogFormat = "console"
 
+	AppName        = "Fuku"
+	AppDescription = "Lightweight CLI orchestrator for managing local services"
+
 	Version = "0.2.0"
 )
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -24,8 +23,9 @@ func Test_NewCLI(t *testing.T) {
 	cfg := config.DefaultConfig()
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockTUI := NewMockTUI(ctrl)
 
-	cliInstance := NewCLI(cfg, mockRunner, mockLogger)
+	cliInstance := NewCLI(cfg, mockRunner, mockTUI, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -33,6 +33,7 @@ func Test_NewCLI(t *testing.T) {
 	assert.NotNil(t, instance)
 	assert.Equal(t, cfg, instance.cfg)
 	assert.Equal(t, mockRunner, instance.runner)
+	assert.Equal(t, mockTUI, instance.tui)
 	assert.Equal(t, mockLogger, instance.log)
 }
 
@@ -42,11 +43,14 @@ func Test_Run(t *testing.T) {
 
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockTUI := NewMockTUI(ctrl)
+
 	cfg := config.DefaultConfig()
 
 	c := &cli{
 		cfg:    cfg,
 		runner: mockRunner,
+		tui:    mockTUI,
 		log:    mockLogger,
 	}
 
@@ -63,24 +67,6 @@ func Test_Run(t *testing.T) {
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
-			},
-			expectedExit:  0,
-			expectedError: false,
-		},
-		{
-			name: "Help command",
-			args: []string{"help"},
-			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
-			},
-			expectedExit:  0,
-			expectedError: false,
-		},
-		{
-			name: "Version command",
-			args: []string{"version"},
-			before: func() {
-				mockLogger.EXPECT().Debug().Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -168,9 +154,11 @@ func Test_handleRun(t *testing.T) {
 
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockTUI := NewMockTUI(ctrl)
 
 	c := &cli{
 		runner: mockRunner,
+		tui:    mockTUI,
 		log:    mockLogger,
 	}
 
@@ -233,25 +221,54 @@ func Test_handleHelp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	mockTUI := NewMockTUI(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
-	c := &cli{log: mockLogger}
+	c := &cli{
+		tui: mockTUI,
+		log: mockLogger,
+	}
 
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	tests := []struct {
+		name          string
+		before        func()
+		expectedExit  int
+		expectedError bool
+	}{
+		{
+			name: "Success",
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockTUI.EXPECT().Help().Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
+			name: "Failure",
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockTUI.EXPECT().Help().Return(errors.New("help failed"))
+				mockLogger.EXPECT().Error().Return(nil)
+			},
+			expectedExit:  1,
+			expectedError: true,
+		},
+	}
 
-	_, _ = c.handleHelp()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+			exitCode, err := c.handleHelp()
 
-	w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	output := buf.String()
-
-	assert.Equal(t, fmt.Sprintf("%s\n", Usage), output)
+			assert.Equal(t, tt.expectedExit, exitCode)
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func Test_handleVersion(t *testing.T) {
@@ -259,7 +276,7 @@ func Test_handleVersion(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil)
 
 	c := &cli{log: mockLogger}
 
@@ -267,7 +284,7 @@ func Test_handleVersion(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	_, _ = c.handleVersion()
+	exitCode, err := c.handleVersion()
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -276,7 +293,9 @@ func Test_handleVersion(t *testing.T) {
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Equal(t, fmt.Sprintf("Version: %s\n", config.Version), output)
+	assert.Equal(t, 0, exitCode)
+	assert.NoError(t, err)
+	assert.Equal(t, "0.2.0 (Fuku)\n", output)
 }
 
 func Test_handleUnknown(t *testing.T) {
@@ -285,8 +304,12 @@ func Test_handleUnknown(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockTUI := NewMockTUI(ctrl)
 
-	c := &cli{log: mockLogger}
+	c := &cli{
+		log: mockLogger,
+		tui: mockTUI,
+	}
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()

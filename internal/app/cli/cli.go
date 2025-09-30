@@ -10,21 +10,8 @@ import (
 	"fuku/internal/config/logger"
 )
 
-const (
-	Usage = `Usage:
-  fuku --run=<PROFILE>            Run the fuku with the specified profile
-  fuku help                       Show help
-  fuku version                    Show version
-
-Examples:
-  fuku --run=default              Run all services
-  fuku --run=core                 Run core services
-  fuku --run=minimal              Run minimal services`
-)
-
 // CLI defines the interface for cli operations
 type CLI interface {
-	// Run processes command-line arguments and returns an exit code and error
 	Run(args []string) (exitCode int, err error)
 }
 
@@ -32,6 +19,7 @@ type CLI interface {
 type cli struct {
 	cfg    *config.Config
 	runner runner.Runner
+	tui    TUI
 	log    logger.Logger
 }
 
@@ -39,11 +27,13 @@ type cli struct {
 func NewCLI(
 	cfg *config.Config,
 	runner runner.Runner,
+	tui TUI,
 	log logger.Logger,
 ) CLI {
 	return &cli{
 		cfg:    cfg,
 		runner: runner,
+		tui:    tui,
 		log:    log,
 	}
 }
@@ -95,7 +85,11 @@ func (c *cli) handleRun(profile string) (int, error) {
 // handleHelp displays help information
 func (c *cli) handleHelp() (int, error) {
 	c.log.Debug().Msg("Displaying help information")
-	fmt.Println(Usage)
+
+	if err := c.tui.Help(); err != nil {
+		c.log.Error().Err(err).Msg("Failed to run help TUI")
+		return 1, err
+	}
 
 	return 0, nil
 }
@@ -103,7 +97,8 @@ func (c *cli) handleHelp() (int, error) {
 // handleVersion displays version information
 func (c *cli) handleVersion() (int, error) {
 	c.log.Debug().Msg("Displaying version information")
-	fmt.Printf("Version: %s\n", config.Version)
+
+	fmt.Printf("%s (%s)\n", config.Version, config.AppName)
 
 	return 0, nil
 }
