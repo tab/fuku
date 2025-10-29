@@ -18,18 +18,13 @@ func main() {
 
 // runApp contains the main application logic
 func runApp() {
-	cfg, err := loadConfig()
+	cfg, err := config.Load()
 	if err != nil {
 		os.Exit(1)
 	}
 
 	application := createApp(cfg)
 	application.Run()
-}
-
-// loadConfig wraps config.Load for easier testing
-func loadConfig() (*config.Config, error) {
-	return config.Load()
 }
 
 // createApp creates the FX application with the given config

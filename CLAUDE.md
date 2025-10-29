@@ -294,6 +294,9 @@ go fmt ./... && make lint && make vet && make test
 - interfaces should be defined on the consumer side (idiomatic Go)
 - aim to pass interfaces but return concrete types when possible
 - consider nested functions when they simplify complex functions
+- always place `ctx context.Context` as the first field/parameter in struct/method definitions for consistency
+- always place `cfg *config.Config` as the second field/parameter in struct/method definitions for consistency (when `ctx` is present) or first (when `ctx` is absent)
+- always place `log logger.Logger` as the last field/parameter in struct/method definitions for consistency
 
 ### Code Layout
 - keep cyclomatic complexity under 30

@@ -14,6 +14,9 @@ const (
 	DefaultLogLevel  = "info"
 	DefaultLogFormat = "console"
 
+	AppName        = "Fuku"
+	AppDescription = "Lightweight CLI orchestrator for managing local services"
+
 	Version = "0.2.0"
 )
 
@@ -31,9 +34,20 @@ type Config struct {
 
 // Service represents a service configuration
 type Service struct {
-	Dir       string   `yaml:"dir"`
-	DependsOn []string `yaml:"depends_on"`
-	Profiles  []string `yaml:"profiles"`
+	Dir       string          `yaml:"dir"`
+	DependsOn []string        `yaml:"depends_on"`
+	Profiles  []string        `yaml:"profiles"`
+	Readiness *ReadinessCheck `yaml:"readiness,omitempty"`
+}
+
+// ReadinessCheck defines how to check if a service is ready
+type ReadinessCheck struct {
+	Type     string `yaml:"type"`               // http, log, port, tcp
+	URL      string `yaml:"url,omitempty"`      // for http type
+	Pattern  string `yaml:"pattern,omitempty"`  // for log type
+	Port     int    `yaml:"port,omitempty"`     // for port/tcp type
+	Timeout  string `yaml:"timeout,omitempty"`  // e.g., "30s"
+	Interval string `yaml:"interval,omitempty"` // e.g., "500ms"
 }
 
 // ServiceDefaults represents default configuration for services
