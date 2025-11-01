@@ -40,7 +40,6 @@ func Test_Load(t *testing.T) {
 services:
   test-service:
     dir: ./test
-    depends_on: []
     profiles: [test]
 profiles:
   test:
@@ -121,12 +120,12 @@ func Test_ApplyDefaults(t *testing.T) {
 			name: "no defaults",
 			config: &Config{
 				Services: map[string]*Service{
-					"test": {Dir: "test", DependsOn: []string{}},
+					"test": {Dir: "test"},
 				},
 			},
 			expected: &Config{
 				Services: map[string]*Service{
-					"test": {Dir: "test", DependsOn: []string{}},
+					"test": {Dir: "test"},
 				},
 			},
 		},
@@ -134,47 +133,20 @@ func Test_ApplyDefaults(t *testing.T) {
 			name: "apply defaults to service",
 			config: &Config{
 				Services: map[string]*Service{
-					"api":  {Dir: "api", DependsOn: []string{}},
-					"test": {DependsOn: []string{}},
+					"api":  {Dir: "api"},
+					"test": {},
 				},
 				Defaults: &ServiceDefaults{
-					DependsOn: []string{"api"},
-					Profiles:  []string{"default"},
-					Exclude:   []string{"api"},
+					Profiles: []string{"default"},
 				},
 			},
 			expected: &Config{
 				Services: map[string]*Service{
-					"api":  {Dir: "api", DependsOn: []string{}},
-					"test": {Dir: "test", DependsOn: []string{"api"}, Profiles: []string{"default"}},
+					"api":  {Dir: "api", Profiles: []string{"default"}},
+					"test": {Dir: "test", Profiles: []string{"default"}},
 				},
 				Defaults: &ServiceDefaults{
-					DependsOn: []string{"api"},
-					Profiles:  []string{"default"},
-					Exclude:   []string{"api"},
-				},
-			},
-		},
-		{
-			name: "skip excluded services",
-			config: &Config{
-				Services: map[string]*Service{
-					"api":  {Dir: "api", DependsOn: []string{}},
-					"test": {DependsOn: []string{}},
-				},
-				Defaults: &ServiceDefaults{
-					DependsOn: []string{"api"},
-					Exclude:   []string{"api", "test"},
-				},
-			},
-			expected: &Config{
-				Services: map[string]*Service{
-					"api":  {Dir: "api", DependsOn: []string{}},
-					"test": {Dir: "", DependsOn: []string{}},
-				},
-				Defaults: &ServiceDefaults{
-					DependsOn: []string{"api"},
-					Exclude:   []string{"api", "test"},
+					Profiles: []string{"default"},
 				},
 			},
 		},
@@ -188,158 +160,156 @@ func Test_ApplyDefaults(t *testing.T) {
 	}
 }
 
-func Test_GetServicesForProfile(t *testing.T) {
-	type result struct {
-		services []string
-		error    bool
-	}
-
+func Test_Validate(t *testing.T) {
 	tests := []struct {
-		name     string
-		config   *Config
-		profile  string
-		expected result
+		name        string
+		config      *Config
+		expectError bool
+		errorMsg    string
 	}{
 		{
-			name: "profile not found",
+			name: "valid configuration",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api"},
+					"api": {Dir: "api", Tier: Foundation},
+					"web": {Dir: "web", Tier: Platform},
 				},
-				Profiles: map[string]interface{}{},
 			},
-			profile: "nonexistent",
-			expected: result{
-				services: nil,
-				error:    true,
-			},
+			expectError: false,
 		},
 		{
-			name: "profile with wildcard returns all services",
+			name: "service with invalid tier",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api"},
-					"web": {Dir: "web"},
-					"db":  {Dir: "db"},
-				},
-				Profiles: map[string]interface{}{
-					"all": "*",
+					"api": {Dir: "api", Tier: "invalid"},
 				},
 			},
-			profile: "all",
-			expected: result{
-				services: []string{"api", "web", "db"},
-				error:    false,
-			},
+			expectError: true,
+			errorMsg:    "service api",
 		},
 		{
-			name: "profile with single service as string",
+			name: "service with invalid readiness type",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api"},
-					"web": {Dir: "web"},
-				},
-				Profiles: map[string]interface{}{
-					"api-only": "api",
+					"api": {Dir: "api", Readiness: &Readiness{Type: "invalid"}},
 				},
 			},
-			profile: "api-only",
-			expected: result{
-				services: []string{"api"},
-				error:    false,
-			},
+			expectError: true,
+			errorMsg:    "service api",
 		},
 		{
-			name: "profile with multiple services as array",
+			name: "service with http readiness missing url",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api"},
-					"web": {Dir: "web"},
-					"db":  {Dir: "db"},
-				},
-				Profiles: map[string]interface{}{
-					"backend": []interface{}{"api", "db"},
+					"api": {Dir: "api", Readiness: &Readiness{Type: TypeHTTP}},
 				},
 			},
-			profile: "backend",
-			expected: result{
-				services: []string{"api", "db"},
-				error:    false,
-			},
+			expectError: true,
+			errorMsg:    "service api",
 		},
 		{
-			name: "profile with empty array",
+			name: "service with log readiness missing pattern",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api"},
-				},
-				Profiles: map[string]interface{}{
-					"empty": []interface{}{},
+					"api": {Dir: "api", Readiness: &Readiness{Type: TypeLog}},
 				},
 			},
-			profile: "empty",
-			expected: result{
-				services: nil,
-				error:    false,
-			},
+			expectError: true,
+			errorMsg:    "service api",
 		},
 		{
-			name: "profile with mixed array types filters non-strings",
+			name: "multiple services with one invalid",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api"},
-					"web": {Dir: "web"},
-				},
-				Profiles: map[string]interface{}{
-					"mixed": []interface{}{"api", 123, "web", nil},
+					"api":     {Dir: "api", Tier: Foundation},
+					"invalid": {Dir: "invalid", Tier: "bad-tier"},
 				},
 			},
-			profile: "mixed",
-			expected: result{
-				services: []string{"api", "web"},
-				error:    false,
-			},
+			expectError: true,
+			errorMsg:    "service invalid",
 		},
 		{
-			name: "profile with unsupported type",
+			name: "empty services map",
 			config: &Config{
-				Services: map[string]*Service{
-					"api": {Dir: "api"},
-				},
-				Profiles: map[string]interface{}{
-					"invalid": 123,
-				},
+				Services: map[string]*Service{},
 			},
-			profile: "invalid",
-			expected: result{
-				services: nil,
-				error:    true,
-			},
+			expectError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, err := tt.config.GetServicesForProfile(tt.profile)
+			err := tt.config.Validate()
 
-			if tt.expected.error {
+			if tt.expectError {
 				assert.Error(t, err)
-				assert.Nil(t, services)
-				return
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				assert.NoError(t, err)
 			}
+		})
+	}
+}
 
-			assert.NoError(t, err)
-			if tt.profile == "all" {
-				assert.ElementsMatch(t, tt.expected.services, services)
-				return
+func Test_ValidateTier(t *testing.T) {
+	tests := []struct {
+		name        string
+		tier        string
+		expectError bool
+		expectedErr error
+	}{
+		{name: "empty tier is valid", tier: "", expectError: false},
+		{name: "foundation tier is valid", tier: Foundation, expectError: false},
+		{name: "platform tier is valid", tier: Platform, expectError: false},
+		{name: "edge tier is valid", tier: Edge, expectError: false},
+		{name: "invalid tier", tier: "invalid", expectError: true, expectedErr: errors.ErrInvalidTier},
+		{name: "uppercase tier is invalid", tier: "FOUNDATION", expectError: true, expectedErr: errors.ErrInvalidTier},
+		{name: "mixed case tier is invalid", tier: "Foundation", expectError: true, expectedErr: errors.ErrInvalidTier},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &Service{Tier: tt.tier}
+			err := service.validateTier()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
 			}
+		})
+	}
+}
 
-			if tt.expected.services == nil {
-				assert.Nil(t, services)
-				return
+func Test_ValidateReadiness(t *testing.T) {
+	tests := []struct {
+		name        string
+		readiness   *Readiness
+		expectError bool
+		expectedErr error
+	}{
+		{name: "nil readiness is valid", readiness: nil, expectError: false},
+		{name: "http type with url is valid", readiness: &Readiness{Type: TypeHTTP, URL: "http://localhost:8080"}, expectError: false},
+		{name: "log type with pattern is valid", readiness: &Readiness{Type: TypeLog, Pattern: "Server started"}, expectError: false},
+		{name: "http type without url", readiness: &Readiness{Type: TypeHTTP}, expectError: true, expectedErr: errors.ErrReadinessURLRequired},
+		{name: "log type without pattern", readiness: &Readiness{Type: TypeLog}, expectError: true, expectedErr: errors.ErrReadinessPatternRequired},
+		{name: "empty type", readiness: &Readiness{Type: ""}, expectError: true, expectedErr: errors.ErrReadinessTypeRequired},
+		{name: "invalid type", readiness: &Readiness{Type: "invalid"}, expectError: true, expectedErr: errors.ErrInvalidReadinessType},
+		{name: "uppercase type is invalid", readiness: &Readiness{Type: "HTTP", URL: "http://localhost:8080"}, expectError: true, expectedErr: errors.ErrInvalidReadinessType},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &Service{Readiness: tt.readiness}
+			err := service.validateReadiness()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
 			}
-
-			assert.Equal(t, tt.expected.services, services)
 		})
 	}
 }
