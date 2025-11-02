@@ -2,10 +2,12 @@ package runner
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -152,5 +154,143 @@ func Test_Start_WithValidDirectory(t *testing.T) {
 		if proc != nil {
 			s.Stop(proc)
 		}
+	}
+}
+
+func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockReadiness := NewMockReadiness(ctrl)
+
+	svc := &service{
+		readiness: mockReadiness,
+		log:       mockLogger,
+	}
+
+	proc := &process{
+		ready: make(chan error, 1),
+	}
+
+	stdout, stdoutWriter := io.Pipe()
+	stderr, stderrWriter := io.Pipe()
+	defer stdout.Close()
+	defer stdoutWriter.Close()
+	defer stderr.Close()
+	defer stderrWriter.Close()
+
+	serviceCfg := &config.Service{
+		Dir:       "/tmp/test",
+		Readiness: nil,
+	}
+
+	svc.handleReadinessCheck(ctx, "test-service", serviceCfg, proc, stdout, stderr)
+
+	select {
+	case err := <-proc.ready:
+		assert.NoError(t, err, "Process should be signaled as ready immediately when no readiness check is configured")
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Expected ready signal to be sent immediately")
+	}
+}
+
+func Test_HandleReadinessCheck_HTTPReadiness(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockReadiness := NewMockReadiness(ctrl)
+
+	checkCalled := make(chan struct{})
+	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
+		Times(1).
+		Do(func(_, _, _, _ interface{}) {
+			close(checkCalled)
+		})
+
+	svc := &service{
+		readiness: mockReadiness,
+		log:       mockLogger,
+	}
+
+	proc := &process{
+		ready: make(chan error, 1),
+	}
+
+	stdout, stdoutWriter := io.Pipe()
+	stderr, stderrWriter := io.Pipe()
+	defer stdout.Close()
+	defer stdoutWriter.Close()
+	defer stderr.Close()
+	defer stderrWriter.Close()
+
+	serviceCfg := &config.Service{
+		Dir: "/tmp/test",
+		Readiness: &config.Readiness{
+			Type: config.TypeHTTP,
+			URL:  "http://localhost:8080",
+		},
+	}
+
+	svc.handleReadinessCheck(ctx, "test-service", serviceCfg, proc, stdout, stderr)
+
+	select {
+	case <-checkCalled:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Expected readiness check to be called asynchronously for HTTP type")
+	}
+}
+
+func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockReadiness := NewMockReadiness(ctrl)
+
+	checkCalled := make(chan struct{})
+	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
+		Times(1).
+		Do(func(_, _, _, _ interface{}) {
+			close(checkCalled)
+		})
+
+	svc := &service{
+		readiness: mockReadiness,
+		log:       mockLogger,
+	}
+
+	proc := &process{
+		ready: make(chan error, 1),
+	}
+
+	stdout, stdoutWriter := io.Pipe()
+	stderr, stderrWriter := io.Pipe()
+	defer stdout.Close()
+	defer stdoutWriter.Close()
+	defer stderr.Close()
+	defer stderrWriter.Close()
+
+	serviceCfg := &config.Service{
+		Dir: "/tmp/test",
+		Readiness: &config.Readiness{
+			Type:    config.TypeLog,
+			Pattern: "Ready",
+		},
+	}
+
+	svc.handleReadinessCheck(ctx, "test-service", serviceCfg, proc, stdout, stderr)
+
+	select {
+	case <-checkCalled:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Expected readiness check to be called asynchronously for Log type")
 	}
 }

@@ -100,22 +100,7 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 		stderrWriter.Close()
 	}()
 
-	if svc.Readiness == nil {
-		proc.SignalReady(nil)
-		s.startDraining(stdoutReader, stderrReader)
-		return proc, nil
-	}
-
-	if svc.Readiness.Type == config.TypeHTTP {
-		s.startDraining(stdoutReader, stderrReader)
-		go s.readiness.Check(ctx, name, svc, proc)
-	} else {
-		go func() {
-			s.readiness.Check(ctx, name, svc, proc)
-			s.startDraining(stdoutReader, stderrReader)
-		}()
-	}
-
+	s.handleReadinessCheck(ctx, name, svc, proc, stdoutReader, stderrReader)
 	return proc, nil
 }
 
@@ -167,13 +152,37 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 	}
 }
 
+func (s *service) startDraining(stdout, stderr *io.PipeReader) {
+	go s.drainPipe(stdout)
+	go s.drainPipe(stderr)
+}
+
 func (s *service) drainPipe(reader *io.PipeReader) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 	}
 }
 
-func (s *service) startDraining(stdout, stderr *io.PipeReader) {
-	go s.drainPipe(stdout)
-	go s.drainPipe(stderr)
+func (s *service) handleReadinessCheck(ctx context.Context, name string, svc *config.Service, proc *process, stdout, stderr *io.PipeReader) {
+	if svc.Readiness == nil {
+		proc.SignalReady(nil)
+		s.startDraining(stdout, stderr)
+		return
+	}
+
+	switch svc.Readiness.Type {
+	case config.TypeHTTP:
+		s.startDraining(stdout, stderr)
+		go s.readiness.Check(ctx, name, svc, proc)
+	case config.TypeLog:
+		go func() {
+			s.readiness.Check(ctx, name, svc, proc)
+			s.startDraining(stdout, stderr)
+		}()
+	default:
+		err := fmt.Errorf("unknown readiness type '%s' for service '%s'", svc.Readiness.Type, name)
+		s.log.Error().Err(err).Msg("Failed to handle readiness check")
+		proc.SignalReady(err)
+		s.startDraining(stdout, stderr)
+	}
 }
