@@ -18,12 +18,14 @@ func Test_NewRunner(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := &config.Config{}
+
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockDiscovery := NewMockDiscovery(ctrl)
 	mockService := NewMockService(ctrl)
-	cfg := &config.Config{}
+	mockWorkerPool := NewMockWorkerPool(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockService, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger)
 	assert.NotNil(t, r)
 
 	instance, ok := r.(*runner)
@@ -32,11 +34,16 @@ func Test_NewRunner(t *testing.T) {
 	assert.Equal(t, mockLogger, instance.log)
 	assert.Equal(t, mockDiscovery, instance.discovery)
 	assert.Equal(t, mockService, instance.service)
+	assert.Equal(t, mockWorkerPool, instance.pool)
 }
 
 func Test_Run_ProfileNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{},
+	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -46,12 +53,9 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockDiscovery.EXPECT().Resolve("nonexistent").Return(nil, errors.ErrProfileNotFound)
 
 	mockService := NewMockService(ctrl)
+	mockWorkerPool := NewMockWorkerPool(ctrl)
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{},
-	}
-
-	r := NewRunner(cfg, mockDiscovery, mockService, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger)
 
 	ctx := context.Background()
 	err := r.Run(ctx, "nonexistent")
@@ -64,6 +68,10 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := &config.Config{
+		Services: map[string]*config.Service{},
+	}
+
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
@@ -72,12 +80,9 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockDiscovery.EXPECT().Resolve("test").Return(nil, errors.ErrServiceNotFound)
 
 	mockService := NewMockService(ctrl)
+	mockWorkerPool := NewMockWorkerPool(ctrl)
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{},
-	}
-
-	r := NewRunner(cfg, mockDiscovery, mockService, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger)
 
 	ctx := context.Background()
 	err := r.Run(ctx, "test")
@@ -89,6 +94,12 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 func Test_Run_SuccessfulStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"api": {Dir: "api"},
+		},
+	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -110,13 +121,17 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
 	mockService.EXPECT().Stop(mockProcess).Return(nil)
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool.EXPECT().Acquire().AnyTimes()
+	mockWorkerPool.EXPECT().Release().AnyTimes()
 
-	r := NewRunner(cfg, mockDiscovery, mockService, mockLogger)
+	r := &runner{
+		cfg:       cfg,
+		discovery: mockDiscovery,
+		service:   mockService,
+		pool:      mockWorkerPool,
+		log:       mockLogger,
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -128,6 +143,12 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 func Test_StartServiceWithRetry_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"api": {Dir: "api"},
+		},
+	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -142,16 +163,11 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 
 	mockDiscovery := NewMockDiscovery(ctrl)
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
-
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,
 		service:   mockService,
+		pool:      NewWorkerPool(),
 		log:       mockLogger,
 	}
 
@@ -166,19 +182,6 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockProcess := NewMockProcess(ctrl)
-	readyChan := make(chan error)
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
-	mockService.EXPECT().Stop(mockProcess).Return(nil)
-
-	mockDiscovery := NewMockDiscovery(ctrl)
-
 	cfg := &config.Config{
 		Services: map[string]*config.Service{
 			"api": {
@@ -192,10 +195,24 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 		},
 	}
 
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+
+	mockProcess := NewMockProcess(ctrl)
+	readyChan := make(chan error)
+	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
+
+	mockService := NewMockService(ctrl)
+	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
+	mockService.EXPECT().Stop(mockProcess).Return(nil)
+
+	mockDiscovery := NewMockDiscovery(ctrl)
+
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,
 		service:   mockService,
+		pool:      NewWorkerPool(),
 		log:       mockLogger,
 	}
 
@@ -213,6 +230,8 @@ func Test_StopAllProcesses(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := &config.Config{}
+
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	mockProcess1 := NewMockProcess(ctrl)
@@ -224,12 +243,11 @@ func Test_StopAllProcesses(t *testing.T) {
 
 	mockDiscovery := NewMockDiscovery(ctrl)
 
-	cfg := &config.Config{}
-
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,
 		service:   mockService,
+		pool:      NewWorkerPool(),
 		log:       mockLogger,
 	}
 
@@ -241,16 +259,17 @@ func Test_StopAllProcesses_EmptyList(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := &config.Config{}
+
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockService := NewMockService(ctrl)
 	mockDiscovery := NewMockDiscovery(ctrl)
-
-	cfg := &config.Config{}
 
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,
 		service:   mockService,
+		pool:      NewWorkerPool(),
 		log:       mockLogger,
 	}
 

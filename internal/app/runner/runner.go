@@ -22,15 +22,23 @@ type runner struct {
 	cfg       *config.Config
 	discovery Discovery
 	service   Service
+	pool      WorkerPool
 	log       logger.Logger
 }
 
 // NewRunner creates a new runner instance with the provided configuration and logger
-func NewRunner(cfg *config.Config, discovery Discovery, service Service, log logger.Logger) Runner {
+func NewRunner(
+	cfg *config.Config,
+	discovery Discovery,
+	service Service,
+	pool WorkerPool,
+	log logger.Logger,
+) Runner {
 	return &runner{
 		cfg:       cfg,
 		discovery: discovery,
 		service:   service,
+		pool:      pool,
 		log:       log,
 	}
 }
@@ -109,7 +117,6 @@ func (r *runner) runServicePhase(ctx context.Context, sigChan chan os.Signal) {
 
 func (r *runner) startTier(ctx context.Context, tierServices []string, wg *sync.WaitGroup) ([]Process, error) {
 	processes := make([]Process, 0, len(tierServices))
-	sem := make(chan struct{}, config.MaxWorkers)
 	errChan := make(chan error, len(tierServices))
 	procChan := make(chan Process, len(tierServices))
 
@@ -120,8 +127,8 @@ func (r *runner) startTier(ctx context.Context, tierServices []string, wg *sync.
 		go func(name string) {
 			defer tierWg.Done()
 
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			r.pool.Acquire()
+			defer r.pool.Release()
 
 			srv := r.cfg.Services[name]
 			proc, err := r.startServiceWithRetry(ctx, name, srv)
