@@ -155,7 +155,10 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		fmt.Printf("[%s:%s] %s\n", serviceName, streamType, line)
+		s.log.Info().
+			Str("service", serviceName).
+			Str("stream", streamType).
+			Msg(line)
 		fmt.Fprintln(dst, line)
 	}
 
