@@ -161,6 +161,9 @@ func (s *service) drainPipe(reader *io.PipeReader) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 	}
+	if err := scanner.Err(); err != nil {
+		s.log.Error().Err(err).Msg("Error draining pipe")
+	}
 }
 
 func (s *service) handleReadinessCheck(ctx context.Context, name string, svc *config.Service, proc *process, stdout, stderr *io.PipeReader) {

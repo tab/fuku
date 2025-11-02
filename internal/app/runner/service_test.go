@@ -164,6 +164,7 @@ func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
 	ctx := context.Background()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 	mockReadiness := NewMockReadiness(ctrl)
 
 	svc := &service{
@@ -204,6 +205,7 @@ func Test_HandleReadinessCheck_HTTPReadiness(t *testing.T) {
 	ctx := context.Background()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 	mockReadiness := NewMockReadiness(ctrl)
 
 	checkCalled := make(chan struct{})
@@ -253,6 +255,7 @@ func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
 	ctx := context.Background()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 	mockReadiness := NewMockReadiness(ctrl)
 
 	checkCalled := make(chan struct{})
