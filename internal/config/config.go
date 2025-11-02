@@ -2,19 +2,11 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/viper"
 
 	"fuku/internal/app/errors"
-)
-
-const (
-	DefaultProfile = "default"
-
-	DefaultLogLevel  = "info"
-	DefaultLogFormat = "console"
-
-	Version = "0.2.0"
 )
 
 // Config represents the application configuration
@@ -31,16 +23,25 @@ type Config struct {
 
 // Service represents a service configuration
 type Service struct {
-	Dir       string   `yaml:"dir"`
-	DependsOn []string `yaml:"depends_on"`
-	Profiles  []string `yaml:"profiles"`
+	Dir       string     `yaml:"dir"`
+	Profiles  []string   `yaml:"profiles"`
+	Tier      string     `yaml:"tier"`
+	Readiness *Readiness `yaml:"readiness"`
+}
+
+// Readiness represents readiness check configuration for a service
+type Readiness struct {
+	Type     string        `yaml:"type"`
+	URL      string        `yaml:"url"`
+	Pattern  string        `yaml:"pattern"`
+	Timeout  time.Duration `yaml:"timeout"`
+	Interval time.Duration `yaml:"interval"`
 }
 
 // ServiceDefaults represents default configuration for services
 type ServiceDefaults struct {
-	DependsOn []string `yaml:"depends_on"`
-	Profiles  []string `yaml:"profiles"`
-	Exclude   []string `yaml:"exclude"`
+	Profiles []string `yaml:"profiles"`
+	Tier     string   `yaml:"tier"`
 }
 
 // Option allows for functional options pattern
@@ -81,67 +82,92 @@ func Load() (*Config, error) {
 
 	cfg.ApplyDefaults()
 
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", errors.ErrInvalidConfig, err)
+	}
+
 	return cfg, nil
 }
 
 // ApplyDefaults applies default configuration to services
 func (c *Config) ApplyDefaults() {
-	if c.Defaults == nil {
-		return
-	}
-
-	excludeMap := make(map[string]bool)
-	for _, svc := range c.Defaults.Exclude {
-		excludeMap[svc] = true
-	}
-
 	for name, service := range c.Services {
-		if excludeMap[name] {
-			continue
-		}
-
-		if len(service.DependsOn) == 0 && len(c.Defaults.DependsOn) > 0 {
-			service.DependsOn = make([]string, len(c.Defaults.DependsOn))
-			copy(service.DependsOn, c.Defaults.DependsOn)
-		}
-
-		if len(service.Profiles) == 0 && len(c.Defaults.Profiles) > 0 {
-			service.Profiles = make([]string, len(c.Defaults.Profiles))
-			copy(service.Profiles, c.Defaults.Profiles)
-		}
-
 		if service.Dir == "" {
 			service.Dir = name
+		}
+
+		if c.Defaults != nil {
+			if len(service.Profiles) == 0 && len(c.Defaults.Profiles) > 0 {
+				service.Profiles = make([]string, len(c.Defaults.Profiles))
+				copy(service.Profiles, c.Defaults.Profiles)
+			}
+
+			if service.Tier == "" && c.Defaults.Tier != "" {
+				service.Tier = c.Defaults.Tier
+			}
 		}
 	}
 }
 
-// GetServicesForProfile returns the list of services for a given profile
-func (c *Config) GetServicesForProfile(profile string) ([]string, error) {
-	profileConfig, exists := c.Profiles[profile]
-	if !exists {
-		return nil, fmt.Errorf("profile %s not found", profile)
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	for name, service := range c.Services {
+		if err := service.validateTier(); err != nil {
+			return fmt.Errorf("service %s: %w", name, err)
+		}
+
+		if err := service.validateReadiness(); err != nil {
+			return fmt.Errorf("service %s: %w", name, err)
+		}
 	}
 
-	switch v := profileConfig.(type) {
-	case string:
-		if v == "*" {
-			var allServices []string
-			for name := range c.Services {
-				allServices = append(allServices, name)
-			}
-			return allServices, nil
-		}
-		return []string{v}, nil
-	case []interface{}:
-		var services []string
-		for _, item := range v {
-			if str, ok := item.(string); ok {
-				services = append(services, str)
-			}
-		}
-		return services, nil
-	default:
-		return nil, fmt.Errorf("unsupported profile format for %s", profile)
+	return nil
+}
+
+// validateTier validates the tier value
+func (s *Service) validateTier() error {
+	if s.Tier == "" {
+		return nil
 	}
+
+	switch s.Tier {
+	case Foundation, Platform, Edge:
+		return nil
+	default:
+		return fmt.Errorf("%w: '%s' (must be one of foundation, platform, or edge)", errors.ErrInvalidTier, s.Tier)
+	}
+}
+
+// validateReadiness validates the readiness configuration
+func (s *Service) validateReadiness() error {
+	if s.Readiness == nil {
+		return nil
+	}
+
+	r := s.Readiness
+
+	switch r.Type {
+	case TypeHTTP:
+		if r.URL == "" {
+			return errors.ErrReadinessURLRequired
+		}
+	case TypeLog:
+		if r.Pattern == "" {
+			return errors.ErrReadinessPatternRequired
+		}
+	case "":
+		return errors.ErrReadinessTypeRequired
+	default:
+		return fmt.Errorf("%w: '%s' (must be 'http' or 'log')", errors.ErrInvalidReadinessType, r.Type)
+	}
+
+	if r.Timeout == 0 {
+		r.Timeout = DefaultTimeout
+	}
+
+	if r.Interval == 0 {
+		r.Interval = DefaultInterval
+	}
+
+	return nil
 }

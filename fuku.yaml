@@ -1,26 +1,50 @@
 version: 1
 
+x-readiness: &readiness
+  type: log
+  timeout: 30s
+
 services:
-  api:
-    dir: examples/bookstore/api
-    profiles: [core]
-  frontend-api:
-    dir: examples/bookstore/frontend-api
-    profiles: [core]
-  user:
-    dir: examples/bookstore/user
+  # Foundation tier: Base infrastructure services
   storage:
     dir: examples/bookstore/storage
+    tier: foundation
+    readiness:
+      <<: *readiness
+      pattern: "Starting storage"
+
+  # Platform tier: Business logic services that depend on foundation
+  user:
+    dir: examples/bookstore/user
+    tier: platform
+    readiness:
+      <<: *readiness
+      pattern: "Starting user"
+
+  api:
+    dir: examples/bookstore/api
+    tier: platform
+    profiles: [core]
+    readiness:
+      <<: *readiness
+      pattern: "Starting api"
+
+  # Edge tier: Client-facing services
+  frontend-api:
+    dir: examples/bookstore/frontend-api
+    tier: edge
+    profiles: [core]
+    readiness:
+      <<: *readiness
+      pattern: "Starting frontend-api"
 
 defaults:
-  depends_on: [api]
   profiles: [default]
-  exclude: [api]
 
 profiles:
-  default: "*"
-  core: [api, frontend-api]
-  minimal: [api]
+  default: "*"                        # All services
+  core: [api, frontend-api, storage]  # Core services for typical development
+  minimal: [api, storage]             # Minimal set for lightweight testing
 
 logging:
   level: debug
