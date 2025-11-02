@@ -228,8 +228,8 @@ func (r *runner) shutdown(processes []Process, processesMu *sync.Mutex, wg *sync
 }
 
 func (r *runner) stopAllProcesses(processes []Process) {
-	for i := len(processes) - 1; i >= 0; i-- {
-		proc := processes[i]
-		r.service.Stop(proc)
+	for i := range processes {
+		idx := len(processes) - 1 - i
+		r.service.Stop(processes[idx])
 	}
 }
