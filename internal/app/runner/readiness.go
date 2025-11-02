@@ -91,12 +91,17 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 	go scanStream(stdout)
 	go scanStream(stderr)
 
+	duration := time.Until(deadline)
+	if duration < 0 {
+		duration = 0
+	}
+
 	select {
 	case <-matched:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(time.Until(deadline)):
+	case <-time.After(duration):
 		return fmt.Errorf("%w: log pattern check after %v", errors.ErrReadinessTimeout, timeout)
 	}
 }
