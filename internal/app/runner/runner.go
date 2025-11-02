@@ -155,11 +155,12 @@ func (r *runner) startTier(ctx context.Context, tierServices []string, wg *sync.
 		}(proc)
 	}
 
-	if len(errChan) > 0 {
-		return processes, <-errChan
+	select {
+	case err := <-errChan:
+		return processes, err
+	default:
+		return processes, nil
 	}
-
-	return processes, nil
 }
 
 func (r *runner) startServiceWithRetry(ctx context.Context, name string, service *config.Service) (Process, error) {
