@@ -96,11 +96,13 @@ func Test_Resolve(t *testing.T) {
 			if tt.expected.error {
 				assert.Error(t, err)
 				assert.Nil(t, tiers)
+
 				return
 			}
 
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.expected.tiers), len(tiers))
+
 			for i, expectedTier := range tt.expected.tiers {
 				assert.Equal(t, expectedTier.Name, tiers[i].Name)
 				assert.ElementsMatch(t, expectedTier.Services, tiers[i].Services)

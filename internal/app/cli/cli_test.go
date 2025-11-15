@@ -13,6 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/runner"
+	"fuku/internal/app/runtime"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -24,8 +25,10 @@ func Test_NewCLI(t *testing.T) {
 	cfg := config.DefaultConfig()
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockEvent := runtime.NewNoOpEventBus()
+	mockCommand := runtime.NewNoOpCommandBus()
 
-	cliInstance := NewCLI(cfg, mockRunner, mockLogger)
+	cliInstance := NewCLI(cfg, mockRunner, mockLogger, mockEvent, mockCommand)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -34,6 +37,8 @@ func Test_NewCLI(t *testing.T) {
 	assert.Equal(t, cfg, instance.cfg)
 	assert.Equal(t, mockRunner, instance.runner)
 	assert.Equal(t, mockLogger, instance.log)
+	assert.Equal(t, mockEvent, instance.event)
+	assert.Equal(t, mockCommand, instance.command)
 }
 
 func Test_Run(t *testing.T) {
@@ -45,9 +50,11 @@ func Test_Run(t *testing.T) {
 	cfg := config.DefaultConfig()
 
 	c := &cli{
-		cfg:    cfg,
-		runner: mockRunner,
-		log:    mockLogger,
+		cfg:     cfg,
+		runner:  mockRunner,
+		log:     mockLogger,
+		event:   runtime.NewNoOpEventBus(),
+		command: runtime.NewNoOpCommandBus(),
 	}
 
 	tests := []struct {
@@ -58,8 +65,8 @@ func Test_Run(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name: "No arguments - default profile",
-			args: []string{},
+			name: "No arguments - default profile with --no-ui",
+			args: []string{"--no-ui"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
@@ -86,8 +93,8 @@ func Test_Run(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "Run command with profile",
-			args: []string{"run", "test-profile"},
+			name: "Run command with profile and --no-ui",
+			args: []string{"run", "test-profile", "--no-ui"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
@@ -96,8 +103,8 @@ func Test_Run(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "Run command with --run=profile",
-			args: []string{"--run=test-profile"},
+			name: "Run command with --run=profile and --no-ui",
+			args: []string{"--run=test-profile", "--no-ui"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
@@ -106,8 +113,8 @@ func Test_Run(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "Run command with --run= (empty profile defaults to default profile)",
-			args: []string{"--run="},
+			name: "Run command with --run= (empty profile defaults to default profile) and --no-ui",
+			args: []string{"--run=", "--no-ui"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
@@ -116,8 +123,8 @@ func Test_Run(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "Run command failure",
-			args: []string{"run", "failed-profile"},
+			name: "Run command failure with --no-ui",
+			args: []string{"run", "failed-profile", "--no-ui"},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
@@ -147,12 +154,15 @@ func Test_Run(t *testing.T) {
 			exitCode, err := c.Run(tt.args)
 
 			w.Close()
+
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
+
 			_, _ = io.Copy(&buf, r)
 
 			assert.Equal(t, tt.expectedExit, exitCode)
+
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -211,15 +221,18 @@ func Test_handleRun(t *testing.T) {
 			os.Stdout = w
 
 			tt.before()
-			exitCode, err := c.handleRun(tt.profile)
+			exitCode, err := c.handleRun(tt.profile, true)
 
 			w.Close()
+
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
+
 			_, _ = io.Copy(&buf, r)
 
 			assert.Equal(t, tt.expectedExit, exitCode)
+
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -245,9 +258,11 @@ func Test_handleHelp(t *testing.T) {
 	_, _ = c.handleHelp()
 
 	w.Close()
+
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
+
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
@@ -270,9 +285,11 @@ func Test_handleVersion(t *testing.T) {
 	_, _ = c.handleVersion()
 
 	w.Close()
+
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
+
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
@@ -295,9 +312,11 @@ func Test_handleUnknown(t *testing.T) {
 	_, _ = c.handleUnknown()
 
 	w.Close()
+
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
+
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 

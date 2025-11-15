@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/runtime"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -25,13 +26,15 @@ type Service interface {
 type service struct {
 	readiness Readiness
 	log       logger.Logger
+	event     runtime.EventBus
 }
 
 // NewService creates a new service instance
-func NewService(readiness Readiness, log logger.Logger) Service {
+func NewService(readiness Readiness, log logger.Logger, event runtime.EventBus) Service {
 	return &service{
 		readiness: readiness,
 		log:       log,
+		event:     event,
 	}
 }
 
@@ -44,6 +47,7 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", errors.ErrFailedToGetWorkingDir, err)
 		}
+
 		serviceDir = filepath.Join(wd, serviceDir)
 	}
 
@@ -58,6 +62,7 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 
 	cmd := exec.CommandContext(ctx, "make", "run")
 	cmd.Dir = serviceDir
+
 	cmd.Env = append(os.Environ(), fmt.Sprintf("ENV_FILE=%s", envFile))
 
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -88,19 +93,22 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 		stderrReader: stderrReader,
 	}
 
-	go s.teeStream(stdoutPipe, stdoutWriter, name, "STDOUT")
-	go s.teeStream(stderrPipe, stderrWriter, name, "STDERR")
+	go s.teeStream(stdoutPipe, stdoutWriter, name, svc.Tier, "STDOUT")
+	go s.teeStream(stderrPipe, stderrWriter, name, svc.Tier, "STDERR")
 
 	go func() {
 		defer close(proc.done)
+
 		if err := cmd.Wait(); err != nil {
 			s.log.Error().Err(err).Msgf("Service '%s' exited with error", name)
 		}
+
 		stdoutWriter.Close()
 		stderrWriter.Close()
 	}()
 
 	s.handleReadinessCheck(ctx, name, svc, proc, stdoutReader, stderrReader)
+
 	return proc, nil
 }
 
@@ -112,12 +120,15 @@ func (s *service) Stop(proc Process) error {
 	}
 
 	s.log.Info().Msgf("Stopping service '%s' (PID: %d)", proc.Name(), cmd.Process.Pid)
+
 	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		s.log.Error().Err(err).Msgf("Failed to send SIGTERM to service '%s'", proc.Name())
+
 		if killErr := cmd.Process.Kill(); killErr != nil {
 			s.log.Error().Err(killErr).Msgf("Failed to kill service '%s'", proc.Name())
 			return killErr
 		}
+
 		return err
 	}
 
@@ -126,20 +137,36 @@ func (s *service) Stop(proc Process) error {
 		return nil
 	case <-time.After(config.ShutdownTimeout):
 		s.log.Warn().Msgf("Service '%s' did not stop gracefully, forcing kill", proc.Name())
+
 		if killErr := cmd.Process.Kill(); killErr != nil {
 			s.log.Error().Err(killErr).Msgf("Failed to kill service '%s'", proc.Name())
 			return killErr
 		}
+
 		<-proc.Done()
+
 		return nil
 	}
 }
 
-func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, streamType string) {
+func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, tier, streamType string) {
 	scanner := bufio.NewScanner(src)
+
+	if tier == "" {
+		tier = config.Default
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		s.event.Publish(runtime.Event{
+			Type: runtime.EventLogLine,
+			Data: runtime.LogLineData{
+				Service: serviceName,
+				Tier:    tier,
+				Stream:  streamType,
+				Message: line,
+			},
+		})
 		s.log.Info().
 			Str("service", serviceName).
 			Str("stream", streamType).
@@ -161,6 +188,7 @@ func (s *service) drainPipe(reader *io.PipeReader) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 	}
+
 	if err := scanner.Err(); err != nil {
 		s.log.Error().Err(err).Msg("Error draining pipe")
 	}
@@ -170,12 +198,14 @@ func (s *service) handleReadinessCheck(ctx context.Context, name string, svc *co
 	if svc.Readiness == nil {
 		proc.SignalReady(nil)
 		s.startDraining(stdout, stderr)
+
 		return
 	}
 
 	switch svc.Readiness.Type {
 	case config.TypeHTTP:
 		s.startDraining(stdout, stderr)
+
 		go s.readiness.Check(ctx, name, svc, proc)
 	case config.TypeLog:
 		go func() {

@@ -21,8 +21,10 @@
 
 2. **Core Packages** (`internal/`)
    - **app/** - Main application container and lifecycle management
-   - **cli/** - Command-line interface parsing and command handling
-   - **runner/** - Service orchestration, process management, and dependency resolution
+   - **app/cli/** - Command-line interface parsing and command handling
+   - **app/runner/** - Service orchestration, process management, and dependency resolution
+   - **app/runtime/** - Event and command buses for pub/sub communication
+   - **app/ui/services/** - Interactive TUI with Bubble Tea framework
    - **config/** - Configuration loading, parsing, and data structures
    - **errors/** - Application-specific error definitions
 
@@ -43,6 +45,24 @@
    ```
 
 3. **logger.Logger** - Structured logging interface using zerolog
+
+4. **runtime.EventBus** - Pub/sub event bus for runtime events:
+   ```go
+   type EventBus interface {
+       Subscribe(ctx context.Context) <-chan Event
+       Publish(event Event)
+       Close()
+   }
+   ```
+
+5. **runtime.CommandBus** - Pub/sub command bus for service control:
+   ```go
+   type CommandBus interface {
+       Subscribe(ctx context.Context) <-chan Command
+       Publish(cmd Command)
+       Close()
+   }
+   ```
 
 ### Execution Flow
 
@@ -68,6 +88,15 @@
    - Manages process lifecycle with signal handling (SIGINT, SIGTERM)
    - Streams service logs with prefixed output format
    - Stops services in reverse order on shutdown
+
+5. **Interactive TUI** (`internal/app/ui/services/`)
+   - Bubble Tea framework for terminal UI
+   - FSM-based service state management (stopped, starting, running, stopping, restarting, failed)
+   - Real-time CPU and memory monitoring via gopsutil
+   - Event-driven updates via EventBus subscription
+   - Command publishing for service control
+   - Log viewing with service filtering
+   - FIFO loader queue for operation tracking
 
 ### Configuration Capabilities
 
@@ -97,8 +126,12 @@
 
 1. **Mock Generation**
    - Uses `go.uber.org/mock` for interface mocking
-   - Generated mocks with `//go:generate` directives
+   - Generated mocks with mockgen command using full paths:
+     ```bash
+     mockgen -source=internal/app/runtime/commands.go -destination=internal/app/runtime/commands_mock.go -package=runtime
+     ```
    - Separate mock files for each interface
+   - Do NOT add `//go:generate` directives to source files
 
 2. **Test Structure**
    - Table-driven tests with subtests using testify
@@ -149,12 +182,14 @@
      ```
 
 4. **Test Coverage**
-   - CLI command parsing and execution: ~68.3%
-   - Service dependency resolution algorithms: ~87.1%
-   - Main application entry point: ~50.0%
-   - Application container lifecycle: ~77.8%
-   - Configuration loading: 100.0%
-   - Logger implementation: ~29.2%
+   - CLI command parsing and execution: ~57.6%
+   - Service dependency resolution algorithms: ~69.7%
+   - Main application entry point: ~66.7%
+   - Application container lifecycle: ~58.3%
+   - Configuration loading: ~96.2%
+   - Logger implementation: ~30.3%
+   - Runtime event/command buses: ~76.6%
+   - TUI services package: ~50.7%
    - Error handling and edge cases
    - Mock-based isolation testing
 
@@ -163,6 +198,15 @@
 - `internal/app/app_test.go` - Application container and lifecycle testing
 - `internal/app/cli/cli_test.go` - CLI argument parsing and command execution
 - `internal/app/runner/runner_test.go` - Service orchestration and dependency resolution
+- `internal/app/runtime/events_test.go` - Event bus pub/sub testing
+- `internal/app/runtime/commands_test.go` - Command bus pub/sub testing
+- `internal/app/ui/services/loader_test.go` - Loader queue operations
+- `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
+- `internal/app/ui/services/model_test.go` - Service state methods and helpers
+- `internal/app/ui/services/keys_test.go` - Key bindings configuration
+- `internal/app/ui/services/state_test.go` - FSM state transitions and callbacks
+- `internal/app/ui/services/update_test.go` - Event handlers
+- `internal/app/ui/services/view_test.go` - View rendering functions
 - `internal/config/config_test.go` - Configuration loading and parsing
 - `internal/config/logger/logger_test.go` - Logger implementation testing
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
@@ -211,8 +255,9 @@ go fmt ./... && make lint && make vet && make test
 - IMPORTANT: never include "Test plan" sections in PR descriptions
 - do not add comments that describe changes, progress, or historical modifications
 - comments should only describe the current state and purpose of the code, not its history or evolution
-- use `go:generate` for generating mocks, never modify generated files manually
+- generate mocks using mockgen with full paths, never modify generated files manually
 - mocks are generated with `go.uber.org/mock` and stored alongside source files
+- do NOT add `//go:generate` directives to source files; run mockgen command directly
 - after important functionality added, update README.md accordingly
 - when merging master changes to an active branch, make sure both branches are pulled and up to date first
 - don't leave commented out code in place
@@ -332,9 +377,13 @@ go fmt ./... && make lint && make vet && make test
 - when testing CLI applications, use simple skip statements for complex integration scenarios to maintain test suite stability
 - for mocking external dependencies:
   - create a local interface in the package that needs the mock
-  - generate mocks using `go.uber.org/mock` with: `//go:generate mockgen -source=file.go -destination=file_mock.go`
+  - generate mocks using `go.uber.org/mock` with full path:
+    ```bash
+    mockgen -source=internal/path/to/file.go -destination=internal/path/to/file_mock.go -package=packagename
+    ```
   - the mock should be located alongside the source file
   - always use mockgen-generated mocks, not testify mock
+  - do NOT add `//go:generate` directives to source files
 - for testing functions that can fail due to external dependencies (like config loading), use `t.Skip()` with descriptive messages rather than failing the test
 - use descriptive test names that explain the scenario being tested (e.g., "No arguments - default profile", "Run command with --run= (empty profile defaults to default profile)")
 - when testing CLI return values, test both exit codes and error conditions separately in table test fields like `expectedExit` and `expectedError`
@@ -361,6 +410,11 @@ git branch -D feature-branch-name
 - logging: `github.com/rs/zerolog`
 - testing: `github.com/stretchr/testify`
 - mock generation: `go.uber.org/mock`
+- TUI framework: `github.com/charmbracelet/bubbletea`
+- TUI components: `github.com/charmbracelet/bubbles`
+- TUI styling: `github.com/charmbracelet/lipgloss`
+- FSM: `github.com/looplab/fsm`
+- process monitoring: `github.com/shirou/gopsutil/v4`
 
 ## Formatting Guidelines
 - always use `go fmt` for code formatting

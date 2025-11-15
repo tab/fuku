@@ -36,6 +36,7 @@ func Test_NewLogger(t *testing.T) {
 			cfg: func() *config.Config {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Level = DebugLevel
+
 				return cfg
 			}(),
 			expected: result{
@@ -49,6 +50,7 @@ func Test_NewLogger(t *testing.T) {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Level = WarnLevel
 				cfg.Logging.Format = JSONFormat
+
 				return cfg
 			}(),
 			expected: result{
@@ -62,6 +64,7 @@ func Test_NewLogger(t *testing.T) {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Level = ""
 				cfg.Logging.Format = ""
+
 				return cfg
 			}(),
 			expected: result{
@@ -74,6 +77,7 @@ func Test_NewLogger(t *testing.T) {
 			cfg: func() *config.Config {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Level = ErrorLevel
+
 				return cfg
 			}(),
 			expected: result{
@@ -86,6 +90,7 @@ func Test_NewLogger(t *testing.T) {
 			cfg: func() *config.Config {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Level = FatalLevel
+
 				return cfg
 			}(),
 			expected: result{
@@ -98,6 +103,7 @@ func Test_NewLogger(t *testing.T) {
 			cfg: func() *config.Config {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Level = PanicLevel
+
 				return cfg
 			}(),
 			expected: result{
@@ -110,6 +116,7 @@ func Test_NewLogger(t *testing.T) {
 			cfg: func() *config.Config {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Level = TraceLevel
+
 				return cfg
 			}(),
 			expected: result{
@@ -122,6 +129,7 @@ func Test_NewLogger(t *testing.T) {
 			cfg: func() *config.Config {
 				cfg := config.DefaultConfig()
 				cfg.Logging.Format = "unknown"
+
 				return cfg
 			}(),
 			expected: result{

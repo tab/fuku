@@ -60,8 +60,10 @@ func (d *discovery) getServicesForProfile(profile string) ([]string, error) {
 			for name := range d.cfg.Services {
 				allServices = append(allServices, name)
 			}
+
 			return allServices, nil
 		}
+
 		return []string{v}, nil
 	case []interface{}:
 		var services []string
@@ -70,6 +72,7 @@ func (d *discovery) getServicesForProfile(profile string) ([]string, error) {
 				services = append(services, str)
 			}
 		}
+
 		return services, nil
 	default:
 		return nil, fmt.Errorf("%w: %s", errors.ErrUnsupportedProfileFormat, profile)
@@ -86,6 +89,7 @@ func (d *discovery) resolveServiceOrder(serviceNames []string) ([]string, error)
 
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(serviceNames))
+
 	for _, serviceName := range serviceNames {
 		if !seen[serviceName] {
 			seen[serviceName] = true
@@ -96,6 +100,7 @@ func (d *discovery) resolveServiceOrder(serviceNames []string) ([]string, error)
 	sort.SliceStable(result, func(i, j int) bool {
 		svcI := d.cfg.Services[result[i]]
 		svcJ := d.cfg.Services[result[j]]
+
 		return d.getTierOrder(svcI.Tier) < d.getTierOrder(svcJ.Tier)
 	})
 
@@ -115,6 +120,7 @@ func (d *discovery) groupServicesByTier(services []string) []Tier {
 			if tierName == "" {
 				tierName = config.Default
 			}
+
 			tiers[tierOrder] = &Tier{Name: tierName, Services: []string{}}
 		}
 
@@ -125,6 +131,7 @@ func (d *discovery) groupServicesByTier(services []string) []Tier {
 	for order := range tiers {
 		tierOrders = append(tierOrders, order)
 	}
+
 	sort.Ints(tierOrders)
 
 	result := make([]Tier, 0, len(tierOrders))

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/runtime"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -25,7 +26,7 @@ func Test_NewService(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockReadiness := NewMockReadiness(ctrl)
 
-	s := NewService(mockReadiness, mockLogger)
+	s := NewService(mockReadiness, mockLogger, runtime.NewNoOpEventBus())
 
 	assert.NotNil(t, s)
 	instance, ok := s.(*service)
@@ -41,7 +42,7 @@ func Test_Start_DirectoryNotExist(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockReadiness := NewMockReadiness(ctrl)
 
-	s := NewService(mockReadiness, mockLogger)
+	s := NewService(mockReadiness, mockLogger, runtime.NewNoOpEventBus())
 
 	ctx := context.Background()
 	svc := &config.Service{
@@ -64,7 +65,7 @@ func Test_Start_MissingEnvFile(t *testing.T) {
 
 	mockReadiness := NewMockReadiness(ctrl)
 
-	s := NewService(mockReadiness, mockLogger)
+	s := NewService(mockReadiness, mockLogger, runtime.NewNoOpEventBus())
 
 	tmpDir := t.TempDir()
 
@@ -88,7 +89,7 @@ func Test_Start_RelativePathConversion(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockReadiness := NewMockReadiness(ctrl)
 
-	s := NewService(mockReadiness, mockLogger)
+	s := NewService(mockReadiness, mockLogger, runtime.NewNoOpEventBus())
 
 	ctx := context.Background()
 	svc := &config.Service{
@@ -109,7 +110,7 @@ func Test_Stop_NilProcess(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockReadiness := NewMockReadiness(ctrl)
 
-	s := NewService(mockReadiness, mockLogger)
+	s := NewService(mockReadiness, mockLogger, runtime.NewNoOpEventBus())
 
 	mockProcess := NewMockProcess(ctrl)
 	mockCmd := &exec.Cmd{Process: nil}
@@ -135,7 +136,7 @@ func Test_Start_WithValidDirectory(t *testing.T) {
 
 	mockReadiness := NewMockReadiness(ctrl)
 
-	s := NewService(mockReadiness, mockLogger)
+	s := NewService(mockReadiness, mockLogger, runtime.NewNoOpEventBus())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -145,12 +146,12 @@ func Test_Start_WithValidDirectory(t *testing.T) {
 	}
 
 	proc, err := s.Start(ctx, "test-service", svc)
-
 	if err != nil {
 		assert.Contains(t, err.Error(), "failed to start command")
 	} else {
 		assert.NotNil(t, proc)
 		cancel()
+
 		if proc != nil {
 			s.Stop(proc)
 		}
@@ -165,6 +166,7 @@ func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
 	mockReadiness := NewMockReadiness(ctrl)
 
 	svc := &service{
@@ -178,6 +180,7 @@ func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
 
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
+
 	defer stdout.Close()
 	defer stdoutWriter.Close()
 	defer stderr.Close()
@@ -206,9 +209,11 @@ func Test_HandleReadinessCheck_HTTPReadiness(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
 	mockReadiness := NewMockReadiness(ctrl)
 
 	checkCalled := make(chan struct{})
+
 	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
 		Times(1).
 		Do(func(_, _, _, _ interface{}) {
@@ -226,6 +231,7 @@ func Test_HandleReadinessCheck_HTTPReadiness(t *testing.T) {
 
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
+
 	defer stdout.Close()
 	defer stdoutWriter.Close()
 	defer stderr.Close()
@@ -256,9 +262,11 @@ func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
 	mockReadiness := NewMockReadiness(ctrl)
 
 	checkCalled := make(chan struct{})
+
 	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
 		Times(1).
 		Do(func(_, _, _, _ interface{}) {
@@ -276,6 +284,7 @@ func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
 
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
+
 	defer stdout.Close()
 	defer stdoutWriter.Close()
 	defer stderr.Close()
