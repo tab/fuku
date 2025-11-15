@@ -16,8 +16,10 @@ func Test_AcquireRelease(t *testing.T) {
 	}
 
 	done := make(chan bool)
+
 	go func() {
 		pool.Acquire()
+
 		done <- true
 	}()
 
@@ -43,13 +45,16 @@ func Test_AcquireRelease(t *testing.T) {
 func Test_ConcurrentWorkers(t *testing.T) {
 	pool := NewWorkerPool()
 
-	var activeWorkers int
-	var maxActive int
-	var mu sync.Mutex
+	var (
+		activeWorkers int
+		maxActive     int
+		mu            sync.Mutex
+	)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
 
@@ -57,16 +62,20 @@ func Test_ConcurrentWorkers(t *testing.T) {
 			defer pool.Release()
 
 			mu.Lock()
+
 			activeWorkers++
 			if activeWorkers > maxActive {
 				maxActive = activeWorkers
 			}
+
 			mu.Unlock()
 
 			time.Sleep(10 * time.Millisecond)
 
 			mu.Lock()
+
 			activeWorkers--
+
 			mu.Unlock()
 		}()
 	}

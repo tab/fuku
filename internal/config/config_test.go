@@ -49,10 +49,12 @@ logging:
   level: debug
   format: json
 `
+
 				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				return func() { os.Remove("fuku.yaml") }
 			},
 			error: nil,
@@ -63,10 +65,12 @@ logging:
 				content := `version: "invalid_version_type"
 services: "this should be a map not a string"
 `
+
 				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				return func() { os.Remove("fuku.yaml") }
 			},
 			error: errors.ErrFailedToParseConfig,
@@ -78,10 +82,12 @@ services: "this should be a map not a string"
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				err = os.Chmod("fuku.yaml", 0000)
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				return func() {
 					_ = os.Chmod("fuku.yaml", 0644)
 					os.Remove("fuku.yaml")

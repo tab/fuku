@@ -24,7 +24,6 @@ services:
   api:
     dir: examples/bookstore/api
     tier: platform
-    profiles: [core]
     readiness:
       <<: *readiness
       pattern: "Starting api"

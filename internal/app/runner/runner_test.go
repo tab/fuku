@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/runtime"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -25,7 +28,10 @@ func Test_NewRunner(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger)
+	mockEvent := runtime.NewNoOpEventBus()
+	mockCommand := runtime.NewNoOpCommandBus()
+
+	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger, mockEvent, mockCommand)
 	assert.NotNil(t, r)
 
 	instance, ok := r.(*runner)
@@ -35,6 +41,8 @@ func Test_NewRunner(t *testing.T) {
 	assert.Equal(t, mockDiscovery, instance.discovery)
 	assert.Equal(t, mockService, instance.service)
 	assert.Equal(t, mockWorkerPool, instance.pool)
+	assert.Equal(t, mockEvent, instance.event)
+	assert.Equal(t, mockCommand, instance.command)
 }
 
 func Test_Run_ProfileNotFound(t *testing.T) {
@@ -54,8 +62,10 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockEvent := runtime.NewNoOpEventBus()
+	mockCommand := runtime.NewNoOpCommandBus()
 
-	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger, mockEvent, mockCommand)
 
 	ctx := context.Background()
 	err := r.Run(ctx, "nonexistent")
@@ -81,8 +91,10 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockEvent := runtime.NewNoOpEventBus()
+	mockCommand := runtime.NewNoOpCommandBus()
 
-	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockService, mockWorkerPool, mockLogger, mockEvent, mockCommand)
 
 	ctx := context.Background()
 	err := r.Run(ctx, "test")
@@ -104,6 +116,7 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("test").Return([]Tier{{Name: "platform", Services: []string{"api"}}}, nil)
@@ -113,13 +126,17 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	close(doneChan)
 	mockProcess.EXPECT().Done().Return(doneChan).AnyTimes()
 	mockProcess.EXPECT().Name().Return("api").AnyTimes()
+
 	readyChan := make(chan error, 1)
 	close(readyChan)
 	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
 
+	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
+	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
-	mockService.EXPECT().Stop(mockProcess).Return(nil)
+	mockService.EXPECT().Stop(mockProcess).Return(nil).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire().AnyTimes()
@@ -131,6 +148,8 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 		service:   mockService,
 		pool:      mockWorkerPool,
 		log:       mockLogger,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -158,6 +177,9 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 	close(readyChan)
 	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
 
+	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
+	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
 
@@ -169,10 +191,12 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 		service:   mockService,
 		pool:      NewWorkerPool(),
 		log:       mockLogger,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
 	}
 
 	ctx := context.Background()
-	proc, err := r.startServiceWithRetry(ctx, "api", cfg.Services["api"])
+	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
 
 	require.NoError(t, err)
 	assert.NotNil(t, proc)
@@ -202,6 +226,9 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 	readyChan := make(chan error)
 	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
 
+	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
+	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
 	mockService.EXPECT().Stop(mockProcess).Return(nil)
@@ -214,12 +241,14 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 		service:   mockService,
 		pool:      NewWorkerPool(),
 		log:       mockLogger,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	proc, err := r.startServiceWithRetry(ctx, "api", cfg.Services["api"])
+	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
 
 	assert.Error(t, err)
 	assert.Nil(t, proc)
@@ -249,6 +278,8 @@ func Test_StopAllProcesses(t *testing.T) {
 		service:   mockService,
 		pool:      NewWorkerPool(),
 		log:       mockLogger,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
 	}
 
 	processes := []Process{mockProcess1, mockProcess2}
@@ -271,6 +302,8 @@ func Test_StopAllProcesses_EmptyList(t *testing.T) {
 		service:   mockService,
 		pool:      NewWorkerPool(),
 		log:       mockLogger,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
 	}
 
 	processes := []Process{}

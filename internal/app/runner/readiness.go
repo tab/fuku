@@ -83,6 +83,7 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 				case matched <- struct{}{}:
 				default:
 				}
+
 				return
 			}
 		}
@@ -112,6 +113,7 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 	r.log.Info().Msgf("Starting %s readiness check for service '%s'", options.Type, name)
 
 	var err error
+
 	switch options.Type {
 	case config.TypeHTTP:
 		err = r.CheckHTTP(ctx, options.URL, options.Timeout, options.Interval)

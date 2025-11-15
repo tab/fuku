@@ -37,6 +37,7 @@ func (a *App) execute(args []string) int {
 	if err != nil {
 		a.log.Error().Err(err).Msg("Application error")
 	}
+
 	return exitCode
 }
 

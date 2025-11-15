@@ -60,8 +60,10 @@ func Test_Ready(t *testing.T) {
 	assert.NotNil(t, readyChan)
 
 	testErr := errors.New("test error")
+
 	go func() {
 		p.ready <- testErr
+
 		close(p.ready)
 	}()
 

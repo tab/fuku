@@ -50,11 +50,18 @@ type AppLogger struct {
 
 // NewLogger creates a new logger instance
 func NewLogger(cfg *config.Config) Logger {
+	return NewLoggerWithOutput(cfg, nil)
+}
+
+// NewLoggerWithOutput creates a new logger instance with a custom output writer
+func NewLoggerWithOutput(cfg *config.Config, customOutput io.Writer) Logger {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339
 
-	var level zerolog.Level
-	var output io.Writer
+	var (
+		level  zerolog.Level
+		output io.Writer
+	)
 
 	if cfg.Logging.Level == "" {
 		cfg.Logging.Level = InfoLevel
@@ -66,18 +73,22 @@ func NewLogger(cfg *config.Config) Logger {
 
 	level = getLogLevel(cfg.Logging.Level)
 
-	switch cfg.Logging.Format {
-	case JSONFormat:
-		output = os.Stdout
-	case ConsoleFormat:
-		output = zerolog.ConsoleWriter{
-			Out:        os.Stdout,
-			TimeFormat: TimeFormat,
-		}
-	default:
-		output = zerolog.ConsoleWriter{
-			Out:        os.Stdout,
-			TimeFormat: TimeFormat,
+	if customOutput != nil {
+		output = customOutput
+	} else {
+		switch cfg.Logging.Format {
+		case JSONFormat:
+			output = os.Stdout
+		case ConsoleFormat:
+			output = zerolog.ConsoleWriter{
+				Out:        os.Stdout,
+				TimeFormat: TimeFormat,
+			}
+		default:
+			output = zerolog.ConsoleWriter{
+				Out:        os.Stdout,
+				TimeFormat: TimeFormat,
+			}
 		}
 	}
 

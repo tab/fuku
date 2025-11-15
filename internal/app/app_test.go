@@ -97,8 +97,10 @@ func Test_Register(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	app := NewApp(mockCLI, mockLogger)
 
-	var registered bool
-	var capturedHook fx.Hook
+	var (
+		registered   bool
+		capturedHook fx.Hook
+	)
 
 	testLifecycle := &testLifecycleImpl{
 		onAppend: func(hook fx.Hook) {

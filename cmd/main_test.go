@@ -12,7 +12,6 @@ import (
 
 func Test_LoadConfig(t *testing.T) {
 	cfg, err := loadConfig()
-
 	if err != nil {
 		t.Skip("config loading failed, likely no fuku.yaml file in expected location")
 		return
@@ -29,9 +28,10 @@ func Test_CreateApp(t *testing.T) {
 	tests := []struct {
 		name   string
 		config *config.Config
+		noUI   bool
 	}{
 		{
-			name: "Creates app with info level logging",
+			name: "Creates app with info level logging and TUI",
 			config: &config.Config{
 				Logging: struct {
 					Level  string `yaml:"level"`
@@ -40,9 +40,10 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.InfoLevel,
 				},
 			},
+			noUI: false,
 		},
 		{
-			name: "Creates app with debug level logging",
+			name: "Creates app with debug level logging and no UI",
 			config: &config.Config{
 				Logging: struct {
 					Level  string `yaml:"level"`
@@ -51,6 +52,7 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.DebugLevel,
 				},
 			},
+			noUI: true,
 		},
 		{
 			name: "Creates app with error level logging",
@@ -62,6 +64,7 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.ErrorLevel,
 				},
 			},
+			noUI: false,
 		},
 		{
 			name: "Creates app with warn level logging",
@@ -73,13 +76,36 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.WarnLevel,
 				},
 			},
+			noUI: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := createApp(tt.config)
+			app := createApp(tt.config, tt.noUI)
 			assert.NotNil(t, app)
+		})
+	}
+}
+
+func Test_HasNoUIFlag(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		expected bool
+	}{
+		{name: "No args returns false", args: []string{}, expected: false},
+		{name: "Only --run flag returns false", args: []string{"--run=default"}, expected: false},
+		{name: "--no-ui flag returns true", args: []string{"--no-ui"}, expected: true},
+		{name: "--run and --no-ui returns true", args: []string{"--run=default", "--no-ui"}, expected: true},
+		{name: "--no-ui and --run returns true", args: []string{"--no-ui", "--run=core"}, expected: true},
+		{name: "Other flags return false", args: []string{"help", "version"}, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasNoUIFlag(tt.args)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -152,6 +178,7 @@ func Test_CreateFxLogger(t *testing.T) {
 			if tt.expectedType != nil {
 				assert.IsType(t, tt.expectedType, result)
 			}
+
 			if tt.expectedLogger != nil {
 				assert.Equal(t, tt.expectedLogger, result)
 			}

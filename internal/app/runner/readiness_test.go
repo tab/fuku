@@ -82,14 +82,17 @@ func Test_CheckLog_Success(t *testing.T) {
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
+
 	defer stdoutReader.Close()
 	defer stderrReader.Close()
 
 	go func() {
 		defer stdoutWriter.Close()
+
 		fmt.Fprintln(stdoutWriter, "Server is starting...")
 		fmt.Fprintln(stdoutWriter, "Server ready on port 8080")
 	}()
+
 	go func() {
 		defer stderrWriter.Close()
 	}()
@@ -108,13 +111,16 @@ func Test_CheckLog_Timeout(t *testing.T) {
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
+
 	defer stdoutReader.Close()
 	defer stderrReader.Close()
 
 	go func() {
 		defer stdoutWriter.Close()
+
 		fmt.Fprintln(stdoutWriter, "Server is starting...")
 	}()
+
 	go func() {
 		defer stderrWriter.Close()
 	}()
@@ -134,6 +140,7 @@ func Test_CheckLog_InvalidPattern(t *testing.T) {
 
 	stdoutReader, _ := io.Pipe()
 	stderrReader, _ := io.Pipe()
+
 	defer stdoutReader.Close()
 	defer stderrReader.Close()
 
@@ -152,6 +159,7 @@ func Test_CheckLog_MatchInStderr(t *testing.T) {
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
+
 	defer stdoutReader.Close()
 	defer stderrReader.Close()
 
@@ -160,6 +168,7 @@ func Test_CheckLog_MatchInStderr(t *testing.T) {
 	}()
 	go func() {
 		defer stderrWriter.Close()
+
 		fmt.Fprintln(stderrWriter, "Server ready on port 8080")
 	}()
 
@@ -237,6 +246,7 @@ func Test_Check_Log(t *testing.T) {
 	go func() {
 		defer stdoutWriter.Close()
 		defer stderrWriter.Close()
+
 		time.Sleep(100 * time.Millisecond)
 		fmt.Fprintln(stdoutWriter, "Server ready on port 8080")
 	}()
