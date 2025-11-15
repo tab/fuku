@@ -138,3 +138,108 @@ func Test_ApplyRowStyles_WithError(t *testing.T) {
 	result := m.applyRowStyles(row, service)
 	assert.Contains(t, result, "Failed")
 }
+
+func Test_RenderServiceRow_Truncation(t *testing.T) {
+	tests := []struct {
+		name          string
+		serviceName   string
+		maxNameLen    int
+		viewportWidth int
+		wantTruncated bool
+		wantNameInRow string
+	}{
+		{name: "short name no truncation", serviceName: "api", maxNameLen: 20, viewportWidth: 100, wantTruncated: false, wantNameInRow: "api"},
+		{name: "long name truncated", serviceName: "action-confirmation-management-service", maxNameLen: 38, viewportWidth: 60, wantTruncated: true, wantNameInRow: "action-confirmation…"},
+		{name: "name fits exactly", serviceName: "user-service", maxNameLen: 12, viewportWidth: 100, wantTruncated: false, wantNameInRow: "user-service"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{width: tt.viewportWidth + 8}
+			m.servicesViewport.Width = tt.viewportWidth
+			service := &ServiceState{Name: tt.serviceName, Status: StatusReady, LogEnabled: true}
+
+			result := m.renderServiceRow(service, false, tt.maxNameLen)
+
+			assert.Contains(t, result, tt.wantNameInRow)
+
+			if tt.wantTruncated {
+				assert.Contains(t, result, "…")
+			}
+		})
+	}
+}
+
+func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
+	m := Model{width: 120}
+	m.servicesViewport.Width = 112
+
+	service1 := &ServiceState{Name: "api", Status: StatusReady, LogEnabled: true}
+	service2 := &ServiceState{Name: "user-management-service", Status: StatusStarting, LogEnabled: false}
+
+	row1 := m.renderServiceRow(service1, false, 25)
+	row2 := m.renderServiceRow(service2, false, 25)
+
+	assert.Contains(t, row1, "[x] api")
+	assert.Contains(t, row1, "Ready")
+	assert.Contains(t, row2, "[ ] user-management-service")
+	assert.Contains(t, row2, "Starting")
+}
+
+func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
+	m := Model{width: 100}
+	m.servicesViewport.Width = 92
+
+	service := &ServiceState{Name: "api", Status: StatusReady, LogEnabled: true}
+
+	notSelected := m.renderServiceRow(service, false, 20)
+	selected := m.renderServiceRow(service, true, 20)
+
+	assert.Contains(t, notSelected, "  [x]")
+	assert.Contains(t, selected, "▸ [x]")
+}
+
+func Test_RenderTier_Spacing(t *testing.T) {
+	m := Model{
+		services: map[string]*ServiceState{
+			"api": {Name: "api", Status: StatusReady, LogEnabled: true},
+			"db":  {Name: "db", Status: StatusReady, LogEnabled: true},
+		},
+		width: 100,
+	}
+	m.servicesViewport.Width = 92
+
+	tier := TierView{Name: "platform", Services: []string{"api", "db"}}
+	currentIdx := 0
+
+	firstTier := m.renderTier(tier, &currentIdx, 20, true)
+	currentIdx = 0
+	secondTier := m.renderTier(tier, &currentIdx, 20, false)
+
+	assert.True(t, firstTier[0] != '\n', "first tier should not start with newline")
+	assert.True(t, secondTier[0] == '\n', "non-first tier should start with newline")
+	assert.Contains(t, firstTier, "platform\n")
+	assert.Contains(t, secondTier, "platform\n")
+}
+
+func Test_RenderTier_ServiceCount(t *testing.T) {
+	m := Model{
+		services: map[string]*ServiceState{
+			"api": {Name: "api", Status: StatusReady, LogEnabled: true},
+			"db":  {Name: "db", Status: StatusReady, LogEnabled: true},
+			"web": {Name: "web", Status: StatusReady, LogEnabled: true},
+		},
+		width: 100,
+	}
+	m.servicesViewport.Width = 92
+
+	tier := TierView{Name: "platform", Services: []string{"api", "db", "web"}}
+	currentIdx := 0
+
+	result := m.renderTier(tier, &currentIdx, 20, true)
+
+	assert.Equal(t, 3, currentIdx)
+	assert.Contains(t, result, "api")
+	assert.Contains(t, result, "db")
+	assert.Contains(t, result, "web")
+}

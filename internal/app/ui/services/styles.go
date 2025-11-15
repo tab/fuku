@@ -32,9 +32,7 @@ var (
 
 	tierHeaderStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(ColorPrimary).
-			MarginTop(1).
-			MarginBottom(0)
+			Foreground(ColorPrimary)
 
 	serviceRowStyle = lipgloss.NewStyle().
 			Padding(0, 1)
@@ -76,4 +74,20 @@ var (
 
 	spinnerStyle = lipgloss.NewStyle().
 			Foreground(ColorPrimary)
+
+	emptyStateStyle = lipgloss.NewStyle().
+			Foreground(ColorMuted).
+			MarginTop(2)
+
+	phaseStartingStyle = lipgloss.NewStyle().
+				Foreground(ColorStarting)
+
+	phaseRunningStyle = lipgloss.NewStyle().
+				Foreground(ColorReady)
+
+	phaseStoppingStyle = lipgloss.NewStyle().
+				Foreground(ColorFailed)
+
+	phaseMutedStyle = lipgloss.NewStyle().
+			Foreground(ColorMuted)
 )

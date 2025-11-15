@@ -100,6 +100,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		if m.selected > 0 {
 			m.selected--
+			m.servicesViewport.YOffset = m.calculateScrollOffset()
 		}
 
 		return m, nil
@@ -116,6 +117,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		total := m.getTotalServices()
 		if m.selected < total-1 {
 			m.selected++
+			m.servicesViewport.YOffset = m.calculateScrollOffset()
 		}
 
 		return m, nil
