@@ -7,7 +7,7 @@ const (
 	DefaultLogLevel  = "info"
 	DefaultLogFormat = "console"
 
-	Version = "0.2.0"
+	Version = "0.3.0"
 )
 
 // profile constants
