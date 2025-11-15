@@ -79,6 +79,10 @@ func (m Model) renderTitle() string {
 		total,
 	)
 
+	if m.viewMode == ViewModeLogs && m.autoscroll {
+		statusInfo += "  " + timestampStyle.Render("[autoscroll]")
+	}
+
 	title := titleStyle.Render(titleText)
 	info := statusStyle.Render(statusInfo)
 

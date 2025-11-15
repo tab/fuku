@@ -63,11 +63,7 @@ var (
 				Foreground(ColorPrimary).
 				Bold(true)
 
-	streamStdoutStyle = lipgloss.NewStyle().
-				Foreground(ColorReady)
-
-	streamStderrStyle = lipgloss.NewStyle().
-				Foreground(ColorFailed)
+	logMessageStyle = lipgloss.NewStyle()
 
 	errorStyle = lipgloss.NewStyle().
 			Foreground(ColorFailed)

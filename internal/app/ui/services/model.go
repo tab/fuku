@@ -115,6 +115,7 @@ type Model struct {
 	maxLogs          int
 	servicesViewport viewport.Model
 	logsViewport     viewport.Model
+	autoscroll       bool
 	ready            bool
 	eventChan        <-chan runtime.Event
 	log              logger.Logger

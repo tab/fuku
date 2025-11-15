@@ -10,6 +10,7 @@ type KeyMap struct {
 	Stop         key.Binding
 	ToggleLogSub key.Binding
 	ToggleLogs   key.Binding
+	Autoscroll   key.Binding
 	Quit         key.Binding
 	ForceQuit    key.Binding
 }
@@ -41,6 +42,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("l"),
 			key.WithHelp("l", "logs view"),
 		),
+		Autoscroll: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "autoscroll"),
+		),
 		Quit: key.NewBinding(
 			key.WithKeys("q"),
 			key.WithHelp("q", "quit"),
@@ -54,12 +59,12 @@ func DefaultKeyMap() KeyMap {
 
 // ShortHelp returns keybindings to be shown in the mini help view
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Quit}
+	return []key.Binding{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit}
 }
 
 // FullHelp returns keybindings for the expanded help view
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Quit, k.ForceQuit},
+		{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit, k.ForceQuit},
 	}
 }

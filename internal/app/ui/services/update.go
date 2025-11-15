@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -10,6 +11,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"fuku/internal/app/runtime"
+)
+
+const (
+	minLogMessageWidth   = 20
+	maxServiceNameLength = 15
 )
 
 type eventMsg runtime.Event
@@ -89,95 +95,23 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	case key.Matches(msg, m.keys.Autoscroll):
+		return m.handleAutoscroll()
+
 	case key.Matches(msg, m.keys.Up):
-		if m.viewMode == ViewModeLogs {
-			var cmd tea.Cmd
-
-			m.logsViewport, cmd = m.logsViewport.Update(msg)
-
-			return m, cmd
-		}
-
-		if m.selected > 0 {
-			m.selected--
-			m.servicesViewport.YOffset = m.calculateScrollOffset()
-		}
-
-		return m, nil
+		return m.handleUpKey(msg)
 
 	case key.Matches(msg, m.keys.Down):
-		if m.viewMode == ViewModeLogs {
-			var cmd tea.Cmd
-
-			m.logsViewport, cmd = m.logsViewport.Update(msg)
-
-			return m, cmd
-		}
-
-		total := m.getTotalServices()
-		if m.selected < total-1 {
-			m.selected++
-			m.servicesViewport.YOffset = m.calculateScrollOffset()
-		}
-
-		return m, nil
+		return m.handleDownKey(msg)
 
 	case key.Matches(msg, m.keys.Stop):
-		if m.viewMode != ViewModeServices {
-			return m, nil
-		}
-
-		service := m.getSelectedService()
-		if service != nil && service.FSM != nil {
-			ctx := context.Background()
-
-			if service.FSM.Current() == Stopped {
-				m.command.Publish(runtime.Command{
-					Type: runtime.CommandRestartService,
-					Data: runtime.RestartServiceData{Service: service.Name},
-				})
-				_ = service.FSM.Event(ctx, Start)
-
-				return m, m.loader.Model.Tick
-			} else if service.FSM.Current() == Running {
-				_ = service.FSM.Event(ctx, Stop)
-				return m, m.loader.Model.Tick
-			}
-		}
-
-		return m, nil
+		return m.handleStopKey()
 
 	case key.Matches(msg, m.keys.Restart):
-		if m.viewMode != ViewModeServices {
-			return m, nil
-		}
-
-		service := m.getSelectedService()
-		if service != nil && service.FSM != nil {
-			ctx := context.Background()
-
-			state := service.FSM.Current()
-			if state == Running || state == Failed || state == Stopped {
-				_ = service.FSM.Event(ctx, Restart)
-				return m, m.loader.Model.Tick
-			}
-		}
-
-		return m, nil
+		return m.handleRestartKey()
 
 	case key.Matches(msg, m.keys.ToggleLogSub):
-		if m.viewMode != ViewModeServices {
-			return m, nil
-		}
-
-		service := m.getSelectedService()
-		if service != nil {
-			service.LogEnabled = !service.LogEnabled
-
-			m.updateLogsViewport()
-		}
-
-		return m, nil
+		return m.handleToggleLogSub()
 	}
 
 	switch msg.String() {
@@ -190,6 +124,120 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, cmd
+	}
+
+	return m, nil
+}
+
+func (m Model) handleAutoscroll() (tea.Model, tea.Cmd) {
+	if m.viewMode == ViewModeLogs {
+		m.autoscroll = !m.autoscroll
+		if m.autoscroll {
+			m.logsViewport.GotoBottom()
+		}
+	}
+
+	return m, nil
+}
+
+func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.viewMode == ViewModeLogs {
+		var cmd tea.Cmd
+
+		m.logsViewport, cmd = m.logsViewport.Update(msg)
+
+		return m, cmd
+	}
+
+	if m.selected > 0 {
+		m.selected--
+		m.servicesViewport.YOffset = m.calculateScrollOffset()
+	}
+
+	return m, nil
+}
+
+func (m Model) handleDownKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.viewMode == ViewModeLogs {
+		var cmd tea.Cmd
+
+		m.logsViewport, cmd = m.logsViewport.Update(msg)
+
+		return m, cmd
+	}
+
+	total := m.getTotalServices()
+	if m.selected < total-1 {
+		m.selected++
+		m.servicesViewport.YOffset = m.calculateScrollOffset()
+	}
+
+	return m, nil
+}
+
+func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
+	if m.viewMode != ViewModeServices {
+		return m, nil
+	}
+
+	service := m.getSelectedService()
+	if service == nil || service.FSM == nil {
+		return m, nil
+	}
+
+	ctx := context.Background()
+
+	if service.FSM.Current() == Stopped {
+		m.command.Publish(runtime.Command{
+			Type: runtime.CommandRestartService,
+			Data: runtime.RestartServiceData{Service: service.Name},
+		})
+		_ = service.FSM.Event(ctx, Start)
+
+		return m, m.loader.Model.Tick
+	}
+
+	if service.FSM.Current() == Running {
+		_ = service.FSM.Event(ctx, Stop)
+
+		return m, m.loader.Model.Tick
+	}
+
+	return m, nil
+}
+
+func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
+	if m.viewMode != ViewModeServices {
+		return m, nil
+	}
+
+	service := m.getSelectedService()
+	if service == nil || service.FSM == nil {
+		return m, nil
+	}
+
+	ctx := context.Background()
+	state := service.FSM.Current()
+
+	if state == Running || state == Failed || state == Stopped {
+		_ = service.FSM.Event(ctx, Restart)
+
+		return m, m.loader.Model.Tick
+	}
+
+	return m, nil
+}
+
+func (m Model) handleToggleLogSub() (tea.Model, tea.Cmd) {
+	if m.viewMode != ViewModeServices {
+		return m, nil
+	}
+
+	service := m.getSelectedService()
+	if service != nil {
+		service.LogEnabled = !service.LogEnabled
+
+		m.updateLogsViewport()
 	}
 
 	return m, nil
@@ -413,34 +461,53 @@ func (m Model) handleLogLine(event runtime.Event) Model {
 func (m *Model) updateLogsViewport() {
 	var logLines string
 
+	viewportWidth := m.logsViewport.Width
+	if viewportWidth <= 0 {
+		viewportWidth = 80
+	}
+
 	for _, entry := range m.logs {
 		serviceState, exists := m.services[entry.Service]
 		if !exists || !serviceState.LogEnabled {
 			continue
 		}
 
-		streamPrefix := ""
-
-		switch entry.Stream {
-		case "STDOUT":
-			streamPrefix = streamStdoutStyle.Render("[OUT]")
-		case "STDERR":
-			streamPrefix = streamStderrStyle.Render("[ERR]")
+		serviceName := entry.Service
+		if len(serviceName) > maxServiceNameLength {
+			serviceName = serviceName[:maxServiceNameLength] + "…"
 		}
 
-		timestamp := timestampStyle.Render(entry.Timestamp.Format("15:04:05"))
-		service := serviceNameStyle.Render(entry.Service)
+		service := serviceNameStyle.Render(serviceName)
+		divider := timestampStyle.Render("·")
 
-		logLine := fmt.Sprintf("%s %s %s %s\n",
-			timestamp,
-			service,
-			streamPrefix,
-			entry.Message,
-		)
-		logLines += logLine
+		prefix := fmt.Sprintf("%s %s ", service, divider)
+		prefixLen := len(serviceName) + 3
+
+		message := strings.TrimRight(entry.Message, "\n\r")
+
+		messageWidth := viewportWidth - prefixLen
+		if messageWidth < minLogMessageWidth {
+			messageWidth = minLogMessageWidth
+		}
+
+		wrappedMessage := logMessageStyle.Width(messageWidth).Render(message)
+
+		lines := strings.Split(wrappedMessage, "\n")
+		for i, line := range lines {
+			linePrefix := prefix
+			if i > 0 {
+				linePrefix = "└ "
+			}
+
+			logLines += fmt.Sprintf("%s%s\n", linePrefix, line)
+		}
 	}
 
 	m.logsViewport.SetContent(logLines)
+
+	if m.autoscroll {
+		m.logsViewport.GotoBottom()
+	}
 }
 
 func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
