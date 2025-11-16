@@ -9,6 +9,15 @@ import (
 	"fuku/internal/app/runtime"
 )
 
+const (
+	// fixedColumnsWidth is the total width occupied by fixed columns in the service row
+	// (indicator: 2, checkbox: 3, status: 12, cpu: 8, mem: 9, uptime: ~11)
+	fixedColumnsWidth = 45
+
+	// minServiceNameWidth is the minimum width allocated for service names
+	minServiceNameWidth = 20
+)
+
 // View renders the UI
 func (m Model) View() string {
 	if !m.ready {
@@ -192,9 +201,9 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 
 	serviceName := service.Name
 
-	availableWidth := m.servicesViewport.Width - 45
-	if availableWidth < 20 {
-		availableWidth = 20
+	availableWidth := m.servicesViewport.Width - fixedColumnsWidth
+	if availableWidth < minServiceNameWidth {
+		availableWidth = minServiceNameWidth
 	}
 
 	if maxNameLen > availableWidth {
