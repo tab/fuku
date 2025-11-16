@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/looplab/fsm"
 
+	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
 	"fuku/internal/config/logger"
 )
@@ -109,6 +110,7 @@ type Model struct {
 	event            runtime.EventBus
 	command          runtime.CommandBus
 	controller       Controller
+	monitor          monitor.Monitor
 	loader           *Loader
 	quitting         bool
 	viewMode         ViewMode
@@ -129,6 +131,7 @@ func NewModel(
 	event runtime.EventBus,
 	command runtime.CommandBus,
 	controller Controller,
+	mon monitor.Monitor,
 	loader *Loader,
 	log logger.Logger,
 ) Model {
@@ -148,6 +151,7 @@ func NewModel(
 		event:            event,
 		command:          command,
 		controller:       controller,
+		monitor:          mon,
 		loader:           loader,
 		viewMode:         ViewModeServices,
 		logs:             make([]LogEntry, 0),

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/monitor"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui/services"
@@ -29,8 +30,9 @@ func Test_NewCLI(t *testing.T) {
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
 	mockController := services.NewMockController(ctrl)
+	mockMonitor := monitor.NewMockMonitor(ctrl)
 
-	cliInstance := NewCLI(cfg, mockRunner, mockEvent, mockCommand, mockController, mockLogger)
+	cliInstance := NewCLI(cfg, mockRunner, mockEvent, mockCommand, mockController, mockMonitor, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -42,6 +44,7 @@ func Test_NewCLI(t *testing.T) {
 	assert.Equal(t, mockEvent, instance.event)
 	assert.Equal(t, mockCommand, instance.command)
 	assert.Equal(t, mockController, instance.controller)
+	assert.Equal(t, mockMonitor, instance.monitor)
 }
 
 func Test_Run(t *testing.T) {
@@ -51,6 +54,7 @@ func Test_Run(t *testing.T) {
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockController := services.NewMockController(ctrl)
+	mockMonitor := monitor.NewMockMonitor(ctrl)
 	cfg := config.DefaultConfig()
 	mockCommand := runtime.NewNoOpCommandBus()
 
@@ -61,6 +65,7 @@ func Test_Run(t *testing.T) {
 		event:      runtime.NewNoOpEventBus(),
 		command:    mockCommand,
 		controller: mockController,
+		monitor:    mockMonitor,
 	}
 
 	tests := []struct {

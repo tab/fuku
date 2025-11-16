@@ -2,38 +2,24 @@ package services
 
 import (
 	"fmt"
-	"math"
 	"time"
-
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 func (m *Model) updateProcessStats() {
 	for _, service := range m.services {
 		if service.Monitor.PID > 0 && service.Status != StatusStopped {
-			if service.Monitor.PID > math.MaxInt32 {
-				continue
-			}
-
-			proc, err := process.NewProcess(int32(service.Monitor.PID)) // #nosec G115 -- PID range checked above
+			stats, err := m.monitor.GetStats(service.Monitor.PID)
 			if err != nil {
 				continue
 			}
 
-			cpuPercent, err := proc.CPUPercent()
-			if err == nil {
-				service.Monitor.CPU = cpuPercent
-			}
-
-			memInfo, err := proc.MemoryInfo()
-			if err == nil {
-				service.Monitor.MEM = float64(memInfo.RSS) / 1024 / 1024
-			}
+			service.Monitor.CPU = stats.CPU
+			service.Monitor.MEM = stats.MEM
 		}
 	}
 }
 
-func (m Model) getUptimeRaw(service *ServiceState) string {
+func (m Model) getUptime(service *ServiceState) string {
 	if service.Status == StatusStopped || service.Monitor.StartTime.IsZero() {
 		return ""
 	}
@@ -50,7 +36,7 @@ func (m Model) getUptimeRaw(service *ServiceState) string {
 	return pad(minutes) + ":" + pad(seconds)
 }
 
-func (m Model) getCPURaw(service *ServiceState) string {
+func (m Model) getCPU(service *ServiceState) string {
 	if service.Status == StatusStopped || service.Monitor.PID == 0 {
 		return ""
 	}
@@ -58,7 +44,7 @@ func (m Model) getCPURaw(service *ServiceState) string {
 	return fmt.Sprintf("%.1f%%", service.Monitor.CPU)
 }
 
-func (m Model) getMemRaw(service *ServiceState) string {
+func (m Model) getMem(service *ServiceState) string {
 	if service.Status == StatusStopped || service.Monitor.PID == 0 {
 		return ""
 	}

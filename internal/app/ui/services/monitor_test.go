@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_GetUptimeRaw(t *testing.T) {
+func Test_GetUptime(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
@@ -46,13 +46,13 @@ func Test_GetUptimeRaw(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := m.getUptimeRaw(tt.service)
+			got := m.getUptime(tt.service)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func Test_GetCPURaw(t *testing.T) {
+func Test_GetCPU(t *testing.T) {
 	tests := []struct {
 		name    string
 		service *ServiceState
@@ -89,13 +89,13 @@ func Test_GetCPURaw(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := m.getCPURaw(tt.service)
+			got := m.getCPU(tt.service)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func Test_GetMemRaw(t *testing.T) {
+func Test_GetMem(t *testing.T) {
 	tests := []struct {
 		name    string
 		service *ServiceState
@@ -142,7 +142,7 @@ func Test_GetMemRaw(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := m.getMemRaw(tt.service)
+			got := m.getMem(tt.service)
 			assert.Equal(t, tt.want, got)
 		})
 	}

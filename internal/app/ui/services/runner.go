@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
 	"fuku/internal/config/logger"
 )
@@ -17,6 +18,7 @@ func Run(
 	event runtime.EventBus,
 	command runtime.CommandBus,
 	controller Controller,
+	mon monitor.Monitor,
 	log logger.Logger,
 ) (*tea.Program, Model, error) {
 	s := spinner.New()
@@ -29,7 +31,7 @@ func Run(
 		queue:  make([]LoaderItem, 0),
 	}
 
-	model := NewModel(ctx, profile, event, command, controller, loader, log)
+	model := NewModel(ctx, profile, event, command, controller, mon, loader, log)
 
 	p := tea.NewProgram(
 		model,
