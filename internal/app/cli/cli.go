@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"fuku/internal/app/generator"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
 	"fuku/internal/config"
@@ -14,12 +15,19 @@ import (
 
 const (
 	Usage = `Usage:
+  fuku init [--profile=<NAME>] [--service=<NAME>] [--force] [--dry-run]
+                                  Generate fuku.yaml from template
   fuku --run=<PROFILE>            Run services with specified profile (with TUI)
   fuku --run=<PROFILE> --no-ui    Run services without TUI
   fuku help                       Show help
   fuku version                    Show version
 
 Examples:
+  fuku init                       Generate fuku.yaml with defaults
+  fuku init --profile=dev --service=backend
+                                  Generate with custom profile and service
+  fuku init --force               Overwrite existing fuku.yaml
+  fuku init --dry-run             Preview generated file without writing
   fuku --run=default              Run all services with TUI
   fuku --run=core --no-ui         Run core services without TUI
   fuku --run=minimal              Run minimal services with TUI
@@ -48,10 +56,11 @@ type CLI interface {
 
 // cli represents the command-line interface for the application
 type cli struct {
-	cfg    *config.Config
-	runner runner.Runner
-	ui     wire.UI
-	log    logger.Logger
+	cfg       *config.Config
+	runner    runner.Runner
+	ui        wire.UI
+	generator generator.Generator
+	log       logger.Logger
 }
 
 // NewCLI creates a new cli instance
@@ -59,20 +68,26 @@ func NewCLI(
 	cfg *config.Config,
 	runner runner.Runner,
 	ui wire.UI,
+	generator generator.Generator,
 	log logger.Logger,
 ) CLI {
 	return &cli{
-		cfg:    cfg,
-		runner: runner,
-		ui:     ui,
-		log:    log,
+		cfg:       cfg,
+		runner:    runner,
+		ui:        ui,
+		generator: generator,
+		log:       log,
 	}
 }
 
 // Run processes command-line arguments and executes commands
 func (c *cli) Run(args []string) (int, error) {
 	noUI := false
+	force := false
+	dryRun := false
 	profile := config.DefaultProfile
+	initProfile := ""
+	initService := ""
 
 	var remainingArgs []string
 
@@ -80,11 +95,19 @@ func (c *cli) Run(args []string) (int, error) {
 		switch {
 		case arg == "--no-ui":
 			noUI = true
+		case arg == "--force":
+			force = true
+		case arg == "--dry-run":
+			dryRun = true
 		case strings.HasPrefix(arg, "--run="):
 			profile = strings.TrimPrefix(arg, "--run=")
 			if profile == "" {
 				profile = config.DefaultProfile
 			}
+		case strings.HasPrefix(arg, "--profile="):
+			initProfile = strings.TrimPrefix(arg, "--profile=")
+		case strings.HasPrefix(arg, "--service="):
+			initService = strings.TrimPrefix(arg, "--service=")
 		default:
 			remainingArgs = append(remainingArgs, arg)
 		}
@@ -97,6 +120,8 @@ func (c *cli) Run(args []string) (int, error) {
 	cmd := remainingArgs[0]
 
 	switch cmd {
+	case "init", "--init", "-i":
+		return c.handleInit(initProfile, initService, force, dryRun)
 	case "help", "--help", "-h":
 		return c.handleHelp()
 	case "version", "--version", "-v":
@@ -172,6 +197,36 @@ func (c *cli) handleHelp() (int, error) {
 func (c *cli) handleVersion() (int, error) {
 	c.log.Debug().Msg("Displaying version information")
 	fmt.Printf("Version: %s\n", config.Version)
+
+	return 0, nil
+}
+
+// handleInit generates a fuku.yaml file from template
+func (c *cli) handleInit(profileName, serviceName string, force bool, dryRun bool) (int, error) {
+	opts := generator.DefaultOptions()
+	if profileName != "" {
+		opts.ProfileName = profileName
+	}
+
+	if serviceName != "" {
+		opts.ServiceName = serviceName
+	}
+
+	c.log.Debug().Msgf("Generating fuku.yaml (profile=%s, service=%s, force=%v, dryRun=%v)", opts.ProfileName, opts.ServiceName, force, dryRun)
+
+	if err := c.generator.Generate(opts, force, dryRun); err != nil {
+		c.log.Error().Err(err).Msg("Failed to generate fuku.yaml")
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+
+		return 1, err
+	}
+
+	if !dryRun {
+		fmt.Println("Generated fuku.yaml")
+		fmt.Println("\nNext steps:")
+		fmt.Println("  1. Edit fuku.yaml to configure your services")
+		fmt.Printf("  2. Run 'fuku --run=%s' to start services\n", opts.ProfileName)
+	}
 
 	return 0, nil
 }

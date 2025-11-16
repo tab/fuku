@@ -1,0 +1,34 @@
+version: 1
+
+x-readiness-log: &readiness-log
+  type: log
+  pattern: "server started"
+  timeout: 30s
+
+x-readiness-http: &readiness-http
+  type: http
+  url: http://localhost:8080/healthz
+  timeout: 10s
+  interval: 500ms
+
+services:
+  {{.ServiceName}}:
+    dir: {{.ServiceName}}
+    readiness:
+      <<: *readiness-log
+
+  # Example using HTTP readiness check:
+  # {{.ServiceName}}-http:
+  #   dir: {{.ServiceName}}
+  #   readiness:
+  #     <<: *readiness-http
+  #     url: http://localhost:8080/healthz
+
+profiles:
+  {{.ProfileName}}:
+    include:
+      - {{.ServiceName}}
+
+logging:
+  format: console
+  level: info

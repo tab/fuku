@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/generator"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
 	"fuku/internal/config"
@@ -28,9 +29,10 @@ func Test_NewCLI(t *testing.T) {
 	mockUI := func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
 	}
+	mockGenerator := generator.NewMockGenerator(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	cliInstance := NewCLI(cfg, mockRunner, mockUI, mockLogger)
+	cliInstance := NewCLI(cfg, mockRunner, mockUI, mockGenerator, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -39,6 +41,7 @@ func Test_NewCLI(t *testing.T) {
 	assert.Equal(t, cfg, instance.cfg)
 	assert.Equal(t, mockRunner, instance.runner)
 	assert.NotNil(t, instance.ui)
+	assert.Equal(t, mockGenerator, instance.generator)
 	assert.Equal(t, mockLogger, instance.log)
 }
 
@@ -47,6 +50,7 @@ func Test_Run(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRunner := runner.NewMockRunner(ctrl)
+	mockGenerator := generator.NewMockGenerator(ctrl)
 	cfg := config.DefaultConfig()
 	mockUI := wire.UI(func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
@@ -54,10 +58,11 @@ func Test_Run(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	c := &cli{
-		cfg:    cfg,
-		runner: mockRunner,
-		ui:     mockUI,
-		log:    mockLogger,
+		cfg:       cfg,
+		runner:    mockRunner,
+		ui:        mockUI,
+		generator: mockGenerator,
+		log:       mockLogger,
 	}
 
 	tests := []struct {
