@@ -11,7 +11,7 @@ import (
 
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/logs"
+	"fuku/internal/app/ui/navigation"
 )
 
 func Test_View_NotReady(t *testing.T) {
@@ -30,9 +30,14 @@ func Test_View_Quitting(t *testing.T) {
 }
 
 func Test_RenderTitle_ServicesView(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
-	m := Model{loader: loader}
-	m.ui.viewMode = ViewModeServices
+	m := Model{loader: loader, navigator: mockNav}
 	m.state.phase = runtime.PhaseRunning
 	m.state.services = map[string]*ServiceState{"api": {Status: StatusReady}}
 	m.state.tiers = []Tier{{Services: []string{"api"}}}
@@ -44,9 +49,17 @@ func Test_RenderTitle_ServicesView(t *testing.T) {
 }
 
 func Test_RenderTitle_LogsView(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewLogs).Times(2)
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().Autoscroll().Return(false)
+
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
-	m := Model{loader: loader}
-	m.ui.viewMode = ViewModeLogs
+	m := Model{loader: loader, logView: mockLogView, navigator: mockNav}
 	m.state.phase = runtime.PhaseRunning
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = []Tier{}
@@ -56,10 +69,15 @@ func Test_RenderTitle_LogsView(t *testing.T) {
 }
 
 func Test_RenderTitle_WithActiveLoader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+
 	loader := &Loader{Model: spinner.New(), Active: true, queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Starting api…")
-	m := Model{loader: loader}
-	m.ui.viewMode = ViewModeServices
+	m := Model{loader: loader, navigator: mockNav}
 	m.state.phase = runtime.PhaseStartup
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = []Tier{}
@@ -81,8 +99,14 @@ func Test_RenderTitle_PhaseColors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockNav := navigation.NewMockNavigator(ctrl)
+			mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+
 			loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
-			m := Model{loader: loader}
+			m := Model{loader: loader, navigator: mockNav}
 			m.state.phase = tt.phase
 			m.state.services = make(map[string]*ServiceState)
 			m.state.tiers = []Tier{}
@@ -104,15 +128,21 @@ func Test_RenderLogs_Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockFilter := ui.NewMockLogFilter(ctrl)
-	m := Model{}
-	m.logsModel = logs.NewModel(mockFilter)
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().View().Return("No logs enabled. Press 'space' to toggle service logs. Press 'l' to return to services view.")
+	m := Model{logView: mockLogView}
 	result := m.renderLogs()
 	assert.Contains(t, result, "No logs enabled")
 }
 
 func Test_RenderHelp(t *testing.T) {
-	m := Model{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
+
+	m := Model{navigator: mockNav}
 	m.ui.keys = DefaultKeyMap()
 	m.ui.help = help.New()
 	result := m.renderHelp()
@@ -165,10 +195,16 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockLogView := ui.NewMockLogView(ctrl)
+			mockLogView.EXPECT().IsEnabled(tt.serviceName).Return(true)
+
+			m := Model{logView: mockLogView}
 			m.ui.width = tt.viewportWidth + 8
 			m.ui.servicesViewport.Width = tt.viewportWidth
-			service := &ServiceState{Name: tt.serviceName, Status: StatusReady, LogEnabled: true}
+			service := &ServiceState{Name: tt.serviceName, Status: StatusReady}
 
 			result := m.renderServiceRow(service, false, tt.maxNameLen)
 
@@ -182,12 +218,19 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 }
 
 func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
-	m := Model{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().IsEnabled("api").Return(true)
+	mockLogView.EXPECT().IsEnabled("user-management-service").Return(false)
+
+	m := Model{logView: mockLogView}
 	m.ui.width = 120
 	m.ui.servicesViewport.Width = 112
 
-	service1 := &ServiceState{Name: "api", Status: StatusReady, LogEnabled: true}
-	service2 := &ServiceState{Name: "user-management-service", Status: StatusStarting, LogEnabled: false}
+	service1 := &ServiceState{Name: "api", Status: StatusReady}
+	service2 := &ServiceState{Name: "user-management-service", Status: StatusStarting}
 
 	row1 := m.renderServiceRow(service1, false, 25)
 	row2 := m.renderServiceRow(service2, false, 25)
@@ -199,11 +242,17 @@ func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
 }
 
 func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
-	m := Model{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().IsEnabled("api").Return(true).Times(2)
+
+	m := Model{logView: mockLogView}
 	m.ui.width = 100
 	m.ui.servicesViewport.Width = 92
 
-	service := &ServiceState{Name: "api", Status: StatusReady, LogEnabled: true}
+	service := &ServiceState{Name: "api", Status: StatusReady}
 
 	notSelected := m.renderServiceRow(service, false, 20)
 	selected := m.renderServiceRow(service, true, 20)
@@ -213,10 +262,16 @@ func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 }
 
 func Test_RenderTier_Spacing(t *testing.T) {
-	m := Model{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().IsEnabled(gomock.Any()).Return(true).AnyTimes()
+
+	m := Model{logView: mockLogView}
 	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusReady, LogEnabled: true},
-		"db":  {Name: "db", Status: StatusReady, LogEnabled: true},
+		"api": {Name: "api", Status: StatusReady},
+		"db":  {Name: "db", Status: StatusReady},
 	}
 	m.ui.width = 100
 	m.ui.servicesViewport.Width = 92
@@ -235,11 +290,17 @@ func Test_RenderTier_Spacing(t *testing.T) {
 }
 
 func Test_RenderTier_ServiceCount(t *testing.T) {
-	m := Model{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().IsEnabled(gomock.Any()).Return(true).AnyTimes()
+
+	m := Model{logView: mockLogView}
 	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusReady, LogEnabled: true},
-		"db":  {Name: "db", Status: StatusReady, LogEnabled: true},
-		"web": {Name: "web", Status: StatusReady, LogEnabled: true},
+		"api": {Name: "api", Status: StatusReady},
+		"db":  {Name: "db", Status: StatusReady},
+		"web": {Name: "web", Status: StatusReady},
 	}
 	m.ui.width = 100
 	m.ui.servicesViewport.Width = 92

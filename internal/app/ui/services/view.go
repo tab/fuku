@@ -7,6 +7,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui/components"
+	"fuku/internal/app/ui/navigation"
 )
 
 // View renders the UI
@@ -24,16 +26,16 @@ func (m Model) View() string {
 	sections = append(sections, m.renderTitle())
 	sections = append(sections, "")
 
-	if m.ui.viewMode == ViewModeLogs {
+	if m.navigator.CurrentView() == navigation.ViewLogs {
 		logsPanel := activePanelStyle.
-			Width(m.ui.width - panelBorderPadding).
-			Height(m.ui.height - panelHeightOffset).
+			Width(m.ui.width - components.PanelBorderPadding).
+			Height(m.ui.height - components.PanelHeightOffset).
 			Render(m.renderLogs())
 		sections = append(sections, logsPanel)
 	} else {
 		servicesPanel := activePanelStyle.
-			Width(m.ui.width - panelBorderPadding).
-			Height(m.ui.height - panelHeightOffset).
+			Width(m.ui.width - components.PanelBorderPadding).
+			Height(m.ui.height - components.PanelHeightOffset).
 			Render(m.renderServices())
 		sections = append(sections, servicesPanel)
 	}
@@ -47,7 +49,7 @@ func (m Model) View() string {
 func (m Model) renderTitle() string {
 	titleText := ">_ services"
 
-	if m.ui.viewMode == ViewModeLogs {
+	if m.navigator.CurrentView() == navigation.ViewLogs {
 		titleText = ">_ logs"
 	}
 
@@ -79,7 +81,7 @@ func (m Model) renderTitle() string {
 		total,
 	)
 
-	if m.ui.viewMode == ViewModeLogs && m.logsModel.Autoscroll() {
+	if m.navigator.CurrentView() == navigation.ViewLogs && m.logView.Autoscroll() {
 		statusInfo += "  " + timestampStyle.Render("[autoscroll]")
 	}
 
@@ -89,7 +91,7 @@ func (m Model) renderTitle() string {
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		title,
-		lipgloss.PlaceHorizontal(m.ui.width-lipgloss.Width(title)-panelBorderPadding, lipgloss.Right, info),
+		lipgloss.PlaceHorizontal(m.ui.width-lipgloss.Width(title)-components.PanelBorderPadding, lipgloss.Right, info),
 	)
 }
 
@@ -181,7 +183,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	}
 
 	logCheckbox := "[ ]"
-	if service.LogEnabled {
+	if m.logView.IsEnabled(service.Name) {
 		logCheckbox = "[x]"
 	}
 
@@ -271,13 +273,13 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 }
 
 func (m Model) renderLogs() string {
-	return m.logsModel.View()
+	return m.logView.View()
 }
 
 func (m Model) renderHelp() string {
 	var helpView string
 
-	if m.ui.viewMode == ViewModeLogs {
+	if m.navigator.CurrentView() == navigation.ViewLogs {
 		helpView = m.ui.help.View(LogsHelpKeyMap(m.ui.keys))
 	} else {
 		helpView = m.ui.help.View(ServicesHelpKeyMap(m.ui.keys))

@@ -13,7 +13,6 @@ import (
 
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/logs"
 	"fuku/internal/config/logger"
 )
 
@@ -33,12 +32,12 @@ func Test_HandleProfileResolved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockFilter := ui.NewMockLogFilter(ctrl)
-	mockFilter.EXPECT().EnableAll([]string{"db", "api", "web"})
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().EnableAll([]string{"db", "api", "web"})
 
 	m := Model{
-		log:    newTestLogger(ctrl),
-		filter: mockFilter,
+		log:     newTestLogger(ctrl),
+		logView: mockLogView,
 	}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
@@ -278,39 +277,4 @@ func Test_HandleServiceStopped_InvalidData(t *testing.T) {
 	event := runtime.Event{Type: runtime.EventServiceStopped, Data: "invalid"}
 	result := m.handleServiceStopped(event)
 	assert.Len(t, result.state.services, 0)
-}
-
-func Test_HandleLogLine(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockFilter := ui.NewMockLogFilter(ctrl)
-	mockFilter.EXPECT().IsEnabled("api").Return(true)
-
-	service := &ServiceState{Name: "api", LogEnabled: true}
-	m := Model{}
-	m.state.services = map[string]*ServiceState{"api": service}
-	m.logsModel = logs.NewModel(mockFilter)
-
-	event := runtime.Event{
-		Timestamp: time.Now(),
-		Type:      runtime.EventLogLine,
-		Data:      runtime.LogLineData{Service: "api", Tier: "tier1", Stream: "STDOUT", Message: "Server started"},
-	}
-
-	result := m.handleLogLine(event)
-
-	assert.NotNil(t, result.logsModel)
-}
-
-func Test_HandleLogLine_InvalidData(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockFilter := ui.NewMockLogFilter(ctrl)
-	m := Model{}
-	m.logsModel = logs.NewModel(mockFilter)
-	event := runtime.Event{Type: runtime.EventLogLine, Data: "invalid"}
-	result := m.handleLogLine(event)
-	assert.NotNil(t, result.logsModel)
 }

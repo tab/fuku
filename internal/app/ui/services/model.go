@@ -12,7 +12,7 @@ import (
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/logs"
+	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
 
@@ -25,14 +25,6 @@ const (
 	StatusStopping Status = "Stopping"
 	StatusFailed   Status = "Failed"
 	StatusStopped  Status = "Stopped"
-)
-
-// ViewMode represents the current view mode
-type ViewMode int
-
-const (
-	ViewModeServices ViewMode = iota
-	ViewModeLogs
 )
 
 // Tier represents a tier in the UI
@@ -53,13 +45,12 @@ type ServiceMonitor struct {
 
 // ServiceState represents the state of a service
 type ServiceState struct {
-	Name       string
-	Tier       string
-	Status     Status
-	Error      error
-	FSM        *fsm.FSM
-	Monitor    ServiceMonitor
-	LogEnabled bool
+	Name    string
+	Tier    string
+	Status  Status
+	Error   error
+	FSM     *fsm.FSM
+	Monitor ServiceMonitor
 }
 
 // MarkStarting sets the service status to starting
@@ -95,7 +86,8 @@ type Model struct {
 	command    runtime.CommandBus
 	controller Controller
 	monitor    monitor.Monitor
-	filter     ui.LogFilter
+	logView    ui.LogView
+	navigator  navigation.Navigator
 	loader     *Loader
 	eventChan  <-chan runtime.Event
 
@@ -112,13 +104,10 @@ type Model struct {
 	ui struct {
 		width            int
 		height           int
-		viewMode         ViewMode
 		keys             KeyMap
 		help             help.Model
 		servicesViewport viewport.Model
 	}
-
-	logsModel logs.Model
 
 	log logger.Logger
 }
@@ -131,7 +120,8 @@ func NewModel(
 	command runtime.CommandBus,
 	controller Controller,
 	monitor monitor.Monitor,
-	filter ui.LogFilter,
+	logView ui.LogView,
+	navigator navigation.Navigator,
 	loader *Loader,
 	log logger.Logger,
 ) Model {
@@ -147,7 +137,8 @@ func NewModel(
 		monitor:    monitor,
 		loader:     loader,
 		eventChan:  eventChan,
-		filter:     filter,
+		logView:    logView,
+		navigator:  navigator,
 		log:        log,
 	}
 
@@ -161,12 +152,9 @@ func NewModel(
 
 	m.ui.width = 0
 	m.ui.height = 0
-	m.ui.viewMode = ViewModeServices
 	m.ui.keys = DefaultKeyMap()
 	m.ui.help = help.New()
 	m.ui.servicesViewport = viewport.New(0, 0)
-
-	m.logsModel = logs.NewModel(filter)
 
 	return m
 }

@@ -6,11 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"fuku/internal/app/monitor"
 	"fuku/internal/app/runner"
-	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/services"
+	"fuku/internal/app/ui/wire"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -51,36 +48,24 @@ type CLI interface {
 
 // cli represents the command-line interface for the application
 type cli struct {
-	cfg        *config.Config
-	runner     runner.Runner
-	log        logger.Logger
-	event      runtime.EventBus
-	command    runtime.CommandBus
-	controller services.Controller
-	monitor    monitor.Monitor
-	logFilter  ui.LogFilter
+	cfg    *config.Config
+	runner runner.Runner
+	ui     wire.UI
+	log    logger.Logger
 }
 
 // NewCLI creates a new cli instance
 func NewCLI(
 	cfg *config.Config,
 	runner runner.Runner,
-	event runtime.EventBus,
-	command runtime.CommandBus,
-	controller services.Controller,
-	monitor monitor.Monitor,
-	logFilter ui.LogFilter,
+	ui wire.UI,
 	log logger.Logger,
 ) CLI {
 	return &cli{
-		cfg:        cfg,
-		runner:     runner,
-		event:      event,
-		command:    command,
-		controller: controller,
-		monitor:    monitor,
-		logFilter:  logFilter,
-		log:        log,
+		cfg:    cfg,
+		runner: runner,
+		ui:     ui,
+		log:    log,
 	}
 }
 
@@ -144,7 +129,7 @@ func (c *cli) handleRun(profile string, noUI bool) (int, error) {
 		return 0, nil
 	}
 
-	p, _, err := services.Run(ctx, profile, c.event, c.command, c.controller, c.monitor, c.logFilter, c.log)
+	p, err := c.ui(ctx, profile)
 	if err != nil {
 		c.log.Error().Err(err).Msg("Failed to create UI")
 		fmt.Fprintf(os.Stderr, "Failed to create UI: %v\n", err)

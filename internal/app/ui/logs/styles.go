@@ -1,23 +1,18 @@
 package logs
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
 
-const (
-	colorPrimary = lipgloss.Color("#7D56F4")
-	colorMuted   = lipgloss.Color("7")
+	"fuku/internal/app/ui/components"
 )
 
 var (
 	serviceNameStyle = lipgloss.NewStyle().
-				Foreground(colorPrimary).
+				Foreground(components.ColorPrimary).
 				Bold(true)
 
-	timestampStyle = lipgloss.NewStyle().
-			Foreground(colorMuted)
+	timestampStyle  = components.TimestampStyle
+	emptyStateStyle = components.EmptyStateStyle
 
 	logMessageStyle = lipgloss.NewStyle()
-
-	emptyStateStyle = lipgloss.NewStyle().
-			Foreground(colorMuted).
-			MarginTop(2)
 )

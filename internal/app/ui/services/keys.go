@@ -1,6 +1,10 @@
 package services
 
-import "github.com/charmbracelet/bubbles/key"
+import (
+	"github.com/charmbracelet/bubbles/key"
+
+	"fuku/internal/app/ui/logs"
+)
 
 // KeyMap defines the key bindings for the services TUI
 type KeyMap struct {
@@ -24,15 +28,6 @@ type ServicesKeyMap struct {
 	ToggleLogSub key.Binding
 	ToggleLogs   key.Binding
 	Quit         key.Binding
-}
-
-// LogsKeyMap defines the key bindings help for logs view
-type LogsKeyMap struct {
-	Up         key.Binding
-	Down       key.Binding
-	Autoscroll key.Binding
-	ToggleLogs key.Binding
-	Quit       key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings
@@ -94,7 +89,7 @@ func ServicesHelpKeyMap(k KeyMap) ServicesKeyMap {
 }
 
 // LogsHelpKeyMap returns key bindings for logs view help
-func LogsHelpKeyMap(k KeyMap) LogsKeyMap {
+func LogsHelpKeyMap(k KeyMap) logs.KeyMap {
 	logsBinding := k.ToggleLogs
 	logsBinding.SetHelp("l", "services view")
 
@@ -104,7 +99,7 @@ func LogsHelpKeyMap(k KeyMap) LogsKeyMap {
 	scrollDown := k.Down
 	scrollDown.SetHelp("↓/j", "scroll down")
 
-	return LogsKeyMap{
+	return logs.KeyMap{
 		Up:         scrollUp,
 		Down:       scrollDown,
 		Autoscroll: k.Autoscroll,
@@ -134,17 +129,5 @@ func (k ServicesKeyMap) ShortHelp() []key.Binding {
 func (k ServicesKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Stop, k.Restart, k.ToggleLogSub, k.ToggleLogs, k.Quit},
-	}
-}
-
-// ShortHelp returns keybindings for logs view mini help
-func (k LogsKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Autoscroll, k.ToggleLogs, k.Quit}
-}
-
-// FullHelp returns keybindings for logs view expanded help
-func (k LogsKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.Up, k.Down, k.Autoscroll, k.ToggleLogs, k.Quit},
 	}
 }

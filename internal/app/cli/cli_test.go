@@ -9,14 +9,12 @@ import (
 	"os"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"fuku/internal/app/monitor"
 	"fuku/internal/app/runner"
-	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/services"
+	"fuku/internal/app/ui/wire"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -27,14 +25,12 @@ func Test_NewCLI(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	mockRunner := runner.NewMockRunner(ctrl)
+	mockUI := func(ctx context.Context, profile string) (*tea.Program, error) {
+		return nil, nil
+	}
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockEvent := runtime.NewNoOpEventBus()
-	mockCommand := runtime.NewNoOpCommandBus()
-	mockController := services.NewMockController(ctrl)
-	mockMonitor := monitor.NewMockMonitor(ctrl)
-	mockLogFilter := ui.NewMockLogFilter(ctrl)
 
-	cliInstance := NewCLI(cfg, mockRunner, mockEvent, mockCommand, mockController, mockMonitor, mockLogFilter, mockLogger)
+	cliInstance := NewCLI(cfg, mockRunner, mockUI, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -42,12 +38,8 @@ func Test_NewCLI(t *testing.T) {
 	assert.NotNil(t, instance)
 	assert.Equal(t, cfg, instance.cfg)
 	assert.Equal(t, mockRunner, instance.runner)
+	assert.NotNil(t, instance.ui)
 	assert.Equal(t, mockLogger, instance.log)
-	assert.Equal(t, mockEvent, instance.event)
-	assert.Equal(t, mockCommand, instance.command)
-	assert.Equal(t, mockController, instance.controller)
-	assert.Equal(t, mockMonitor, instance.monitor)
-	assert.Equal(t, mockLogFilter, instance.logFilter)
 }
 
 func Test_Run(t *testing.T) {
@@ -55,20 +47,17 @@ func Test_Run(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRunner := runner.NewMockRunner(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockController := services.NewMockController(ctrl)
-	mockMonitor := monitor.NewMockMonitor(ctrl)
 	cfg := config.DefaultConfig()
-	mockCommand := runtime.NewNoOpCommandBus()
+	mockUI := wire.UI(func(ctx context.Context, profile string) (*tea.Program, error) {
+		return nil, nil
+	})
+	mockLogger := logger.NewMockLogger(ctrl)
 
 	c := &cli{
-		cfg:        cfg,
-		runner:     mockRunner,
-		log:        mockLogger,
-		event:      runtime.NewNoOpEventBus(),
-		command:    mockCommand,
-		controller: mockController,
-		monitor:    mockMonitor,
+		cfg:    cfg,
+		runner: mockRunner,
+		ui:     mockUI,
+		log:    mockLogger,
 	}
 
 	tests := []struct {
