@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -277,4 +278,153 @@ func Test_HandleServiceStopped_InvalidData(t *testing.T) {
 	event := runtime.Event{Type: runtime.EventServiceStopped, Data: "invalid"}
 	result := m.handleServiceStopped(event)
 	assert.Len(t, result.state.services, 0)
+}
+
+func Test_HandlePhaseChanged_PhaseStopped(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start("_shutdown", "Shutting down…")
+
+	m := Model{loader: loader}
+	m.state.shuttingDown = true
+
+	event := runtime.Event{Type: runtime.EventPhaseChanged, Data: runtime.PhaseChangedData{Phase: runtime.PhaseStopped}}
+	result, cmd := m.handlePhaseChanged(event)
+
+	assert.False(t, result.loader.Active)
+	assert.NotNil(t, cmd)
+}
+
+func Test_HandlePhaseChanged_OtherPhase(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	eventChan := make(chan runtime.Event, 1)
+
+	m := Model{loader: loader, eventChan: eventChan}
+
+	event := runtime.Event{Type: runtime.EventPhaseChanged, Data: runtime.PhaseChangedData{Phase: runtime.PhaseRunning}}
+	result, cmd := m.handlePhaseChanged(event)
+
+	assert.Equal(t, runtime.PhaseRunning, result.state.phase)
+	assert.NotNil(t, cmd)
+}
+
+func Test_HandleEvent_SignalCaught(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	eventChan := make(chan runtime.Event, 1)
+
+	m := Model{loader: loader, eventChan: eventChan}
+	m.state.shuttingDown = false
+
+	event := runtime.Event{Type: runtime.EventSignalCaught, Data: runtime.SignalCaughtData{Signal: "SIGINT"}}
+	teaModel, cmd := m.handleEvent(event)
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.shuttingDown)
+	assert.True(t, result.loader.Active)
+	assert.Equal(t, "Shutting down all services…", result.loader.Message())
+	assert.NotNil(t, cmd)
+}
+
+func Test_HandleKeyPress_IgnoresKeysWhileShuttingDown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController}
+	m.state.shuttingDown = true
+	m.ui.keys = DefaultKeyMap()
+
+	msg := toKeyMsg("q")
+	teaModel, cmd := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.shuttingDown)
+	assert.Nil(t, cmd)
+}
+
+func Test_HandleKeyPress_QuitStartsGracefulShutdown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
+	mockController.EXPECT().StopAll()
+
+	eventChan := make(chan runtime.Event, 1)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController, eventChan: eventChan}
+	m.state.shuttingDown = false
+	m.ui.keys = DefaultKeyMap()
+
+	msg := toKeyMsg("q")
+	teaModel, cmd := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.shuttingDown)
+	assert.True(t, result.loader.Active)
+	assert.Equal(t, "Shutting down all services…", result.loader.Message())
+	assert.NotNil(t, cmd)
+}
+
+func Test_HandleKeyPress_ForceQuitStartsGracefulShutdown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
+	mockController.EXPECT().StopAll()
+
+	eventChan := make(chan runtime.Event, 1)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController, eventChan: eventChan}
+	m.state.shuttingDown = false
+	m.ui.keys = DefaultKeyMap()
+
+	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	teaModel, cmd := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.shuttingDown)
+	assert.True(t, result.loader.Active)
+	assert.NotNil(t, cmd)
+}
+
+func Test_Update_KeyMsg(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController}
+	m.state.shuttingDown = true
+	m.ui.keys = DefaultKeyMap()
+
+	msg := toKeyMsg("q")
+	teaModel, cmd := m.Update(msg)
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.shuttingDown)
+	assert.Nil(t, cmd)
+}
+
+func Test_Update_EventMsg(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	eventChan := make(chan runtime.Event, 1)
+
+	m := Model{loader: loader, eventChan: eventChan}
+	m.state.shuttingDown = false
+
+	event := runtime.Event{Type: runtime.EventSignalCaught, Data: runtime.SignalCaughtData{Signal: "SIGINT"}}
+	msg := eventMsg(event)
+	teaModel, cmd := m.Update(msg)
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.shuttingDown)
+	assert.NotNil(t, cmd)
+}
+
+func toKeyMsg(s string) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }

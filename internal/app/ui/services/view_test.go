@@ -21,12 +21,33 @@ func Test_View_NotReady(t *testing.T) {
 	assert.Equal(t, "Initializing…", result)
 }
 
-func Test_View_Quitting(t *testing.T) {
-	m := Model{}
+func Test_View_RendersWhileShuttingDown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).AnyTimes()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().IsEnabled("api").Return(true)
+
+	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: "_shutdown", Message: "Shutting down…"}}}
+	m := Model{loader: loader, navigator: mockNav, logView: mockLogView}
 	m.state.ready = true
-	m.state.quitting = true
+	m.state.shuttingDown = true
+	m.state.phase = runtime.PhaseStopping
+	m.state.services = map[string]*ServiceState{"api": {Name: "api", Status: StatusReady}}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.ui.width = 100
+	m.ui.height = 50
+	m.ui.help = help.New()
+	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesViewport = viewport.New(80, 30)
+
 	result := m.View()
-	assert.Equal(t, "", result)
+
+	assert.NotEmpty(t, result)
+	assert.Contains(t, result, "Shutting down")
 }
 
 func Test_RenderTitle_ServicesView(t *testing.T) {
