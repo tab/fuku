@@ -131,7 +131,7 @@ func Test_HandleServiceStarting(t *testing.T) {
 		command:    mockCmd,
 		controller: mockController,
 	}
-	service.FSM = newServiceFSM(service, loader, mockCmd)
+	service.FSM = newServiceFSM(service, loader)
 
 	mockController.EXPECT().HandleStarting(gomock.Any(), service, 1234).Do(
 		func(_ context.Context, s *ServiceState, pid int) {

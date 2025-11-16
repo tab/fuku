@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/looplab/fsm"
-
-	"fuku/internal/app/runtime"
 )
 
 // FSM states
@@ -37,7 +35,7 @@ const (
 	OnFailed     = "enter_failed"
 )
 
-func newServiceFSM(service *ServiceState, loader *Loader, command runtime.CommandBus) *fsm.FSM {
+func newServiceFSM(service *ServiceState, loader *Loader) *fsm.FSM {
 	serviceName := service.Name
 
 	return fsm.NewFSM(
@@ -61,19 +59,9 @@ func newServiceFSM(service *ServiceState, loader *Loader, command runtime.Comman
 			OnStopping: func(ctx context.Context, e *fsm.Event) {
 				loader.Start(serviceName, fmt.Sprintf("Stopping %s…", serviceName))
 				service.MarkStopping()
-
-				command.Publish(runtime.Command{
-					Type: runtime.CommandStopService,
-					Data: runtime.StopServiceData{Service: serviceName},
-				})
 			},
 			OnRestarting: func(ctx context.Context, e *fsm.Event) {
 				loader.Start(serviceName, fmt.Sprintf("Restarting %s…", serviceName))
-
-				command.Publish(runtime.Command{
-					Type: runtime.CommandRestartService,
-					Data: runtime.RestartServiceData{Service: serviceName},
-				})
 			},
 			OnRunning: func(ctx context.Context, e *fsm.Event) {
 				service.MarkRunning()

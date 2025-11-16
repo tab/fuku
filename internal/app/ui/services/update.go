@@ -32,14 +32,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.help.Width = msg.Width
 
-		panelHeight := msg.Height - 10
-		if panelHeight < 10 {
-			panelHeight = 10
+		panelHeight := msg.Height - panelHeightOffset
+		if panelHeight < minPanelHeight {
+			panelHeight = minPanelHeight
 		}
 
-		m.servicesViewport.Width = msg.Width - 4
+		m.servicesViewport.Width = msg.Width - viewportWidthPadding
 		m.servicesViewport.Height = panelHeight
-		m.logsViewport.Width = msg.Width - 4
+		m.logsViewport.Width = msg.Width - viewportWidthPadding
 		m.logsViewport.Height = panelHeight
 
 		if !m.ready {
@@ -75,13 +75,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Quit):
 		m.quitting = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
-		m.command.Publish(runtime.Command{Type: runtime.CommandStopAll})
+		m.controller.StopAll()
 
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.ForceQuit):
 		m.quitting = true
-		m.command.Publish(runtime.Command{Type: runtime.CommandStopAll})
+		m.controller.StopAll()
 
 		return m, tea.Quit
 
@@ -273,7 +273,7 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 		m.tiers[i] = TierView{Name: tier.Name, Services: tier.Services, Ready: false}
 		for _, serviceName := range tier.Services {
 			service := &ServiceState{Name: serviceName, Tier: tier.Name, Status: StatusStarting, LogEnabled: true}
-			service.FSM = newServiceFSM(service, m.loader, m.command)
+			service.FSM = newServiceFSM(service, m.loader)
 			m.services[serviceName] = service
 		}
 	}
@@ -440,7 +440,7 @@ func (m *Model) updateLogsViewport() {
 		divider := timestampStyle.Render("·")
 
 		prefix := fmt.Sprintf("%s %s ", service, divider)
-		prefixLen := len(serviceName) + 3
+		prefixLen := len(serviceName) + logPrefixSpacing
 
 		message := strings.TrimRight(entry.Message, "\n\r")
 

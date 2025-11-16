@@ -125,3 +125,15 @@ func (mr *MockControllerMockRecorder) Stop(ctx, service any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockController)(nil).Stop), ctx, service)
 }
+
+// StopAll mocks base method.
+func (m *MockController) StopAll() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "StopAll")
+}
+
+// StopAll indicates an expected call of StopAll.
+func (mr *MockControllerMockRecorder) StopAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopAll", reflect.TypeOf((*MockController)(nil).StopAll))
+}

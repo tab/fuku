@@ -10,12 +10,14 @@ import (
 )
 
 const (
-    // fixedColumnsWidth is the total width occupied by fixed columns in the service row
-    // (indicator: 2, checkbox: 3, status: 12, cpu: 8, mem: 9, uptime: ~11)
-    fixedColumnsWidth = 45
-
-    // minServiceNameWidth is the minimum width allocated for service names
-    minServiceNameWidth = 20
+    fixedColumnsWidth    = 45
+    minServiceNameWidth  = 20
+    panelHeightOffset    = 10
+    minPanelHeight       = 10
+    viewportWidthPadding = 4
+    panelBorderPadding   = 2
+    rowWidthPadding      = 8
+    logPrefixSpacing     = 3
 )
 
 // View renders the UI
@@ -35,14 +37,14 @@ func (m Model) View() string {
 
     if m.viewMode == ViewModeLogs {
         logsPanel := activePanelStyle.
-            Width(m.width - 2).
-            Height(m.height - 10).
+            Width(m.width - panelBorderPadding).
+            Height(m.height - panelHeightOffset).
             Render(m.renderLogs())
         sections = append(sections, logsPanel)
     } else {
         servicesPanel := activePanelStyle.
-            Width(m.width - 2).
-            Height(m.height - 10).
+            Width(m.width - panelBorderPadding).
+            Height(m.height - panelHeightOffset).
             Render(m.renderServices())
         sections = append(sections, servicesPanel)
     }
@@ -98,7 +100,7 @@ func (m Model) renderTitle() string {
     return lipgloss.JoinHorizontal(
         lipgloss.Top,
         title,
-        lipgloss.PlaceHorizontal(m.width-lipgloss.Width(title)-2, lipgloss.Right, info),
+        lipgloss.PlaceHorizontal(m.width-lipgloss.Width(title)-panelBorderPadding, lipgloss.Right, info),
     )
 }
 
@@ -226,7 +228,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 
     rowWidth := m.servicesViewport.Width
     if rowWidth < 1 {
-        rowWidth = m.width - 8
+        rowWidth = m.width - rowWidthPadding
     }
 
     if service.Error != nil {
