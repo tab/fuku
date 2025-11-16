@@ -97,6 +97,7 @@ type LogEntry struct {
 
 // Model represents the Bubble Tea model for the services UI
 type Model struct {
+	ctx              context.Context
 	profile          string
 	phase            runtime.Phase
 	tiers            []TierView
@@ -144,6 +145,7 @@ func NewModel(
 	}
 
 	return Model{
+		ctx:              ctx,
 		profile:          profile,
 		phase:            runtime.PhaseStartup,
 		tiers:            make([]TierView, 0),

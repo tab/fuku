@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -185,20 +184,18 @@ func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	ctx := context.Background()
-
 	if service.FSM.Current() == Stopped {
 		m.command.Publish(runtime.Command{
 			Type: runtime.CommandRestartService,
 			Data: runtime.RestartServiceData{Service: service.Name},
 		})
-		_ = service.FSM.Event(ctx, Start)
+		_ = service.FSM.Event(m.ctx, Start)
 
 		return m, m.loader.Model.Tick
 	}
 
 	if service.FSM.Current() == Running {
-		_ = service.FSM.Event(ctx, Stop)
+		_ = service.FSM.Event(m.ctx, Stop)
 
 		return m, m.loader.Model.Tick
 	}
@@ -216,11 +213,10 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	ctx := context.Background()
 	state := service.FSM.Current()
 
 	if state == Running || state == Failed || state == Stopped {
-		_ = service.FSM.Event(ctx, Restart)
+		_ = service.FSM.Event(m.ctx, Restart)
 
 		return m, m.loader.Model.Tick
 	}
@@ -358,8 +354,7 @@ func (m Model) handleServiceStarting(event runtime.Event) Model {
 
 		service.Monitor.PID = data.PID
 		if service.FSM != nil {
-			ctx := context.Background()
-			_ = service.FSM.Event(ctx, Start)
+			_ = service.FSM.Event(m.ctx, Start)
 		}
 	}
 
@@ -378,8 +373,7 @@ func (m Model) handleServiceReady(event runtime.Event) Model {
 		m.loader.Stop(data.Service)
 
 		if service.FSM != nil {
-			ctx := context.Background()
-			_ = service.FSM.Event(ctx, Started)
+			_ = service.FSM.Event(m.ctx, Started)
 		}
 	}
 
@@ -397,8 +391,7 @@ func (m Model) handleServiceFailed(event runtime.Event) Model {
 		m.loader.Stop(data.Service)
 
 		if service.FSM != nil {
-			ctx := context.Background()
-			_ = service.FSM.Event(ctx, Failed)
+			_ = service.FSM.Event(m.ctx, Failed)
 		}
 	}
 
@@ -415,9 +408,8 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 		currentState := ""
 		if service.FSM != nil {
 			currentState = service.FSM.Current()
-			ctx := context.Background()
 
-			err := service.FSM.Event(ctx, Stopped)
+			err := service.FSM.Event(m.ctx, Stopped)
 			if err != nil {
 				service.MarkStopped()
 			}

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"io"
 	"testing"
 	"time"
@@ -122,7 +123,12 @@ func Test_HandleServiceStarting(t *testing.T) {
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	service := &ServiceState{Name: "api", Status: StatusStopped}
-	m := Model{services: map[string]*ServiceState{"api": service}, loader: loader, command: mockCmd}
+	m := Model{
+		ctx:      context.Background(),
+		services: map[string]*ServiceState{"api": service},
+		loader:   loader,
+		command:  mockCmd,
+	}
 	service.FSM = newServiceFSM("api", &m)
 
 	event := runtime.Event{
