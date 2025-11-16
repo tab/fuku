@@ -13,12 +13,13 @@ Fuku uses a layered architecture with three distinct patterns:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         CLI Layer                           │
+│                    (internal/app/cli)                       │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Application Container                    │
-│                         (Uber FX)                           │
+│                   (internal/app - Uber FX)                  │
 └─────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┴───────────────┐
@@ -26,6 +27,11 @@ Fuku uses a layered architecture with three distinct patterns:
 ┌──────────────────────┐         ┌──────────────────────┐
 │   Runner Package     │         │     UI Package       │
 │  (Event-Driven)      │◄───────►│    (FSM-Based)       │
+│  ├─ discovery        │         │  ├─ services/        │
+│  ├─ readiness        │         │  ├─ logs/            │
+│  ├─ process          │         │  ├─ navigation/      │
+│  ├─ service          │         │  ├─ components/      │
+│  └─ workerpool       │         │  └─ wire/            │
 └──────────────────────┘         └──────────────────────┘
               │                               │
               └───────────┬───────────────────┘
@@ -33,6 +39,13 @@ Fuku uses a layered architecture with three distinct patterns:
               ┌──────────────────────┐
               │   Runtime Package    │
               │ (Data/Communication) │
+              │   events + commands  │
+              └──────────────────────┘
+                          │
+                          ▼
+              ┌──────────────────────┐
+              │   Config Package     │
+              │  (internal/config)   │
               └──────────────────────┘
 ```
 
@@ -86,6 +99,7 @@ EventServiceStarting  → Service process started
 EventServiceReady     → Service passed readiness check
 EventServiceFailed    → Service failed to start/run
 EventServiceStopped   → Service process terminated
+EventRetryScheduled   → Service retry scheduled
 EventLogLine          → Service stdout/stderr output
 EventSignalCaught     → OS signal received (SIGINT/SIGTERM)
 ```
@@ -124,7 +138,7 @@ The runner package manages actual OS processes using event-driven patterns rathe
 ```
                     ┌─────────────┐
                     │   Resolve   │
-                    │   Profile    │
+                    │   Profile   │
                     └──────┬──────┘
                            │
                            ▼
@@ -162,9 +176,9 @@ The runner package manages actual OS processes using event-driven patterns rathe
             └────┬────┘ └─────────┘
                  │
                  ▼
-            ┌─────────┐
-            │Shutdown │
-            └─────────┘
+            ┌──────────┐
+            │ Shutdown │
+            └──────────┘
 ```
 
 ### Service Orchestration

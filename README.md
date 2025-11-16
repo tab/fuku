@@ -30,18 +30,35 @@ fuku --run=default
 
 # Run without TUI
 fuku --run=default --no-ui
+
+# Show help
+fuku help
+
+# Show version
+fuku version
 ```
 
-### TUI Controls
+### TUI Controls (services)
 
 ```
-↑/↓ or k/j  Navigate services
-s           Stop/start service
-r           Restart service
-space       Toggle log subscription
-l           Switch to logs view
-q           Quit gracefully
-ctrl+c      Force quit
+↑/↓ or k/j       Navigate services
+pgup/pgdn        Scroll viewport
+home/end         Jump to start/end
+r                Restart selected service
+s                Stop/start selected service
+space            Toggle logs for selected service
+l                Switch to logs view
+q                Quit
+```
+
+### TUI Controls (logs)
+
+```
+↑/↓ or k/j       Scroll logs
+pgup/pgdn        Scroll viewport
+home/end         Jump to start/end
+l                Switch back to services view
+q                Quit
 ```
 
 ## Configuration
@@ -71,18 +88,34 @@ services:
   web:
     dir: ./frontend
     tier: edge
+    profiles: [default]
+
+defaults:
+  profiles: [default]
 
 profiles:
-  default:
-    include: [postgres, api, web]
-
-  backend:
-    include: [postgres, api]
+  default: "*"                    # All services
+  backend: [postgres, api]        # Backend services only
+  minimal: [api, postgres]        # Minimal set
 
 logging:
   format: console
   level: info
 ```
+
+### Tiers
+
+Services are organized into tiers for startup ordering:
+- **foundation** - Base infrastructure (databases, message queues)
+- **platform** - Business logic services
+- **edge** - Client-facing services
+
+Services start tier-by-tier: foundation → platform → edge.
+
+### Readiness Checks
+
+- **log** - Wait for pattern in service output
+- **http** - Wait for HTTP endpoint to respond
 
 ### Service Requirements
 
