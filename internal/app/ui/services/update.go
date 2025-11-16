@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	minLogMessageWidth   = 20
-	maxServiceNameLength = 15
+	minLogMessageWidth      = 20
+	maxLogServiceNameLength = 15
 )
 
 type eventMsg runtime.Event
@@ -473,8 +473,8 @@ func (m *Model) updateLogsViewport() {
 		}
 
 		serviceName := entry.Service
-		if len(serviceName) > maxServiceNameLength {
-			serviceName = serviceName[:maxServiceNameLength] + "…"
+		if len(serviceName) > maxLogServiceNameLength {
+			serviceName = serviceName[:maxLogServiceNameLength] + "…"
 		}
 
 		service := serviceNameStyle.Render(serviceName)
