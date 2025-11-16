@@ -115,6 +115,7 @@ type Model struct {
 	maxLogs          int
 	servicesViewport viewport.Model
 	logsViewport     viewport.Model
+	autoscroll       bool
 	ready            bool
 	eventChan        <-chan runtime.Event
 	log              logger.Logger
@@ -212,4 +213,62 @@ func (m Model) getReadyServices() int {
 	}
 
 	return count
+}
+
+func (m Model) getMaxServiceNameLength() int {
+	maxLen := 20
+
+	for _, service := range m.services {
+		if len(service.Name) > maxLen {
+			maxLen = len(service.Name)
+		}
+	}
+
+	return maxLen
+}
+
+func (m Model) calculateScrollOffset() int {
+	if m.servicesViewport.Height == 0 {
+		return m.servicesViewport.YOffset
+	}
+
+	lineNumber := 0
+	currentIdx := 0
+
+	for i, tier := range m.tiers {
+		tierStartLine := lineNumber
+
+		if i > 0 {
+			lineNumber++
+		}
+
+		lineNumber++
+
+		serviceIndexInTier := 0
+
+		for range tier.Services {
+			if currentIdx == m.selected {
+				viewportTop := m.servicesViewport.YOffset
+				viewportBottom := viewportTop + m.servicesViewport.Height - 1
+
+				if lineNumber < viewportTop {
+					if serviceIndexInTier == 0 {
+						return tierStartLine
+					}
+
+					return lineNumber
+				} else if lineNumber > viewportBottom {
+					return lineNumber - m.servicesViewport.Height + 1
+				}
+
+				return m.servicesViewport.YOffset
+			}
+
+			lineNumber++
+			currentIdx++
+			serviceIndexInTier++
+		}
+	}
+
+	return m.servicesViewport.YOffset
 }

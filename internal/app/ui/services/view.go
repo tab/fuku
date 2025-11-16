@@ -9,6 +9,15 @@ import (
 	"fuku/internal/app/runtime"
 )
 
+const (
+	// fixedColumnsWidth is the total width occupied by fixed columns in the service row
+	// (indicator: 2, checkbox: 3, status: 12, cpu: 8, mem: 9, uptime: ~11)
+	fixedColumnsWidth = 45
+
+	// minServiceNameWidth is the minimum width allocated for service names
+	minServiceNameWidth = 20
+)
+
 // View renders the UI
 func (m Model) View() string {
 	if !m.ready {
@@ -59,25 +68,29 @@ func (m Model) renderTitle() string {
 	total := m.getTotalServices()
 
 	phaseStr := string(m.phase)
-	phaseColor := ColorMuted
+	phaseStyle := phaseMutedStyle
 
 	switch m.phase {
 	case runtime.PhaseStartup:
 		phaseStr = "Starting…"
-		phaseColor = ColorStarting
+		phaseStyle = phaseStartingStyle
 	case runtime.PhaseRunning:
 		phaseStr = "Running"
-		phaseColor = ColorReady
+		phaseStyle = phaseRunningStyle
 	case runtime.PhaseStopping:
 		phaseStr = "Stopping"
-		phaseColor = ColorFailed
+		phaseStyle = phaseStoppingStyle
 	}
 
 	statusInfo := fmt.Sprintf("%s  %d/%d ready",
-		lipgloss.NewStyle().Foreground(phaseColor).Render(phaseStr),
+		phaseStyle.Render(phaseStr),
 		ready,
 		total,
 	)
+
+	if m.viewMode == ViewModeLogs && m.autoscroll {
+		statusInfo += "  " + timestampStyle.Render("[autoscroll]")
+	}
 
 	title := titleStyle.Render(titleText)
 	info := statusStyle.Render(statusInfo)
@@ -91,29 +104,61 @@ func (m Model) renderTitle() string {
 
 func (m Model) renderServices() string {
 	if len(m.tiers) == 0 {
-		return lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			MarginTop(2).
-			Render("No services configured")
+		return emptyStateStyle.Render("No services configured")
 	}
 
 	var content strings.Builder
 
 	currentIdx := 0
+	maxNameLen := m.getMaxServiceNameLength()
 
-	for _, tier := range m.tiers {
-		content.WriteString(m.renderTier(tier, &currentIdx))
+	for i, tier := range m.tiers {
+		content.WriteString(m.renderTier(tier, &currentIdx, maxNameLen, i == 0))
 	}
 
-	m.servicesViewport.SetContent(content.String())
+	contentStr := content.String()
+	lines := strings.Split(contentStr, "\n")
 
-	return m.servicesViewport.View()
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+
+	offset := m.servicesViewport.YOffset
+	if offset < 0 {
+		offset = 0
+	}
+
+	maxOffset := len(lines) - m.servicesViewport.Height
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+
+	endLine := offset + m.servicesViewport.Height
+	if endLine > len(lines) {
+		endLine = len(lines)
+	}
+
+	if offset >= len(lines) {
+		return ""
+	}
+
+	visibleLines := lines[offset:endLine]
+
+	return strings.Join(visibleLines, "\n")
 }
 
-func (m Model) renderTier(tier TierView, currentIdx *int) string {
-	tierHeader := tierHeaderStyle.Render(tier.Name)
-
+func (m Model) renderTier(tier TierView, currentIdx *int, maxNameLen int, isFirst bool) string {
 	var sb strings.Builder
+
+	if !isFirst {
+		sb.WriteString("\n")
+	}
+
+	tierHeader := tierHeaderStyle.Render(tier.Name)
 	sb.WriteString(tierHeader + "\n")
 
 	for _, serviceName := range tier.Services {
@@ -123,17 +168,15 @@ func (m Model) renderTier(tier TierView, currentIdx *int) string {
 		}
 
 		isSelected := *currentIdx == m.selected
-		sb.WriteString(m.renderServiceRow(service, isSelected) + "\n")
+		sb.WriteString(m.renderServiceRow(service, isSelected, maxNameLen) + "\n")
 
 		*currentIdx++
 	}
 
-	sb.WriteString("\n")
-
 	return sb.String()
 }
 
-func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
+func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
 	indicator := "  "
 	if isSelected {
 		indicator = "▸ "
@@ -156,10 +199,26 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 	cpuRaw := m.getCPURaw(service)
 	memRaw := m.getMemRaw(service)
 
-	row := fmt.Sprintf("%s%s %-20s  %-10s  %6s  %7s  %s",
+	serviceName := service.Name
+
+	availableWidth := m.servicesViewport.Width - fixedColumnsWidth
+	if availableWidth < minServiceNameWidth {
+		availableWidth = minServiceNameWidth
+	}
+
+	if maxNameLen > availableWidth {
+		maxNameLen = availableWidth
+	}
+
+	if len(serviceName) > maxNameLen {
+		serviceName = serviceName[:maxNameLen-1] + "…"
+	}
+
+	row := fmt.Sprintf("%s%s %-*s  %-10s  %6s  %7s  %s",
 		indicator,
 		logCheckbox,
-		service.Name,
+		maxNameLen,
+		serviceName,
 		statusRaw,
 		cpuRaw,
 		memRaw,
@@ -223,10 +282,7 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 
 func (m Model) renderLogs() string {
 	if len(strings.TrimSpace(m.logsViewport.View())) == 0 {
-		return lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			MarginTop(2).
-			Render("No logs enabled. Press 'space' to toggle service logs. Press 'l' to return to services view.")
+		return emptyStateStyle.Render("No logs enabled. Press 'space' to toggle service logs. Press 'l' to return to services view.")
 	}
 
 	return m.logsViewport.View()
