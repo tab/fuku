@@ -185,18 +185,12 @@ func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 	}
 
 	if service.FSM.Current() == Stopped {
-		m.command.Publish(runtime.Command{
-			Type: runtime.CommandRestartService,
-			Data: runtime.RestartServiceData{Service: service.Name},
-		})
-		_ = service.FSM.Event(m.ctx, Start)
-
+		m.controller.Start(m.ctx, service)
 		return m, m.loader.Model.Tick
 	}
 
 	if service.FSM.Current() == Running {
-		_ = service.FSM.Event(m.ctx, Stop)
-
+		m.controller.Stop(m.ctx, service)
 		return m, m.loader.Model.Tick
 	}
 
@@ -213,15 +207,9 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	state := service.FSM.Current()
+	m.controller.Restart(m.ctx, service)
 
-	if state == Running || state == Failed || state == Stopped {
-		_ = service.FSM.Event(m.ctx, Restart)
-
-		return m, m.loader.Model.Tick
-	}
-
-	return m, nil
+	return m, m.loader.Model.Tick
 }
 
 func (m Model) handleToggleLogSub() (tea.Model, tea.Cmd) {
@@ -285,7 +273,7 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 		m.tiers[i] = TierView{Name: tier.Name, Services: tier.Services, Ready: false}
 		for _, serviceName := range tier.Services {
 			service := &ServiceState{Name: serviceName, Tier: tier.Name, Status: StatusStarting, LogEnabled: true}
-			service.FSM = newServiceFSM(serviceName, &m)
+			service.FSM = newServiceFSM(service, m.loader, m.command)
 			m.services[serviceName] = service
 		}
 	}
@@ -351,11 +339,7 @@ func (m Model) handleServiceStarting(event runtime.Event) Model {
 	if service, exists := m.services[data.Service]; exists {
 		service.Monitor.StartTime = event.Timestamp
 		service.Tier = data.Tier
-
-		service.Monitor.PID = data.PID
-		if service.FSM != nil {
-			_ = service.FSM.Event(m.ctx, Start)
-		}
+		m.controller.HandleStarting(m.ctx, service, data.PID)
 	}
 
 	return m
@@ -371,10 +355,7 @@ func (m Model) handleServiceReady(event runtime.Event) Model {
 		service.Monitor.ReadyTime = event.Timestamp
 
 		m.loader.Stop(data.Service)
-
-		if service.FSM != nil {
-			_ = service.FSM.Event(m.ctx, Started)
-		}
+		m.controller.HandleReady(m.ctx, service)
 	}
 
 	return m
@@ -389,10 +370,7 @@ func (m Model) handleServiceFailed(event runtime.Event) Model {
 	if service, exists := m.services[data.Service]; exists {
 		service.Error = data.Error
 		m.loader.Stop(data.Service)
-
-		if service.FSM != nil {
-			_ = service.FSM.Event(m.ctx, Failed)
-		}
+		m.controller.HandleFailed(m.ctx, service)
 	}
 
 	return m
@@ -405,19 +383,8 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 	}
 
 	if service, exists := m.services[data.Service]; exists {
-		currentState := ""
-		if service.FSM != nil {
-			currentState = service.FSM.Current()
-
-			err := service.FSM.Event(m.ctx, Stopped)
-			if err != nil {
-				service.MarkStopped()
-			}
-		} else {
-			service.MarkStopped()
-		}
-
-		if currentState != Restarting {
+		wasRestarting := m.controller.HandleStopped(m.ctx, service)
+		if !wasRestarting {
 			m.loader.Stop(data.Service)
 		}
 	}

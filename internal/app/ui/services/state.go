@@ -37,7 +37,9 @@ const (
 	OnFailed     = "enter_failed"
 )
 
-func newServiceFSM(serviceName string, model *Model) *fsm.FSM {
+func newServiceFSM(service *ServiceState, loader *Loader, command runtime.CommandBus) *fsm.FSM {
+	serviceName := service.Name
+
 	return fsm.NewFSM(
 		Stopped,
 		fsm.Events{
@@ -50,48 +52,37 @@ func newServiceFSM(serviceName string, model *Model) *fsm.FSM {
 		},
 		fsm.Callbacks{
 			OnStarting: func(ctx context.Context, e *fsm.Event) {
-				if service := model.services[serviceName]; service != nil {
-					service.MarkStarting()
-				}
+				service.MarkStarting()
 
-				if !model.loader.Has(serviceName) {
-					model.loader.Start(serviceName, fmt.Sprintf("Starting %s…", serviceName))
+				if !loader.Has(serviceName) {
+					loader.Start(serviceName, fmt.Sprintf("Starting %s…", serviceName))
 				}
 			},
 			OnStopping: func(ctx context.Context, e *fsm.Event) {
-				model.loader.Start(serviceName, fmt.Sprintf("Stopping %s…", serviceName))
+				loader.Start(serviceName, fmt.Sprintf("Stopping %s…", serviceName))
+				service.MarkStopping()
 
-				if service := model.services[serviceName]; service != nil {
-					service.MarkStopping()
-				}
-
-				model.command.Publish(runtime.Command{
+				command.Publish(runtime.Command{
 					Type: runtime.CommandStopService,
 					Data: runtime.StopServiceData{Service: serviceName},
 				})
 			},
 			OnRestarting: func(ctx context.Context, e *fsm.Event) {
-				model.loader.Start(serviceName, fmt.Sprintf("Restarting %s…", serviceName))
+				loader.Start(serviceName, fmt.Sprintf("Restarting %s…", serviceName))
 
-				model.command.Publish(runtime.Command{
+				command.Publish(runtime.Command{
 					Type: runtime.CommandRestartService,
 					Data: runtime.RestartServiceData{Service: serviceName},
 				})
 			},
 			OnRunning: func(ctx context.Context, e *fsm.Event) {
-				if service := model.services[serviceName]; service != nil {
-					service.MarkRunning()
-				}
+				service.MarkRunning()
 			},
 			OnStopped: func(ctx context.Context, e *fsm.Event) {
-				if service := model.services[serviceName]; service != nil {
-					service.MarkStopped()
-				}
+				service.MarkStopped()
 			},
 			OnFailed: func(ctx context.Context, e *fsm.Event) {
-				if service := model.services[serviceName]; service != nil {
-					service.MarkFailed()
-				}
+				service.MarkFailed()
 			},
 		},
 	)

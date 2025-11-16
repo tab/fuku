@@ -121,15 +121,23 @@ func Test_HandleServiceStarting(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	service := &ServiceState{Name: "api", Status: StatusStopped}
 	m := Model{
-		ctx:      context.Background(),
-		services: map[string]*ServiceState{"api": service},
-		loader:   loader,
-		command:  mockCmd,
+		ctx:        context.Background(),
+		services:   map[string]*ServiceState{"api": service},
+		loader:     loader,
+		command:    mockCmd,
+		controller: mockController,
 	}
-	service.FSM = newServiceFSM("api", &m)
+	service.FSM = newServiceFSM(service, loader, mockCmd)
+
+	mockController.EXPECT().HandleStarting(gomock.Any(), service, 1234).Do(
+		func(_ context.Context, s *ServiceState, pid int) {
+			s.Monitor.PID = pid
+		},
+	)
 
 	event := runtime.Event{
 		Timestamp: time.Now(),
@@ -141,8 +149,6 @@ func Test_HandleServiceStarting(t *testing.T) {
 
 	assert.Equal(t, "tier1", result.services["api"].Tier)
 	assert.Equal(t, 1234, result.services["api"].Monitor.PID)
-	assert.True(t, result.loader.Active)
-	assert.Contains(t, result.loader.Message(), "Starting api")
 }
 
 func Test_HandleServiceStarting_InvalidData(t *testing.T) {
@@ -154,11 +160,22 @@ func Test_HandleServiceStarting_InvalidData(t *testing.T) {
 }
 
 func Test_HandleServiceReady(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Starting api…")
 
 	service := &ServiceState{Name: "api", Status: StatusStarting}
-	m := Model{services: map[string]*ServiceState{"api": service}, loader: loader}
+	m := Model{
+		ctx:        context.Background(),
+		services:   map[string]*ServiceState{"api": service},
+		loader:     loader,
+		controller: mockController,
+	}
+
+	mockController.EXPECT().HandleReady(gomock.Any(), service)
 
 	event := runtime.Event{
 		Timestamp: time.Now(),
@@ -182,11 +199,22 @@ func Test_HandleServiceReady_InvalidData(t *testing.T) {
 }
 
 func Test_HandleServiceFailed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Starting api…")
 
 	service := &ServiceState{Name: "api", Status: StatusStarting}
-	m := Model{services: map[string]*ServiceState{"api": service}, loader: loader}
+	m := Model{
+		ctx:        context.Background(),
+		services:   map[string]*ServiceState{"api": service},
+		loader:     loader,
+		controller: mockController,
+	}
+
+	mockController.EXPECT().HandleFailed(gomock.Any(), service)
 
 	testErr := assert.AnError
 	event := runtime.Event{
@@ -209,18 +237,27 @@ func Test_HandleServiceFailed_InvalidData(t *testing.T) {
 }
 
 func Test_HandleServiceStopped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Stopping api…")
 
 	service := &ServiceState{Name: "api", Status: StatusReady, Monitor: ServiceMonitor{PID: 1234}}
-	m := Model{services: map[string]*ServiceState{"api": service}, loader: loader}
+	m := Model{
+		ctx:        context.Background(),
+		services:   map[string]*ServiceState{"api": service},
+		loader:     loader,
+		controller: mockController,
+	}
+
+	mockController.EXPECT().HandleStopped(gomock.Any(), service).Return(false)
 
 	event := runtime.Event{Type: runtime.EventServiceStopped, Data: runtime.ServiceStoppedData{Service: "api"}}
 	result := m.handleServiceStopped(event)
 
 	assert.False(t, result.loader.Active)
-	assert.Equal(t, StatusStopped, result.services["api"].Status)
-	assert.Equal(t, 0, result.services["api"].Monitor.PID)
 }
 
 func Test_HandleServiceStopped_InvalidData(t *testing.T) {

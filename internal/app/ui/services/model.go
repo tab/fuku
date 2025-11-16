@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/looplab/fsm"
@@ -109,6 +108,7 @@ type Model struct {
 	help             help.Model
 	event            runtime.EventBus
 	command          runtime.CommandBus
+	controller       Controller
 	loader           *Loader
 	quitting         bool
 	viewMode         ViewMode
@@ -128,21 +128,13 @@ func NewModel(
 	profile string,
 	event runtime.EventBus,
 	command runtime.CommandBus,
+	controller Controller,
+	loader *Loader,
 	log logger.Logger,
 ) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = spinnerStyle
-
 	eventChan := event.Subscribe(ctx)
 
 	log.Debug().Msg("TUI: Created model and subscribed to events")
-
-	ldr := &Loader{
-		Model:  s,
-		Active: false,
-		queue:  make([]LoaderItem, 0),
-	}
 
 	return Model{
 		ctx:              ctx,
@@ -155,7 +147,8 @@ func NewModel(
 		help:             help.New(),
 		event:            event,
 		command:          command,
-		loader:           ldr,
+		controller:       controller,
+		loader:           loader,
 		viewMode:         ViewModeServices,
 		logs:             make([]LogEntry, 0),
 		maxLogs:          1000,

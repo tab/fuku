@@ -14,6 +14,7 @@ import (
 
 	"fuku/internal/app/runner"
 	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui/services"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -27,8 +28,9 @@ func Test_NewCLI(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
+	mockController := services.NewMockController(ctrl)
 
-	cliInstance := NewCLI(cfg, mockRunner, mockLogger, mockEvent, mockCommand)
+	cliInstance := NewCLI(cfg, mockRunner, mockEvent, mockCommand, mockController, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -39,6 +41,7 @@ func Test_NewCLI(t *testing.T) {
 	assert.Equal(t, mockLogger, instance.log)
 	assert.Equal(t, mockEvent, instance.event)
 	assert.Equal(t, mockCommand, instance.command)
+	assert.Equal(t, mockController, instance.controller)
 }
 
 func Test_Run(t *testing.T) {
@@ -47,14 +50,17 @@ func Test_Run(t *testing.T) {
 
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockController := services.NewMockController(ctrl)
 	cfg := config.DefaultConfig()
+	mockCommand := runtime.NewNoOpCommandBus()
 
 	c := &cli{
-		cfg:     cfg,
-		runner:  mockRunner,
-		log:     mockLogger,
-		event:   runtime.NewNoOpEventBus(),
-		command: runtime.NewNoOpCommandBus(),
+		cfg:        cfg,
+		runner:     mockRunner,
+		log:        mockLogger,
+		event:      runtime.NewNoOpEventBus(),
+		command:    mockCommand,
+		controller: mockController,
 	}
 
 	tests := []struct {

@@ -20,8 +20,8 @@ func Test_NewServiceFSM_InitialState(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
-	model := &Model{services: make(map[string]*ServiceState), command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	service := &ServiceState{Name: "api", Status: StatusStopped}
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	assert.Equal(t, Stopped, fsm.Current())
 }
 
@@ -31,8 +31,7 @@ func Test_FSM_Start_Transition(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusStopped}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 
 	err := fsm.Event(context.Background(), Start)
 
@@ -47,8 +46,7 @@ func Test_FSM_Started_Transition(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusStarting}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 
 	err := fsm.Event(context.Background(), Started)
@@ -64,8 +62,7 @@ func Test_FSM_Stop_Transition(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusReady}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
 
@@ -89,8 +86,7 @@ func Test_FSM_Stopped_Transition(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusReady, Monitor: ServiceMonitor{PID: 1234}}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
 
@@ -112,8 +108,7 @@ func Test_FSM_Restart_From_Running(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusReady}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
 
@@ -136,8 +131,7 @@ func Test_FSM_Restart_From_Failed(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusFailed}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Failed)
 
@@ -157,8 +151,7 @@ func Test_FSM_Restart_From_Stopped(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusStopped}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 
 	mockCmd.EXPECT().Publish(gomock.Any()).Do(func(cmd runtime.Command) {
 		assert.Equal(t, runtime.CommandRestartService, cmd.Type)
@@ -176,8 +169,7 @@ func Test_FSM_Failed_From_Starting(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusStarting}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 
 	err := fsm.Event(context.Background(), Failed)
@@ -193,8 +185,7 @@ func Test_FSM_Failed_From_Running(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusReady}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
 
@@ -211,8 +202,7 @@ func Test_FSM_Failed_From_Restarting(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusReady}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
 
@@ -233,8 +223,7 @@ func Test_FSM_Start_From_Restarting(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	service := &ServiceState{Name: "api", Status: StatusStopped}
-	model := &Model{services: map[string]*ServiceState{"api": service}, command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 
 	mockCmd.EXPECT().Publish(gomock.Any())
 
@@ -252,25 +241,11 @@ func Test_FSM_Invalid_Transition(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
-	model := &Model{services: make(map[string]*ServiceState), command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
+	service := &ServiceState{Name: "api", Status: StatusStopped}
+	fsm := newServiceFSM(service, newTestLoader(), mockCmd)
 
 	err := fsm.Event(context.Background(), Stop)
 
 	assert.Error(t, err)
 	assert.Equal(t, Stopped, fsm.Current())
-}
-
-func Test_FSM_Callback_With_Missing_Service(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockCmd := runtime.NewMockCommandBus(ctrl)
-	model := &Model{services: make(map[string]*ServiceState), command: mockCmd, loader: newTestLoader()}
-	fsm := newServiceFSM("api", model)
-
-	err := fsm.Event(context.Background(), Start)
-
-	assert.NoError(t, err)
-	assert.Equal(t, Starting, fsm.Current())
 }
