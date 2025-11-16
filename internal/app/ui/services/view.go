@@ -17,10 +17,6 @@ func (m Model) View() string {
 		return "Initializing…"
 	}
 
-	if m.state.quitting {
-		return ""
-	}
-
 	var sections []string
 
 	sections = append(sections, m.renderTitle())

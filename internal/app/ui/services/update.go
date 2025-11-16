@@ -61,23 +61,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.state.quitting {
+	if m.state.shuttingDown {
 		return m, nil
 	}
 
 	switch {
 	case key.Matches(msg, m.ui.keys.Quit):
-		m.state.quitting = true
+		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
 		m.controller.StopAll()
 
-		return m, tea.Quit
+		return m, waitForEventCmd(m.eventChan)
 
 	case key.Matches(msg, m.ui.keys.ForceQuit):
-		m.state.quitting = true
+		m.state.shuttingDown = true
+		m.loader.Start("_shutdown", "Shutting down all services…")
 		m.controller.StopAll()
 
-		return m, tea.Quit
+		return m, waitForEventCmd(m.eventChan)
 
 	case key.Matches(msg, m.ui.keys.ToggleLogs):
 		m.navigator.Toggle()
@@ -229,10 +230,8 @@ func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 	case runtime.EventServiceStopped:
 		m = m.handleServiceStopped(event)
 	case runtime.EventSignalCaught:
-		m.state.quitting = true
+		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
-
-		return m, tea.Quit
 	}
 
 	return m, waitForEventCmd(m.eventChan)
@@ -278,6 +277,7 @@ func (m Model) handlePhaseChanged(event runtime.Event) (Model, tea.Cmd) {
 	m.state.phase = data.Phase
 	if m.state.phase == runtime.PhaseStopped {
 		m.loader.StopAll()
+
 		return m, tea.Quit
 	}
 

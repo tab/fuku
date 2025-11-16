@@ -92,13 +92,13 @@ type Model struct {
 	eventChan  <-chan runtime.Event
 
 	state struct {
-		profile  string
-		phase    runtime.Phase
-		tiers    []Tier
-		services map[string]*ServiceState
-		selected int
-		quitting bool
-		ready    bool
+		profile      string
+		phase        runtime.Phase
+		tiers        []Tier
+		services     map[string]*ServiceState
+		selected     int
+		ready        bool
+		shuttingDown bool
 	}
 
 	ui struct {
@@ -147,8 +147,8 @@ func NewModel(
 	m.state.tiers = make([]Tier, 0)
 	m.state.services = make(map[string]*ServiceState)
 	m.state.selected = 0
-	m.state.quitting = false
 	m.state.ready = false
+	m.state.shuttingDown = false
 
 	m.ui.width = 0
 	m.ui.height = 0
