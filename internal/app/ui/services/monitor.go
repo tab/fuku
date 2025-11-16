@@ -6,7 +6,7 @@ import (
 )
 
 func (m *Model) updateProcessStats() {
-	for _, service := range m.services {
+	for _, service := range m.state.services {
 		if service.Monitor.PID > 0 && service.Status != StatusStopped {
 			stats, err := m.monitor.GetStats(service.Monitor.PID)
 			if err != nil {

@@ -9,6 +9,7 @@ import (
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -57,6 +58,7 @@ type cli struct {
 	command    runtime.CommandBus
 	controller services.Controller
 	monitor    monitor.Monitor
+	logFilter  ui.LogFilter
 }
 
 // NewCLI creates a new cli instance
@@ -67,6 +69,7 @@ func NewCLI(
 	command runtime.CommandBus,
 	controller services.Controller,
 	monitor monitor.Monitor,
+	logFilter ui.LogFilter,
 	log logger.Logger,
 ) CLI {
 	return &cli{
@@ -76,6 +79,7 @@ func NewCLI(
 		command:    command,
 		controller: controller,
 		monitor:    monitor,
+		logFilter:  logFilter,
 		log:        log,
 	}
 }
@@ -140,7 +144,7 @@ func (c *cli) handleRun(profile string, noUI bool) (int, error) {
 		return 0, nil
 	}
 
-	p, _, err := services.Run(ctx, profile, c.event, c.command, c.controller, c.monitor, c.log)
+	p, _, err := services.Run(ctx, profile, c.event, c.command, c.controller, c.monitor, c.logFilter, c.log)
 	if err != nil {
 		c.log.Error().Err(err).Msg("Failed to create UI")
 		fmt.Fprintf(os.Stderr, "Failed to create UI: %v\n", err)

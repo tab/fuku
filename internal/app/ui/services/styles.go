@@ -59,12 +59,6 @@ var (
 	timestampStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted)
 
-	serviceNameStyle = lipgloss.NewStyle().
-				Foreground(ColorPrimary).
-				Bold(true)
-
-	logMessageStyle = lipgloss.NewStyle()
-
 	errorStyle = lipgloss.NewStyle().
 			Foreground(ColorFailed)
 

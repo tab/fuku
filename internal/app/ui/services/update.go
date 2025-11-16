@@ -1,8 +1,6 @@
 package services
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -10,11 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"fuku/internal/app/runtime"
-)
-
-const (
-	minLogMessageWidth      = 20
-	maxLogServiceNameLength = 15
+	"fuku/internal/app/ui/logs"
 )
 
 type eventMsg runtime.Event
@@ -28,22 +22,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKeyPress(msg)
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.help.Width = msg.Width
+		m.ui.width = msg.Width
+		m.ui.height = msg.Height
+		m.ui.help.Width = msg.Width
 
 		panelHeight := msg.Height - panelHeightOffset
 		if panelHeight < minPanelHeight {
 			panelHeight = minPanelHeight
 		}
 
-		m.servicesViewport.Width = msg.Width - viewportWidthPadding
-		m.servicesViewport.Height = panelHeight
-		m.logsViewport.Width = msg.Width - viewportWidthPadding
-		m.logsViewport.Height = panelHeight
+		m.ui.servicesViewport.Width = msg.Width - viewportWidthPadding
+		m.ui.servicesViewport.Height = panelHeight
+		m.logsModel.SetSize(msg.Width, panelHeight)
 
-		if !m.ready {
-			m.ready = true
+		if !m.state.ready {
+			m.state.ready = true
 		}
 
 		return m, nil
@@ -67,59 +60,61 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.quitting {
+	if m.state.quitting {
 		return m, nil
 	}
 
 	switch {
-	case key.Matches(msg, m.keys.Quit):
-		m.quitting = true
+	case key.Matches(msg, m.ui.keys.Quit):
+		m.state.quitting = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
 		m.controller.StopAll()
 
 		return m, tea.Quit
 
-	case key.Matches(msg, m.keys.ForceQuit):
-		m.quitting = true
+	case key.Matches(msg, m.ui.keys.ForceQuit):
+		m.state.quitting = true
 		m.controller.StopAll()
 
 		return m, tea.Quit
 
-	case key.Matches(msg, m.keys.ToggleLogs):
-		if m.viewMode == ViewModeServices {
-			m.viewMode = ViewModeLogs
+	case key.Matches(msg, m.ui.keys.ToggleLogs):
+		if m.ui.viewMode == ViewModeServices {
+			m.ui.viewMode = ViewModeLogs
 		} else {
-			m.viewMode = ViewModeServices
+			m.ui.viewMode = ViewModeServices
 		}
 
 		return m, nil
 
-	case key.Matches(msg, m.keys.Autoscroll):
+	case key.Matches(msg, m.ui.keys.Autoscroll):
 		return m.handleAutoscroll()
 
-	case key.Matches(msg, m.keys.Up):
+	case key.Matches(msg, m.ui.keys.Up):
 		return m.handleUpKey(msg)
 
-	case key.Matches(msg, m.keys.Down):
+	case key.Matches(msg, m.ui.keys.Down):
 		return m.handleDownKey(msg)
 
-	case key.Matches(msg, m.keys.Stop):
+	case key.Matches(msg, m.ui.keys.Stop):
 		return m.handleStopKey()
 
-	case key.Matches(msg, m.keys.Restart):
+	case key.Matches(msg, m.ui.keys.Restart):
 		return m.handleRestartKey()
 
-	case key.Matches(msg, m.keys.ToggleLogSub):
+	case key.Matches(msg, m.ui.keys.ToggleLogSub):
 		return m.handleToggleLogSub()
 	}
 
 	switch msg.String() {
 	case "pgup", "pgdown", "home", "end":
 		var cmd tea.Cmd
-		if m.viewMode == ViewModeLogs {
-			m.logsViewport, cmd = m.logsViewport.Update(msg)
+
+		if m.ui.viewMode == ViewModeLogs {
+			vp := m.logsModel.Viewport()
+			*vp, cmd = vp.Update(msg)
 		} else {
-			m.servicesViewport, cmd = m.servicesViewport.Update(msg)
+			m.ui.servicesViewport, cmd = m.ui.servicesViewport.Update(msg)
 		}
 
 		return m, cmd
@@ -129,53 +124,52 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleAutoscroll() (tea.Model, tea.Cmd) {
-	if m.viewMode == ViewModeLogs {
-		m.autoscroll = !m.autoscroll
-		if m.autoscroll {
-			m.logsViewport.GotoBottom()
-		}
+	if m.ui.viewMode == ViewModeLogs {
+		m.logsModel.ToggleAutoscroll()
 	}
 
 	return m, nil
 }
 
 func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.viewMode == ViewModeLogs {
+	if m.ui.viewMode == ViewModeLogs {
 		var cmd tea.Cmd
 
-		m.logsViewport, cmd = m.logsViewport.Update(msg)
+		vp := m.logsModel.Viewport()
+		*vp, cmd = vp.Update(msg)
 
 		return m, cmd
 	}
 
-	if m.selected > 0 {
-		m.selected--
-		m.servicesViewport.YOffset = m.calculateScrollOffset()
+	if m.state.selected > 0 {
+		m.state.selected--
+		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
 	}
 
 	return m, nil
 }
 
 func (m Model) handleDownKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.viewMode == ViewModeLogs {
+	if m.ui.viewMode == ViewModeLogs {
 		var cmd tea.Cmd
 
-		m.logsViewport, cmd = m.logsViewport.Update(msg)
+		vp := m.logsModel.Viewport()
+		*vp, cmd = vp.Update(msg)
 
 		return m, cmd
 	}
 
 	total := m.getTotalServices()
-	if m.selected < total-1 {
-		m.selected++
-		m.servicesViewport.YOffset = m.calculateScrollOffset()
+	if m.state.selected < total-1 {
+		m.state.selected++
+		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
 	}
 
 	return m, nil
 }
 
 func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
-	if m.viewMode != ViewModeServices {
+	if m.ui.viewMode != ViewModeServices {
 		return m, nil
 	}
 
@@ -198,7 +192,7 @@ func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
-	if m.viewMode != ViewModeServices {
+	if m.ui.viewMode != ViewModeServices {
 		return m, nil
 	}
 
@@ -213,15 +207,14 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleToggleLogSub() (tea.Model, tea.Cmd) {
-	if m.viewMode != ViewModeServices {
+	if m.ui.viewMode != ViewModeServices {
 		return m, nil
 	}
 
 	service := m.getSelectedService()
 	if service != nil {
 		service.LogEnabled = !service.LogEnabled
-
-		m.updateLogsViewport()
+		m.filter.Set(service.Name, service.LogEnabled)
 	}
 
 	return m, nil
@@ -248,7 +241,7 @@ func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 	case runtime.EventLogLine:
 		m = m.handleLogLine(event)
 	case runtime.EventSignalCaught:
-		m.quitting = true
+		m.state.quitting = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
 
 		return m, tea.Quit
@@ -266,19 +259,24 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 
 	m.log.Debug().Msgf("TUI: ProfileResolved - profile=%s, tiers=%d", data.Profile, len(data.Tiers))
 
-	m.tiers = make([]TierView, len(data.Tiers))
+	var services []string
+
+	m.state.tiers = make([]Tier, len(data.Tiers))
 	for i, tier := range data.Tiers {
 		m.log.Debug().Msgf("TUI: Adding tier %s with %d services: %v", tier.Name, len(tier.Services), tier.Services)
 
-		m.tiers[i] = TierView{Name: tier.Name, Services: tier.Services, Ready: false}
+		m.state.tiers[i] = Tier{Name: tier.Name, Services: tier.Services, Ready: false}
 		for _, serviceName := range tier.Services {
 			service := &ServiceState{Name: serviceName, Tier: tier.Name, Status: StatusStarting, LogEnabled: true}
 			service.FSM = newServiceFSM(service, m.loader)
-			m.services[serviceName] = service
+			m.state.services[serviceName] = service
+			services = append(services, serviceName)
 		}
 	}
 
-	m.log.Debug().Msgf("TUI: After ProfileResolved - tiers=%d, services=%d", len(m.tiers), len(m.services))
+	m.filter.EnableAll(services)
+
+	m.log.Debug().Msgf("TUI: After ProfileResolved - tiers=%d, services=%d", len(m.state.tiers), len(m.state.services))
 
 	return m
 }
@@ -289,8 +287,8 @@ func (m Model) handlePhaseChanged(event runtime.Event) (Model, tea.Cmd) {
 		return m, waitForEventCmd(m.eventChan)
 	}
 
-	m.phase = data.Phase
-	if m.phase == runtime.PhaseStopped {
+	m.state.phase = data.Phase
+	if m.state.phase == runtime.PhaseStopped {
 		m.loader.StopAll()
 		return m, tea.Quit
 	}
@@ -304,9 +302,9 @@ func (m Model) handleTierStarting(event runtime.Event) Model {
 		return m
 	}
 
-	for i, tier := range m.tiers {
+	for i, tier := range m.state.tiers {
 		if tier.Name == data.Name {
-			m.tiers[i].Ready = false
+			m.state.tiers[i].Ready = false
 			break
 		}
 	}
@@ -320,9 +318,9 @@ func (m Model) handleTierReady(event runtime.Event) Model {
 		return m
 	}
 
-	for i, tier := range m.tiers {
+	for i, tier := range m.state.tiers {
 		if tier.Name == data.Name {
-			m.tiers[i].Ready = true
+			m.state.tiers[i].Ready = true
 			break
 		}
 	}
@@ -336,7 +334,7 @@ func (m Model) handleServiceStarting(event runtime.Event) Model {
 		return m
 	}
 
-	if service, exists := m.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service]; exists {
 		service.Monitor.StartTime = event.Timestamp
 		service.Tier = data.Tier
 		m.controller.HandleStarting(m.ctx, service, data.PID)
@@ -351,7 +349,7 @@ func (m Model) handleServiceReady(event runtime.Event) Model {
 		return m
 	}
 
-	if service, exists := m.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service]; exists {
 		service.Monitor.ReadyTime = event.Timestamp
 
 		m.loader.Stop(data.Service)
@@ -367,7 +365,7 @@ func (m Model) handleServiceFailed(event runtime.Event) Model {
 		return m
 	}
 
-	if service, exists := m.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service]; exists {
 		service.Error = data.Error
 		m.loader.Stop(data.Service)
 		m.controller.HandleFailed(m.ctx, service)
@@ -382,7 +380,7 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 		return m
 	}
 
-	if service, exists := m.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service]; exists {
 		wasRestarting := m.controller.HandleStopped(m.ctx, service)
 		if !wasRestarting {
 			m.loader.Stop(data.Service)
@@ -398,7 +396,7 @@ func (m Model) handleLogLine(event runtime.Event) Model {
 		return m
 	}
 
-	entry := LogEntry{
+	entry := logs.Entry{
 		Timestamp: event.Timestamp,
 		Service:   data.Service,
 		Tier:      data.Tier,
@@ -406,67 +404,9 @@ func (m Model) handleLogLine(event runtime.Event) Model {
 		Message:   data.Message,
 	}
 
-	m.logs = append(m.logs, entry)
-
-	if len(m.logs) > m.maxLogs {
-		m.logs = m.logs[len(m.logs)-m.maxLogs:]
-	}
-
-	m.updateLogsViewport()
+	m.logsModel.AddEntry(entry)
 
 	return m
-}
-
-func (m *Model) updateLogsViewport() {
-	var logLines string
-
-	viewportWidth := m.logsViewport.Width
-	if viewportWidth <= 0 {
-		viewportWidth = 80
-	}
-
-	for _, entry := range m.logs {
-		serviceState, exists := m.services[entry.Service]
-		if !exists || !serviceState.LogEnabled {
-			continue
-		}
-
-		serviceName := entry.Service
-		if len(serviceName) > maxLogServiceNameLength {
-			serviceName = serviceName[:maxLogServiceNameLength] + "…"
-		}
-
-		service := serviceNameStyle.Render(serviceName)
-		divider := timestampStyle.Render("·")
-
-		prefix := fmt.Sprintf("%s %s ", service, divider)
-		prefixLen := len(serviceName) + logPrefixSpacing
-
-		message := strings.TrimRight(entry.Message, "\n\r")
-
-		messageWidth := viewportWidth - prefixLen
-		if messageWidth < minLogMessageWidth {
-			messageWidth = minLogMessageWidth
-		}
-
-		wrappedMessage := logMessageStyle.Width(messageWidth).Render(message)
-
-		lines := strings.Split(wrappedMessage, "\n")
-		for i, line := range lines {
-			linePrefix := prefix
-			if i > 0 {
-				linePrefix = "└ "
-			}
-
-			logLines += fmt.Sprintf("%s%s\n", linePrefix, line)
-		}
-	}
-
-	m.logsViewport.SetContent(logLines)
-
-	if m.autoscroll {
-		m.logsViewport.GotoBottom()
-	}
 }
 
 func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {

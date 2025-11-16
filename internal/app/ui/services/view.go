@@ -1,295 +1,287 @@
 package services
 
 import (
-    "fmt"
-    "strings"
+	"fmt"
+	"strings"
 
-    "github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss"
 
-    "fuku/internal/app/runtime"
-)
-
-const (
-    fixedColumnsWidth    = 45
-    minServiceNameWidth  = 20
-    panelHeightOffset    = 10
-    minPanelHeight       = 10
-    viewportWidthPadding = 4
-    panelBorderPadding   = 2
-    rowWidthPadding      = 8
-    logPrefixSpacing     = 3
+	"fuku/internal/app/runtime"
 )
 
 // View renders the UI
 func (m Model) View() string {
-    if !m.ready {
-        return "Initializing…"
-    }
+	if !m.state.ready {
+		return "Initializing…"
+	}
 
-    if m.quitting {
-        return ""
-    }
+	if m.state.quitting {
+		return ""
+	}
 
-    var sections []string
+	var sections []string
 
-    sections = append(sections, m.renderTitle())
-    sections = append(sections, "")
+	sections = append(sections, m.renderTitle())
+	sections = append(sections, "")
 
-    if m.viewMode == ViewModeLogs {
-        logsPanel := activePanelStyle.
-            Width(m.width - panelBorderPadding).
-            Height(m.height - panelHeightOffset).
-            Render(m.renderLogs())
-        sections = append(sections, logsPanel)
-    } else {
-        servicesPanel := activePanelStyle.
-            Width(m.width - panelBorderPadding).
-            Height(m.height - panelHeightOffset).
-            Render(m.renderServices())
-        sections = append(sections, servicesPanel)
-    }
+	if m.ui.viewMode == ViewModeLogs {
+		logsPanel := activePanelStyle.
+			Width(m.ui.width - panelBorderPadding).
+			Height(m.ui.height - panelHeightOffset).
+			Render(m.renderLogs())
+		sections = append(sections, logsPanel)
+	} else {
+		servicesPanel := activePanelStyle.
+			Width(m.ui.width - panelBorderPadding).
+			Height(m.ui.height - panelHeightOffset).
+			Render(m.renderServices())
+		sections = append(sections, servicesPanel)
+	}
 
-    sections = append(sections, "")
-    sections = append(sections, m.renderHelp())
+	sections = append(sections, "")
+	sections = append(sections, m.renderHelp())
 
-    return strings.Join(sections, "\n")
+	return strings.Join(sections, "\n")
 }
 
 func (m Model) renderTitle() string {
-    titleText := ">_ services"
+	titleText := ">_ services"
 
-    if m.viewMode == ViewModeLogs {
-        titleText = ">_ logs"
-    }
+	if m.ui.viewMode == ViewModeLogs {
+		titleText = ">_ logs"
+	}
 
-    if m.loader.Active {
-        titleText = m.loader.Model.View() + " " + m.loader.Message()
-    }
+	if m.loader.Active {
+		titleText = m.loader.Model.View() + " " + m.loader.Message()
+	}
 
-    ready := m.getReadyServices()
-    total := m.getTotalServices()
+	ready := m.getReadyServices()
+	total := m.getTotalServices()
 
-    phaseStr := string(m.phase)
-    phaseStyle := phaseMutedStyle
+	phaseStr := string(m.state.phase)
+	phaseStyle := phaseMutedStyle
 
-    switch m.phase {
-    case runtime.PhaseStartup:
-        phaseStr = "Starting…"
-        phaseStyle = phaseStartingStyle
-    case runtime.PhaseRunning:
-        phaseStr = "Running"
-        phaseStyle = phaseRunningStyle
-    case runtime.PhaseStopping:
-        phaseStr = "Stopping"
-        phaseStyle = phaseStoppingStyle
-    }
+	switch m.state.phase {
+	case runtime.PhaseStartup:
+		phaseStr = "Starting…"
+		phaseStyle = phaseStartingStyle
+	case runtime.PhaseRunning:
+		phaseStr = "Running"
+		phaseStyle = phaseRunningStyle
+	case runtime.PhaseStopping:
+		phaseStr = "Stopping"
+		phaseStyle = phaseStoppingStyle
+	}
 
-    statusInfo := fmt.Sprintf("%s  %d/%d ready",
-        phaseStyle.Render(phaseStr),
-        ready,
-        total,
-    )
+	statusInfo := fmt.Sprintf("%s  %d/%d ready",
+		phaseStyle.Render(phaseStr),
+		ready,
+		total,
+	)
 
-    if m.viewMode == ViewModeLogs && m.autoscroll {
-        statusInfo += "  " + timestampStyle.Render("[autoscroll]")
-    }
+	if m.ui.viewMode == ViewModeLogs && m.logsModel.Autoscroll() {
+		statusInfo += "  " + timestampStyle.Render("[autoscroll]")
+	}
 
-    title := titleStyle.Render(titleText)
-    info := statusStyle.Render(statusInfo)
+	title := titleStyle.Render(titleText)
+	info := statusStyle.Render(statusInfo)
 
-    return lipgloss.JoinHorizontal(
-        lipgloss.Top,
-        title,
-        lipgloss.PlaceHorizontal(m.width-lipgloss.Width(title)-panelBorderPadding, lipgloss.Right, info),
-    )
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		title,
+		lipgloss.PlaceHorizontal(m.ui.width-lipgloss.Width(title)-panelBorderPadding, lipgloss.Right, info),
+	)
 }
 
 func (m Model) renderServices() string {
-    if len(m.tiers) == 0 {
-        return emptyStateStyle.Render("No services configured")
-    }
+	if len(m.state.tiers) == 0 {
+		return emptyStateStyle.Render("No services configured")
+	}
 
-    var content strings.Builder
+	var content strings.Builder
 
-    currentIdx := 0
-    maxNameLen := m.getMaxServiceNameLength()
+	currentIdx := 0
+	maxNameLen := m.getMaxServiceNameLength()
 
-    for i, tier := range m.tiers {
-        content.WriteString(m.renderTier(tier, &currentIdx, maxNameLen, i == 0))
-    }
+	for i, tier := range m.state.tiers {
+		content.WriteString(m.renderTier(tier, &currentIdx, maxNameLen, i == 0))
+	}
 
-    contentStr := content.String()
-    lines := strings.Split(contentStr, "\n")
+	contentStr := content.String()
+	lines := strings.Split(contentStr, "\n")
 
-    if len(lines) > 0 && lines[len(lines)-1] == "" {
-        lines = lines[:len(lines)-1]
-    }
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
 
-    offset := m.servicesViewport.YOffset
-    if offset < 0 {
-        offset = 0
-    }
+	offset := m.ui.servicesViewport.YOffset
+	if offset < 0 {
+		offset = 0
+	}
 
-    maxOffset := len(lines) - m.servicesViewport.Height
-    if maxOffset < 0 {
-        maxOffset = 0
-    }
+	maxOffset := len(lines) - m.ui.servicesViewport.Height
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
 
-    if offset > maxOffset {
-        offset = maxOffset
-    }
+	if offset > maxOffset {
+		offset = maxOffset
+	}
 
-    endLine := offset + m.servicesViewport.Height
-    if endLine > len(lines) {
-        endLine = len(lines)
-    }
+	endLine := offset + m.ui.servicesViewport.Height
+	if endLine > len(lines) {
+		endLine = len(lines)
+	}
 
-    if offset >= len(lines) {
-        return ""
-    }
+	if offset >= len(lines) {
+		return ""
+	}
 
-    visibleLines := lines[offset:endLine]
+	visibleLines := lines[offset:endLine]
 
-    return strings.Join(visibleLines, "\n")
+	return strings.Join(visibleLines, "\n")
 }
 
-func (m Model) renderTier(tier TierView, currentIdx *int, maxNameLen int, isFirst bool) string {
-    var sb strings.Builder
+func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int, isFirst bool) string {
+	var sb strings.Builder
 
-    if !isFirst {
-        sb.WriteString("\n")
-    }
+	if !isFirst {
+		sb.WriteString("\n")
+	}
 
-    tierHeader := tierHeaderStyle.Render(tier.Name)
-    sb.WriteString(tierHeader + "\n")
+	tierHeader := tierHeaderStyle.Render(tier.Name)
+	sb.WriteString(tierHeader + "\n")
 
-    for _, serviceName := range tier.Services {
-        service, exists := m.services[serviceName]
-        if !exists {
-            continue
-        }
+	for _, serviceName := range tier.Services {
+		service, exists := m.state.services[serviceName]
+		if !exists {
+			continue
+		}
 
-        isSelected := *currentIdx == m.selected
-        sb.WriteString(m.renderServiceRow(service, isSelected, maxNameLen) + "\n")
+		isSelected := *currentIdx == m.state.selected
+		sb.WriteString(m.renderServiceRow(service, isSelected, maxNameLen) + "\n")
 
-        *currentIdx++
-    }
+		*currentIdx++
+	}
 
-    return sb.String()
+	return sb.String()
 }
 
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
-    indicator := "  "
-    if isSelected {
-        indicator = "▸ "
-    }
+	indicator := "  "
+	if isSelected {
+		indicator = "▸ "
+	}
 
-    if service.FSM != nil {
-        state := service.FSM.Current()
-        if state == Starting || state == Stopping || state == Restarting {
-            indicator = "● "
-        }
-    }
+	if service.FSM != nil {
+		state := service.FSM.Current()
+		if state == Starting || state == Stopping || state == Restarting {
+			indicator = "● "
+		}
+	}
 
-    logCheckbox := "[ ]"
-    if service.LogEnabled {
-        logCheckbox = "[x]"
-    }
+	logCheckbox := "[ ]"
+	if service.LogEnabled {
+		logCheckbox = "[x]"
+	}
 
-    uptime := m.getUptime(service)
-    cpu := m.getCPU(service)
-    mem := m.getMem(service)
+	uptime := m.getUptime(service)
+	cpu := m.getCPU(service)
+	mem := m.getMem(service)
 
-    serviceName := service.Name
+	serviceName := service.Name
 
-    availableWidth := m.servicesViewport.Width - fixedColumnsWidth
-    if availableWidth < minServiceNameWidth {
-        availableWidth = minServiceNameWidth
-    }
+	availableWidth := m.ui.servicesViewport.Width - fixedColumnsWidth
+	if availableWidth < minServiceNameWidth {
+		availableWidth = minServiceNameWidth
+	}
 
-    if maxNameLen > availableWidth {
-        maxNameLen = availableWidth
-    }
+	if maxNameLen > availableWidth {
+		maxNameLen = availableWidth
+	}
 
-    if len(serviceName) > maxNameLen {
-        serviceName = serviceName[:maxNameLen-1] + "…"
-    }
+	if len(serviceName) > maxNameLen {
+		serviceName = serviceName[:maxNameLen-1] + "…"
+	}
 
-    row := fmt.Sprintf("%s%s %-*s  %-10s  %6s  %7s  %s",
-        indicator,
-        logCheckbox,
-        maxNameLen,
-        serviceName,
-        string(service.Status),
-        cpu,
-        mem,
-        uptime,
-    )
+	row := fmt.Sprintf("%s%s %-*s  %-10s  %6s  %7s  %s",
+		indicator,
+		logCheckbox,
+		maxNameLen,
+		serviceName,
+		string(service.Status),
+		cpu,
+		mem,
+		uptime,
+	)
 
-    rowWidth := m.servicesViewport.Width
-    if rowWidth < 1 {
-        rowWidth = m.width - rowWidthPadding
-    }
+	rowWidth := m.ui.servicesViewport.Width
+	if rowWidth < 1 {
+		rowWidth = m.ui.width - rowWidthPadding
+	}
 
-    if service.Error != nil {
-        errorText := fmt.Sprintf(" (%s)", service.Error.Error())
-        row += errorText
-    }
+	if service.Error != nil {
+		errorText := fmt.Sprintf(" (%s)", service.Error.Error())
+		row += errorText
+	}
 
-    currentLen := len(row)
-    if currentLen < rowWidth {
-        row += strings.Repeat(" ", rowWidth-currentLen)
-    }
+	currentLen := len(row)
+	if currentLen < rowWidth {
+		row += strings.Repeat(" ", rowWidth-currentLen)
+	}
 
-    if isSelected {
-        return selectedServiceRowStyle.Width(rowWidth).Render(row)
-    }
+	if isSelected {
+		return selectedServiceRowStyle.Width(rowWidth).Render(row)
+	}
 
-    styledRow := m.applyRowStyles(row, service)
+	styledRow := m.applyRowStyles(row, service)
 
-    return serviceRowStyle.Render(styledRow)
+	return serviceRowStyle.Render(styledRow)
 }
 
 func (m Model) applyRowStyles(row string, service *ServiceState) string {
-    result := row
+	result := row
 
-    statusStr := string(service.Status)
+	statusStr := string(service.Status)
 
-    var styledStatus string
+	var styledStatus string
 
-    switch service.Status {
-    case StatusReady:
-        styledStatus = statusReadyStyle.Render(statusStr)
-    case StatusStarting:
-        styledStatus = statusStartingStyle.Render(statusStr)
-    case StatusFailed:
-        styledStatus = statusFailedStyle.Render(statusStr)
-    case StatusStopped:
-        styledStatus = statusStoppedStyle.Render(statusStr)
-    default:
-        styledStatus = statusStr
-    }
+	switch service.Status {
+	case StatusReady:
+		styledStatus = statusReadyStyle.Render(statusStr)
+	case StatusStarting:
+		styledStatus = statusStartingStyle.Render(statusStr)
+	case StatusFailed:
+		styledStatus = statusFailedStyle.Render(statusStr)
+	case StatusStopped:
+		styledStatus = statusStoppedStyle.Render(statusStr)
+	default:
+		styledStatus = statusStr
+	}
 
-    result = strings.Replace(result, statusStr, styledStatus, 1)
+	result = strings.Replace(result, statusStr, styledStatus, 1)
 
-    if service.Error != nil {
-        errorText := fmt.Sprintf("(%s)", service.Error.Error())
-        styledError := errorStyle.Render(errorText)
-        result = strings.Replace(result, errorText, styledError, 1)
-    }
+	if service.Error != nil {
+		errorText := fmt.Sprintf("(%s)", service.Error.Error())
+		styledError := errorStyle.Render(errorText)
+		result = strings.Replace(result, errorText, styledError, 1)
+	}
 
-    return result
+	return result
 }
 
 func (m Model) renderLogs() string {
-    if len(strings.TrimSpace(m.logsViewport.View())) == 0 {
-        return emptyStateStyle.Render("No logs enabled. Press 'space' to toggle service logs. Press 'l' to return to services view.")
-    }
-
-    return m.logsViewport.View()
+	return m.logsModel.View()
 }
 
 func (m Model) renderHelp() string {
-    helpView := m.help.View(m.keys)
-    return helpStyle.Render(helpView)
+	var helpView string
+
+	if m.ui.viewMode == ViewModeLogs {
+		helpView = m.ui.help.View(LogsHelpKeyMap(m.ui.keys))
+	} else {
+		helpView = m.ui.help.View(ServicesHelpKeyMap(m.ui.keys))
+	}
+
+	return helpStyle.Render(helpView)
 }

@@ -15,6 +15,7 @@ import (
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -31,8 +32,9 @@ func Test_NewCLI(t *testing.T) {
 	mockCommand := runtime.NewNoOpCommandBus()
 	mockController := services.NewMockController(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockLogFilter := ui.NewMockLogFilter(ctrl)
 
-	cliInstance := NewCLI(cfg, mockRunner, mockEvent, mockCommand, mockController, mockMonitor, mockLogger)
+	cliInstance := NewCLI(cfg, mockRunner, mockEvent, mockCommand, mockController, mockMonitor, mockLogFilter, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -45,6 +47,7 @@ func Test_NewCLI(t *testing.T) {
 	assert.Equal(t, mockCommand, instance.command)
 	assert.Equal(t, mockController, instance.controller)
 	assert.Equal(t, mockMonitor, instance.monitor)
+	assert.Equal(t, mockLogFilter, instance.logFilter)
 }
 
 func Test_Run(t *testing.T) {

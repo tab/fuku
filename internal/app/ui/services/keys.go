@@ -15,6 +15,26 @@ type KeyMap struct {
 	ForceQuit    key.Binding
 }
 
+// ServicesKeyMap defines the key bindings help for services view
+type ServicesKeyMap struct {
+	Up           key.Binding
+	Down         key.Binding
+	Stop         key.Binding
+	Restart      key.Binding
+	ToggleLogSub key.Binding
+	ToggleLogs   key.Binding
+	Quit         key.Binding
+}
+
+// LogsKeyMap defines the key bindings help for logs view
+type LogsKeyMap struct {
+	Up         key.Binding
+	Down       key.Binding
+	Autoscroll key.Binding
+	ToggleLogs key.Binding
+	Quit       key.Binding
+}
+
 // DefaultKeyMap returns the default key bindings
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
@@ -57,6 +77,42 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
+// ServicesHelpKeyMap returns key bindings for services view help
+func ServicesHelpKeyMap(k KeyMap) ServicesKeyMap {
+	logsBinding := k.ToggleLogs
+	logsBinding.SetHelp("l", "logs view")
+
+	return ServicesKeyMap{
+		Up:           k.Up,
+		Down:         k.Down,
+		Stop:         k.Stop,
+		Restart:      k.Restart,
+		ToggleLogSub: k.ToggleLogSub,
+		ToggleLogs:   logsBinding,
+		Quit:         k.Quit,
+	}
+}
+
+// LogsHelpKeyMap returns key bindings for logs view help
+func LogsHelpKeyMap(k KeyMap) LogsKeyMap {
+	logsBinding := k.ToggleLogs
+	logsBinding.SetHelp("l", "services view")
+
+	scrollUp := k.Up
+	scrollUp.SetHelp("↑/k", "scroll up")
+
+	scrollDown := k.Down
+	scrollDown.SetHelp("↓/j", "scroll down")
+
+	return LogsKeyMap{
+		Up:         scrollUp,
+		Down:       scrollDown,
+		Autoscroll: k.Autoscroll,
+		ToggleLogs: logsBinding,
+		Quit:       k.Quit,
+	}
+}
+
 // ShortHelp returns keybindings to be shown in the mini help view
 func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit}
@@ -66,5 +122,29 @@ func (k KeyMap) ShortHelp() []key.Binding {
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit, k.ForceQuit},
+	}
+}
+
+// ShortHelp returns keybindings for services view mini help
+func (k ServicesKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Up, k.Down, k.Stop, k.Restart, k.ToggleLogSub, k.ToggleLogs, k.Quit}
+}
+
+// FullHelp returns keybindings for services view expanded help
+func (k ServicesKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.Stop, k.Restart, k.ToggleLogSub, k.ToggleLogs, k.Quit},
+	}
+}
+
+// ShortHelp returns keybindings for logs view mini help
+func (k LogsKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Up, k.Down, k.Autoscroll, k.ToggleLogs, k.Quit}
+}
+
+// FullHelp returns keybindings for logs view expanded help
+func (k LogsKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.Autoscroll, k.ToggleLogs, k.Quit},
 	}
 }
