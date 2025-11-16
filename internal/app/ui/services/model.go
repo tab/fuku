@@ -5,12 +5,14 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/looplab/fsm"
 
+	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
 
@@ -25,16 +27,8 @@ const (
 	StatusStopped  Status = "Stopped"
 )
 
-// ViewMode represents the current view mode
-type ViewMode int
-
-const (
-	ViewModeServices ViewMode = iota
-	ViewModeLogs
-)
-
-// TierView represents a tier in the UI
-type TierView struct {
+// Tier represents a tier in the UI
+type Tier struct {
 	Name     string
 	Services []string
 	Ready    bool
@@ -51,13 +45,12 @@ type ServiceMonitor struct {
 
 // ServiceState represents the state of a service
 type ServiceState struct {
-	Name       string
-	Tier       string
-	Status     Status
-	Error      error
-	FSM        *fsm.FSM
-	Monitor    ServiceMonitor
-	LogEnabled bool
+	Name    string
+	Tier    string
+	Status  Status
+	Error   error
+	FSM     *fsm.FSM
+	Monitor ServiceMonitor
 }
 
 // MarkStarting sets the service status to starting
@@ -86,39 +79,37 @@ func (s *ServiceState) MarkFailed() {
 	s.Status = StatusFailed
 }
 
-// LogEntry represents a single log line
-type LogEntry struct {
-	Timestamp time.Time
-	Service   string
-	Tier      string
-	Stream    string
-	Message   string
-}
-
 // Model represents the Bubble Tea model for the services UI
 type Model struct {
-	profile          string
-	phase            runtime.Phase
-	tiers            []TierView
-	services         map[string]*ServiceState
-	selected         int
-	width            int
-	height           int
-	keys             KeyMap
-	help             help.Model
-	event            runtime.EventBus
-	command          runtime.CommandBus
-	loader           *Loader
-	quitting         bool
-	viewMode         ViewMode
-	logs             []LogEntry
-	maxLogs          int
-	servicesViewport viewport.Model
-	logsViewport     viewport.Model
-	autoscroll       bool
-	ready            bool
-	eventChan        <-chan runtime.Event
-	log              logger.Logger
+	ctx        context.Context
+	event      runtime.EventBus
+	command    runtime.CommandBus
+	controller Controller
+	monitor    monitor.Monitor
+	logView    ui.LogView
+	navigator  navigation.Navigator
+	loader     *Loader
+	eventChan  <-chan runtime.Event
+
+	state struct {
+		profile  string
+		phase    runtime.Phase
+		tiers    []Tier
+		services map[string]*ServiceState
+		selected int
+		quitting bool
+		ready    bool
+	}
+
+	ui struct {
+		width            int
+		height           int
+		keys             KeyMap
+		help             help.Model
+		servicesViewport viewport.Model
+	}
+
+	log logger.Logger
 }
 
 // NewModel creates a new services UI model
@@ -127,42 +118,45 @@ func NewModel(
 	profile string,
 	event runtime.EventBus,
 	command runtime.CommandBus,
+	controller Controller,
+	monitor monitor.Monitor,
+	logView ui.LogView,
+	navigator navigation.Navigator,
+	loader *Loader,
 	log logger.Logger,
 ) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = spinnerStyle
-
 	eventChan := event.Subscribe(ctx)
 
 	log.Debug().Msg("TUI: Created model and subscribed to events")
 
-	ldr := &Loader{
-		Model:  s,
-		Active: false,
-		queue:  make([]LoaderItem, 0),
+	m := Model{
+		ctx:        ctx,
+		event:      event,
+		command:    command,
+		controller: controller,
+		monitor:    monitor,
+		loader:     loader,
+		eventChan:  eventChan,
+		logView:    logView,
+		navigator:  navigator,
+		log:        log,
 	}
 
-	return Model{
-		profile:          profile,
-		phase:            runtime.PhaseStartup,
-		tiers:            make([]TierView, 0),
-		services:         make(map[string]*ServiceState),
-		selected:         0,
-		keys:             DefaultKeyMap(),
-		help:             help.New(),
-		event:            event,
-		command:          command,
-		loader:           ldr,
-		viewMode:         ViewModeServices,
-		logs:             make([]LogEntry, 0),
-		maxLogs:          1000,
-		servicesViewport: viewport.New(0, 0),
-		logsViewport:     viewport.New(0, 0),
-		ready:            false,
-		eventChan:        eventChan,
-		log:              log,
-	}
+	m.state.profile = profile
+	m.state.phase = runtime.PhaseStartup
+	m.state.tiers = make([]Tier, 0)
+	m.state.services = make(map[string]*ServiceState)
+	m.state.selected = 0
+	m.state.quitting = false
+	m.state.ready = false
+
+	m.ui.width = 0
+	m.ui.height = 0
+	m.ui.keys = DefaultKeyMap()
+	m.ui.help = help.New()
+	m.ui.servicesViewport = viewport.New(0, 0)
+
+	return m
 }
 
 // Init initializes the model
@@ -175,16 +169,16 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) getSelectedService() *ServiceState {
-	if m.selected < 0 {
+	if m.state.selected < 0 {
 		return nil
 	}
 
 	idx := 0
 
-	for _, tier := range m.tiers {
+	for _, tier := range m.state.tiers {
 		for _, serviceName := range tier.Services {
-			if idx == m.selected {
-				return m.services[serviceName]
+			if idx == m.state.selected {
+				return m.state.services[serviceName]
 			}
 
 			idx++
@@ -196,7 +190,7 @@ func (m Model) getSelectedService() *ServiceState {
 
 func (m Model) getTotalServices() int {
 	total := 0
-	for _, tier := range m.tiers {
+	for _, tier := range m.state.tiers {
 		total += len(tier.Services)
 	}
 
@@ -206,7 +200,7 @@ func (m Model) getTotalServices() int {
 func (m Model) getReadyServices() int {
 	count := 0
 
-	for _, service := range m.services {
+	for _, service := range m.state.services {
 		if service.Status == StatusReady {
 			count++
 		}
@@ -218,7 +212,7 @@ func (m Model) getReadyServices() int {
 func (m Model) getMaxServiceNameLength() int {
 	maxLen := 20
 
-	for _, service := range m.services {
+	for _, service := range m.state.services {
 		if len(service.Name) > maxLen {
 			maxLen = len(service.Name)
 		}
@@ -228,14 +222,14 @@ func (m Model) getMaxServiceNameLength() int {
 }
 
 func (m Model) calculateScrollOffset() int {
-	if m.servicesViewport.Height == 0 {
-		return m.servicesViewport.YOffset
+	if m.ui.servicesViewport.Height == 0 {
+		return m.ui.servicesViewport.YOffset
 	}
 
 	lineNumber := 0
 	currentIdx := 0
 
-	for i, tier := range m.tiers {
+	for i, tier := range m.state.tiers {
 		tierStartLine := lineNumber
 
 		if i > 0 {
@@ -247,9 +241,9 @@ func (m Model) calculateScrollOffset() int {
 		serviceIndexInTier := 0
 
 		for range tier.Services {
-			if currentIdx == m.selected {
-				viewportTop := m.servicesViewport.YOffset
-				viewportBottom := viewportTop + m.servicesViewport.Height - 1
+			if currentIdx == m.state.selected {
+				viewportTop := m.ui.servicesViewport.YOffset
+				viewportBottom := viewportTop + m.ui.servicesViewport.Height - 1
 
 				if lineNumber < viewportTop {
 					if serviceIndexInTier == 0 {
@@ -258,10 +252,10 @@ func (m Model) calculateScrollOffset() int {
 
 					return lineNumber
 				} else if lineNumber > viewportBottom {
-					return lineNumber - m.servicesViewport.Height + 1
+					return lineNumber - m.ui.servicesViewport.Height + 1
 				}
 
-				return m.servicesViewport.YOffset
+				return m.ui.servicesViewport.YOffset
 			}
 
 			lineNumber++
@@ -270,5 +264,5 @@ func (m Model) calculateScrollOffset() int {
 		}
 	}
 
-	return m.servicesViewport.YOffset
+	return m.ui.servicesViewport.YOffset
 }

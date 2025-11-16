@@ -7,24 +7,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"fuku/internal/app/runtime"
-)
-
-const (
-	// fixedColumnsWidth is the total width occupied by fixed columns in the service row
-	// (indicator: 2, checkbox: 3, status: 12, cpu: 8, mem: 9, uptime: ~11)
-	fixedColumnsWidth = 45
-
-	// minServiceNameWidth is the minimum width allocated for service names
-	minServiceNameWidth = 20
+	"fuku/internal/app/ui/components"
+	"fuku/internal/app/ui/navigation"
 )
 
 // View renders the UI
 func (m Model) View() string {
-	if !m.ready {
+	if !m.state.ready {
 		return "Initializing…"
 	}
 
-	if m.quitting {
+	if m.state.quitting {
 		return ""
 	}
 
@@ -33,16 +26,16 @@ func (m Model) View() string {
 	sections = append(sections, m.renderTitle())
 	sections = append(sections, "")
 
-	if m.viewMode == ViewModeLogs {
+	if m.navigator.CurrentView() == navigation.ViewLogs {
 		logsPanel := activePanelStyle.
-			Width(m.width - 2).
-			Height(m.height - 10).
+			Width(m.ui.width - components.PanelBorderPadding).
+			Height(m.ui.height - components.PanelHeightOffset).
 			Render(m.renderLogs())
 		sections = append(sections, logsPanel)
 	} else {
 		servicesPanel := activePanelStyle.
-			Width(m.width - 2).
-			Height(m.height - 10).
+			Width(m.ui.width - components.PanelBorderPadding).
+			Height(m.ui.height - components.PanelHeightOffset).
 			Render(m.renderServices())
 		sections = append(sections, servicesPanel)
 	}
@@ -56,7 +49,7 @@ func (m Model) View() string {
 func (m Model) renderTitle() string {
 	titleText := ">_ services"
 
-	if m.viewMode == ViewModeLogs {
+	if m.navigator.CurrentView() == navigation.ViewLogs {
 		titleText = ">_ logs"
 	}
 
@@ -67,10 +60,10 @@ func (m Model) renderTitle() string {
 	ready := m.getReadyServices()
 	total := m.getTotalServices()
 
-	phaseStr := string(m.phase)
+	phaseStr := string(m.state.phase)
 	phaseStyle := phaseMutedStyle
 
-	switch m.phase {
+	switch m.state.phase {
 	case runtime.PhaseStartup:
 		phaseStr = "Starting…"
 		phaseStyle = phaseStartingStyle
@@ -88,7 +81,7 @@ func (m Model) renderTitle() string {
 		total,
 	)
 
-	if m.viewMode == ViewModeLogs && m.autoscroll {
+	if m.navigator.CurrentView() == navigation.ViewLogs && m.logView.Autoscroll() {
 		statusInfo += "  " + timestampStyle.Render("[autoscroll]")
 	}
 
@@ -98,12 +91,12 @@ func (m Model) renderTitle() string {
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		title,
-		lipgloss.PlaceHorizontal(m.width-lipgloss.Width(title)-2, lipgloss.Right, info),
+		lipgloss.PlaceHorizontal(m.ui.width-lipgloss.Width(title)-components.PanelBorderPadding, lipgloss.Right, info),
 	)
 }
 
 func (m Model) renderServices() string {
-	if len(m.tiers) == 0 {
+	if len(m.state.tiers) == 0 {
 		return emptyStateStyle.Render("No services configured")
 	}
 
@@ -112,7 +105,7 @@ func (m Model) renderServices() string {
 	currentIdx := 0
 	maxNameLen := m.getMaxServiceNameLength()
 
-	for i, tier := range m.tiers {
+	for i, tier := range m.state.tiers {
 		content.WriteString(m.renderTier(tier, &currentIdx, maxNameLen, i == 0))
 	}
 
@@ -123,12 +116,12 @@ func (m Model) renderServices() string {
 		lines = lines[:len(lines)-1]
 	}
 
-	offset := m.servicesViewport.YOffset
+	offset := m.ui.servicesViewport.YOffset
 	if offset < 0 {
 		offset = 0
 	}
 
-	maxOffset := len(lines) - m.servicesViewport.Height
+	maxOffset := len(lines) - m.ui.servicesViewport.Height
 	if maxOffset < 0 {
 		maxOffset = 0
 	}
@@ -137,7 +130,7 @@ func (m Model) renderServices() string {
 		offset = maxOffset
 	}
 
-	endLine := offset + m.servicesViewport.Height
+	endLine := offset + m.ui.servicesViewport.Height
 	if endLine > len(lines) {
 		endLine = len(lines)
 	}
@@ -151,7 +144,7 @@ func (m Model) renderServices() string {
 	return strings.Join(visibleLines, "\n")
 }
 
-func (m Model) renderTier(tier TierView, currentIdx *int, maxNameLen int, isFirst bool) string {
+func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int, isFirst bool) string {
 	var sb strings.Builder
 
 	if !isFirst {
@@ -162,12 +155,12 @@ func (m Model) renderTier(tier TierView, currentIdx *int, maxNameLen int, isFirs
 	sb.WriteString(tierHeader + "\n")
 
 	for _, serviceName := range tier.Services {
-		service, exists := m.services[serviceName]
+		service, exists := m.state.services[serviceName]
 		if !exists {
 			continue
 		}
 
-		isSelected := *currentIdx == m.selected
+		isSelected := *currentIdx == m.state.selected
 		sb.WriteString(m.renderServiceRow(service, isSelected, maxNameLen) + "\n")
 
 		*currentIdx++
@@ -190,18 +183,17 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	}
 
 	logCheckbox := "[ ]"
-	if service.LogEnabled {
+	if m.logView.IsEnabled(service.Name) {
 		logCheckbox = "[x]"
 	}
 
-	statusRaw := string(service.Status)
-	uptimeRaw := m.getUptimeRaw(service)
-	cpuRaw := m.getCPURaw(service)
-	memRaw := m.getMemRaw(service)
+	uptime := m.getUptime(service)
+	cpu := m.getCPU(service)
+	mem := m.getMem(service)
 
 	serviceName := service.Name
 
-	availableWidth := m.servicesViewport.Width - fixedColumnsWidth
+	availableWidth := m.ui.servicesViewport.Width - fixedColumnsWidth
 	if availableWidth < minServiceNameWidth {
 		availableWidth = minServiceNameWidth
 	}
@@ -219,15 +211,15 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 		logCheckbox,
 		maxNameLen,
 		serviceName,
-		statusRaw,
-		cpuRaw,
-		memRaw,
-		uptimeRaw,
+		string(service.Status),
+		cpu,
+		mem,
+		uptime,
 	)
 
-	rowWidth := m.servicesViewport.Width
+	rowWidth := m.ui.servicesViewport.Width
 	if rowWidth < 1 {
-		rowWidth = m.width - 8
+		rowWidth = m.ui.width - rowWidthPadding
 	}
 
 	if service.Error != nil {
@@ -281,14 +273,17 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 }
 
 func (m Model) renderLogs() string {
-	if len(strings.TrimSpace(m.logsViewport.View())) == 0 {
-		return emptyStateStyle.Render("No logs enabled. Press 'space' to toggle service logs. Press 'l' to return to services view.")
-	}
-
-	return m.logsViewport.View()
+	return m.logView.View()
 }
 
 func (m Model) renderHelp() string {
-	helpView := m.help.View(m.keys)
+	var helpView string
+
+	if m.navigator.CurrentView() == navigation.ViewLogs {
+		helpView = m.ui.help.View(LogsHelpKeyMap(m.ui.keys))
+	} else {
+		helpView = m.ui.help.View(ServicesHelpKeyMap(m.ui.keys))
+	}
+
 	return helpStyle.Render(helpView)
 }

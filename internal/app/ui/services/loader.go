@@ -15,6 +15,19 @@ type Loader struct {
 	queue  []LoaderItem
 }
 
+// NewLoader creates a new Loader with default spinner
+func NewLoader() *Loader {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = spinnerStyle
+
+	return &Loader{
+		Model:  s,
+		Active: false,
+		queue:  make([]LoaderItem, 0),
+	}
+}
+
 // Start adds a new operation to the loader queue (or updates existing)
 func (l *Loader) Start(service, msg string) {
 	for i := range l.queue {

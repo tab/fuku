@@ -40,18 +40,19 @@ func Test_ServiceState_MarkFailed(t *testing.T) {
 func Test_GetTotalServices(t *testing.T) {
 	tests := []struct {
 		name  string
-		tiers []TierView
+		tiers []Tier
 		want  int
 	}{
-		{name: "empty tiers", tiers: []TierView{}, want: 0},
-		{name: "single tier single service", tiers: []TierView{{Services: []string{"api"}}}, want: 1},
-		{name: "single tier multiple services", tiers: []TierView{{Services: []string{"api", "db", "cache"}}}, want: 3},
-		{name: "multiple tiers", tiers: []TierView{{Services: []string{"db"}}, {Services: []string{"api", "web"}}}, want: 3},
+		{name: "empty tiers", tiers: []Tier{}, want: 0},
+		{name: "single tier single service", tiers: []Tier{{Services: []string{"api"}}}, want: 1},
+		{name: "single tier multiple services", tiers: []Tier{{Services: []string{"api", "db", "cache"}}}, want: 3},
+		{name: "multiple tiers", tiers: []Tier{{Services: []string{"db"}}, {Services: []string{"api", "web"}}}, want: 3},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{tiers: tt.tiers}
+			m := Model{}
+			m.state.tiers = tt.tiers
 			assert.Equal(t, tt.want, m.getTotalServices())
 		})
 	}
@@ -71,7 +72,8 @@ func Test_GetReadyServices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{services: tt.services}
+			m := Model{}
+			m.state.services = tt.services
 			assert.Equal(t, tt.want, m.getReadyServices())
 		})
 	}
@@ -83,7 +85,7 @@ func Test_GetSelectedService(t *testing.T) {
 		"api": {Name: "api"},
 		"web": {Name: "web"},
 	}
-	tiers := []TierView{
+	tiers := []Tier{
 		{Name: "tier1", Services: []string{"db"}},
 		{Name: "tier2", Services: []string{"api", "web"}},
 	}
@@ -102,7 +104,10 @@ func Test_GetSelectedService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{tiers: tiers, services: services, selected: tt.selected}
+			m := Model{}
+			m.state.tiers = tiers
+			m.state.services = services
+			m.state.selected = tt.selected
 
 			result := m.getSelectedService()
 			if tt.want == "" {
@@ -129,7 +134,8 @@ func Test_GetMaxServiceNameLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{services: tt.services}
+			m := Model{}
+			m.state.services = tt.services
 			assert.Equal(t, tt.want, m.getMaxServiceNameLength())
 		})
 	}
@@ -137,12 +143,11 @@ func Test_GetMaxServiceNameLength(t *testing.T) {
 
 func Test_CalculateScrollOffset(t *testing.T) {
 	t.Run("zero height viewport returns current offset", func(t *testing.T) {
-		m := Model{
-			tiers:    []TierView{{Services: []string{"api"}}},
-			services: map[string]*ServiceState{"api": {Name: "api"}},
-			selected: 0,
-		}
-		m.servicesViewport.Height = 0
+		m := Model{}
+		m.state.tiers = []Tier{{Services: []string{"api"}}}
+		m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
+		m.state.selected = 0
+		m.ui.servicesViewport.Height = 0
 
 		offset := m.calculateScrollOffset()
 
@@ -150,12 +155,11 @@ func Test_CalculateScrollOffset(t *testing.T) {
 	})
 
 	t.Run("selection visible returns current offset", func(t *testing.T) {
-		m := Model{
-			tiers:    []TierView{{Services: []string{"api", "db"}}},
-			services: map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}},
-			selected: 0,
-		}
-		m.servicesViewport.Height = 10
+		m := Model{}
+		m.state.tiers = []Tier{{Services: []string{"api", "db"}}}
+		m.state.services = map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}}
+		m.state.selected = 0
+		m.ui.servicesViewport.Height = 10
 
 		offset := m.calculateScrollOffset()
 
@@ -163,18 +167,17 @@ func Test_CalculateScrollOffset(t *testing.T) {
 	})
 
 	t.Run("calculates offset for multi-tier selection", func(t *testing.T) {
-		m := Model{
-			tiers: []TierView{
-				{Services: []string{"a", "b"}},
-				{Services: []string{"c", "d"}},
-			},
-			services: map[string]*ServiceState{
-				"a": {Name: "a"}, "b": {Name: "b"},
-				"c": {Name: "c"}, "d": {Name: "d"},
-			},
-			selected: 3,
+		m := Model{}
+		m.state.tiers = []Tier{
+			{Services: []string{"a", "b"}},
+			{Services: []string{"c", "d"}},
 		}
-		m.servicesViewport.Height = 20
+		m.state.services = map[string]*ServiceState{
+			"a": {Name: "a"}, "b": {Name: "b"},
+			"c": {Name: "c"}, "d": {Name: "d"},
+		}
+		m.state.selected = 3
+		m.ui.servicesViewport.Height = 20
 
 		offset := m.calculateScrollOffset()
 
@@ -182,13 +185,12 @@ func Test_CalculateScrollOffset(t *testing.T) {
 	})
 
 	t.Run("scrolls down when selection below viewport", func(t *testing.T) {
-		m := Model{
-			tiers:    []TierView{{Services: []string{"a", "b", "c", "d", "e", "f"}}},
-			services: map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}},
-			selected: 5,
-		}
-		m.servicesViewport.Height = 3
-		m.servicesViewport.YOffset = 0
+		m := Model{}
+		m.state.tiers = []Tier{{Services: []string{"a", "b", "c", "d", "e", "f"}}}
+		m.state.services = map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}}
+		m.state.selected = 5
+		m.ui.servicesViewport.Height = 3
+		m.ui.servicesViewport.YOffset = 0
 
 		offset := m.calculateScrollOffset()
 
@@ -196,13 +198,12 @@ func Test_CalculateScrollOffset(t *testing.T) {
 	})
 
 	t.Run("scrolls up when selection above viewport", func(t *testing.T) {
-		m := Model{
-			tiers:    []TierView{{Services: []string{"a", "b", "c", "d", "e"}}},
-			services: map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}},
-			selected: 0,
-		}
-		m.servicesViewport.Height = 3
-		m.servicesViewport.YOffset = 10
+		m := Model{}
+		m.state.tiers = []Tier{{Services: []string{"a", "b", "c", "d", "e"}}}
+		m.state.services = map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}}
+		m.state.selected = 0
+		m.ui.servicesViewport.Height = 3
+		m.ui.servicesViewport.YOffset = 10
 
 		offset := m.calculateScrollOffset()
 

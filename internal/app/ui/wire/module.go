@@ -1,0 +1,69 @@
+package wire
+
+import (
+	"context"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"go.uber.org/fx"
+
+	"fuku/internal/app/monitor"
+	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/logs"
+	"fuku/internal/app/ui/navigation"
+	"fuku/internal/app/ui/services"
+	"fuku/internal/config/logger"
+)
+
+// UI creates a Bubble Tea program for the TUI
+type UI func(ctx context.Context, profile string) (*tea.Program, error)
+
+// Module aggregates all UI modules and provides the UI factory
+var Module = fx.Options(
+	navigation.Module,
+	services.Module,
+	logs.Module,
+	fx.Provide(NewUI),
+)
+
+// UIParams contains dependencies for creating the UI factory
+type UIParams struct {
+	fx.In
+
+	EventBus   runtime.EventBus
+	CommandBus runtime.CommandBus
+	Controller services.Controller
+	Monitor    monitor.Monitor
+	LogView    ui.LogView
+	Navigator  navigation.Navigator
+	Loader     *services.Loader
+	Logger     logger.Logger
+}
+
+// NewUI creates a factory function for constructing Bubble Tea programs
+func NewUI(params UIParams) UI {
+	return func(ctx context.Context, profile string) (*tea.Program, error) {
+		model := services.NewModel(
+			ctx,
+			profile,
+			params.EventBus,
+			params.CommandBus,
+			params.Controller,
+			params.Monitor,
+			params.LogView,
+			params.Navigator,
+			params.Loader,
+			params.Logger,
+		)
+
+		p := tea.NewProgram(
+			model,
+			tea.WithAltScreen(),
+			tea.WithContext(ctx),
+		)
+
+		params.Logger.Debug().Msg("TUI: Program created via factory")
+
+		return p, nil
+	}
+}

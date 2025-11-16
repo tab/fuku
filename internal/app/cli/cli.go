@@ -7,8 +7,7 @@ import (
 	"strings"
 
 	"fuku/internal/app/runner"
-	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui/services"
+	"fuku/internal/app/ui/wire"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -49,27 +48,24 @@ type CLI interface {
 
 // cli represents the command-line interface for the application
 type cli struct {
-	cfg     *config.Config
-	runner  runner.Runner
-	log     logger.Logger
-	event   runtime.EventBus
-	command runtime.CommandBus
+	cfg    *config.Config
+	runner runner.Runner
+	ui     wire.UI
+	log    logger.Logger
 }
 
 // NewCLI creates a new cli instance
 func NewCLI(
 	cfg *config.Config,
 	runner runner.Runner,
+	ui wire.UI,
 	log logger.Logger,
-	event runtime.EventBus,
-	command runtime.CommandBus,
 ) CLI {
 	return &cli{
-		cfg:     cfg,
-		runner:  runner,
-		log:     log,
-		event:   event,
-		command: command,
+		cfg:    cfg,
+		runner: runner,
+		ui:     ui,
+		log:    log,
 	}
 }
 
@@ -133,7 +129,7 @@ func (c *cli) handleRun(profile string, noUI bool) (int, error) {
 		return 0, nil
 	}
 
-	p, _, err := services.Run(ctx, profile, c.event, c.command, c.log)
+	p, err := c.ui(ctx, profile)
 	if err != nil {
 		c.log.Error().Err(err).Msg("Failed to create UI")
 		fmt.Fprintf(os.Stderr, "Failed to create UI: %v\n", err)

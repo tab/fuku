@@ -1,89 +1,57 @@
 package services
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
 
-const (
-	ColorPrimary  = lipgloss.Color("#7D56F4") // Purple - primary/focus color
-	ColorBorder   = lipgloss.Color("8")       // Gray - borders and help text
-	ColorMuted    = lipgloss.Color("7")       // Light gray - muted elements
-	ColorReady    = lipgloss.Color("10")      // Green - ready status
-	ColorStarting = lipgloss.Color("11")      // Yellow - starting status
-	ColorFailed   = lipgloss.Color("9")       // Red - failed status
-	ColorStopped  = lipgloss.Color("8")       // Gray - stopped status
+	"fuku/internal/app/ui/components"
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorPrimary).
-			Padding(1, 2, 0, 2)
+	titleStyle      = components.TitleStyle
+	statusStyle     = components.StatusStyle
+	helpStyle       = components.HelpStyle
+	timestampStyle  = components.TimestampStyle
+	errorStyle      = components.ErrorStyle
+	emptyStateStyle = components.EmptyStateStyle
+	spinnerStyle    = components.SpinnerStyle
 
-	statusStyle = lipgloss.NewStyle().
-			Padding(1, 2, 0, 0)
-
-	activePanelStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(ColorPrimary).
-				Padding(0, 1)
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(ColorBorder).
-			Padding(0, 2)
+	activePanelStyle = components.PanelStyle
 
 	tierHeaderStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(ColorPrimary)
+			Foreground(components.ColorPrimary)
 
 	serviceRowStyle = lipgloss.NewStyle().
 			Padding(0, 1)
 
 	selectedServiceRowStyle = lipgloss.NewStyle().
 				Padding(0, 1).
-				Background(lipgloss.Color("235"))
+				Background(components.ColorSelected)
 
 	statusReadyStyle = lipgloss.NewStyle().
-				Foreground(ColorReady).
+				Foreground(components.ColorReady).
 				Bold(true)
 
 	statusStartingStyle = lipgloss.NewStyle().
-				Foreground(ColorStarting).
+				Foreground(components.ColorStarting).
 				Bold(true)
 
 	statusFailedStyle = lipgloss.NewStyle().
-				Foreground(ColorFailed).
+				Foreground(components.ColorFailed).
 				Bold(true)
 
 	statusStoppedStyle = lipgloss.NewStyle().
-				Foreground(ColorStopped)
-
-	timestampStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
-
-	serviceNameStyle = lipgloss.NewStyle().
-				Foreground(ColorPrimary).
-				Bold(true)
-
-	logMessageStyle = lipgloss.NewStyle()
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(ColorFailed)
-
-	spinnerStyle = lipgloss.NewStyle().
-			Foreground(ColorPrimary)
-
-	emptyStateStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			MarginTop(2)
+				Foreground(components.ColorStopped)
 
 	phaseStartingStyle = lipgloss.NewStyle().
-				Foreground(ColorStarting)
+				Foreground(components.ColorStarting)
 
 	phaseRunningStyle = lipgloss.NewStyle().
-				Foreground(ColorReady)
+				Foreground(components.ColorReady)
 
 	phaseStoppingStyle = lipgloss.NewStyle().
-				Foreground(ColorFailed)
+				Foreground(components.ColorFailed)
 
 	phaseMutedStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+			Foreground(components.ColorMuted)
 )
