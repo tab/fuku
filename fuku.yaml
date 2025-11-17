@@ -6,6 +6,12 @@ x-readiness: &readiness
 
 services:
   # Foundation tier: Base infrastructure services
+  auth:
+    dir: examples/bookstore/auth
+    tier: foundation
+    readiness:
+      <<: *readiness
+      pattern: "Starting auth"
   storage:
     dir: examples/bookstore/storage
     tier: foundation

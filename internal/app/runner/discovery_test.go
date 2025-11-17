@@ -54,7 +54,7 @@ func Test_Resolve(t *testing.T) {
 			expected: result{tiers: []Tier{{Name: "foundation", Services: []string{"storage"}}, {Name: "platform", Services: []string{"api"}}, {Name: "edge", Services: []string{"frontend-api"}}}, error: false},
 		},
 		{
-			name: "Multiple services in same tier",
+			name: "Multiple services in same tier sorted alphabetically",
 			services: map[string]*config.Service{
 				"storage":  {Dir: "storage", Tier: "foundation"},
 				"database": {Dir: "database", Tier: "foundation"},
@@ -62,7 +62,7 @@ func Test_Resolve(t *testing.T) {
 			},
 			profiles: map[string]interface{}{"backend": []interface{}{"storage", "database", "api"}},
 			profile:  "backend",
-			expected: result{tiers: []Tier{{Name: "foundation", Services: []string{"storage", "database"}}, {Name: "platform", Services: []string{"api"}}}, error: false},
+			expected: result{tiers: []Tier{{Name: "foundation", Services: []string{"database", "storage"}}, {Name: "platform", Services: []string{"api"}}}, error: false},
 		},
 		{
 			name: "Wildcard profile returns all services grouped by tier",
@@ -84,6 +84,55 @@ func Test_Resolve(t *testing.T) {
 			profile:  "duplicate",
 			expected: result{tiers: []Tier{{Name: "platform", Services: []string{"api"}}, {Name: "edge", Services: []string{"web"}}}, error: false},
 		},
+		{
+			name: "Out-of-order services sorted alphabetically within tiers",
+			services: map[string]*config.Service{
+				"zebra":    {Dir: "zebra", Tier: "platform"},
+				"alpha":    {Dir: "alpha", Tier: "platform"},
+				"beta":     {Dir: "beta", Tier: "platform"},
+				"web":      {Dir: "web", Tier: "edge"},
+				"api":      {Dir: "api", Tier: "edge"},
+				"frontend": {Dir: "frontend", Tier: "edge"},
+			},
+			profiles: map[string]interface{}{"mixed": []interface{}{"zebra", "web", "alpha", "api", "beta", "frontend"}},
+			profile:  "mixed",
+			expected: result{tiers: []Tier{{Name: "platform", Services: []string{"alpha", "beta", "zebra"}}, {Name: "edge", Services: []string{"api", "frontend", "web"}}}, error: false},
+		},
+		{
+			name: "Wildcard profile with multiple services per tier sorted alphabetically",
+			services: map[string]*config.Service{
+				"user-service": {Dir: "user", Tier: "foundation"},
+				"auth-service": {Dir: "auth", Tier: "foundation"},
+				"file-storage": {Dir: "file", Tier: "platform"},
+				"backend-api":  {Dir: "backend", Tier: "platform"},
+				"frontend":     {Dir: "frontend", Tier: "edge"},
+			},
+			profiles: map[string]interface{}{"all": "*"},
+			profile:  "all",
+			expected: result{tiers: []Tier{{Name: "foundation", Services: []string{"auth-service", "user-service"}}, {Name: "platform", Services: []string{"backend-api", "file-storage"}}, {Name: "edge", Services: []string{"frontend"}}}, error: false},
+		},
+		{
+			name: "Services with missing tier sorted alphabetically in default tier",
+			services: map[string]*config.Service{
+				"service-c": {Dir: "c"},
+				"service-a": {Dir: "a"},
+				"service-b": {Dir: "b"},
+			},
+			profiles: map[string]interface{}{"default-tier": []interface{}{"service-c", "service-a", "service-b"}},
+			profile:  "default-tier",
+			expected: result{tiers: []Tier{{Name: "default", Services: []string{"service-a", "service-b", "service-c"}}}, error: false},
+		},
+		{
+			name: "Deduplication with alphabetical sorting",
+			services: map[string]*config.Service{
+				"zebra": {Dir: "zebra", Tier: "platform"},
+				"alpha": {Dir: "alpha", Tier: "platform"},
+				"beta":  {Dir: "beta", Tier: "platform"},
+			},
+			profiles: map[string]interface{}{"dup": []interface{}{"zebra", "alpha", "zebra", "beta", "alpha"}},
+			profile:  "dup",
+			expected: result{tiers: []Tier{{Name: "platform", Services: []string{"alpha", "beta", "zebra"}}}, error: false},
+		},
 	}
 
 	for _, tt := range tests {
@@ -101,12 +150,7 @@ func Test_Resolve(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			assert.Equal(t, len(tt.expected.tiers), len(tiers))
-
-			for i, expectedTier := range tt.expected.tiers {
-				assert.Equal(t, expectedTier.Name, tiers[i].Name)
-				assert.ElementsMatch(t, expectedTier.Services, tiers[i].Services)
-			}
+			assert.Equal(t, tt.expected.tiers, tiers)
 		})
 	}
 }
