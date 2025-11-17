@@ -17,42 +17,28 @@ func (m Model) View() string {
 		return "Initializing…"
 	}
 
-	var sections []string
+	header := headerStyle.Render(m.renderHeader())
+	panelHeight := m.ui.height - components.PanelHeightOffsetBottom
 
-	sections = append(sections, m.renderTitle())
-	sections = append(sections, "")
-
+	var panel string
 	if m.navigator.CurrentView() == navigation.ViewLogs {
-		logsPanel := activePanelStyle.
+		panel = noBorderTopPanelStyle.
 			Width(m.ui.width - components.PanelBorderPadding).
-			Height(m.ui.height - components.PanelHeightOffset).
+			Height(panelHeight).
 			Render(m.renderLogs())
-		sections = append(sections, logsPanel)
 	} else {
-		servicesPanel := activePanelStyle.
+		panel = noBorderTopPanelStyle.
 			Width(m.ui.width - components.PanelBorderPadding).
-			Height(m.ui.height - components.PanelHeightOffset).
+			Height(panelHeight).
 			Render(m.renderServices())
-		sections = append(sections, servicesPanel)
 	}
 
-	sections = append(sections, "")
-	sections = append(sections, m.renderHelp())
+	help := helpWrapperStyle.Render(m.renderHelp())
 
-	return strings.Join(sections, "\n")
+	return lipgloss.JoinVertical(lipgloss.Left, header, panel, help)
 }
 
-func (m Model) renderTitle() string {
-	titleText := ">_ services"
-
-	if m.navigator.CurrentView() == navigation.ViewLogs {
-		titleText = ">_ logs"
-	}
-
-	if m.loader.Active {
-		titleText = m.loader.Model.View() + " " + m.loader.Message()
-	}
-
+func (m Model) renderInfo() string {
 	ready := m.getReadyServices()
 	total := m.getTotalServices()
 
@@ -71,24 +57,80 @@ func (m Model) renderTitle() string {
 		phaseStyle = phaseStoppingStyle
 	}
 
-	statusInfo := fmt.Sprintf("%s  %d/%d ready",
+	info := fmt.Sprintf("%s  %d/%d ready",
 		phaseStyle.Render(phaseStr),
 		ready,
 		total,
 	)
 
 	if m.navigator.CurrentView() == navigation.ViewLogs && m.logView.Autoscroll() {
-		statusInfo += "  " + timestampStyle.Render("[autoscroll]")
+		info += "  " + timestampStyle.Render("[autoscroll]")
 	}
 
-	title := titleStyle.Render(titleText)
-	info := statusStyle.Render(statusInfo)
+	return info
+}
 
-	return lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		title,
-		lipgloss.PlaceHorizontal(m.ui.width-lipgloss.Width(title)-components.PanelBorderPadding, lipgloss.Right, info),
-	)
+func (m Model) renderTitle() string {
+	if m.loader.Active {
+		return m.loader.Model.View() + " " + m.loader.Message()
+	}
+
+	if m.navigator.CurrentView() == navigation.ViewLogs {
+		return headerTitleStyle.Render("logs")
+	}
+
+	return headerTitleStyle.Render("services")
+}
+
+func (m Model) renderHeader() string {
+	title := m.renderTitle()
+	info := m.renderInfo()
+
+	panelWidth := m.ui.width - components.PanelBorderPadding
+	infoWidth := lipgloss.Width(info)
+
+	maxTitleWidth := panelWidth - infoWidth - components.HeaderSeparatorMin - components.HeaderFixedChars
+	titleWidth := lipgloss.Width(title)
+
+	if titleWidth > maxTitleWidth {
+		title = truncate(title, maxTitleWidth)
+		titleWidth = lipgloss.Width(title)
+	}
+
+	paddingWidth := panelWidth - titleWidth - infoWidth - components.HeaderFixedChars
+	if paddingWidth < components.HeaderSeparatorMin {
+		paddingWidth = components.HeaderSeparatorMin
+	}
+
+	prefix := borderCharStyle.Render("╭─ ")
+	separator := borderCharStyle.Render(strings.Repeat("─", paddingWidth))
+	suffix := borderCharStyle.Render(" ─╮")
+
+	return prefix + title + "  " + separator + "  " + info + suffix
+}
+
+func truncate(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+
+	if maxWidth == 1 {
+		return "…"
+	}
+
+	if lipgloss.Width(s) <= maxWidth {
+		return s
+	}
+
+	runes := []rune(s)
+	for i := len(runes) - 1; i >= 0; i-- {
+		truncated := string(runes[:i]) + "…"
+		if lipgloss.Width(truncated) <= maxWidth {
+			return truncated
+		}
+	}
+
+	return "…"
 }
 
 func (m Model) renderServices() string {
@@ -96,17 +138,17 @@ func (m Model) renderServices() string {
 		return emptyStateStyle.Render("No services configured")
 	}
 
-	var content strings.Builder
+	tiers := make([]string, 0, len(m.state.tiers))
 
 	currentIdx := 0
 	maxNameLen := m.getMaxServiceNameLength()
 
-	for i, tier := range m.state.tiers {
-		content.WriteString(m.renderTier(tier, &currentIdx, maxNameLen, i == 0))
+	for _, tier := range m.state.tiers {
+		tiers = append(tiers, m.renderTier(tier, &currentIdx, maxNameLen))
 	}
 
-	contentStr := content.String()
-	lines := strings.Split(contentStr, "\n")
+	content := lipgloss.JoinVertical(lipgloss.Left, tiers...)
+	lines := strings.Split(content, "\n")
 
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
@@ -137,18 +179,13 @@ func (m Model) renderServices() string {
 
 	visibleLines := lines[offset:endLine]
 
-	return strings.Join(visibleLines, "\n")
+	return lipgloss.JoinVertical(lipgloss.Left, visibleLines...)
 }
 
-func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int, isFirst bool) string {
-	var sb strings.Builder
+func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
+	rows := make([]string, 0, len(tier.Services)+1)
 
-	if !isFirst {
-		sb.WriteString("\n")
-	}
-
-	tierHeader := tierHeaderStyle.Render(tier.Name)
-	sb.WriteString(tierHeader + "\n")
+	rows = append(rows, tierHeaderStyle.Render(tier.Name))
 
 	for _, serviceName := range tier.Services {
 		service, exists := m.state.services[serviceName]
@@ -157,12 +194,12 @@ func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int, isFirst bo
 		}
 
 		isSelected := *currentIdx == m.state.selected
-		sb.WriteString(m.renderServiceRow(service, isSelected, maxNameLen) + "\n")
+		rows = append(rows, m.renderServiceRow(service, isSelected, maxNameLen))
 
 		*currentIdx++
 	}
 
-	return sb.String()
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {

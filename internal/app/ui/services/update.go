@@ -27,7 +27,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.height = msg.Height
 		m.ui.help.Width = msg.Width
 
-		panelHeight := msg.Height - components.PanelHeightOffset
+		panelHeight := msg.Height - components.PanelHeightOffsetBottom
 		if panelHeight < components.MinPanelHeight {
 			panelHeight = components.MinPanelHeight
 		}
