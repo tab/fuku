@@ -136,6 +136,7 @@ func (d *discovery) groupServicesByTier(services []string) []Tier {
 
 	result := make([]Tier, 0, len(tierOrders))
 	for _, order := range tierOrders {
+		sort.Strings(tiers[order].Services)
 		result = append(result, *tiers[order])
 	}
 
