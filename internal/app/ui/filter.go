@@ -4,14 +4,10 @@ import "sync"
 
 // LogFilter provides thread-safe access to service log visibility settings
 type LogFilter interface {
-	// Set updates the visibility state for a service
 	Set(service string, enabled bool)
-	// IsEnabled returns whether logs are enabled for a service
 	IsEnabled(service string) bool
-	// All returns a copy of all filter settings
 	All() map[string]bool
-	// EnableAll enables logs for all specified services
-	EnableAll(services []string)
+	ToggleAll(services []string)
 }
 
 type logFilter struct {
@@ -26,6 +22,7 @@ func NewLogFilter() LogFilter {
 	}
 }
 
+// Set updates the visibility state for a service
 func (f *logFilter) Set(service string, enabled bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -33,6 +30,7 @@ func (f *logFilter) Set(service string, enabled bool) {
 	f.enabled[service] = enabled
 }
 
+// IsEnabled returns whether logs are enabled for a service
 func (f *logFilter) IsEnabled(service string) bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -40,6 +38,7 @@ func (f *logFilter) IsEnabled(service string) bool {
 	return f.enabled[service]
 }
 
+// All returns a copy of all filter settings
 func (f *logFilter) All() map[string]bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -52,11 +51,21 @@ func (f *logFilter) All() map[string]bool {
 	return result
 }
 
-func (f *logFilter) EnableAll(services []string) {
+// ToggleAll toggles all services
+func (f *logFilter) ToggleAll(services []string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	isSelected := true
+
 	for _, service := range services {
-		f.enabled[service] = true
+		if !f.enabled[service] {
+			isSelected = false
+			break
+		}
+	}
+
+	for _, service := range services {
+		f.enabled[service] = !isSelected
 	}
 }

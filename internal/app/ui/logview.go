@@ -23,8 +23,8 @@ type LogView interface {
 	IsEnabled(service string) bool
 	// SetEnabled updates the visibility state for a service
 	SetEnabled(service string, enabled bool)
-	// EnableAll enables logs for all specified services
-	EnableAll(services []string)
+	// ToggleAll toggles all services (if all enabled -> disable all, otherwise -> enable all)
+	ToggleAll(services []string)
 
 	// View returns the rendered logs view
 	View() string

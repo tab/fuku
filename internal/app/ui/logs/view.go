@@ -8,7 +8,7 @@ import (
 // View returns the rendered logs view
 func (m Model) View() string {
 	if len(strings.TrimSpace(m.viewport.View())) == 0 {
-		return emptyStateStyle.Render("No logs enabled. Press 'space' to toggle service logs. Press 'l' to return to services view.")
+		return emptyStateStyle.Render("No logs enabled. Press 'space' to toggle service logs. Press 'tab' to return to services view.")
 	}
 
 	return m.viewport.View()
