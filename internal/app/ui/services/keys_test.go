@@ -28,7 +28,7 @@ func Test_DefaultKeyMap(t *testing.T) {
 	assert.Contains(t, km.Restart.Keys(), "r")
 	assert.Contains(t, km.ToggleLogStream.Keys(), " ")
 	assert.Contains(t, km.ToggleAllLogStreams.Keys(), "ctrl+a")
-	assert.Contains(t, km.ToggleLogs.Keys(), "l")
+	assert.Contains(t, km.ToggleLogs.Keys(), "tab")
 	assert.Contains(t, km.Autoscroll.Keys(), "a")
 	assert.Contains(t, km.Quit.Keys(), "q")
 	assert.Contains(t, km.ForceQuit.Keys(), "ctrl+c")

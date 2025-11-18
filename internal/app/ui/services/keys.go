@@ -60,8 +60,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("↓/j", "down"),
 		),
 		ToggleLogs: key.NewBinding(
-			key.WithKeys("l"),
-			key.WithHelp("l", "logs view"),
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "logs view"),
 		),
 		Autoscroll: key.NewBinding(
 			key.WithKeys("a"),
@@ -81,7 +81,7 @@ func DefaultKeyMap() KeyMap {
 // ServicesHelpKeyMap returns key bindings for services view help
 func ServicesHelpKeyMap(k KeyMap) ServicesKeyMap {
 	logsBinding := k.ToggleLogs
-	logsBinding.SetHelp("l", "logs view")
+	logsBinding.SetHelp("tab", "logs view")
 
 	return ServicesKeyMap{
 		Up:                  k.Up,
@@ -98,7 +98,7 @@ func ServicesHelpKeyMap(k KeyMap) ServicesKeyMap {
 // LogsHelpKeyMap returns key bindings for logs view help
 func LogsHelpKeyMap(k KeyMap) logs.KeyMap {
 	logsBinding := k.ToggleLogs
-	logsBinding.SetHelp("l", "services view")
+	logsBinding.SetHelp("tab", "services view")
 
 	scrollUp := k.Up
 	scrollUp.SetHelp("↑/k", "scroll up")

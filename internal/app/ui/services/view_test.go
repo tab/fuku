@@ -203,7 +203,7 @@ func Test_RenderLogs_Empty(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().View().Return("No logs enabled. Press 'space' to toggle service logs. Press 'l' to return to services view.")
+	mockLogView.EXPECT().View().Return("No logs enabled. Press 'space' to toggle service logs. Press 'tab' to return to services view.")
 	m := Model{logView: mockLogView}
 	result := m.renderLogs()
 	assert.Contains(t, result, "No logs enabled")
