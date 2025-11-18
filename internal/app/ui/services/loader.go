@@ -18,7 +18,7 @@ type Loader struct {
 // NewLoader creates a new Loader with default spinner
 func NewLoader() *Loader {
 	s := spinner.New()
-	s.Spinner = spinner.Dot
+	s.Spinner = spinner.MiniDot
 	s.Style = spinnerStyle
 
 	return &Loader{

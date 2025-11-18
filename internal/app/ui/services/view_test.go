@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -50,7 +51,7 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	assert.Contains(t, result, "Shutting down")
 }
 
-func Test_RenderTitle_ServicesView(t *testing.T) {
+func Test_RenderHeader_ServicesView(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -62,14 +63,17 @@ func Test_RenderTitle_ServicesView(t *testing.T) {
 	m.state.phase = runtime.PhaseRunning
 	m.state.services = map[string]*ServiceState{"api": {Status: StatusReady}}
 	m.state.tiers = []Tier{{Services: []string{"api"}}}
+	m.ui.width = 100
 
-	title := m.renderTitle()
-	assert.Contains(t, title, ">_ services")
-	assert.Contains(t, title, "Running")
-	assert.Contains(t, title, "1/1")
+	header := m.renderHeader()
+	assert.Contains(t, header, "╭─")
+	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "services")
+	assert.Contains(t, header, "Running")
+	assert.Contains(t, header, "1/1")
 }
 
-func Test_RenderTitle_LogsView(t *testing.T) {
+func Test_RenderHeader_LogsView(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -84,17 +88,20 @@ func Test_RenderTitle_LogsView(t *testing.T) {
 	m.state.phase = runtime.PhaseRunning
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = []Tier{}
+	m.ui.width = 100
 
-	title := m.renderTitle()
-	assert.Contains(t, title, ">_ logs")
+	header := m.renderHeader()
+	assert.Contains(t, header, "╭─")
+	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "logs")
 }
 
-func Test_RenderTitle_WithActiveLoader(t *testing.T) {
+func Test_RenderHeader_WithActiveLoader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
 
 	loader := &Loader{Model: spinner.New(), Active: true, queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Starting api…")
@@ -102,12 +109,15 @@ func Test_RenderTitle_WithActiveLoader(t *testing.T) {
 	m.state.phase = runtime.PhaseStartup
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = []Tier{}
+	m.ui.width = 100
 
-	title := m.renderTitle()
-	assert.Contains(t, title, "Starting api…")
+	header := m.renderHeader()
+	assert.Contains(t, header, "╭─")
+	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "Starting api…")
 }
 
-func Test_RenderTitle_PhaseColors(t *testing.T) {
+func Test_RenderInfo_PhaseColors(t *testing.T) {
 	tests := []struct {
 		name         string
 		phase        runtime.Phase
@@ -124,17 +134,60 @@ func Test_RenderTitle_PhaseColors(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockNav := navigation.NewMockNavigator(ctrl)
-			mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+			mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
 
 			loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 			m := Model{loader: loader, navigator: mockNav}
 			m.state.phase = tt.phase
 			m.state.services = make(map[string]*ServiceState)
 			m.state.tiers = []Tier{}
-			title := m.renderTitle()
-			assert.Contains(t, title, tt.wantContains)
+			info := m.renderInfo()
+			assert.Contains(t, info, tt.wantContains)
 		})
 	}
+}
+
+func Test_Truncate(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		maxWidth int
+		want     string
+	}{
+		{name: "no truncation needed", input: "short", maxWidth: 10, want: "short"},
+		{name: "exact fit", input: "exact", maxWidth: 5, want: "exact"},
+		{name: "needs truncation", input: "long string here", maxWidth: 10, want: "long stri…"},
+		{name: "very short max", input: "test", maxWidth: 2, want: "t…"},
+		{name: "max width 1", input: "test", maxWidth: 1, want: "…"},
+		{name: "max width 0", input: "test", maxWidth: 0, want: ""},
+		{name: "negative max", input: "test", maxWidth: -1, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncate(tt.input, tt.maxWidth)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func Test_RenderHeader_Width(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+
+	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader, navigator: mockNav}
+	m.state.phase = runtime.PhaseRunning
+	m.state.services = map[string]*ServiceState{"api": {Status: StatusReady}}
+	m.state.tiers = []Tier{{Services: []string{"api"}}}
+	m.ui.width = 80
+
+	header := m.renderHeader()
+	expectedWidth := m.ui.width
+	assert.Equal(t, expectedWidth, lipgloss.Width(header))
 }
 
 func Test_RenderServices_Empty(t *testing.T) {
@@ -300,14 +353,11 @@ func Test_RenderTier_Spacing(t *testing.T) {
 	tier := Tier{Name: "platform", Services: []string{"api", "db"}}
 	currentIdx := 0
 
-	firstTier := m.renderTier(tier, &currentIdx, 20, true)
-	currentIdx = 0
-	secondTier := m.renderTier(tier, &currentIdx, 20, false)
+	result := m.renderTier(tier, &currentIdx, 20)
 
-	assert.True(t, firstTier[0] != '\n', "first tier should not start with newline")
-	assert.True(t, secondTier[0] == '\n', "non-first tier should start with newline")
-	assert.Contains(t, firstTier, "platform\n")
-	assert.Contains(t, secondTier, "platform\n")
+	assert.Contains(t, result, "platform")
+	assert.Contains(t, result, "api")
+	assert.Contains(t, result, "db")
 }
 
 func Test_RenderTier_ServiceCount(t *testing.T) {
@@ -329,7 +379,7 @@ func Test_RenderTier_ServiceCount(t *testing.T) {
 	tier := Tier{Name: "platform", Services: []string{"api", "db", "web"}}
 	currentIdx := 0
 
-	result := m.renderTier(tier, &currentIdx, 20, true)
+	result := m.renderTier(tier, &currentIdx, 20)
 
 	assert.Equal(t, 3, currentIdx)
 	assert.Contains(t, result, "api")
