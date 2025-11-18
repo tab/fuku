@@ -53,18 +53,6 @@ func (mr *MockLogFilterMockRecorder) All() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "All", reflect.TypeOf((*MockLogFilter)(nil).All))
 }
 
-// EnableAll mocks base method.
-func (m *MockLogFilter) EnableAll(services []string) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "EnableAll", services)
-}
-
-// EnableAll indicates an expected call of EnableAll.
-func (mr *MockLogFilterMockRecorder) EnableAll(services any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableAll", reflect.TypeOf((*MockLogFilter)(nil).EnableAll), services)
-}
-
 // IsEnabled mocks base method.
 func (m *MockLogFilter) IsEnabled(service string) bool {
 	m.ctrl.T.Helper()
@@ -89,4 +77,16 @@ func (m *MockLogFilter) Set(service string, enabled bool) {
 func (mr *MockLogFilterMockRecorder) Set(service, enabled any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockLogFilter)(nil).Set), service, enabled)
+}
+
+// ToggleAll mocks base method.
+func (m *MockLogFilter) ToggleAll(services []string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ToggleAll", services)
+}
+
+// ToggleAll indicates an expected call of ToggleAll.
+func (mr *MockLogFilterMockRecorder) ToggleAll(services any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToggleAll", reflect.TypeOf((*MockLogFilter)(nil).ToggleAll), services)
 }

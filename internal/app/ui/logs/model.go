@@ -51,9 +51,9 @@ func (m *Model) SetEnabled(service string, enabled bool) {
 	m.filter.Set(service, enabled)
 }
 
-// EnableAll enables logs for all specified services
-func (m *Model) EnableAll(services []string) {
-	m.filter.EnableAll(services)
+// ToggleAll toggles all services (if all enabled -> disable all, otherwise -> enable all)
+func (m *Model) ToggleAll(services []string) {
+	m.filter.ToggleAll(services)
 }
 
 // SetSize updates the viewport dimensions

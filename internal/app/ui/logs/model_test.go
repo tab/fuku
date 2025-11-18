@@ -47,13 +47,32 @@ func Test_Model_SetEnabled(t *testing.T) {
 	assert.False(t, model.IsEnabled("api"))
 }
 
-func Test_Model_EnableAll(t *testing.T) {
-	model := NewModel()
-	services := []string{"api", "web", "db"}
-	model.EnableAll(services)
+func Test_Model_ToggleAll(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(m *Model)
+		services []string
+		expected map[string]bool
+	}{
+		{name: "Toggle all from disabled to enabled", setup: func(m *Model) {}, services: []string{"api", "web", "db"}, expected: map[string]bool{"api": true, "web": true, "db": true}},
+		{name: "Toggle all from enabled to disabled", setup: func(m *Model) {
+			for _, s := range []string{"api", "web", "db"} {
+				m.SetEnabled(s, true)
+			}
+		}, services: []string{"api", "web", "db"}, expected: map[string]bool{"api": false, "web": false, "db": false}},
+		{name: "Toggle with some enabled to all enabled", setup: func(m *Model) { m.SetEnabled("api", true) }, services: []string{"api", "web", "db"}, expected: map[string]bool{"api": true, "web": true, "db": true}},
+	}
 
-	for _, svc := range services {
-		assert.True(t, model.IsEnabled(svc))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := NewModel()
+			tt.setup(&model)
+			model.ToggleAll(tt.services)
+
+			for svc, expectedEnabled := range tt.expected {
+				assert.Equal(t, expectedEnabled, model.IsEnabled(svc))
+			}
+		})
 	}
 }
 

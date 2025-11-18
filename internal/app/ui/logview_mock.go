@@ -54,18 +54,6 @@ func (mr *MockLogViewMockRecorder) Autoscroll() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Autoscroll", reflect.TypeOf((*MockLogView)(nil).Autoscroll))
 }
 
-// EnableAll mocks base method.
-func (m *MockLogView) EnableAll(services []string) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "EnableAll", services)
-}
-
-// EnableAll indicates an expected call of EnableAll.
-func (mr *MockLogViewMockRecorder) EnableAll(services any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableAll", reflect.TypeOf((*MockLogView)(nil).EnableAll), services)
-}
-
 // HandleKey mocks base method.
 func (m *MockLogView) HandleKey(msg tea.KeyMsg) tea.Cmd {
 	m.ctrl.T.Helper()
@@ -128,6 +116,18 @@ func (m *MockLogView) SetSize(width, height int) {
 func (mr *MockLogViewMockRecorder) SetSize(width, height any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSize", reflect.TypeOf((*MockLogView)(nil).SetSize), width, height)
+}
+
+// ToggleAll mocks base method.
+func (m *MockLogView) ToggleAll(services []string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ToggleAll", services)
+}
+
+// ToggleAll indicates an expected call of ToggleAll.
+func (mr *MockLogViewMockRecorder) ToggleAll(services any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToggleAll", reflect.TypeOf((*MockLogView)(nil).ToggleAll), services)
 }
 
 // ToggleAutoscroll mocks base method.

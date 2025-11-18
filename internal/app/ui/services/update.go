@@ -100,8 +100,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.ui.keys.Restart):
 		return m.handleRestartKey()
 
-	case key.Matches(msg, m.ui.keys.ToggleLogSub):
-		return m.handleToggleLogSub()
+	case key.Matches(msg, m.ui.keys.ToggleLogStream):
+		return m.handleToggleLogStream()
+
+	case key.Matches(msg, m.ui.keys.ToggleAllLogStreams):
+		return m.handleToggleAllLogStreams()
 	}
 
 	switch msg.String() {
@@ -197,7 +200,7 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 	return m, m.loader.Model.Tick
 }
 
-func (m Model) handleToggleLogSub() (tea.Model, tea.Cmd) {
+func (m Model) handleToggleLogStream() (tea.Model, tea.Cmd) {
 	if m.navigator.CurrentView() != navigation.ViewServices {
 		return m, nil
 	}
@@ -207,6 +210,21 @@ func (m Model) handleToggleLogSub() (tea.Model, tea.Cmd) {
 		enabled := m.logView.IsEnabled(service.Name)
 		m.logView.SetEnabled(service.Name, !enabled)
 	}
+
+	return m, nil
+}
+
+func (m Model) handleToggleAllLogStreams() (tea.Model, tea.Cmd) {
+	if m.navigator.CurrentView() != navigation.ViewServices {
+		return m, nil
+	}
+
+	var services []string
+	for _, tier := range m.state.tiers {
+		services = append(services, tier.Services...)
+	}
+
+	m.logView.ToggleAll(services)
 
 	return m, nil
 }
@@ -261,7 +279,7 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 		}
 	}
 
-	m.logView.EnableAll(services)
+	m.logView.ToggleAll(services)
 
 	m.log.Debug().Msgf("TUI: After ProfileResolved - tiers=%d, services=%d", len(m.state.tiers), len(m.state.services))
 

@@ -14,6 +14,7 @@ import (
 
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
 
@@ -34,7 +35,7 @@ func Test_HandleProfileResolved(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().EnableAll([]string{"db", "api", "web"})
+	mockLogView.EXPECT().ToggleAll([]string{"db", "api", "web"})
 
 	m := Model{
 		log:     newTestLogger(ctrl),
@@ -423,6 +424,48 @@ func Test_Update_EventMsg(t *testing.T) {
 
 	assert.True(t, result.state.shuttingDown)
 	assert.NotNil(t, cmd)
+}
+
+func Test_HandleToggleAllLogStreams_InServicesView(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
+	mockLogView.EXPECT().ToggleAll([]string{"api", "web", "db"})
+
+	m := Model{logView: mockLogView, navigator: mockNav}
+	m.state.tiers = []Tier{
+		{Name: "tier1", Services: []string{"api", "web"}},
+		{Name: "tier2", Services: []string{"db"}},
+	}
+
+	teaModel, cmd := m.handleToggleAllLogStreams()
+	result := teaModel.(Model)
+
+	assert.NotNil(t, result)
+	assert.Nil(t, cmd)
+}
+
+func Test_HandleToggleAllLogStreams_InLogsView(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().CurrentView().Return(navigation.ViewLogs)
+
+	m := Model{logView: mockLogView, navigator: mockNav}
+	m.state.tiers = []Tier{
+		{Name: "tier1", Services: []string{"api", "web"}},
+	}
+
+	teaModel, cmd := m.handleToggleAllLogStreams()
+	result := teaModel.(Model)
+
+	assert.NotNil(t, result)
+	assert.Nil(t, cmd)
 }
 
 func toKeyMsg(s string) tea.KeyMsg {

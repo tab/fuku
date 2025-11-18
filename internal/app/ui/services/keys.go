@@ -8,26 +8,28 @@ import (
 
 // KeyMap defines the key bindings for the services TUI
 type KeyMap struct {
-	Up           key.Binding
-	Down         key.Binding
-	Restart      key.Binding
-	Stop         key.Binding
-	ToggleLogSub key.Binding
-	ToggleLogs   key.Binding
-	Autoscroll   key.Binding
-	Quit         key.Binding
-	ForceQuit    key.Binding
+	Up                  key.Binding
+	Down                key.Binding
+	Restart             key.Binding
+	Stop                key.Binding
+	ToggleLogStream     key.Binding
+	ToggleAllLogStreams key.Binding
+	ToggleLogs          key.Binding
+	Autoscroll          key.Binding
+	Quit                key.Binding
+	ForceQuit           key.Binding
 }
 
 // ServicesKeyMap defines the key bindings help for services view
 type ServicesKeyMap struct {
-	Up           key.Binding
-	Down         key.Binding
-	Stop         key.Binding
-	Restart      key.Binding
-	ToggleLogSub key.Binding
-	ToggleLogs   key.Binding
-	Quit         key.Binding
+	Up                  key.Binding
+	Down                key.Binding
+	Stop                key.Binding
+	Restart             key.Binding
+	ToggleLogStream     key.Binding
+	ToggleAllLogStreams key.Binding
+	ToggleLogs          key.Binding
+	Quit                key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings
@@ -41,9 +43,13 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("r"),
 			key.WithHelp("r", "restart"),
 		),
-		ToggleLogSub: key.NewBinding(
+		ToggleLogStream: key.NewBinding(
 			key.WithKeys(" "),
-			key.WithHelp("space", "toggle log"),
+			key.WithHelp("space", "toggle"),
+		),
+		ToggleAllLogStreams: key.NewBinding(
+			key.WithKeys("ctrl+a"),
+			key.WithHelp("ctrl+a", "toggle all"),
 		),
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),
@@ -78,13 +84,14 @@ func ServicesHelpKeyMap(k KeyMap) ServicesKeyMap {
 	logsBinding.SetHelp("l", "logs view")
 
 	return ServicesKeyMap{
-		Up:           k.Up,
-		Down:         k.Down,
-		Stop:         k.Stop,
-		Restart:      k.Restart,
-		ToggleLogSub: k.ToggleLogSub,
-		ToggleLogs:   logsBinding,
-		Quit:         k.Quit,
+		Up:                  k.Up,
+		Down:                k.Down,
+		Stop:                k.Stop,
+		Restart:             k.Restart,
+		ToggleLogStream:     k.ToggleLogStream,
+		ToggleAllLogStreams: k.ToggleAllLogStreams,
+		ToggleLogs:          logsBinding,
+		Quit:                k.Quit,
 	}
 }
 
@@ -110,24 +117,24 @@ func LogsHelpKeyMap(k KeyMap) logs.KeyMap {
 
 // ShortHelp returns keybindings to be shown in the mini help view
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit}
+	return []key.Binding{k.Stop, k.Restart, k.ToggleLogStream, k.ToggleAllLogStreams, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit}
 }
 
 // FullHelp returns keybindings for the expanded help view
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Stop, k.Restart, k.ToggleLogSub, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit, k.ForceQuit},
+		{k.Stop, k.Restart, k.ToggleLogStream, k.ToggleAllLogStreams, k.Up, k.Down, k.ToggleLogs, k.Autoscroll, k.Quit, k.ForceQuit},
 	}
 }
 
 // ShortHelp returns keybindings for services view mini help
 func (k ServicesKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Stop, k.Restart, k.ToggleLogSub, k.ToggleLogs, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Stop, k.Restart, k.ToggleLogStream, k.ToggleAllLogStreams, k.ToggleLogs, k.Quit}
 }
 
 // FullHelp returns keybindings for services view expanded help
 func (k ServicesKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Stop, k.Restart, k.ToggleLogSub, k.ToggleLogs, k.Quit},
+		{k.Up, k.Down, k.Stop, k.Restart, k.ToggleLogStream, k.ToggleAllLogStreams, k.ToggleLogs, k.Quit},
 	}
 }
