@@ -20,7 +20,7 @@ var (
 		MarginTop(1)
 
 	helpWrapperStyle = lipgloss.NewStyle().
-				MarginTop(1)
+		MarginTop(1)
 
 	headerTitleStyle = lipgloss.NewStyle().
 		Foreground(components.ColorPrimary).
