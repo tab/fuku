@@ -1,5 +1,18 @@
 package components
 
+import "time"
+
+// UI timing constants
+const (
+	// UITickInterval is the base tick rate for the services UI
+	// This must match the tick interval in services/update.go
+	UITickInterval = 100 * time.Millisecond
+
+	// Derived FPS for animations (ticks per second)
+	// Calculated as: 1000ms / UITickInterval
+	UITicksPerSecond = int(time.Second / UITickInterval) // 1000/100 = 10
+)
+
 // Generic layout constants
 const (
 	PanelHeightPadding = 8

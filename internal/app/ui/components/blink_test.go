@@ -12,9 +12,7 @@ func Test_NewBlink(t *testing.T) {
 
 	assert.NotNil(t, b)
 	assert.False(t, b.IsActive())
-	// Frame can be either empty or full due to random initial state
-	frame := b.Frame()
-	assert.True(t, frame == empty || frame == full)
+	assert.Equal(t, empty, b.Frame())
 }
 
 func Test_Blink_Start(t *testing.T) {
@@ -36,9 +34,7 @@ func Test_Blink_Stop(t *testing.T) {
 func Test_Blink_Frame_WhenInactive(t *testing.T) {
 	b := NewBlink()
 
-	// Frame can be either empty or full due to random initial state
-	frame := b.Frame()
-	assert.True(t, frame == empty || frame == full)
+	assert.Equal(t, empty, b.Frame())
 }
 
 func Test_Blink_Update_Progression(t *testing.T) {
@@ -92,4 +88,52 @@ func Test_Blink_IsActive(t *testing.T) {
 
 	b.Stop()
 	assert.False(t, b.IsActive())
+}
+
+func Test_Blink_Repeats(t *testing.T) {
+	b := NewBlink()
+	b.Start()
+
+	totalTicks := blinkSettleTicks + blinkBeat1Ticks + blinkMicroGapTicks + blinkBeat2Ticks + blinkRecoveryTicks
+	cycleCount := 3
+
+	for i := 0; i < totalTicks*cycleCount; i++ {
+		b.Update()
+	}
+
+	assert.True(t, b.IsActive(), "Animation should still be active after multiple cycles")
+}
+
+func Test_Blink_CyclesMultipleTimes(t *testing.T) {
+	b := NewBlink()
+	b.tickCount = 0
+	b.Start()
+
+	stateChanges := 0
+	lastState := b.state
+	fullFrames := 0
+	stateHistory := make(map[state]int)
+
+	for i := 0; i < 100; i++ {
+		b.Update()
+
+		stateHistory[b.state]++
+
+		if b.state != lastState {
+			stateChanges++
+			lastState = b.state
+		}
+
+		if b.Frame() == full {
+			fullFrames++
+		}
+	}
+
+	t.Logf("State changes: %d", stateChanges)
+	t.Logf("Full frames: %d", fullFrames)
+	t.Logf("State history: %+v", stateHistory)
+	t.Logf("Final state: %v, tickCount: %d", b.state, b.tickCount)
+
+	assert.Greater(t, stateChanges, 10, "Should see many state changes over 100 ticks")
+	assert.Greater(t, fullFrames, 10, "Should see full frame many times")
 }

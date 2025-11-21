@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	tickInterval       = 300 * time.Millisecond
+	tickInterval       = components.UITickInterval
 	statsUpdateModulo  = 3
 	tickCounterMaximum = 1000000
 )
