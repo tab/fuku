@@ -199,3 +199,36 @@ func Test_WrapText_WideCharacters(t *testing.T) {
 		})
 	}
 }
+
+func Benchmark_WrapText_ShortLine(b *testing.B) {
+	text := "Session-ID=sess_auth_xyz789 User-ID=user_john_doe Email=john.doe@example.com"
+	maxWidth := 80
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = wrapText(text, maxWidth)
+	}
+}
+
+func Benchmark_WrapText_LongLine(b *testing.B) {
+	text := strings.Repeat("X-Trace-ID=1e2f3a4b-5c6d-7e8f-9a0b-1c2d3e4f5g6h Session-ID=sess_auth_xyz789 User-ID=user_john_doe Email=john.doe@example.com IP=10.0.1.42 ", 10)
+	maxWidth := 80
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = wrapText(text, maxWidth)
+	}
+}
+
+func Benchmark_WrapText_WithANSI(b *testing.B) {
+	text := "\x1b[31mERROR\x1b[0m: Failed authentication attempt X-Trace-ID=2f3a4b5c-6d7e-8f9a-0b1c-2d3e4f5g6h7i Session-ID=sess_fail_abc123 \x1b[33mUser-ID=user_99999\x1b[0m Email=test@example.com"
+	maxWidth := 80
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = wrapText(text, maxWidth)
+	}
+}
