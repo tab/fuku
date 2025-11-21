@@ -286,6 +286,11 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 
 	m.log.Debug().Msgf("TUI: ProfileResolved - profile=%s, tiers=%d", data.Profile, len(data.Tiers))
 
+	// Clear existing state to prevent leaks when profile reloads
+	m.state.services = make(map[string]*ServiceState)
+	m.state.selected = 0
+	m.loader.StopAll()
+
 	var services []string
 
 	m.state.tiers = make([]Tier, len(data.Tiers))

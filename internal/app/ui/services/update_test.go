@@ -40,6 +40,7 @@ func Test_HandleProfileResolved(t *testing.T) {
 	m := Model{
 		log:     newTestLogger(ctrl),
 		logView: mockLogView,
+		loader:  NewLoader(),
 	}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
@@ -73,12 +74,142 @@ func Test_HandleProfileResolved_InvalidData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	m := Model{log: newTestLogger(ctrl)}
+	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 	event := runtime.Event{Type: runtime.EventProfileResolved, Data: "invalid"}
 	result := m.handleProfileResolved(event)
 	assert.Len(t, result.state.tiers, 0)
+}
+
+func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().ToggleAll([]string{"db", "api", "web"})
+	mockLogView.EXPECT().ToggleAll([]string{"storage", "cache"})
+
+	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: NewLoader()}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.tiers = make([]Tier, 0)
+
+	// Load first profile with services A, B, C
+	event1 := runtime.Event{
+		Type: runtime.EventProfileResolved,
+		Data: runtime.ProfileResolvedData{
+			Profile: "profile1",
+			Tiers: []runtime.TierData{
+				{Name: "tier1", Services: []string{"db", "api", "web"}},
+			},
+		},
+	}
+
+	result := m.handleProfileResolved(event1)
+	assert.Len(t, result.state.services, 3, "First profile should have 3 services")
+	assert.NotNil(t, result.state.services["db"])
+	assert.NotNil(t, result.state.services["api"])
+	assert.NotNil(t, result.state.services["web"])
+
+	// Load second profile with different services D, E
+	event2 := runtime.Event{
+		Type: runtime.EventProfileResolved,
+		Data: runtime.ProfileResolvedData{
+			Profile: "profile2",
+			Tiers: []runtime.TierData{
+				{Name: "tier1", Services: []string{"storage", "cache"}},
+			},
+		},
+	}
+
+	result = result.handleProfileResolved(event2)
+	assert.Len(t, result.state.services, 2, "Second profile should have exactly 2 services, not 5")
+	assert.NotNil(t, result.state.services["storage"])
+	assert.NotNil(t, result.state.services["cache"])
+	assert.Nil(t, result.state.services["db"], "Old service 'db' should be removed")
+	assert.Nil(t, result.state.services["api"], "Old service 'api' should be removed")
+	assert.Nil(t, result.state.services["web"], "Old service 'web' should be removed")
+}
+
+func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().ToggleAll([]string{"db"})
+
+	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: NewLoader()}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.tiers = make([]Tier, 0)
+	m.state.selected = 5
+
+	event := runtime.Event{
+		Type: runtime.EventProfileResolved,
+		Data: runtime.ProfileResolvedData{
+			Profile: "dev",
+			Tiers:   []runtime.TierData{{Name: "tier1", Services: []string{"db"}}},
+		},
+	}
+
+	result := m.handleProfileResolved(event)
+	assert.Equal(t, 0, result.state.selected, "Selection should reset to 0 on profile reload")
+}
+
+func Test_HandleProfileResolved_PreservesReadyState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().ToggleAll([]string{"db"})
+
+	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: NewLoader()}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.tiers = make([]Tier, 0)
+	m.state.ready = true
+
+	event := runtime.Event{
+		Type: runtime.EventProfileResolved,
+		Data: runtime.ProfileResolvedData{
+			Profile: "dev",
+			Tiers:   []runtime.TierData{{Name: "tier1", Services: []string{"db"}}},
+		},
+	}
+
+	result := m.handleProfileResolved(event)
+	assert.True(t, result.state.ready, "Ready state should be preserved on profile reload")
+}
+
+func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockLogView.EXPECT().ToggleAll([]string{"new-service"})
+
+	loader := NewLoader()
+	loader.Start("old-service-1", "Starting old-service-1")
+	loader.Start("old-service-2", "Starting old-service-2")
+
+	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: loader}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.tiers = make([]Tier, 0)
+
+	assert.True(t, loader.Active, "Loader should be active before reload")
+	assert.True(t, loader.Has("old-service-1"), "Loader should have old-service-1")
+	assert.True(t, loader.Has("old-service-2"), "Loader should have old-service-2")
+
+	event := runtime.Event{
+		Type: runtime.EventProfileResolved,
+		Data: runtime.ProfileResolvedData{
+			Profile: "new-profile",
+			Tiers:   []runtime.TierData{{Name: "tier1", Services: []string{"new-service"}}},
+		},
+	}
+
+	result := m.handleProfileResolved(event)
+	assert.False(t, result.loader.Active, "Loader should be cleared after profile reload")
+	assert.False(t, result.loader.Has("old-service-1"), "Loader should not have old-service-1")
+	assert.False(t, result.loader.Has("old-service-2"), "Loader should not have old-service-2")
 }
 
 func Test_HandleTierStarting(t *testing.T) {

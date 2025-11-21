@@ -24,6 +24,9 @@ func (m *Model) updateContent() {
 		viewportWidth = components.DefaultViewportWidth
 	}
 
+	// Capture scroll position before SetContent resets it
+	oldYOffset := m.viewport.YOffset
+
 	var builder strings.Builder
 
 	for _, entry := range m.entries {
@@ -38,6 +41,18 @@ func (m *Model) updateContent() {
 
 	if m.autoscroll {
 		m.viewport.GotoBottom()
+	} else {
+		// Preserve scroll position when not autoscrolling
+		maxYOffset := m.viewport.TotalLineCount() - m.viewport.Height
+		if maxYOffset < 0 {
+			maxYOffset = 0
+		}
+
+		if oldYOffset > maxYOffset {
+			m.viewport.YOffset = maxYOffset
+		} else {
+			m.viewport.YOffset = oldYOffset
+		}
 	}
 }
 
