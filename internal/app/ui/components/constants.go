@@ -11,6 +11,18 @@ const (
 	// Derived FPS for animations (ticks per second)
 	// Calculated as: 1000ms / UITickInterval
 	UITicksPerSecond = int(time.Second / UITickInterval) // 1000/100 = 10
+
+	// StatsPollingInterval is how often the background worker polls process stats
+	StatsPollingInterval = 1 * time.Second
+
+	// StatsCallTimeout is the per-call timeout for GetStats to prevent hangs
+	StatsCallTimeout = 500 * time.Millisecond
+
+	// StatsBatchTimeout is the overall timeout for collecting all service stats
+	StatsBatchTimeout = 900 * time.Millisecond
+
+	// StatsMaxConcurrency limits concurrent GetStats calls for high-scale scenarios
+	StatsMaxConcurrency = 50
 )
 
 // Generic layout constants

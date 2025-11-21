@@ -177,6 +177,7 @@ func (m Model) Init() tea.Cmd {
 		m.loader.Model.Tick,
 		waitForEventCmd(m.eventChan),
 		tickCmd(),
+		statsWorkerCmd(m.ctx, &m),
 	}
 
 	if m.subscriber != nil {

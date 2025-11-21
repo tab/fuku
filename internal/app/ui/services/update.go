@@ -15,7 +15,6 @@ import (
 
 const (
 	tickInterval       = components.UITickInterval
-	statsUpdateModulo  = 3
 	tickCounterMaximum = 1000000
 )
 
@@ -66,15 +65,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ui.tickCounter = 0
 		}
 
-		// Update process stats periodically
-		if m.ui.tickCounter%statsUpdateModulo == 0 {
-			m.updateProcessStats()
+		// Update blink animations and render only if there are active blinks
+		hasActiveBlinking := m.updateBlinkAnimations()
+		if hasActiveBlinking {
+			m.updateServicesContent()
 		}
 
-		m.updateBlinkAnimations()
+		return m, tickCmd()
+
+	case statsUpdateMsg:
+		m.applyStatsUpdate(msg)
 		m.updateServicesContent()
 
-		return m, tickCmd()
+		return m, statsWorkerCmd(m.ctx, &m)
 
 	case eventMsg:
 		return m.handleEvent(runtime.Event(msg))
