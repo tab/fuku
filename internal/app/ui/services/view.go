@@ -85,9 +85,8 @@ func (m Model) renderTitle() string {
 func (m Model) renderHeader() string {
 	title := m.renderTitle()
 	info := m.renderInfo()
-	width := m.ui.width - components.PanelBorderPadding
 
-	return components.RenderHeader(width, title, info)
+	return components.RenderHeader(m.ui.width, title, info)
 }
 
 func (m Model) renderServices() string {
@@ -236,7 +235,5 @@ func (m Model) renderFooter() string {
 		helpText = m.ui.help.View(ServicesHelpKeyMap(m.ui.keys))
 	}
 
-	width := m.ui.width - components.PanelBorderPadding
-
-	return components.RenderFooter(width, helpText)
+	return components.RenderFooter(m.ui.width, helpText)
 }
