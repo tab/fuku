@@ -23,23 +23,29 @@ type Entry struct {
 
 // Model represents the logs viewer state and implements ui.LogView
 type Model struct {
-	entries    []Entry
-	maxSize    int
-	filter     ui.LogFilter
-	viewport   viewport.Model
-	autoscroll bool
-	width      int
-	height     int
+	entries       []Entry
+	renderedLines []string // Pre-rendered line cache to avoid repeated rendering
+	lastRendered  int      // Index of last rendered entry (-1 if none)
+	maxSize       int
+	filter        ui.LogFilter
+	viewport      viewport.Model
+	autoscroll    bool
+	width         int
+	height        int
+	lastWidth     int // Track width changes for cache invalidation
 }
 
 // NewModel creates a new logs model with its own filter
 func NewModel() Model {
 	return Model{
-		entries:    make([]Entry, 0),
-		maxSize:    components.LogBufferSize,
-		filter:     ui.NewLogFilter(),
-		viewport:   viewport.New(0, 0),
-		autoscroll: false,
+		entries:       make([]Entry, 0),
+		renderedLines: make([]string, 0),
+		lastRendered:  -1,
+		maxSize:       components.LogBufferSize,
+		filter:        ui.NewLogFilter(),
+		viewport:      viewport.New(0, 0),
+		autoscroll:    false,
+		lastWidth:     0,
 	}
 }
 
@@ -51,12 +57,14 @@ func (m Model) IsEnabled(service string) bool {
 // SetEnabled updates the visibility state for a service
 func (m *Model) SetEnabled(service string, enabled bool) {
 	m.filter.Set(service, enabled)
+	m.invalidateCache()
 	m.updateContent()
 }
 
 // ToggleAll toggles all services (if all enabled -> disable all, otherwise -> enable all)
 func (m *Model) ToggleAll(services []string) {
 	m.filter.ToggleAll(services)
+	m.invalidateCache()
 	m.updateContent()
 }
 
@@ -95,7 +103,21 @@ func (m *Model) HandleLog(entry ui.LogEntry) {
 	m.entries = append(m.entries, logEntry)
 
 	if len(m.entries) > m.maxSize {
-		m.entries = m.entries[len(m.entries)-m.maxSize:]
+		trimCount := len(m.entries) - m.maxSize
+		m.entries = m.entries[trimCount:]
+
+		// Trim rendered cache to match
+		if len(m.renderedLines) >= trimCount {
+			m.renderedLines = m.renderedLines[trimCount:]
+
+			m.lastRendered -= trimCount
+			if m.lastRendered < -1 {
+				m.lastRendered = -1
+			}
+		} else {
+			// Cache out of sync, invalidate
+			m.invalidateCache()
+		}
 	}
 
 	m.updateContent()
@@ -139,4 +161,10 @@ func SendLog(entry ui.LogEntry) tea.Cmd {
 	return func() tea.Msg {
 		return logEntryMsg(entry)
 	}
+}
+
+// invalidateCache clears the rendered line cache, forcing a full rebuild
+func (m *Model) invalidateCache() {
+	m.renderedLines = m.renderedLines[:0]
+	m.lastRendered = -1
 }

@@ -52,20 +52,44 @@ func (m *Model) updateContent() {
 		viewportWidth = components.DefaultViewportWidth
 	}
 
+	// Check if width changed (requires full rebuild for rewrapping)
+	if m.lastWidth != viewportWidth {
+		m.invalidateCache()
+		m.lastWidth = viewportWidth
+	}
+
 	// Capture scroll position before SetContent resets it
 	oldYOffset := m.viewport.YOffset
 
-	var builder strings.Builder
+	// Render only new entries (incremental rendering)
+	for i := m.lastRendered + 1; i < len(m.entries); i++ {
+		entry := m.entries[i]
 
-	for _, entry := range m.entries {
+		var builder strings.Builder
+
+		if m.filter.IsEnabled(entry.Service) {
+			m.renderEntry(&builder, entry, viewportWidth)
+		}
+
+		m.renderedLines = append(m.renderedLines, builder.String())
+	}
+
+	m.lastRendered = len(m.entries) - 1
+
+	// Build final content from cached rendered lines
+	var content strings.Builder
+
+	for i, entry := range m.entries {
 		if !m.filter.IsEnabled(entry.Service) {
 			continue
 		}
 
-		m.renderEntry(&builder, entry, viewportWidth)
+		if i < len(m.renderedLines) && m.renderedLines[i] != "" {
+			content.WriteString(m.renderedLines[i])
+		}
 	}
 
-	m.viewport.SetContent(builder.String())
+	m.viewport.SetContent(content.String())
 
 	if m.autoscroll {
 		m.viewport.GotoBottom()
