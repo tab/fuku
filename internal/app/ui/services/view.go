@@ -193,12 +193,12 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	}
 
 	serviceName := truncateServiceName(service.Name, maxNameLen)
+	paddedServiceName := padServiceName(serviceName, maxNameLen)
 
-	row := fmt.Sprintf("%s%s %-*s  %-10s  %6s  %7s  %s",
+	row := fmt.Sprintf("%s%s %s  %-10s  %6s  %7s  %s",
 		indicator,
 		logCheckbox,
-		maxNameLen,
-		serviceName,
+		paddedServiceName,
 		string(service.Status),
 		cpu,
 		mem,
@@ -211,13 +211,16 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	}
 
 	if service.Error != nil {
-		errorText := fmt.Sprintf(" (%s)", service.Error.Error())
+		rowDisplayWidth := lipgloss.Width(row)
+		availableWidth := rowWidth - rowDisplayWidth
+
+		errorText := truncateErrorMessage(service.Error.Error(), availableWidth)
 		row += errorText
 	}
 
-	currentLen := len(row)
-	if currentLen < rowWidth {
-		row += strings.Repeat(" ", rowWidth-currentLen)
+	currentDisplayWidth := lipgloss.Width(row)
+	if currentDisplayWidth < rowWidth {
+		row += strings.Repeat(" ", rowWidth-currentDisplayWidth)
 	}
 
 	if isSelected {
