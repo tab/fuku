@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/looplab/fsm"
 
 	"fuku/internal/app/monitor"
@@ -227,11 +228,12 @@ func (m Model) getReadyServices() int {
 }
 
 func (m Model) getMaxServiceNameLength() int {
-	maxLen := 20
+	maxLen := components.ServiceNameMinWidth
 
 	for _, service := range m.state.services {
-		if len(service.Name) > maxLen {
-			maxLen = len(service.Name)
+		nameWidth := lipgloss.Width(service.Name)
+		if nameWidth > maxLen {
+			maxLen = nameWidth
 		}
 	}
 

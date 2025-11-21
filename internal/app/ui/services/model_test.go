@@ -130,6 +130,8 @@ func Test_GetMaxServiceNameLength(t *testing.T) {
 		{name: "short names return default", services: map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}}, want: 20},
 		{name: "long name exceeds default", services: map[string]*ServiceState{"action-confirmation-management-service": {Name: "action-confirmation-management-service"}}, want: 38},
 		{name: "mixed lengths uses longest", services: map[string]*ServiceState{"api": {Name: "api"}, "user-management-service": {Name: "user-management-service"}}, want: 23},
+		{name: "emoji display width", services: map[string]*ServiceState{"api-🔥": {Name: "api-🔥"}}, want: 20},
+		{name: "CJK double-width characters", services: map[string]*ServiceState{"测试服务": {Name: "测试服务"}}, want: 20},
 	}
 
 	for _, tt := range tests {

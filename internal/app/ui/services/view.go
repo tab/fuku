@@ -183,8 +183,6 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	cpu := m.getCPU(service)
 	mem := m.getMem(service)
 
-	serviceName := service.Name
-
 	availableWidth := m.ui.servicesViewport.Width - components.FixedColumnsWidth
 	if availableWidth < components.ServiceNameMinWidth {
 		availableWidth = components.ServiceNameMinWidth
@@ -194,9 +192,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 		maxNameLen = availableWidth
 	}
 
-	if len(serviceName) > maxNameLen {
-		serviceName = serviceName[:maxNameLen-1] + "…"
-	}
+	serviceName := truncateServiceName(service.Name, maxNameLen)
 
 	row := fmt.Sprintf("%s%s %-*s  %-10s  %6s  %7s  %s",
 		indicator,
