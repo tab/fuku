@@ -285,3 +285,24 @@ func (m Model) calculateScrollOffset() int {
 
 	return m.ui.servicesViewport.YOffset
 }
+
+// updateServicesContent builds the full services content and sets it in the viewport.
+// This should be called when services, tiers, status, or selection changes.
+func (m *Model) updateServicesContent() {
+	if len(m.state.tiers) == 0 {
+		m.ui.servicesViewport.SetContent("")
+
+		return
+	}
+
+	tiers := make([]string, 0, len(m.state.tiers))
+	currentIdx := 0
+	maxNameLen := m.getMaxServiceNameLength()
+
+	for _, tier := range m.state.tiers {
+		tiers = append(tiers, m.renderTier(tier, &currentIdx, maxNameLen))
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Left, tiers...)
+	m.ui.servicesViewport.SetContent(content)
+}

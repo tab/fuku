@@ -47,6 +47,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state.ready = true
 		}
 
+		m.updateServicesContent()
+
 		return m, nil
 
 	case spinner.TickMsg:
@@ -70,6 +72,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.updateBlinkAnimations()
+		m.updateServicesContent()
 
 		return m, tickCmd()
 
@@ -160,6 +163,7 @@ func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if m.state.selected > 0 {
 		m.state.selected--
+		m.updateServicesContent()
 		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
 	}
 
@@ -176,6 +180,7 @@ func (m Model) handleDownKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	total := m.getTotalServices()
 	if m.state.selected < total-1 {
 		m.state.selected++
+		m.updateServicesContent()
 		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
 	}
 

@@ -95,48 +95,8 @@ func (m Model) renderServices() string {
 		return components.EmptyStateStyle.Render("No services configured")
 	}
 
-	tiers := make([]string, 0, len(m.state.tiers))
-
-	currentIdx := 0
-	maxNameLen := m.getMaxServiceNameLength()
-
-	for _, tier := range m.state.tiers {
-		tiers = append(tiers, m.renderTier(tier, &currentIdx, maxNameLen))
-	}
-
-	content := lipgloss.JoinVertical(lipgloss.Left, tiers...)
-	lines := strings.Split(content, "\n")
-
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-
-	offset := m.ui.servicesViewport.YOffset
-	if offset < 0 {
-		offset = 0
-	}
-
-	maxOffset := len(lines) - m.ui.servicesViewport.Height
-	if maxOffset < 0 {
-		maxOffset = 0
-	}
-
-	if offset > maxOffset {
-		offset = maxOffset
-	}
-
-	endLine := offset + m.ui.servicesViewport.Height
-	if endLine > len(lines) {
-		endLine = len(lines)
-	}
-
-	if offset >= len(lines) {
-		return ""
-	}
-
-	visibleLines := lines[offset:endLine]
-
-	return lipgloss.JoinVertical(lipgloss.Left, visibleLines...)
+	// Let viewport handle the visible portion
+	return m.ui.servicesViewport.View()
 }
 
 func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {

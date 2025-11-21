@@ -31,7 +31,7 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).AnyTimes()
 
 	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().IsEnabled("api").Return(true)
+	mockLogView.EXPECT().IsEnabled("api").Return(true).AnyTimes()
 
 	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: "_shutdown", Message: "Shutting down…"}}}
 	m := Model{loader: loader, navigator: mockNav, logView: mockLogView}
