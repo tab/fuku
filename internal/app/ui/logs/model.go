@@ -10,6 +10,8 @@ import (
 	"fuku/internal/app/ui/components"
 )
 
+type logEntryMsg ui.LogEntry
+
 // Entry represents a single log line
 type Entry struct {
 	Timestamp time.Time
@@ -34,7 +36,7 @@ type Model struct {
 func NewModel() Model {
 	return Model{
 		entries:    make([]Entry, 0),
-		maxSize:    maxEntries,
+		maxSize:    components.LogBufferSize,
 		filter:     ui.NewLogFilter(),
 		viewport:   viewport.New(0, 0),
 		autoscroll: false,
@@ -49,18 +51,20 @@ func (m Model) IsEnabled(service string) bool {
 // SetEnabled updates the visibility state for a service
 func (m *Model) SetEnabled(service string, enabled bool) {
 	m.filter.Set(service, enabled)
+	m.updateContent()
 }
 
 // ToggleAll toggles all services (if all enabled -> disable all, otherwise -> enable all)
 func (m *Model) ToggleAll(services []string) {
 	m.filter.ToggleAll(services)
+	m.updateContent()
 }
 
 // SetSize updates the viewport dimensions
 func (m *Model) SetSize(width, height int) {
 	m.width = width
 	m.height = height
-	m.viewport.Width = width - components.ViewportWidthPadding
+	m.viewport.Width = width
 	m.viewport.Height = height
 	m.updateContent()
 }
@@ -99,9 +103,40 @@ func (m *Model) HandleLog(entry ui.LogEntry) {
 
 // HandleKey processes keyboard input for scrolling
 func (m *Model) HandleKey(msg tea.KeyMsg) tea.Cmd {
+	oldYOffset := m.viewport.YOffset
+
 	var cmd tea.Cmd
 
 	m.viewport, cmd = m.viewport.Update(msg)
 
+	if m.viewport.YOffset != oldYOffset && m.autoscroll {
+		atBottom := m.viewport.YOffset >= m.viewport.TotalLineCount()-m.viewport.Height
+		if !atBottom {
+			m.autoscroll = false
+		}
+	}
+
 	return cmd
+}
+
+// Update handles Bubble Tea messages
+func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
+	if logMsg, ok := msg.(logEntryMsg); ok {
+		m.entries = append(m.entries, Entry(logMsg))
+
+		if len(m.entries) > m.maxSize {
+			m.entries = m.entries[len(m.entries)-m.maxSize:]
+		}
+
+		m.updateContent()
+	}
+
+	return m, nil
+}
+
+// SendLog creates a command that sends a log entry message
+func SendLog(entry ui.LogEntry) tea.Cmd {
+	return func() tea.Msg {
+		return logEntryMsg(entry)
+	}
 }

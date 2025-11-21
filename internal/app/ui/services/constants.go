@@ -1,8 +1,20 @@
 package services
 
-// Service row layout
+// UI indicators
 const (
-	fixedColumnsWidth   = 45
-	minServiceNameWidth = 20
-	rowWidthPadding     = 8
+	IndicatorNone     = "  "
+	IndicatorSelected = "▸ "
+	CheckboxUnchecked = "[ ]"
+	CheckboxChecked   = "✓"
+)
+
+// Memory conversion
+const (
+	MBToGB = 1024
+)
+
+// Formatting
+const (
+	ErrorPaddingOffset = 3
+	TruncationOffset   = 1
 )

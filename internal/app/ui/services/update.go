@@ -8,8 +8,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/app/ui/navigation"
+)
+
+const (
+	tickInterval       = 300 * time.Millisecond
+	statsUpdateModulo  = 3
+	tickCounterMaximum = 1000000
 )
 
 type eventMsg runtime.Event
@@ -27,7 +34,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.height = msg.Height
 		m.ui.help.Width = msg.Width
 
-		panelHeight := msg.Height - components.PanelHeightOffsetBottom
+		panelHeight := msg.Height - components.PanelHeightPadding
 		if panelHeight < components.MinPanelHeight {
 			panelHeight = components.MinPanelHeight
 		}
@@ -50,7 +57,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tickMsg:
-		m.updateProcessStats()
+		m.ui.tickCounter++
+
+		// Reset counter to prevent overflow
+		if m.ui.tickCounter >= tickCounterMaximum {
+			m.ui.tickCounter = 0
+		}
+
+		// Update process stats periodically
+		if m.ui.tickCounter%statsUpdateModulo == 0 {
+			m.updateProcessStats()
+		}
+
+		m.updateBlinkAnimations()
+
 		return m, tickCmd()
 
 	case eventMsg:
@@ -247,6 +267,8 @@ func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 		m = m.handleServiceFailed(event)
 	case runtime.EventServiceStopped:
 		m = m.handleServiceStopped(event)
+	case runtime.EventLogLine:
+		m.handleLogLine(event)
 	case runtime.EventSignalCaught:
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
@@ -272,7 +294,12 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 
 		m.state.tiers[i] = Tier{Name: tier.Name, Services: tier.Services, Ready: false}
 		for _, serviceName := range tier.Services {
-			service := &ServiceState{Name: serviceName, Tier: tier.Name, Status: StatusStarting}
+			service := &ServiceState{
+				Name:   serviceName,
+				Tier:   tier.Name,
+				Status: StatusStarting,
+				Blink:  components.NewBlink(),
+			}
 			service.FSM = newServiceFSM(service, m.loader)
 			m.state.services[serviceName] = service
 			services = append(services, serviceName)
@@ -396,6 +423,21 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 	return m
 }
 
+func (m Model) handleLogLine(event runtime.Event) {
+	data, ok := event.Data.(runtime.LogLineData)
+	if !ok {
+		return
+	}
+
+	m.logView.HandleLog(ui.LogEntry{
+		Timestamp: event.Timestamp,
+		Service:   data.Service,
+		Tier:      data.Tier,
+		Stream:    data.Stream,
+		Message:   data.Message,
+	})
+}
+
 func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
 	return func() tea.Msg {
 		event, ok := <-eventChan
@@ -408,7 +450,7 @@ func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
 }
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(tickInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

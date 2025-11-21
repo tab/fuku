@@ -12,6 +12,7 @@ import (
 
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/components"
 	"fuku/internal/app/ui/navigation"
 )
 
@@ -66,8 +67,7 @@ func Test_RenderHeader_ServicesView(t *testing.T) {
 	m.ui.width = 100
 
 	header := m.renderHeader()
-	assert.Contains(t, header, "╭─")
-	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "───")
 	assert.Contains(t, header, "services")
 	assert.Contains(t, header, "Running")
 	assert.Contains(t, header, "1/1")
@@ -91,8 +91,7 @@ func Test_RenderHeader_LogsView(t *testing.T) {
 	m.ui.width = 100
 
 	header := m.renderHeader()
-	assert.Contains(t, header, "╭─")
-	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "───")
 	assert.Contains(t, header, "logs")
 }
 
@@ -112,8 +111,7 @@ func Test_RenderHeader_WithActiveLoader(t *testing.T) {
 	m.ui.width = 100
 
 	header := m.renderHeader()
-	assert.Contains(t, header, "╭─")
-	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "───")
 	assert.Contains(t, header, "Starting api…")
 }
 
@@ -147,30 +145,6 @@ func Test_RenderInfo_PhaseColors(t *testing.T) {
 	}
 }
 
-func Test_Truncate(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		maxWidth int
-		want     string
-	}{
-		{name: "no truncation needed", input: "short", maxWidth: 10, want: "short"},
-		{name: "exact fit", input: "exact", maxWidth: 5, want: "exact"},
-		{name: "needs truncation", input: "long string here", maxWidth: 10, want: "long stri…"},
-		{name: "very short max", input: "test", maxWidth: 2, want: "t…"},
-		{name: "max width 1", input: "test", maxWidth: 1, want: "…"},
-		{name: "max width 0", input: "test", maxWidth: 0, want: ""},
-		{name: "negative max", input: "test", maxWidth: -1, want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := truncate(tt.input, tt.maxWidth)
-			assert.Equal(t, tt.want, result)
-		})
-	}
-}
-
 func Test_RenderHeader_Width(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -186,7 +160,7 @@ func Test_RenderHeader_Width(t *testing.T) {
 	m.ui.width = 80
 
 	header := m.renderHeader()
-	expectedWidth := m.ui.width
+	expectedWidth := m.ui.width - components.PanelBorderPadding
 	assert.Equal(t, expectedWidth, lipgloss.Width(header))
 }
 
@@ -209,7 +183,7 @@ func Test_RenderLogs_Empty(t *testing.T) {
 	assert.Contains(t, result, "No logs enabled")
 }
 
-func Test_RenderHelp(t *testing.T) {
+func Test_RenderFooter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -219,7 +193,8 @@ func Test_RenderHelp(t *testing.T) {
 	m := Model{navigator: mockNav}
 	m.ui.keys = DefaultKeyMap()
 	m.ui.help = help.New()
-	result := m.renderHelp()
+	m.ui.width = 80
+	result := m.renderFooter()
 	assert.NotEmpty(t, result)
 }
 

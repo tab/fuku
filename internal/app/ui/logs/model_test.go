@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/components"
 )
 
 func Test_NewModel(t *testing.T) {
 	model := NewModel()
 	assert.NotNil(t, model.filter)
-	assert.Equal(t, maxEntries, model.maxSize)
+	assert.Equal(t, components.LogBufferSize, model.maxSize)
 	assert.False(t, model.autoscroll)
 	assert.Empty(t, model.entries)
 }
@@ -99,7 +100,7 @@ func Test_Model_HandleLog(t *testing.T) {
 	}{
 		{name: "Single entry", entries: 1, expectedCount: 1},
 		{name: "Multiple entries", entries: 5, expectedCount: 5},
-		{name: "Max entries truncates", entries: maxEntries + 10, expectedCount: maxEntries},
+		{name: "Max entries truncates", entries: components.LogBufferSize + 10, expectedCount: components.LogBufferSize},
 	}
 
 	for _, tt := range tests {
@@ -182,4 +183,21 @@ func Test_Model_View(t *testing.T) {
 			assert.Contains(t, view, tt.contains)
 		})
 	}
+}
+
+func Test_Model_FilterRerender(t *testing.T) {
+	model := NewModel()
+	model.SetSize(80, 20)
+
+	// Service logs arrive while disabled
+	model.HandleLog(ui.LogEntry{Timestamp: time.Now(), Service: "api", Tier: "tier1", Stream: "STDOUT", Message: "first"})
+	assert.Contains(t, model.View(), "No logs enabled")
+
+	// Enabling should immediately render buffered entries
+	model.SetEnabled("api", true)
+	assert.Contains(t, model.View(), "first")
+
+	// Disabling should immediately hide them
+	model.SetEnabled("api", false)
+	assert.Contains(t, model.View(), "No logs enabled")
 }

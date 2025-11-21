@@ -12,9 +12,15 @@ import (
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/components"
 	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
+
+// subscriber interface for starting log event subscription
+type subscriber interface {
+	StartCmd(ctx context.Context) tea.Cmd
+}
 
 // Status represents the status of a service
 type Status string
@@ -51,6 +57,7 @@ type ServiceState struct {
 	Error   error
 	FSM     *fsm.FSM
 	Monitor ServiceMonitor
+	Blink   *components.Blink
 }
 
 // MarkStarting sets the service status to starting
@@ -89,6 +96,7 @@ type Model struct {
 	logView    ui.LogView
 	navigator  navigation.Navigator
 	loader     *Loader
+	subscriber subscriber
 	eventChan  <-chan runtime.Event
 
 	state struct {
@@ -107,6 +115,7 @@ type Model struct {
 		keys             KeyMap
 		help             help.Model
 		servicesViewport viewport.Model
+		tickCounter      int
 	}
 
 	log logger.Logger
@@ -123,6 +132,7 @@ func NewModel(
 	logView ui.LogView,
 	navigator navigation.Navigator,
 	loader *Loader,
+	sub subscriber,
 	log logger.Logger,
 ) Model {
 	eventChan := event.Subscribe(ctx)
@@ -136,6 +146,7 @@ func NewModel(
 		controller: controller,
 		monitor:    monitor,
 		loader:     loader,
+		subscriber: sub,
 		eventChan:  eventChan,
 		logView:    logView,
 		navigator:  navigator,
@@ -161,11 +172,17 @@ func NewModel(
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.loader.Model.Tick,
 		waitForEventCmd(m.eventChan),
 		tickCmd(),
-	)
+	}
+
+	if m.subscriber != nil {
+		cmds = append(cmds, m.subscriber.StartCmd(m.ctx))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (m Model) getSelectedService() *ServiceState {

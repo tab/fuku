@@ -37,6 +37,8 @@ type UIParams struct {
 	LogView    ui.LogView
 	Navigator  navigation.Navigator
 	Loader     *services.Loader
+	Subscriber *logs.Subscriber
+	Sender     *logs.Sender
 	Logger     logger.Logger
 }
 
@@ -53,6 +55,7 @@ func NewUI(params UIParams) UI {
 			params.LogView,
 			params.Navigator,
 			params.Loader,
+			params.Subscriber,
 			params.Logger,
 		)
 
@@ -61,6 +64,8 @@ func NewUI(params UIParams) UI {
 			tea.WithAltScreen(),
 			tea.WithContext(ctx),
 		)
+
+		params.Sender.Set(p.Send)
 
 		params.Logger.Debug().Msg("TUI: Program created via factory")
 

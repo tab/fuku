@@ -19,7 +19,28 @@ func (m *Model) updateProcessStats() {
 	}
 }
 
-func (m Model) getUptime(service *ServiceState) string {
+func (m *Model) updateBlinkAnimations() {
+	for _, service := range m.state.services {
+		if service.Blink == nil {
+			continue
+		}
+
+		if service.FSM != nil {
+			state := service.FSM.Current()
+			if state == Starting || state == Stopping || state == Restarting {
+				if !service.Blink.IsActive() {
+					service.Blink.Start()
+				}
+
+				service.Blink.Update()
+			} else if service.Blink.IsActive() {
+				service.Blink.Stop()
+			}
+		}
+	}
+}
+
+func (m *Model) getUptime(service *ServiceState) string {
 	if service.Status == StatusStopped || service.Monitor.StartTime.IsZero() {
 		return ""
 	}
@@ -36,24 +57,28 @@ func (m Model) getUptime(service *ServiceState) string {
 	return pad(minutes) + ":" + pad(seconds)
 }
 
-func (m Model) getCPU(service *ServiceState) string {
-	if service.Status == StatusStopped || service.Monitor.PID == 0 {
+func (m *Model) getCPU(service *ServiceState) string {
+	if !m.isServiceMonitored(service) {
 		return ""
 	}
 
 	return fmt.Sprintf("%.1f%%", service.Monitor.CPU)
 }
 
-func (m Model) getMem(service *ServiceState) string {
-	if service.Status == StatusStopped || service.Monitor.PID == 0 {
+func (m *Model) getMem(service *ServiceState) string {
+	if !m.isServiceMonitored(service) {
 		return ""
 	}
 
-	if service.Monitor.MEM < 1024 {
+	if service.Monitor.MEM < MBToGB {
 		return fmt.Sprintf("%.0fMB", service.Monitor.MEM)
 	}
 
-	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/1024)
+	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/MBToGB)
+}
+
+func (m *Model) isServiceMonitored(service *ServiceState) bool {
+	return service.Status != StatusStopped && service.Monitor.PID != 0
 }
 
 func pad(n int) string {
