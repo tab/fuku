@@ -9,16 +9,7 @@ import (
 	"fuku/internal/config"
 )
 
-// RenderLine renders a horizontal line of the specified width with separator style
-func RenderLine(width int) string {
-	if width < 0 {
-		width = 0
-	}
-
-	return SeparatorStyle.Render(strings.Repeat("─", width))
-}
-
-// RenderHeader renders the header with format: ─── <title> ─────── <info> ───
+// RenderHeader renders app header
 func RenderHeader(width int, title, info string) string {
 	titleWidth := lipgloss.Width(title)
 	infoWidth := lipgloss.Width(info)
@@ -41,7 +32,7 @@ func RenderHeader(width int, title, info string) string {
 	return HeaderStyle.Render(leftPrefix + " " + title + " " + separator + " " + info + " " + rightSuffix)
 }
 
-// RenderFooter renders the footer with version line and help text
+// RenderFooter renders app footer
 func RenderFooter(width int, helpText string) string {
 	version := fmt.Sprintf("v%s", config.Version)
 	versionWidth := lipgloss.Width(version)
@@ -60,9 +51,13 @@ func RenderFooter(width int, helpText string) string {
 	return FooterStyle.Render(lipgloss.JoinVertical(lipgloss.Left, versionLine, help))
 }
 
-// RenderContent wraps content with spacing
-func RenderContent(content string) string {
-	return ContentStyle.Render(content)
+// RenderLine renders a horizontal line of the specified width with separator style
+func RenderLine(width int) string {
+	if width < 0 {
+		width = 0
+	}
+
+	return SeparatorStyle.Render(strings.Repeat("─", width))
 }
 
 func truncate(s string, maxWidth int) string {

@@ -187,6 +187,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// getSelectedService returns the currently selected service state
 func (m Model) getSelectedService() *ServiceState {
 	if m.state.selected < 0 {
 		return nil
@@ -207,6 +208,7 @@ func (m Model) getSelectedService() *ServiceState {
 	return nil
 }
 
+// getTotalServices returns the total count of services
 func (m Model) getTotalServices() int {
 	total := 0
 	for _, tier := range m.state.tiers {
@@ -216,6 +218,7 @@ func (m Model) getTotalServices() int {
 	return total
 }
 
+// getReadyServices returns the count of services in ready state
 func (m Model) getReadyServices() int {
 	count := 0
 
@@ -228,6 +231,7 @@ func (m Model) getReadyServices() int {
 	return count
 }
 
+// getMaxServiceNameLength returns the maximum service name length for formatting
 func (m Model) getMaxServiceNameLength() int {
 	maxLen := components.ServiceNameMinWidth
 
@@ -241,6 +245,7 @@ func (m Model) getMaxServiceNameLength() int {
 	return maxLen
 }
 
+// calculateScrollOffset calculates the scroll offset to ensure the selected service is visible
 func (m Model) calculateScrollOffset() int {
 	if m.ui.servicesViewport.Height == 0 {
 		return m.ui.servicesViewport.YOffset
@@ -287,8 +292,7 @@ func (m Model) calculateScrollOffset() int {
 	return m.ui.servicesViewport.YOffset
 }
 
-// updateServicesContent builds the full services content and sets it in the viewport.
-// This should be called when services, tiers, status, or selection changes.
+// updateServicesContent builds the full services content and sets it in the viewport
 func (m *Model) updateServicesContent() {
 	if len(m.state.tiers) == 0 {
 		m.ui.servicesViewport.SetContent("")

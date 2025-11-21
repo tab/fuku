@@ -10,9 +10,6 @@ import (
 
 const (
 	// maxWastedSpace is the maximum amount of line space we're willing to waste
-	// when breaking at whitespace. If breaking at a space would leave more than
-	// this many columns unused, we'll break mid-word instead to avoid excessive
-	// whitespace at line ends.
 	maxWastedSpace = 20
 )
 
@@ -24,7 +21,6 @@ type charInfo struct {
 }
 
 // wrapText wraps text to fit within maxWidth by display width (ANSI-aware)
-// Prefers to break at whitespace and returns lines without trailing spaces
 func wrapText(text string, maxWidth int) []string {
 	if maxWidth <= 0 {
 		return []string{text}
@@ -57,8 +53,7 @@ func wrapText(text string, maxWidth int) []string {
 	return lines
 }
 
-// buildCharTable creates a table mapping character positions to byte offsets and display widths.
-// This enables O(n) wrapping by avoiding repeated width calculations.
+// buildCharTable creates a table mapping character positions to byte offsets and display widths
 func buildCharTable(text string) []charInfo {
 	if len(text) == 0 {
 		return nil
@@ -69,20 +64,16 @@ func buildCharTable(text string) []charInfo {
 	bytePos := 0
 
 	for bytePos < len(text) {
-		// Check for ANSI escape sequence
 		if text[bytePos] == '\x1b' {
-			// Find the end of the ANSI sequence
 			seqLen := 1
 			for bytePos+seqLen < len(text) {
 				ch := text[bytePos+seqLen]
 				seqLen++
-				// ANSI sequences end with a letter (simplified CSI parsing)
 				if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
 					break
 				}
 			}
 
-			// ANSI sequences have zero display width
 			chars = append(chars, charInfo{
 				byteOffset: bytePos,
 				width:      0,
@@ -94,10 +85,8 @@ func buildCharTable(text string) []charInfo {
 			continue
 		}
 
-		// Decode UTF-8 rune
 		r, size := utf8.DecodeRuneInString(text[bytePos:])
 		if r == utf8.RuneError {
-			// Invalid UTF-8, treat as single byte
 			chars = append(chars, charInfo{
 				byteOffset: bytePos,
 				width:      1,
@@ -108,7 +97,6 @@ func buildCharTable(text string) []charInfo {
 			continue
 		}
 
-		// Determine display width
 		width := ansi.PrintableRuneWidth(string(r))
 		isSpace := r == ' ' || r == '\t'
 
@@ -124,8 +112,7 @@ func buildCharTable(text string) []charInfo {
 	return chars
 }
 
-// findBreakPoint finds the byte offset where text should be broken to fit within maxWidth.
-// Uses precomputed character widths for O(n) performance.
+// findBreakPoint finds the byte offset where text should be broken to fit within maxWidth
 func findBreakPoint(text string, maxWidth int) int {
 	if len(text) == 0 {
 		return 0
@@ -143,13 +130,10 @@ func findBreakPoint(text string, maxWidth int) int {
 	for i, ch := range chars {
 		newWidth := currentWidth + ch.width
 
-		// Check if adding this character would exceed width
 		if newWidth > maxWidth {
-			// We've exceeded maxWidth, decide where to break
 			if lastSpaceIdx >= 0 {
 				wastedSpace := maxWidth - lastSpaceWidth
 				if wastedSpace <= maxWastedSpace {
-					// Break after the space
 					if lastSpaceIdx+1 < len(chars) {
 						return chars[lastSpaceIdx+1].byteOffset
 					}
@@ -158,12 +142,10 @@ func findBreakPoint(text string, maxWidth int) int {
 				}
 			}
 
-			// Break at current position (don't include this char)
 			if i > 0 {
 				return chars[i].byteOffset
 			}
 
-			// First character doesn't fit, must include it anyway
 			if i+1 < len(chars) {
 				return chars[i+1].byteOffset
 			}
@@ -171,7 +153,6 @@ func findBreakPoint(text string, maxWidth int) int {
 			return len(text)
 		}
 
-		// This character fits
 		currentWidth = newWidth
 
 		if ch.isSpace {

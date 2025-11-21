@@ -106,7 +106,6 @@ func (m *Model) HandleLog(entry ui.LogEntry) {
 		trimCount := len(m.entries) - m.maxSize
 		m.entries = m.entries[trimCount:]
 
-		// Trim rendered cache to match
 		if len(m.renderedLines) >= trimCount {
 			m.renderedLines = m.renderedLines[trimCount:]
 
@@ -115,7 +114,6 @@ func (m *Model) HandleLog(entry ui.LogEntry) {
 				m.lastRendered = -1
 			}
 		} else {
-			// Cache out of sync, invalidate
 			m.invalidateCache()
 		}
 	}

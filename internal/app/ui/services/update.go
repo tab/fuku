@@ -60,12 +60,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ui.tickCounter++
 
-		// Reset counter to prevent overflow
 		if m.ui.tickCounter >= tickCounterMaximum {
 			m.ui.tickCounter = 0
 		}
 
-		// Update blink animations and render only if there are active blinks
 		hasActiveBlinking := m.updateBlinkAnimations()
 		if hasActiveBlinking {
 			m.updateServicesContent()

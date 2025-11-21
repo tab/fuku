@@ -9,9 +9,7 @@ import (
 	"fuku/internal/app/ui/components"
 )
 
-// truncateServiceName truncates a service name to fit within maxWidth display columns.
-// It preserves UTF-8 correctness by truncating at rune boundaries and uses display width
-// (not byte or rune count) to ensure proper visual fitting.
+// truncateServiceName truncates a service name to fit within maxWidth display columns
 func truncateServiceName(serviceName string, maxWidth int) string {
 	currentWidth := lipgloss.Width(serviceName)
 	if currentWidth <= maxWidth {
@@ -52,16 +50,13 @@ func (m *Model) updateContent() {
 		viewportWidth = components.DefaultViewportWidth
 	}
 
-	// Check if width changed (requires full rebuild for rewrapping)
 	if m.lastWidth != viewportWidth {
 		m.invalidateCache()
 		m.lastWidth = viewportWidth
 	}
 
-	// Capture scroll position before SetContent resets it
 	oldYOffset := m.viewport.YOffset
 
-	// Render only new entries (incremental rendering)
 	for i := m.lastRendered + 1; i < len(m.entries); i++ {
 		entry := m.entries[i]
 
@@ -76,7 +71,6 @@ func (m *Model) updateContent() {
 
 	m.lastRendered = len(m.entries) - 1
 
-	// Build final content from cached rendered lines
 	var content strings.Builder
 
 	for i, entry := range m.entries {
@@ -94,7 +88,6 @@ func (m *Model) updateContent() {
 	if m.autoscroll {
 		m.viewport.GotoBottom()
 	} else {
-		// Preserve scroll position when not autoscrolling
 		maxYOffset := m.viewport.TotalLineCount() - m.viewport.Height
 		if maxYOffset < 0 {
 			maxYOffset = 0

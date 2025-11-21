@@ -66,7 +66,6 @@ func NewUI(params UIParams) UI {
 		)
 
 		params.Sender.Set(p.Send)
-
 		params.Logger.Debug().Msg("TUI: Program created via factory")
 
 		return p, nil

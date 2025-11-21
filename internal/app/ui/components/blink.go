@@ -12,14 +12,12 @@ const (
 	full  = "◉"
 
 	// Animation timing derived from UI tick rate
-	blinkFPS = UITicksPerSecond // 3 FPS for 300ms ticks, 5 FPS for 200ms ticks
+	blinkFPS = UITicksPerSecond
 
 	// Spring physics parameters
-	blinkAngularFrequency = 8.0 // Spring stiffness (higher = faster response)
-	blinkDampingRatio     = 0.7 // Spring damping
+	blinkAngularFrequency = 8.0
+	blinkDampingRatio     = 0.7
 
-	// Animation timing - heartbeat pattern: ◯ -- ◉ - ◯ ◉ --- ◯ --
-	// Creates "lub-DUB… lub-DUB…" cardiac rhythm
 	blinkSettleTicks   = 2 // Settle phase: 200ms
 	blinkBeat1Ticks    = 1 // First beat (lub): 100ms
 	blinkMicroGapTicks = 1 // Micro-gap between beats: 100ms
@@ -27,8 +25,7 @@ const (
 	blinkRecoveryTicks = 3 // Recovery phase: 300ms
 
 	// Visual thresholds
-	blinkFrameThreshold  = 0.3 // Position threshold for frame switching (lower = triggers faster)
-	blinkTargetThreshold = 0.7 // Spring position threshold for state transitions
+	blinkFrameThreshold = 0.3 // Position threshold for frame switching (lower = triggers faster)
 
 	// Position constants
 	blinkPositionFull  = 1.0 // Full position value
@@ -96,8 +93,6 @@ func (b *Blink) Update() {
 
 	b.tickCount++
 
-	// Heartbeat pattern: ◯ -- ◉ - ◯ ◉ --- ◯ --
-	// "lub-DUB… lub-DUB…" cardiac rhythm
 	// settle(200ms) → beat1(100ms) → micro-gap(100ms) → beat2(100ms) → recovery(300ms)
 	switch b.state {
 	case settle:

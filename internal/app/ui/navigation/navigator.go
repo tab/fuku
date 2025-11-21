@@ -2,11 +2,8 @@ package navigation
 
 // Navigator provides view switching functionality
 type Navigator interface {
-	// CurrentView returns the active view
 	CurrentView() View
-	// SwitchTo changes to the specified view
 	SwitchTo(view View)
-	// Toggle switches between services and logs views
 	Toggle()
 }
 
@@ -21,14 +18,17 @@ func NewNavigator() Navigator {
 	}
 }
 
+// CurrentView returns the active view
 func (n *navigator) CurrentView() View {
 	return n.current
 }
 
+// SwitchTo changes to the specified view
 func (n *navigator) SwitchTo(view View) {
 	n.current = view
 }
 
+// Toggle switches between services and logs views
 func (n *navigator) Toggle() {
 	if n.current == ViewServices {
 		n.current = ViewLogs

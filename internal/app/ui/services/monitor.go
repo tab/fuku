@@ -88,11 +88,11 @@ func (m *Model) getMem(service *ServiceState) string {
 		return ""
 	}
 
-	if service.Monitor.MEM < MBToGB {
+	if service.Monitor.MEM < components.MBToGB {
 		return fmt.Sprintf("%.0fMB", service.Monitor.MEM)
 	}
 
-	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/MBToGB)
+	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/components.MBToGB)
 }
 
 func (m *Model) isServiceMonitored(service *ServiceState) bool {
