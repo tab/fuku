@@ -24,6 +24,9 @@ const (
 	blinkBeat2Ticks    = 1 // Second beat (DUB): 100ms
 	blinkRecoveryTicks = 3 // Recovery phase: 300ms
 
+	// Full cycle duration
+	blinkCycleTicks = blinkSettleTicks + blinkBeat1Ticks + blinkMicroGapTicks + blinkBeat2Ticks + blinkRecoveryTicks
+
 	// Visual thresholds
 	blinkFrameThreshold = 0.3 // Position threshold for frame switching (lower = triggers faster)
 
@@ -57,7 +60,7 @@ const (
 func NewBlink() *Blink {
 	// Random initial tick offset to desynchronize animations
 	//nolint:gosec // weak random is fine for UI animation timing
-	randomTickOffset := rand.IntN(blinkSettleTicks + blinkBeat1Ticks + blinkMicroGapTicks + blinkBeat2Ticks + blinkRecoveryTicks)
+	randomTickOffset := rand.IntN(blinkCycleTicks)
 
 	return &Blink{
 		spring:    harmonica.NewSpring(harmonica.FPS(blinkFPS), blinkAngularFrequency, blinkDampingRatio),
