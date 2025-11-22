@@ -200,10 +200,13 @@
 - `internal/app/runner/runner_test.go` - Service orchestration and dependency resolution
 - `internal/app/runtime/events_test.go` - Event bus pub/sub testing
 - `internal/app/runtime/commands_test.go` - Command bus pub/sub testing
+- `internal/app/ui/components/keys_test.go` - Shared key bindings
+- `internal/app/ui/logs/keys_test.go` - Logs view key bindings
+- `internal/app/ui/logs/model_test.go` - Logs model and buffer management
 - `internal/app/ui/services/loader_test.go` - Loader queue operations
 - `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
 - `internal/app/ui/services/model_test.go` - Service state methods and helpers
-- `internal/app/ui/services/keys_test.go` - Key bindings configuration
+- `internal/app/ui/services/keys_test.go` - Services view key bindings
 - `internal/app/ui/services/state_test.go` - FSM state transitions and callbacks
 - `internal/app/ui/services/update_test.go` - Event handlers
 - `internal/app/ui/services/view_test.go` - View rendering functions
