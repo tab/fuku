@@ -53,6 +53,34 @@ func (mr *MockNavigatorMockRecorder) CurrentView() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentView", reflect.TypeOf((*MockNavigator)(nil).CurrentView))
 }
 
+// IsLogs mocks base method.
+func (m *MockNavigator) IsLogs() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsLogs")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsLogs indicates an expected call of IsLogs.
+func (mr *MockNavigatorMockRecorder) IsLogs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLogs", reflect.TypeOf((*MockNavigator)(nil).IsLogs))
+}
+
+// IsServices mocks base method.
+func (m *MockNavigator) IsServices() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsServices")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsServices indicates an expected call of IsServices.
+func (mr *MockNavigatorMockRecorder) IsServices() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsServices", reflect.TypeOf((*MockNavigator)(nil).IsServices))
+}
+
 // SwitchTo mocks base method.
 func (m *MockNavigator) SwitchTo(view View) {
 	m.ctrl.T.Helper()
