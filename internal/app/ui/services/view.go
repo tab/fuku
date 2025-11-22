@@ -115,24 +115,34 @@ func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 	return components.TierContainerStyle.Render(content)
 }
 
-func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
-	indicator := "  "
+func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) string {
+	defaultIndicator := "  "
 	if isSelected {
-		indicator = components.Current
+		defaultIndicator = components.Current
 	}
 
-	if service.FSM != nil {
-		state := service.FSM.Current()
-		if state == Starting || state == Stopping || state == Restarting {
-			if service.Blink != nil {
-				if isSelected {
-					indicator = service.Blink.Frame() + " "
-				} else {
-					indicator = service.Blink.Render(components.IndicatorActiveStyle) + " "
-				}
-			}
-		}
+	if service.FSM == nil {
+		return defaultIndicator
 	}
+
+	state := service.FSM.Current()
+	if state != Starting && state != Stopping && state != Restarting {
+		return defaultIndicator
+	}
+
+	if service.Blink == nil {
+		return defaultIndicator
+	}
+
+	if isSelected {
+		return service.Blink.Frame() + " "
+	}
+
+	return service.Blink.Render(components.IndicatorActiveStyle) + " "
+}
+
+func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
+	indicator := m.getServiceIndicator(service, isSelected)
 
 	logCheckbox := components.Empty
 	if m.logView.IsEnabled(service.Name) {
