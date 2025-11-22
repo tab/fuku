@@ -8,7 +8,6 @@ import (
 
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui/components"
-	"fuku/internal/app/ui/navigation"
 )
 
 // View renders the UI
@@ -17,25 +16,22 @@ func (m Model) View() string {
 		return "Initializing…"
 	}
 
-	header := headerStyle.Render(m.renderHeader())
-	panelHeight := m.ui.height - components.PanelHeightOffsetBottom
+	header := m.renderHeader()
+	panelHeight := m.ui.height - components.PanelHeightPadding
 
 	var panel string
-	if m.navigator.CurrentView() == navigation.ViewLogs {
-		panel = noBorderTopPanelStyle.
-			Width(m.ui.width - components.PanelBorderPadding).
-			Height(panelHeight).
-			Render(m.renderLogs())
+	if m.navigator.IsLogs() {
+		panel = m.renderLogs()
 	} else {
-		panel = noBorderTopPanelStyle.
+		panel = lipgloss.NewStyle().
 			Width(m.ui.width - components.PanelBorderPadding).
 			Height(panelHeight).
 			Render(m.renderServices())
 	}
 
-	help := helpWrapperStyle.Render(m.renderHelp())
+	footer := m.renderFooter()
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, panel, help)
+	return lipgloss.JoinVertical(lipgloss.Left, header, panel, footer)
 }
 
 func (m Model) renderInfo() string {
@@ -43,18 +39,18 @@ func (m Model) renderInfo() string {
 	total := m.getTotalServices()
 
 	phaseStr := string(m.state.phase)
-	phaseStyle := phaseMutedStyle
+	phaseStyle := components.PhaseMutedStyle
 
 	switch m.state.phase {
 	case runtime.PhaseStartup:
 		phaseStr = "Starting…"
-		phaseStyle = phaseStartingStyle
+		phaseStyle = components.PhaseStartingStyle
 	case runtime.PhaseRunning:
 		phaseStr = "Running"
-		phaseStyle = phaseRunningStyle
+		phaseStyle = components.PhaseRunningStyle
 	case runtime.PhaseStopping:
 		phaseStr = "Stopping"
-		phaseStyle = phaseStoppingStyle
+		phaseStyle = components.PhaseStoppingStyle
 	}
 
 	info := fmt.Sprintf("%s  %d/%d ready",
@@ -63,8 +59,8 @@ func (m Model) renderInfo() string {
 		total,
 	)
 
-	if m.navigator.CurrentView() == navigation.ViewLogs && m.logView.Autoscroll() {
-		info += "  " + timestampStyle.Render("[autoscroll]")
+	if m.navigator.IsLogs() && m.logView.Autoscroll() {
+		info += "  " + components.TimestampStyle.Render("[autoscroll]")
 	}
 
 	return info
@@ -75,117 +71,32 @@ func (m Model) renderTitle() string {
 		return m.loader.Model.View() + " " + m.loader.Message()
 	}
 
-	if m.navigator.CurrentView() == navigation.ViewLogs {
-		return headerTitleStyle.Render("logs")
+	if m.navigator.IsLogs() {
+		return components.HeaderTitleStyle.Render("logs")
 	}
 
-	return headerTitleStyle.Render("services")
+	return components.HeaderTitleStyle.Render("services")
 }
 
 func (m Model) renderHeader() string {
 	title := m.renderTitle()
 	info := m.renderInfo()
 
-	panelWidth := m.ui.width - components.PanelBorderPadding
-	infoWidth := lipgloss.Width(info)
-
-	maxTitleWidth := panelWidth - infoWidth - components.HeaderSeparatorMin - components.HeaderFixedChars
-	titleWidth := lipgloss.Width(title)
-
-	if titleWidth > maxTitleWidth {
-		title = truncate(title, maxTitleWidth)
-		titleWidth = lipgloss.Width(title)
-	}
-
-	paddingWidth := panelWidth - titleWidth - infoWidth - components.HeaderFixedChars
-	if paddingWidth < components.HeaderSeparatorMin {
-		paddingWidth = components.HeaderSeparatorMin
-	}
-
-	prefix := borderCharStyle.Render("╭─ ")
-	separator := borderCharStyle.Render(strings.Repeat("─", paddingWidth))
-	suffix := borderCharStyle.Render(" ─╮")
-
-	return prefix + title + "  " + separator + "  " + info + suffix
-}
-
-func truncate(s string, maxWidth int) string {
-	if maxWidth <= 0 {
-		return ""
-	}
-
-	if maxWidth == 1 {
-		return "…"
-	}
-
-	if lipgloss.Width(s) <= maxWidth {
-		return s
-	}
-
-	runes := []rune(s)
-	for i := len(runes) - 1; i >= 0; i-- {
-		truncated := string(runes[:i]) + "…"
-		if lipgloss.Width(truncated) <= maxWidth {
-			return truncated
-		}
-	}
-
-	return "…"
+	return components.RenderHeader(m.ui.width, title, info)
 }
 
 func (m Model) renderServices() string {
 	if len(m.state.tiers) == 0 {
-		return emptyStateStyle.Render("No services configured")
+		return components.EmptyStateStyle.Render("No services configured")
 	}
 
-	tiers := make([]string, 0, len(m.state.tiers))
-
-	currentIdx := 0
-	maxNameLen := m.getMaxServiceNameLength()
-
-	for _, tier := range m.state.tiers {
-		tiers = append(tiers, m.renderTier(tier, &currentIdx, maxNameLen))
-	}
-
-	content := lipgloss.JoinVertical(lipgloss.Left, tiers...)
-	lines := strings.Split(content, "\n")
-
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-
-	offset := m.ui.servicesViewport.YOffset
-	if offset < 0 {
-		offset = 0
-	}
-
-	maxOffset := len(lines) - m.ui.servicesViewport.Height
-	if maxOffset < 0 {
-		maxOffset = 0
-	}
-
-	if offset > maxOffset {
-		offset = maxOffset
-	}
-
-	endLine := offset + m.ui.servicesViewport.Height
-	if endLine > len(lines) {
-		endLine = len(lines)
-	}
-
-	if offset >= len(lines) {
-		return ""
-	}
-
-	visibleLines := lines[offset:endLine]
-
-	return lipgloss.JoinVertical(lipgloss.Left, visibleLines...)
+	return m.ui.servicesViewport.View()
 }
 
 func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 	rows := make([]string, 0, len(tier.Services)+1)
 
-	rows = append(rows, tierHeaderStyle.Render(tier.Name))
+	rows = append(rows, components.TierHeaderStyle.Render(tier.Name))
 
 	for _, serviceName := range tier.Services {
 		service, exists := m.state.services[serviceName]
@@ -199,7 +110,9 @@ func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 		*currentIdx++
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	return components.TierContainerStyle.Render(content)
 }
 
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
@@ -211,7 +124,9 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	if service.FSM != nil {
 		state := service.FSM.Current()
 		if state == Starting || state == Stopping || state == Restarting {
-			indicator = "● "
+			if service.Blink != nil {
+				indicator = service.Blink.Render(components.IndicatorActiveStyle) + " "
+			}
 		}
 	}
 
@@ -224,26 +139,22 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	cpu := m.getCPU(service)
 	mem := m.getMem(service)
 
-	serviceName := service.Name
-
-	availableWidth := m.ui.servicesViewport.Width - fixedColumnsWidth
-	if availableWidth < minServiceNameWidth {
-		availableWidth = minServiceNameWidth
+	availableWidth := m.ui.servicesViewport.Width - components.FixedColumnsWidth
+	if availableWidth < components.ServiceNameMinWidth {
+		availableWidth = components.ServiceNameMinWidth
 	}
 
 	if maxNameLen > availableWidth {
 		maxNameLen = availableWidth
 	}
 
-	if len(serviceName) > maxNameLen {
-		serviceName = serviceName[:maxNameLen-1] + "…"
-	}
+	serviceName := truncateServiceName(service.Name, maxNameLen)
+	paddedServiceName := padServiceName(serviceName, maxNameLen)
 
-	row := fmt.Sprintf("%s%s %-*s  %-10s  %6s  %7s  %s",
+	row := fmt.Sprintf("%s%s %s  %-10s  %6s  %7s  %s",
 		indicator,
 		logCheckbox,
-		maxNameLen,
-		serviceName,
+		paddedServiceName,
 		string(service.Status),
 		cpu,
 		mem,
@@ -252,26 +163,29 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 
 	rowWidth := m.ui.servicesViewport.Width
 	if rowWidth < 1 {
-		rowWidth = m.ui.width - rowWidthPadding
+		rowWidth = m.ui.width - components.RowWidthPadding
 	}
 
 	if service.Error != nil {
-		errorText := fmt.Sprintf(" (%s)", service.Error.Error())
+		rowDisplayWidth := lipgloss.Width(row)
+		availableWidth := rowWidth - rowDisplayWidth
+
+		errorText := truncateErrorMessage(service.Error.Error(), availableWidth)
 		row += errorText
 	}
 
-	currentLen := len(row)
-	if currentLen < rowWidth {
-		row += strings.Repeat(" ", rowWidth-currentLen)
+	currentDisplayWidth := lipgloss.Width(row)
+	if currentDisplayWidth < rowWidth {
+		row += strings.Repeat(" ", rowWidth-currentDisplayWidth)
 	}
 
 	if isSelected {
-		return selectedServiceRowStyle.Width(rowWidth).Render(row)
+		return components.SelectedServiceRowStyle.Width(rowWidth).Render(row)
 	}
 
 	styledRow := m.applyRowStyles(row, service)
 
-	return serviceRowStyle.Render(styledRow)
+	return components.ServiceRowStyle.Render(styledRow)
 }
 
 func (m Model) applyRowStyles(row string, service *ServiceState) string {
@@ -283,13 +197,13 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 
 	switch service.Status {
 	case StatusReady:
-		styledStatus = statusReadyStyle.Render(statusStr)
+		styledStatus = components.StatusReadyStyle.Render(statusStr)
 	case StatusStarting:
-		styledStatus = statusStartingStyle.Render(statusStr)
+		styledStatus = components.StatusStartingStyle.Render(statusStr)
 	case StatusFailed:
-		styledStatus = statusFailedStyle.Render(statusStr)
+		styledStatus = components.StatusFailedStyle.Render(statusStr)
 	case StatusStopped:
-		styledStatus = statusStoppedStyle.Render(statusStr)
+		styledStatus = components.StatusStoppedStyle.Render(statusStr)
 	default:
 		styledStatus = statusStr
 	}
@@ -298,7 +212,7 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 
 	if service.Error != nil {
 		errorText := fmt.Sprintf("(%s)", service.Error.Error())
-		styledError := errorStyle.Render(errorText)
+		styledError := components.ErrorStyle.Render(errorText)
 		result = strings.Replace(result, errorText, styledError, 1)
 	}
 
@@ -309,14 +223,14 @@ func (m Model) renderLogs() string {
 	return m.logView.View()
 }
 
-func (m Model) renderHelp() string {
-	var helpView string
+func (m Model) renderFooter() string {
+	var helpText string
 
-	if m.navigator.CurrentView() == navigation.ViewLogs {
-		helpView = m.ui.help.View(LogsHelpKeyMap(m.ui.keys))
+	if m.navigator.IsLogs() {
+		helpText = m.ui.help.View(LogsHelpKeyMap(m.ui.keys))
 	} else {
-		helpView = m.ui.help.View(ServicesHelpKeyMap(m.ui.keys))
+		helpText = m.ui.help.View(ServicesHelpKeyMap(m.ui.keys))
 	}
 
-	return helpStyle.Render(helpView)
+	return components.RenderFooter(m.ui.width, helpText)
 }

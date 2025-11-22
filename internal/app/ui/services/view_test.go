@@ -27,10 +27,10 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).AnyTimes()
+	mockNav.EXPECT().IsLogs().Return(false).AnyTimes()
 
 	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().IsEnabled("api").Return(true)
+	mockLogView.EXPECT().IsEnabled("api").Return(true).AnyTimes()
 
 	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: "_shutdown", Message: "Shutting down…"}}}
 	m := Model{loader: loader, navigator: mockNav, logView: mockLogView}
@@ -56,7 +56,7 @@ func Test_RenderHeader_ServicesView(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+	mockNav.EXPECT().IsLogs().Return(false).Times(2)
 
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, navigator: mockNav}
@@ -66,8 +66,7 @@ func Test_RenderHeader_ServicesView(t *testing.T) {
 	m.ui.width = 100
 
 	header := m.renderHeader()
-	assert.Contains(t, header, "╭─")
-	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "───")
 	assert.Contains(t, header, "services")
 	assert.Contains(t, header, "Running")
 	assert.Contains(t, header, "1/1")
@@ -78,7 +77,7 @@ func Test_RenderHeader_LogsView(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewLogs).Times(2)
+	mockNav.EXPECT().IsLogs().Return(true).Times(2)
 
 	mockLogView := ui.NewMockLogView(ctrl)
 	mockLogView.EXPECT().Autoscroll().Return(false)
@@ -91,8 +90,7 @@ func Test_RenderHeader_LogsView(t *testing.T) {
 	m.ui.width = 100
 
 	header := m.renderHeader()
-	assert.Contains(t, header, "╭─")
-	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "───")
 	assert.Contains(t, header, "logs")
 }
 
@@ -101,7 +99,7 @@ func Test_RenderHeader_WithActiveLoader(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
+	mockNav.EXPECT().IsLogs().Return(false)
 
 	loader := &Loader{Model: spinner.New(), Active: true, queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Starting api…")
@@ -112,8 +110,7 @@ func Test_RenderHeader_WithActiveLoader(t *testing.T) {
 	m.ui.width = 100
 
 	header := m.renderHeader()
-	assert.Contains(t, header, "╭─")
-	assert.Contains(t, header, "─╮")
+	assert.Contains(t, header, "───")
 	assert.Contains(t, header, "Starting api…")
 }
 
@@ -134,7 +131,7 @@ func Test_RenderInfo_PhaseColors(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockNav := navigation.NewMockNavigator(ctrl)
-			mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
+			mockNav.EXPECT().IsLogs().Return(false)
 
 			loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 			m := Model{loader: loader, navigator: mockNav}
@@ -147,36 +144,12 @@ func Test_RenderInfo_PhaseColors(t *testing.T) {
 	}
 }
 
-func Test_Truncate(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		maxWidth int
-		want     string
-	}{
-		{name: "no truncation needed", input: "short", maxWidth: 10, want: "short"},
-		{name: "exact fit", input: "exact", maxWidth: 5, want: "exact"},
-		{name: "needs truncation", input: "long string here", maxWidth: 10, want: "long stri…"},
-		{name: "very short max", input: "test", maxWidth: 2, want: "t…"},
-		{name: "max width 1", input: "test", maxWidth: 1, want: "…"},
-		{name: "max width 0", input: "test", maxWidth: 0, want: ""},
-		{name: "negative max", input: "test", maxWidth: -1, want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := truncate(tt.input, tt.maxWidth)
-			assert.Equal(t, tt.want, result)
-		})
-	}
-}
-
 func Test_RenderHeader_Width(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices).Times(2)
+	mockNav.EXPECT().IsLogs().Return(false).Times(2)
 
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, navigator: mockNav}
@@ -186,8 +159,7 @@ func Test_RenderHeader_Width(t *testing.T) {
 	m.ui.width = 80
 
 	header := m.renderHeader()
-	expectedWidth := m.ui.width
-	assert.Equal(t, expectedWidth, lipgloss.Width(header))
+	assert.Equal(t, m.ui.width, lipgloss.Width(header))
 }
 
 func Test_RenderServices_Empty(t *testing.T) {
@@ -209,17 +181,18 @@ func Test_RenderLogs_Empty(t *testing.T) {
 	assert.Contains(t, result, "No logs enabled")
 }
 
-func Test_RenderHelp(t *testing.T) {
+func Test_RenderFooter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
+	mockNav.EXPECT().IsLogs().Return(false)
 
 	m := Model{navigator: mockNav}
 	m.ui.keys = DefaultKeyMap()
 	m.ui.help = help.New()
-	result := m.renderHelp()
+	m.ui.width = 80
+	result := m.renderFooter()
 	assert.NotEmpty(t, result)
 }
 

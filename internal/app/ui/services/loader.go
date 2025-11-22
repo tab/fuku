@@ -1,6 +1,10 @@
 package services
 
-import "github.com/charmbracelet/bubbles/spinner"
+import (
+	"github.com/charmbracelet/bubbles/spinner"
+
+	"fuku/internal/app/ui/components"
+)
 
 // LoaderItem represents a single loader operation
 type LoaderItem struct {
@@ -19,7 +23,7 @@ type Loader struct {
 func NewLoader() *Loader {
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
-	s.Style = spinnerStyle
+	s.Style = components.SpinnerStyle
 
 	return &Loader{
 		Model:  s,
