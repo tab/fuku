@@ -38,6 +38,9 @@ const (
 	ServiceNameMinWidth  = 20
 	ViewportWidthPadding = 0
 	RowWidthPadding      = 8
+	Current              = "› "
+	Empty                = "[ ]"
+	Selected             = "[✓]"
 )
 
 // Logs view constants

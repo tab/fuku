@@ -118,7 +118,7 @@ func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
 	indicator := "  "
 	if isSelected {
-		indicator = "▸ "
+		indicator = components.Current
 	}
 
 	if service.FSM != nil {
@@ -130,9 +130,9 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 		}
 	}
 
-	logCheckbox := "[ ]"
+	logCheckbox := components.Empty
 	if m.logView.IsEnabled(service.Name) {
-		logCheckbox = "[x]"
+		logCheckbox = components.Selected
 	}
 
 	uptime := m.getUptime(service)

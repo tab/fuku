@@ -282,7 +282,7 @@ func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
 	row1 := m.renderServiceRow(service1, false, 25)
 	row2 := m.renderServiceRow(service2, false, 25)
 
-	assert.Contains(t, row1, "[x] api")
+	assert.Contains(t, row1, "[✓] api")
 	assert.Contains(t, row1, "Ready")
 	assert.Contains(t, row2, "[ ] user-management-service")
 	assert.Contains(t, row2, "Starting")
@@ -304,8 +304,8 @@ func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 	notSelected := m.renderServiceRow(service, false, 20)
 	selected := m.renderServiceRow(service, true, 20)
 
-	assert.Contains(t, notSelected, "  [x]")
-	assert.Contains(t, selected, "▸ [x]")
+	assert.Contains(t, notSelected, "  [✓]")
+	assert.Contains(t, selected, "› [✓]")
 }
 
 func Test_RenderTier_Spacing(t *testing.T) {
