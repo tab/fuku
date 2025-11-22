@@ -10,6 +10,7 @@
 package monitor
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -40,16 +41,16 @@ func (m *MockMonitor) EXPECT() *MockMonitorMockRecorder {
 }
 
 // GetStats mocks base method.
-func (m *MockMonitor) GetStats(pid int) (Stats, error) {
+func (m *MockMonitor) GetStats(ctx context.Context, pid int) (Stats, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStats", pid)
+	ret := m.ctrl.Call(m, "GetStats", ctx, pid)
 	ret0, _ := ret[0].(Stats)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetStats indicates an expected call of GetStats.
-func (mr *MockMonitorMockRecorder) GetStats(pid any) *gomock.Call {
+func (mr *MockMonitorMockRecorder) GetStats(ctx, pid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStats", reflect.TypeOf((*MockMonitor)(nil).GetStats), pid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStats", reflect.TypeOf((*MockMonitor)(nil).GetStats), ctx, pid)
 }
