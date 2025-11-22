@@ -4,25 +4,90 @@ import "github.com/charmbracelet/lipgloss"
 
 // Common styles shared across UI components
 var (
-	// HelpStyle for help text
 	HelpStyle = lipgloss.NewStyle().
-			Foreground(ColorBorder).
-			Padding(0, 2)
+		Foreground(FgBorder)
 
-	// TimestampStyle for timestamp text
 	TimestampStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+		Foreground(FgMuted)
 
-	// ErrorStyle for error messages
 	ErrorStyle = lipgloss.NewStyle().
-			Foreground(ColorFailed)
+		Foreground(FgStatusError)
 
-	// EmptyStateStyle for empty state messages
 	EmptyStateStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			MarginTop(1)
+		Foreground(FgMuted).
+		Padding(0, 1)
 
-	// SpinnerStyle for loading spinners
 	SpinnerStyle = lipgloss.NewStyle().
-			Foreground(ColorPrimary)
+		Foreground(FgPrimary)
+
+	SeparatorStyle = lipgloss.NewStyle().
+		Foreground(FgPrimary)
+
+	HeaderStyle = lipgloss.NewStyle().
+		MarginTop(1).
+		MarginBottom(1)
+	HeaderTitleStyle = lipgloss.NewStyle().
+		Foreground(FgPrimary).
+		Bold(true)
+
+	FooterStyle = lipgloss.NewStyle().
+		MarginTop(1)
+	FooterHelpStyle = lipgloss.NewStyle().
+		MarginTop(1).
+		Padding(0, 1)
+
+	TierContainerStyle = lipgloss.NewStyle().
+		MarginBottom(1)
+	TierHeaderStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(FgPrimary).
+		Padding(0, 1)
+
+	ServiceRowStyle = lipgloss.NewStyle().
+		Padding(0, 2)
+
+	SelectedServiceRowStyle = lipgloss.NewStyle().
+		Background(BgSelection).
+		Padding(0, 2)
+
+	StatusReadyStyle = lipgloss.NewStyle().
+		Foreground(FgStatusReady).
+		Bold(true)
+	StatusStartingStyle = lipgloss.NewStyle().
+		Foreground(FgStatusWarning).
+		Bold(true)
+	StatusFailedStyle = lipgloss.NewStyle().
+		Foreground(FgStatusError).
+		Bold(true)
+	StatusStoppedStyle = lipgloss.NewStyle().
+		Foreground(FgStatusStopped).
+		Bold(true)
+
+	PhaseStartingStyle = lipgloss.NewStyle().
+		Foreground(FgStatusWarning)
+	PhaseRunningStyle = lipgloss.NewStyle().
+		Foreground(FgStatusReady)
+	PhaseStoppingStyle = lipgloss.NewStyle().
+		Foreground(FgStatusError)
+	PhaseMutedStyle = lipgloss.NewStyle().
+		Foreground(FgMuted)
+
+	IndicatorActiveStyle = lipgloss.NewStyle().
+		Foreground(FgStatusWarning)
+
+	ServiceNameStyle = lipgloss.NewStyle().
+		Foreground(FgPrimary).
+		Bold(true)
+
+	LogLevelDebugStyle = lipgloss.NewStyle().
+		Foreground(FgLogDebug)
+	LogLevelInfoStyle = lipgloss.NewStyle().
+		Foreground(FgLogInfo)
+	LogLevelWarnStyle = lipgloss.NewStyle().
+		Foreground(FgLogWarn)
+	LogLevelErrorStyle = lipgloss.NewStyle().
+		Foreground(FgLogError)
+
+	UUIDStyle = lipgloss.NewStyle().
+		Foreground(FgLight)
 )
