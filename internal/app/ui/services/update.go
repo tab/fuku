@@ -8,8 +8,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"fuku/internal/app/runtime"
+	"fuku/internal/app/ui"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/app/ui/navigation"
+)
+
+const (
+	tickInterval       = components.UITickInterval
+	tickCounterMaximum = 1000000
 )
 
 type eventMsg runtime.Event
@@ -27,7 +33,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.height = msg.Height
 		m.ui.help.Width = msg.Width
 
-		panelHeight := msg.Height - components.PanelHeightOffsetBottom
+		panelHeight := msg.Height - components.PanelHeightPadding
 		if panelHeight < components.MinPanelHeight {
 			panelHeight = components.MinPanelHeight
 		}
@@ -40,6 +46,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state.ready = true
 		}
 
+		m.updateServicesContent()
+
 		return m, nil
 
 	case spinner.TickMsg:
@@ -50,8 +58,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tickMsg:
-		m.updateProcessStats()
+		m.ui.tickCounter++
+
+		if m.ui.tickCounter >= tickCounterMaximum {
+			m.ui.tickCounter = 0
+		}
+
+		hasActiveBlinking := m.updateBlinkAnimations()
+		if hasActiveBlinking {
+			m.updateServicesContent()
+		}
+
 		return m, tickCmd()
+
+	case statsUpdateMsg:
+		m.applyStatsUpdate(msg)
+		m.updateServicesContent()
+
+		return m, statsWorkerCmd(m.ctx, &m)
 
 	case eventMsg:
 		return m.handleEvent(runtime.Event(msg))
@@ -111,7 +135,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "pgup", "pgdown", "home", "end":
 		var cmd tea.Cmd
 
-		if m.navigator.CurrentView() == navigation.ViewLogs {
+		if m.navigator.IsLogs() {
 			cmd = m.logView.HandleKey(msg)
 		} else {
 			m.ui.servicesViewport, cmd = m.ui.servicesViewport.Update(msg)
@@ -124,7 +148,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleAutoscroll() (tea.Model, tea.Cmd) {
-	if m.navigator.CurrentView() == navigation.ViewLogs {
+	if m.navigator.IsLogs() {
 		m.logView.ToggleAutoscroll()
 	}
 
@@ -132,7 +156,7 @@ func (m Model) handleAutoscroll() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.navigator.CurrentView() == navigation.ViewLogs {
+	if m.navigator.IsLogs() {
 		cmd := m.logView.HandleKey(msg)
 
 		return m, cmd
@@ -140,6 +164,7 @@ func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if m.state.selected > 0 {
 		m.state.selected--
+		m.updateServicesContent()
 		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
 	}
 
@@ -147,7 +172,7 @@ func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleDownKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.navigator.CurrentView() == navigation.ViewLogs {
+	if m.navigator.IsLogs() {
 		cmd := m.logView.HandleKey(msg)
 
 		return m, cmd
@@ -156,6 +181,7 @@ func (m Model) handleDownKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	total := m.getTotalServices()
 	if m.state.selected < total-1 {
 		m.state.selected++
+		m.updateServicesContent()
 		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
 	}
 
@@ -247,6 +273,8 @@ func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 		m = m.handleServiceFailed(event)
 	case runtime.EventServiceStopped:
 		m = m.handleServiceStopped(event)
+	case runtime.EventLogLine:
+		m.handleLogLine(event)
 	case runtime.EventSignalCaught:
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
@@ -264,6 +292,10 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 
 	m.log.Debug().Msgf("TUI: ProfileResolved - profile=%s, tiers=%d", data.Profile, len(data.Tiers))
 
+	m.state.services = make(map[string]*ServiceState)
+	m.state.selected = 0
+	m.loader.StopAll()
+
 	var services []string
 
 	m.state.tiers = make([]Tier, len(data.Tiers))
@@ -272,7 +304,12 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 
 		m.state.tiers[i] = Tier{Name: tier.Name, Services: tier.Services, Ready: false}
 		for _, serviceName := range tier.Services {
-			service := &ServiceState{Name: serviceName, Tier: tier.Name, Status: StatusStarting}
+			service := &ServiceState{
+				Name:   serviceName,
+				Tier:   tier.Name,
+				Status: StatusStarting,
+				Blink:  components.NewBlink(),
+			}
 			service.FSM = newServiceFSM(service, m.loader)
 			m.state.services[serviceName] = service
 			services = append(services, serviceName)
@@ -396,6 +433,21 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 	return m
 }
 
+func (m Model) handleLogLine(event runtime.Event) {
+	data, ok := event.Data.(runtime.LogLineData)
+	if !ok {
+		return
+	}
+
+	m.logView.HandleLog(ui.LogEntry{
+		Timestamp: event.Timestamp,
+		Service:   data.Service,
+		Tier:      data.Tier,
+		Stream:    data.Stream,
+		Message:   data.Message,
+	})
+}
+
 func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
 	return func() tea.Msg {
 		event, ok := <-eventChan
@@ -408,7 +460,7 @@ func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
 }
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(tickInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

@@ -1,25 +1,64 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"fuku/internal/app/ui/components"
 )
 
-func (m *Model) updateProcessStats() {
-	for _, service := range m.state.services {
-		if service.Monitor.PID > 0 && service.Status != StatusStopped {
-			stats, err := m.monitor.GetStats(service.Monitor.PID)
-			if err != nil {
-				continue
-			}
+// ServiceStats holds CPU and memory statistics for a service
+type ServiceStats struct {
+	CPU float64
+	MEM float64
+}
 
+// statsUpdateMsg is sent by the background worker with batched stats
+type statsUpdateMsg struct {
+	Stats map[string]ServiceStats
+}
+
+// applyStatsUpdate applies batched stats to service monitors
+func (m *Model) applyStatsUpdate(msg statsUpdateMsg) {
+	for serviceName, stats := range msg.Stats {
+		if service, exists := m.state.services[serviceName]; exists {
 			service.Monitor.CPU = stats.CPU
 			service.Monitor.MEM = stats.MEM
 		}
 	}
 }
 
-func (m Model) getUptime(service *ServiceState) string {
+func (m *Model) updateBlinkAnimations() bool {
+	hasActiveBlinking := false
+
+	for _, service := range m.state.services {
+		if service.Blink == nil {
+			continue
+		}
+
+		if service.FSM != nil {
+			state := service.FSM.Current()
+			if state == Starting || state == Stopping || state == Restarting {
+				if !service.Blink.IsActive() {
+					service.Blink.Start()
+				}
+
+				service.Blink.Update()
+
+				hasActiveBlinking = true
+			} else if service.Blink.IsActive() {
+				service.Blink.Stop()
+			}
+		}
+	}
+
+	return hasActiveBlinking
+}
+
+func (m *Model) getUptime(service *ServiceState) string {
 	if service.Status == StatusStopped || service.Monitor.StartTime.IsZero() {
 		return ""
 	}
@@ -36,26 +75,138 @@ func (m Model) getUptime(service *ServiceState) string {
 	return pad(minutes) + ":" + pad(seconds)
 }
 
-func (m Model) getCPU(service *ServiceState) string {
-	if service.Status == StatusStopped || service.Monitor.PID == 0 {
+func (m *Model) getCPU(service *ServiceState) string {
+	if !m.isServiceMonitored(service) {
 		return ""
 	}
 
 	return fmt.Sprintf("%.1f%%", service.Monitor.CPU)
 }
 
-func (m Model) getMem(service *ServiceState) string {
-	if service.Status == StatusStopped || service.Monitor.PID == 0 {
+func (m *Model) getMem(service *ServiceState) string {
+	if !m.isServiceMonitored(service) {
 		return ""
 	}
 
-	if service.Monitor.MEM < 1024 {
+	if service.Monitor.MEM < components.MBToGB {
 		return fmt.Sprintf("%.0fMB", service.Monitor.MEM)
 	}
 
-	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/1024)
+	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/components.MBToGB)
+}
+
+func (m *Model) isServiceMonitored(service *ServiceState) bool {
+	return service.Status != StatusStopped && service.Monitor.PID != 0
 }
 
 func pad(n int) string {
 	return fmt.Sprintf("%02d", n)
+}
+
+// statsWorkerCmd schedules a single stats collection and returns the result
+func statsWorkerCmd(ctx context.Context, m *Model) tea.Cmd {
+	return tea.Tick(components.StatsPollingInterval, func(t time.Time) tea.Msg {
+		// Create batch-level timeout context
+		batchCtx, cancel := context.WithTimeout(ctx, components.StatsBatchTimeout)
+		defer cancel()
+
+		stats := m.collectStats(batchCtx)
+
+		return statsUpdateMsg{Stats: stats}
+	})
+}
+
+// collectStats polls all services and returns batched stats with per-call timeouts
+func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
+	type serviceJob struct {
+		name string
+		pid  int
+	}
+
+	// Collect services to poll
+	var jobs []serviceJob
+
+	for name, service := range m.state.services {
+		if service.Monitor.PID > 0 && service.Status != StatusStopped {
+			jobs = append(jobs, serviceJob{name: name, pid: service.Monitor.PID})
+		}
+	}
+
+	if len(jobs) == 0 {
+		return nil
+	}
+
+	// Semaphore to limit concurrent GetStats calls
+	sem := make(chan struct{}, components.StatsMaxConcurrency)
+	results := make(chan struct {
+		name  string
+		stats ServiceStats
+		err   error
+	}, len(jobs))
+
+	// Launch workers with concurrency cap
+	launched := 0
+
+launchLoop:
+	for _, job := range jobs {
+		// Stop launching if batch context is cancelled
+		if ctx.Err() != nil {
+			break launchLoop
+		}
+
+		select {
+		case <-ctx.Done():
+			// Batch timeout reached
+			break launchLoop
+		case sem <- struct{}{}:
+			launched++
+
+			go func(j serviceJob) {
+				defer func() { <-sem }()
+
+				// Create per-call timeout context
+				callCtx, cancel := context.WithTimeout(ctx, components.StatsCallTimeout)
+
+				// Poll stats with timeout
+				result, err := m.getStatsWithContext(callCtx, j.pid)
+
+				cancel() // Cancel immediately to release timer
+
+				// Always send result, even on error, to prevent blocking
+				results <- struct {
+					name  string
+					stats ServiceStats
+					err   error
+				}{name: j.name, stats: result, err: err}
+			}(job)
+		}
+	}
+
+	// Collect results from launched workers only
+	stats := make(map[string]ServiceStats)
+
+	for i := 0; i < launched; i++ {
+		select {
+		case <-ctx.Done():
+			// Batch timeout reached, return partial results
+			return stats
+		case result := <-results:
+			// Only apply successful results; failures keep existing stats
+			if result.err == nil {
+				stats[result.name] = result.stats
+			}
+		}
+	}
+
+	return stats
+}
+
+// getStatsWithContext calls monitor.GetStats with context for cancellation support
+func (m *Model) getStatsWithContext(ctx context.Context, pid int) (ServiceStats, error) {
+	stats, err := m.monitor.GetStats(ctx, pid)
+	if err != nil {
+		return ServiceStats{}, err
+	}
+
+	return ServiceStats{CPU: stats.CPU, MEM: stats.MEM}, nil
 }

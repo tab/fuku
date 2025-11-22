@@ -7,14 +7,21 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/looplab/fsm"
 
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/components"
 	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
+
+// subscriber interface for starting log event subscription
+type subscriber interface {
+	StartCmd(ctx context.Context) tea.Cmd
+}
 
 // Status represents the status of a service
 type Status string
@@ -51,6 +58,7 @@ type ServiceState struct {
 	Error   error
 	FSM     *fsm.FSM
 	Monitor ServiceMonitor
+	Blink   *components.Blink
 }
 
 // MarkStarting sets the service status to starting
@@ -89,6 +97,7 @@ type Model struct {
 	logView    ui.LogView
 	navigator  navigation.Navigator
 	loader     *Loader
+	subscriber subscriber
 	eventChan  <-chan runtime.Event
 
 	state struct {
@@ -107,6 +116,7 @@ type Model struct {
 		keys             KeyMap
 		help             help.Model
 		servicesViewport viewport.Model
+		tickCounter      int
 	}
 
 	log logger.Logger
@@ -123,6 +133,7 @@ func NewModel(
 	logView ui.LogView,
 	navigator navigation.Navigator,
 	loader *Loader,
+	sub subscriber,
 	log logger.Logger,
 ) Model {
 	eventChan := event.Subscribe(ctx)
@@ -136,6 +147,7 @@ func NewModel(
 		controller: controller,
 		monitor:    monitor,
 		loader:     loader,
+		subscriber: sub,
 		eventChan:  eventChan,
 		logView:    logView,
 		navigator:  navigator,
@@ -161,13 +173,21 @@ func NewModel(
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.loader.Model.Tick,
 		waitForEventCmd(m.eventChan),
 		tickCmd(),
-	)
+		statsWorkerCmd(m.ctx, &m),
+	}
+
+	if m.subscriber != nil {
+		cmds = append(cmds, m.subscriber.StartCmd(m.ctx))
+	}
+
+	return tea.Batch(cmds...)
 }
 
+// getSelectedService returns the currently selected service state
 func (m Model) getSelectedService() *ServiceState {
 	if m.state.selected < 0 {
 		return nil
@@ -188,6 +208,7 @@ func (m Model) getSelectedService() *ServiceState {
 	return nil
 }
 
+// getTotalServices returns the total count of services
 func (m Model) getTotalServices() int {
 	total := 0
 	for _, tier := range m.state.tiers {
@@ -197,6 +218,7 @@ func (m Model) getTotalServices() int {
 	return total
 }
 
+// getReadyServices returns the count of services in ready state
 func (m Model) getReadyServices() int {
 	count := 0
 
@@ -209,18 +231,21 @@ func (m Model) getReadyServices() int {
 	return count
 }
 
+// getMaxServiceNameLength returns the maximum service name length for formatting
 func (m Model) getMaxServiceNameLength() int {
-	maxLen := 20
+	maxLen := components.ServiceNameMinWidth
 
 	for _, service := range m.state.services {
-		if len(service.Name) > maxLen {
-			maxLen = len(service.Name)
+		nameWidth := lipgloss.Width(service.Name)
+		if nameWidth > maxLen {
+			maxLen = nameWidth
 		}
 	}
 
 	return maxLen
 }
 
+// calculateScrollOffset calculates the scroll offset to ensure the selected service is visible
 func (m Model) calculateScrollOffset() int {
 	if m.ui.servicesViewport.Height == 0 {
 		return m.ui.servicesViewport.YOffset
@@ -265,4 +290,24 @@ func (m Model) calculateScrollOffset() int {
 	}
 
 	return m.ui.servicesViewport.YOffset
+}
+
+// updateServicesContent builds the full services content and sets it in the viewport
+func (m *Model) updateServicesContent() {
+	if len(m.state.tiers) == 0 {
+		m.ui.servicesViewport.SetContent("")
+
+		return
+	}
+
+	tiers := make([]string, 0, len(m.state.tiers))
+	currentIdx := 0
+	maxNameLen := m.getMaxServiceNameLength()
+
+	for _, tier := range m.state.tiers {
+		tiers = append(tiers, m.renderTier(tier, &currentIdx, maxNameLen))
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Left, tiers...)
+	m.ui.servicesViewport.SetContent(content)
 }
