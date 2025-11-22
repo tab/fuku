@@ -12,6 +12,7 @@ import (
 
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
+	"fuku/internal/app/ui/components"
 	"fuku/internal/app/ui/navigation"
 )
 
@@ -282,7 +283,7 @@ func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
 	row1 := m.renderServiceRow(service1, false, 25)
 	row2 := m.renderServiceRow(service2, false, 25)
 
-	assert.Contains(t, row1, "[x] api")
+	assert.Contains(t, row1, "[✓] api")
 	assert.Contains(t, row1, "Ready")
 	assert.Contains(t, row2, "[ ] user-management-service")
 	assert.Contains(t, row2, "Starting")
@@ -304,8 +305,8 @@ func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 	notSelected := m.renderServiceRow(service, false, 20)
 	selected := m.renderServiceRow(service, true, 20)
 
-	assert.Contains(t, notSelected, "  [x]")
-	assert.Contains(t, selected, "▸ [x]")
+	assert.Contains(t, notSelected, "  [✓]")
+	assert.Contains(t, selected, "› [✓]")
 }
 
 func Test_RenderTier_Spacing(t *testing.T) {
@@ -358,4 +359,134 @@ func Test_RenderTier_ServiceCount(t *testing.T) {
 	assert.Contains(t, result, "api")
 	assert.Contains(t, result, "db")
 	assert.Contains(t, result, "web")
+}
+
+func Test_GetServiceIndicator_DefaultNotSelected(t *testing.T) {
+	m := Model{}
+	service := &ServiceState{Name: "api", Status: StatusStopped}
+	result := m.getServiceIndicator(service, false)
+	assert.Equal(t, "  ", result)
+}
+
+func Test_GetServiceIndicator_DefaultSelected(t *testing.T) {
+	m := Model{}
+	service := &ServiceState{Name: "api", Status: StatusStopped}
+	result := m.getServiceIndicator(service, true)
+	assert.Equal(t, "› ", result)
+}
+
+func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
+	tests := []struct {
+		name       string
+		isSelected bool
+		want       string
+	}{
+		{name: "FSM nil not selected", isSelected: false, want: "  "},
+		{name: "FSM nil selected", isSelected: true, want: "› "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			service := &ServiceState{Name: "api", Status: StatusReady, FSM: nil}
+			result := m.getServiceIndicator(service, tt.isSelected)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func Test_GetServiceIndicator_GuardNonTransitionalState(t *testing.T) {
+	tests := []struct {
+		name       string
+		state      string
+		isSelected bool
+		want       string
+	}{
+		{name: "Running state not selected", state: Running, isSelected: false, want: "  "},
+		{name: "Running state selected", state: Running, isSelected: true, want: "› "},
+		{name: "Stopped state not selected", state: Stopped, isSelected: false, want: "  "},
+		{name: "Failed state not selected", state: Failed, isSelected: false, want: "  "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			service := &ServiceState{Name: "api", Status: StatusReady}
+			service.FSM = newServiceFSM(service, newTestLoader())
+			service.FSM.SetState(tt.state)
+			result := m.getServiceIndicator(service, tt.isSelected)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func Test_GetServiceIndicator_GuardBlinkNil(t *testing.T) {
+	tests := []struct {
+		name       string
+		state      string
+		isSelected bool
+		want       string
+	}{
+		{name: "Starting state Blink nil not selected", state: Starting, isSelected: false, want: "  "},
+		{name: "Stopping state Blink nil selected", state: Stopping, isSelected: true, want: "› "},
+		{name: "Restarting state Blink nil not selected", state: Restarting, isSelected: false, want: "  "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			service := &ServiceState{Name: "api", Status: StatusReady, Blink: nil}
+			service.FSM = newServiceFSM(service, newTestLoader())
+			service.FSM.SetState(tt.state)
+			result := m.getServiceIndicator(service, tt.isSelected)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func Test_GetServiceIndicator_BlinkIndicatorNotSelected(t *testing.T) {
+	tests := []struct {
+		name  string
+		state string
+	}{
+		{name: "Starting state with blink", state: Starting},
+		{name: "Stopping state with blink", state: Stopping},
+		{name: "Restarting state with blink", state: Restarting},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			blink := components.NewBlink()
+			service := &ServiceState{Name: "api", Status: StatusReady, Blink: blink}
+			service.FSM = newServiceFSM(service, newTestLoader())
+			service.FSM.SetState(tt.state)
+			result := m.getServiceIndicator(service, false)
+			assert.NotEqual(t, "  ", result)
+			assert.Contains(t, result, " ")
+		})
+	}
+}
+
+func Test_GetServiceIndicator_BlinkIndicatorSelected(t *testing.T) {
+	tests := []struct {
+		name  string
+		state string
+	}{
+		{name: "Starting state selected", state: Starting},
+		{name: "Stopping state selected", state: Stopping},
+		{name: "Restarting state selected", state: Restarting},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			blink := components.NewBlink()
+			service := &ServiceState{Name: "api", Status: StatusReady, Blink: blink}
+			service.FSM = newServiceFSM(service, newTestLoader())
+			service.FSM.SetState(tt.state)
+			result := m.getServiceIndicator(service, true)
+			assert.Equal(t, blink.Frame()+" ", result)
+		})
+	}
 }
