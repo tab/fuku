@@ -26,4 +26,5 @@ type LogView interface {
 	ToggleAutoscroll()
 	Autoscroll() bool
 	HandleKey(msg tea.KeyMsg) tea.Cmd
+	Clear()
 }

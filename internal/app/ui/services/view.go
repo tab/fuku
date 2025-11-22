@@ -227,9 +227,9 @@ func (m Model) renderFooter() string {
 	var helpText string
 
 	if m.navigator.IsLogs() {
-		helpText = m.ui.help.View(LogsHelpKeyMap(m.ui.keys))
+		helpText = m.ui.help.View(m.ui.logsKeys)
 	} else {
-		helpText = m.ui.help.View(ServicesHelpKeyMap(m.ui.keys))
+		helpText = m.ui.help.View(m.ui.servicesKeys)
 	}
 
 	return components.RenderFooter(m.ui.width, helpText)

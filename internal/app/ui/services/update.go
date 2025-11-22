@@ -90,44 +90,47 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch {
-	case key.Matches(msg, m.ui.keys.Quit):
+	case key.Matches(msg, m.ui.servicesKeys.Quit):
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
 		m.controller.StopAll()
 
 		return m, waitForEventCmd(m.eventChan)
 
-	case key.Matches(msg, m.ui.keys.ForceQuit):
+	case key.Matches(msg, m.ui.servicesKeys.ForceQuit):
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
 		m.controller.StopAll()
 
 		return m, waitForEventCmd(m.eventChan)
 
-	case key.Matches(msg, m.ui.keys.ToggleLogs):
+	case key.Matches(msg, m.ui.servicesKeys.ToggleLogs):
 		m.navigator.Toggle()
 
 		return m, nil
 
-	case key.Matches(msg, m.ui.keys.Autoscroll):
+	case key.Matches(msg, m.ui.logsKeys.Autoscroll):
 		return m.handleAutoscroll()
 
-	case key.Matches(msg, m.ui.keys.Up):
+	case key.Matches(msg, m.ui.logsKeys.ClearLogs):
+		return m.handleClearLogs()
+
+	case key.Matches(msg, m.ui.servicesKeys.Up):
 		return m.handleUpKey(msg)
 
-	case key.Matches(msg, m.ui.keys.Down):
+	case key.Matches(msg, m.ui.servicesKeys.Down):
 		return m.handleDownKey(msg)
 
-	case key.Matches(msg, m.ui.keys.Stop):
+	case key.Matches(msg, m.ui.servicesKeys.Stop):
 		return m.handleStopKey()
 
-	case key.Matches(msg, m.ui.keys.Restart):
+	case key.Matches(msg, m.ui.servicesKeys.Restart):
 		return m.handleRestartKey()
 
-	case key.Matches(msg, m.ui.keys.ToggleLogStream):
+	case key.Matches(msg, m.ui.servicesKeys.ToggleLogStream):
 		return m.handleToggleLogStream()
 
-	case key.Matches(msg, m.ui.keys.ToggleAllLogStreams):
+	case key.Matches(msg, m.ui.servicesKeys.ToggleAllLogStreams):
 		return m.handleToggleAllLogStreams()
 	}
 
@@ -150,6 +153,14 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleAutoscroll() (tea.Model, tea.Cmd) {
 	if m.navigator.IsLogs() {
 		m.logView.ToggleAutoscroll()
+	}
+
+	return m, nil
+}
+
+func (m Model) handleClearLogs() (tea.Model, tea.Cmd) {
+	if m.navigator.IsLogs() {
+		m.logView.Clear()
 	}
 
 	return m, nil

@@ -54,6 +54,18 @@ func (mr *MockLogViewMockRecorder) Autoscroll() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Autoscroll", reflect.TypeOf((*MockLogView)(nil).Autoscroll))
 }
 
+// Clear mocks base method.
+func (m *MockLogView) Clear() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Clear")
+}
+
+// Clear indicates an expected call of Clear.
+func (mr *MockLogViewMockRecorder) Clear() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockLogView)(nil).Clear))
+}
+
 // HandleKey mocks base method.
 func (m *MockLogView) HandleKey(msg tea.KeyMsg) tea.Cmd {
 	m.ctrl.T.Helper()

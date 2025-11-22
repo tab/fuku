@@ -42,7 +42,6 @@ type Model struct {
 	height            int
 	lastWidth         int  // Track width for change detection
 	widthDirty        bool // True when width changed, triggers re-render
-	filterVersion     int  // Incremented on filter change to detect stale renders
 }
 
 // NewModel creates a new logs model with its own filter
@@ -66,7 +65,6 @@ func NewModel() Model {
 		autoscroll:        false,
 		lastWidth:         0,
 		widthDirty:        false,
-		filterVersion:     0,
 	}
 }
 
@@ -149,6 +147,27 @@ func (m *Model) invalidateContent() {
 	m.currentContent = ""
 }
 
+// Clear resets the log buffer and viewport while preserving filter and autoscroll state
+func (m *Model) Clear() {
+	for i := 0; i < m.count; i++ {
+		physicalIdx := m.ringIndex(i)
+		m.entries[physicalIdx] = Entry{}
+		m.renderedLines[physicalIdx] = ""
+		m.contentLines[physicalIdx] = ""
+	}
+
+	m.head = 0
+	m.tail = 0
+	m.count = 0
+	m.contentHead = 0
+	m.contentCount = 0
+	m.lastRenderedIndex = -1
+	m.currentContent = ""
+	m.widthDirty = false
+	m.viewport.SetContent("")
+	m.viewport.YOffset = 0
+}
+
 // IsEnabled returns whether logs are enabled for a service
 func (m Model) IsEnabled(service string) bool {
 	return m.filter.IsEnabled(service)
@@ -157,7 +176,6 @@ func (m Model) IsEnabled(service string) bool {
 // SetEnabled updates the visibility state for a service
 func (m *Model) SetEnabled(service string, enabled bool) {
 	m.filter.Set(service, enabled)
-	m.filterVersion++
 	m.invalidateContent()
 	m.updateContent()
 }
@@ -165,7 +183,6 @@ func (m *Model) SetEnabled(service string, enabled bool) {
 // ToggleAll toggles all services (if all enabled -> disable all, otherwise -> enable all)
 func (m *Model) ToggleAll(services []string) {
 	m.filter.ToggleAll(services)
-	m.filterVersion++
 	m.invalidateContent()
 	m.updateContent()
 }

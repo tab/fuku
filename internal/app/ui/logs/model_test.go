@@ -313,3 +313,59 @@ func Test_Model_ScrollPosition_ContentShorterThanViewport(t *testing.T) {
 	// Should be clamped back to 0
 	assert.Equal(t, 0, model.viewport.YOffset, "YOffset should be clamped to 0 when content is still shorter than viewport")
 }
+
+func Test_Model_Clear(t *testing.T) {
+	model := NewModel()
+	model.SetSize(80, 20)
+	model.SetEnabled("api", true)
+	model.ToggleAutoscroll()
+
+	for i := 0; i < 10; i++ {
+		model.HandleLog(ui.LogEntry{Timestamp: time.Now(), Service: "api", Tier: "tier1", Stream: "STDOUT", Message: "test log"})
+	}
+
+	assert.Equal(t, 10, model.count)
+	assert.NotEqual(t, "", model.currentContent)
+
+	model.Clear()
+
+	assert.Equal(t, 0, model.count)
+	assert.Equal(t, 0, model.head)
+	assert.Equal(t, 0, model.tail)
+	assert.Equal(t, 0, model.contentHead)
+	assert.Equal(t, 0, model.contentCount)
+	assert.Equal(t, -1, model.lastRenderedIndex)
+	assert.Equal(t, "", model.currentContent)
+	assert.Equal(t, 0, model.viewport.YOffset)
+	assert.True(t, model.autoscroll, "Autoscroll state should be preserved")
+	assert.True(t, model.IsEnabled("api"), "Filter state should be preserved")
+}
+
+func Test_Model_Clear_NewLogsAfterClear(t *testing.T) {
+	model := NewModel()
+	model.SetSize(80, 20)
+	model.SetEnabled("api", true)
+
+	for i := 0; i < 5; i++ {
+		model.HandleLog(ui.LogEntry{Timestamp: time.Now(), Service: "api", Tier: "tier1", Stream: "STDOUT", Message: "before clear"})
+	}
+
+	model.Clear()
+
+	model.HandleLog(ui.LogEntry{Timestamp: time.Now(), Service: "api", Tier: "tier1", Stream: "STDOUT", Message: "after clear"})
+
+	assert.Equal(t, 1, model.count)
+	assert.Contains(t, model.View(), "after clear")
+	assert.NotContains(t, model.View(), "before clear")
+}
+
+func Test_Model_Clear_EmptyBuffer(t *testing.T) {
+	model := NewModel()
+	model.SetSize(80, 20)
+
+	model.Clear()
+
+	assert.Equal(t, 0, model.count)
+	assert.Equal(t, 0, model.head)
+	assert.Equal(t, 0, model.tail)
+}

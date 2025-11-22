@@ -47,7 +47,8 @@ home/end         Jump to start/end
 r                Restart selected service
 s                Stop/start selected service
 space            Toggle logs for selected service
-l                Switch to logs view
+ctrl+a           Toggle all logs
+tab              Switch to logs view
 q                Quit
 ```
 
@@ -57,7 +58,9 @@ q                Quit
 ↑/↓ or k/j       Scroll logs
 pgup/pgdn        Scroll viewport
 home/end         Jump to start/end
-l                Switch back to services view
+a                Toggle autoscroll
+ctrl+r           Clear logs
+tab              Switch back to services view
 q                Quit
 ```
 

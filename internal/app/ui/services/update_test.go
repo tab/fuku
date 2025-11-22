@@ -465,7 +465,7 @@ func Test_HandleKeyPress_IgnoresKeysWhileShuttingDown(t *testing.T) {
 
 	m := Model{loader: loader, controller: mockController}
 	m.state.shuttingDown = true
-	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesKeys = DefaultKeyMap()
 
 	msg := toKeyMsg("q")
 	teaModel, cmd := m.handleKeyPress(msg)
@@ -487,7 +487,7 @@ func Test_HandleKeyPress_QuitStartsGracefulShutdown(t *testing.T) {
 
 	m := Model{loader: loader, controller: mockController, eventChan: eventChan}
 	m.state.shuttingDown = false
-	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesKeys = DefaultKeyMap()
 
 	msg := toKeyMsg("q")
 	teaModel, cmd := m.handleKeyPress(msg)
@@ -511,7 +511,7 @@ func Test_HandleKeyPress_ForceQuitStartsGracefulShutdown(t *testing.T) {
 
 	m := Model{loader: loader, controller: mockController, eventChan: eventChan}
 	m.state.shuttingDown = false
-	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesKeys = DefaultKeyMap()
 
 	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
 	teaModel, cmd := m.handleKeyPress(msg)
@@ -531,7 +531,7 @@ func Test_Update_KeyMsg(t *testing.T) {
 
 	m := Model{loader: loader, controller: mockController}
 	m.state.shuttingDown = true
-	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesKeys = DefaultKeyMap()
 
 	msg := toKeyMsg("q")
 	teaModel, cmd := m.Update(msg)
@@ -593,6 +593,41 @@ func Test_HandleToggleAllLogStreams_InLogsView(t *testing.T) {
 	}
 
 	teaModel, cmd := m.handleToggleAllLogStreams()
+	result := teaModel.(Model)
+
+	assert.NotNil(t, result)
+	assert.Nil(t, cmd)
+}
+
+func Test_HandleClearLogs_InLogsView(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().IsLogs().Return(true)
+	mockLogView.EXPECT().Clear()
+
+	m := Model{logView: mockLogView, navigator: mockNav}
+
+	teaModel, cmd := m.handleClearLogs()
+	result := teaModel.(Model)
+
+	assert.NotNil(t, result)
+	assert.Nil(t, cmd)
+}
+
+func Test_HandleClearLogs_InServicesView(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogView := ui.NewMockLogView(ctrl)
+	mockNav := navigation.NewMockNavigator(ctrl)
+	mockNav.EXPECT().IsLogs().Return(false)
+
+	m := Model{logView: mockLogView, navigator: mockNav}
+
+	teaModel, cmd := m.handleClearLogs()
 	result := teaModel.(Model)
 
 	assert.NotNil(t, result)

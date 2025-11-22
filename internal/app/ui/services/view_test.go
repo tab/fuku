@@ -42,7 +42,7 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	m.ui.width = 100
 	m.ui.height = 50
 	m.ui.help = help.New()
-	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesKeys = DefaultKeyMap()
 	m.ui.servicesViewport = viewport.New(80, 30)
 
 	result := m.View()
@@ -189,7 +189,7 @@ func Test_RenderFooter(t *testing.T) {
 	mockNav.EXPECT().IsLogs().Return(false)
 
 	m := Model{navigator: mockNav}
-	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesKeys = DefaultKeyMap()
 	m.ui.help = help.New()
 	m.ui.width = 80
 	result := m.renderFooter()

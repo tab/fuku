@@ -14,6 +14,7 @@ import (
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui"
 	"fuku/internal/app/ui/components"
+	"fuku/internal/app/ui/logs"
 	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
@@ -113,7 +114,8 @@ type Model struct {
 	ui struct {
 		width            int
 		height           int
-		keys             KeyMap
+		servicesKeys     KeyMap
+		logsKeys         logs.KeyMap
 		help             help.Model
 		servicesViewport viewport.Model
 		tickCounter      int
@@ -164,7 +166,8 @@ func NewModel(
 
 	m.ui.width = 0
 	m.ui.height = 0
-	m.ui.keys = DefaultKeyMap()
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.logsKeys = logs.DefaultKeyMap()
 	m.ui.help = help.New()
 	m.ui.servicesViewport = viewport.New(0, 0)
 
