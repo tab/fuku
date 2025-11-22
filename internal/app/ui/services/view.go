@@ -148,7 +148,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 		maxNameLen = availableWidth
 	}
 
-	serviceName := truncateServiceName(service.Name, maxNameLen)
+	serviceName := components.Truncate(service.Name, maxNameLen)
 	paddedServiceName := padServiceName(serviceName, maxNameLen)
 
 	row := fmt.Sprintf("%s%s %s  %-10s  %6s  %7s  %s",

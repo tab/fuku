@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
+
+	"fuku/internal/app/ui/components"
 )
 
 func Test_truncateServiceName(t *testing.T) {
@@ -117,7 +119,7 @@ func Test_truncateServiceName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := truncateServiceName(tt.input, tt.maxWidth)
+			result := components.Truncate(tt.input, tt.maxWidth)
 			assert.Equal(t, tt.expected, result)
 
 			if tt.checkWidth {
@@ -139,7 +141,7 @@ func Test_truncateServiceName_PreservesUTF8(t *testing.T) {
 
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
-			result := truncateServiceName(name, 10)
+			result := components.Truncate(name, 10)
 
 			// Result should be valid UTF-8
 			assert.True(t, isValidUTF8(result), "Result should be valid UTF-8")
@@ -176,7 +178,7 @@ func Test_truncateServiceName_DisplayWidth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := truncateServiceName(tt.input, tt.maxWidth)
+			result := components.Truncate(tt.input, tt.maxWidth)
 			resultWidth := lipgloss.Width(result)
 
 			t.Logf("Input: %q (width: %d)", tt.input, lipgloss.Width(tt.input))

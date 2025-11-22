@@ -9,32 +9,6 @@ import (
 	"fuku/internal/app/ui/components"
 )
 
-// truncateServiceName truncates a service name to fit within maxWidth display columns
-func truncateServiceName(serviceName string, maxWidth int) string {
-	currentWidth := lipgloss.Width(serviceName)
-	if currentWidth <= maxWidth {
-		return serviceName
-	}
-
-	ellipsis := "…"
-	ellipsisWidth := lipgloss.Width(ellipsis)
-	targetWidth := maxWidth - ellipsisWidth
-
-	if targetWidth <= 0 {
-		return ellipsis
-	}
-
-	runes := []rune(serviceName)
-	for i := len(runes); i > 0; i-- {
-		candidate := string(runes[:i])
-		if lipgloss.Width(candidate) <= targetWidth {
-			return candidate + ellipsis
-		}
-	}
-
-	return ellipsis
-}
-
 // View returns the rendered logs view
 func (m Model) View() string {
 	if len(strings.TrimSpace(m.viewport.View())) == 0 {
@@ -176,7 +150,7 @@ func (m *Model) renderEntryWithWidth(builder *strings.Builder, entry Entry, view
 }
 
 func (m *Model) renderEntry(builder *strings.Builder, entry Entry, viewportWidth int) {
-	serviceName := truncateServiceName(entry.Service, components.LogServiceNameMaxWidth)
+	serviceName := components.Truncate(entry.Service, components.LogServiceNameMaxWidth)
 
 	service := components.ServiceNameStyle.Render(serviceName)
 	divider := components.TimestampStyle.Render("·")

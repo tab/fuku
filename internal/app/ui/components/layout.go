@@ -16,7 +16,7 @@ func RenderHeader(width int, title, info string) string {
 
 	maxTitleWidth := width - infoWidth - HeaderSeparatorMinWidth - HeaderFixedChars
 	if titleWidth > maxTitleWidth && maxTitleWidth > 0 {
-		title = truncate(title, maxTitleWidth)
+		title = Truncate(title, maxTitleWidth)
 		titleWidth = lipgloss.Width(title)
 	}
 
@@ -60,26 +60,28 @@ func RenderLine(width int) string {
 	return SeparatorStyle.Render(strings.Repeat("─", width))
 }
 
-func truncate(s string, maxWidth int) string {
-	if maxWidth <= 0 {
-		return ""
-	}
-
-	if maxWidth == 1 {
-		return "…"
-	}
-
-	if lipgloss.Width(s) <= maxWidth {
+// Truncate truncates text to fit within maxWidth display columns
+func Truncate(s string, maxWidth int) string {
+	currentWidth := lipgloss.Width(s)
+	if currentWidth <= maxWidth {
 		return s
 	}
 
+	ellipsis := "…"
+	ellipsisWidth := lipgloss.Width(ellipsis)
+	targetWidth := maxWidth - ellipsisWidth
+
+	if targetWidth <= 0 {
+		return ellipsis
+	}
+
 	runes := []rune(s)
-	for i := len(runes) - 1; i >= 0; i-- {
-		truncated := string(runes[:i]) + "…"
-		if lipgloss.Width(truncated) <= maxWidth {
-			return truncated
+	for i := len(runes); i > 0; i-- {
+		candidate := string(runes[:i])
+		if lipgloss.Width(candidate) <= targetWidth {
+			return candidate + ellipsis
 		}
 	}
 
-	return "…"
+	return ellipsis
 }
