@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
 )
 
 func Test_NewSubscriber(t *testing.T) {
@@ -17,12 +17,12 @@ func Test_NewSubscriber(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockEventBus := runtime.NewMockEventBus(ctrl)
-	mockLogView := ui.NewMockLogView(ctrl)
+	sendFunc := NewSender()
 
-	subscriber := NewSubscriber(mockEventBus, mockLogView)
+	subscriber := NewSubscriber(mockEventBus, sendFunc)
 	assert.NotNil(t, subscriber)
 	assert.Equal(t, mockEventBus, subscriber.eventBus)
-	assert.Equal(t, mockLogView, subscriber.logView)
+	assert.Equal(t, sendFunc, subscriber.sender)
 }
 
 func Test_Subscriber_Start(t *testing.T) {
@@ -30,7 +30,7 @@ func Test_Subscriber_Start(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockEventBus := runtime.NewMockEventBus(ctrl)
-	mockLogView := ui.NewMockLogView(ctrl)
+	sendFunc := NewSender()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -38,31 +38,50 @@ func Test_Subscriber_Start(t *testing.T) {
 	eventChan := make(chan runtime.Event, 10)
 	mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
 
-	subscriber := NewSubscriber(mockEventBus, mockLogView)
+	subscriber := NewSubscriber(mockEventBus, sendFunc)
 	subscriber.Start(ctx)
 
 	time.Sleep(10 * time.Millisecond)
 }
 
-func Test_Subscriber_ProcessEvents(t *testing.T) {
+func Test_Subscriber_StartCmd(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogView := ui.NewMockLogView(ctrl)
+	mockEventBus := runtime.NewMockEventBus(ctrl)
+	sendFunc := NewSender()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eventChan := make(chan runtime.Event, 10)
+	mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
+
+	subscriber := NewSubscriber(mockEventBus, sendFunc)
+	cmd := subscriber.StartCmd(ctx)
+
+	assert.NotNil(t, cmd)
+
+	msg := cmd()
+	assert.Nil(t, msg)
+
+	time.Sleep(10 * time.Millisecond)
+}
+
+func Test_Subscriber_ProcessEvents(t *testing.T) {
 	tests := []struct {
 		name      string
 		event     runtime.Event
-		expectLog bool
+		expectMsg bool
 	}{
 		{
-			name: "EventLogLine forwards to LogView",
+			name: "EventLogLine sends LogMsg",
 			event: runtime.Event{
 				Type:      runtime.EventLogLine,
 				Timestamp: time.Now(),
 				Data:      runtime.LogLineData{Service: "api", Tier: "tier1", Stream: "STDOUT", Message: "test"},
 			},
-			expectLog: true,
+			expectMsg: true,
 		},
 		{
 			name: "EventServiceReady ignored",
@@ -71,7 +90,7 @@ func Test_Subscriber_ProcessEvents(t *testing.T) {
 				Timestamp: time.Now(),
 				Data:      runtime.ServiceReadyData{Service: "api", Tier: "tier1"},
 			},
-			expectLog: false,
+			expectMsg: false,
 		},
 		{
 			name: "Invalid data ignored",
@@ -80,7 +99,7 @@ func Test_Subscriber_ProcessEvents(t *testing.T) {
 				Timestamp: time.Now(),
 				Data:      "invalid",
 			},
-			expectLog: false,
+			expectMsg: false,
 		},
 	}
 
@@ -91,17 +110,27 @@ func Test_Subscriber_ProcessEvents(t *testing.T) {
 
 			close(eventChan)
 
-			if tt.expectLog {
-				mockLogView.EXPECT().HandleLog(gomock.Any()).Do(func(entry ui.LogEntry) {
-					assert.Equal(t, "api", entry.Service)
-					assert.Equal(t, "tier1", entry.Tier)
-					assert.Equal(t, "STDOUT", entry.Stream)
-					assert.Equal(t, "test", entry.Message)
-				})
-			}
+			var receivedMsg tea.Msg
 
-			subscriber := &Subscriber{logView: mockLogView}
+			sendFunc := NewSender()
+			sendFunc.Set(func(msg tea.Msg) {
+				receivedMsg = msg
+			})
+
+			subscriber := &Subscriber{sender: sendFunc}
 			subscriber.processEvents(eventChan)
+
+			if tt.expectMsg {
+				assert.NotNil(t, receivedMsg)
+				logMsg, ok := receivedMsg.(LogMsg)
+				assert.True(t, ok)
+				assert.Equal(t, "api", logMsg.Service)
+				assert.Equal(t, "tier1", logMsg.Tier)
+				assert.Equal(t, "STDOUT", logMsg.Stream)
+				assert.Equal(t, "test", logMsg.Message)
+			} else {
+				assert.Nil(t, receivedMsg)
+			}
 		})
 	}
 }

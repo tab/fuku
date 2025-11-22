@@ -57,6 +57,44 @@ func Test_Navigator_Toggle(t *testing.T) {
 	}
 }
 
+func Test_Navigator_IsServices(t *testing.T) {
+	tests := []struct {
+		name     string
+		view     View
+		expected bool
+	}{
+		{name: "IsServices when on services view", view: ViewServices, expected: true},
+		{name: "IsServices when on logs view", view: ViewLogs, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nav := NewNavigator()
+			nav.SwitchTo(tt.view)
+			assert.Equal(t, tt.expected, nav.IsServices())
+		})
+	}
+}
+
+func Test_Navigator_IsLogs(t *testing.T) {
+	tests := []struct {
+		name     string
+		view     View
+		expected bool
+	}{
+		{name: "IsLogs when on logs view", view: ViewLogs, expected: true},
+		{name: "IsLogs when on services view", view: ViewServices, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nav := NewNavigator()
+			nav.SwitchTo(tt.view)
+			assert.Equal(t, tt.expected, nav.IsLogs())
+		})
+	}
+}
+
 func Test_View_String(t *testing.T) {
 	tests := []struct {
 		name     string

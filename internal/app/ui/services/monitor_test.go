@@ -1,10 +1,14 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+
+	"fuku/internal/app/monitor"
 )
 
 func Test_GetUptime(t *testing.T) {
@@ -164,6 +168,67 @@ func Test_Pad(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
 			assert.Equal(t, tt.want, pad(tt.input))
+		})
+	}
+}
+
+func Test_GetStatsWithContext_Timeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	m := &Model{monitor: mockMonitor}
+
+	tests := []struct {
+		name        string
+		timeout     time.Duration
+		before      func()
+		expectError bool
+	}{
+		{
+			name:    "fast call completes successfully",
+			timeout: 100 * time.Millisecond,
+			before: func() {
+				mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).Return(monitor.Stats{CPU: 25.5, MEM: 512.0}, nil)
+			},
+			expectError: false,
+		},
+		{
+			name:    "context timeout cancels slow call",
+			timeout: 50 * time.Millisecond,
+			before: func() {
+				mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).DoAndReturn(
+					func(ctx context.Context, pid int) (monitor.Stats, error) {
+						select {
+						case <-ctx.Done():
+							return monitor.Stats{}, ctx.Err()
+						case <-time.After(200 * time.Millisecond):
+							return monitor.Stats{CPU: 25.5, MEM: 512.0}, nil
+						}
+					},
+				)
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+
+			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
+			defer cancel()
+
+			stats, err := m.getStatsWithContext(ctx, 1234)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, context.DeadlineExceeded, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, 25.5, stats.CPU)
+				assert.Equal(t, 512.0, stats.MEM)
+			}
 		})
 	}
 }

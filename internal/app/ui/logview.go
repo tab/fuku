@@ -17,23 +17,13 @@ type LogEntry struct {
 
 // LogView provides an interface for log viewing and filtering
 type LogView interface {
-	// HandleLog adds a log entry
 	HandleLog(entry LogEntry)
-	// IsEnabled returns whether logs are enabled for a service
 	IsEnabled(service string) bool
-	// SetEnabled updates the visibility state for a service
 	SetEnabled(service string, enabled bool)
-	// ToggleAll toggles all services (if all enabled -> disable all, otherwise -> enable all)
 	ToggleAll(services []string)
-
-	// View returns the rendered logs view
 	View() string
-	// SetSize updates the viewport dimensions
 	SetSize(width, height int)
-	// ToggleAutoscroll toggles autoscroll mode
 	ToggleAutoscroll()
-	// Autoscroll returns the current autoscroll state
 	Autoscroll() bool
-	// HandleKey processes keyboard input for scrolling
 	HandleKey(msg tea.KeyMsg) tea.Cmd
 }

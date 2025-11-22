@@ -42,7 +42,6 @@ TUI Controls (Logs View):
 
 // CLI defines the interface for cli operations
 type CLI interface {
-	// Run processes command-line arguments and returns an exit code and error
 	Run(args []string) (exitCode int, err error)
 }
 
