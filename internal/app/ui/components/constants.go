@@ -36,7 +36,7 @@ const (
 const (
 	FixedColumnsWidth    = 45
 	ServiceNameMinWidth  = 20
-	ViewportWidthPadding = 0
+	ViewportWidthPadding = 2
 	RowWidthPadding      = 8
 	Current              = "› "
 	Empty                = "[ ]"

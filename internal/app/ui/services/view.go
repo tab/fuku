@@ -125,7 +125,11 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 		state := service.FSM.Current()
 		if state == Starting || state == Stopping || state == Restarting {
 			if service.Blink != nil {
-				indicator = service.Blink.Render(components.IndicatorActiveStyle) + " "
+				if isSelected {
+					indicator = service.Blink.Frame() + " "
+				} else {
+					indicator = service.Blink.Render(components.IndicatorActiveStyle) + " "
+				}
 			}
 		}
 	}
