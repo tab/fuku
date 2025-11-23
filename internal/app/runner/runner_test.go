@@ -2,8 +2,10 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 	"testing"
 	"time"
 
@@ -255,6 +257,49 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 	assert.Equal(t, context.Canceled, err)
 }
 
+func Test_StartServiceWithRetry_CancellationDuringBackoff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"api": {Dir: "api"},
+		},
+	}
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+
+	mockService := NewMockService(ctrl)
+	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed"))
+
+	r := &runner{
+		cfg:       cfg,
+		discovery: NewMockDiscovery(ctrl),
+		service:   mockService,
+		pool:      NewWorkerPool(),
+		log:       mockLogger,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	assert.Nil(t, proc)
+	assert.Equal(t, context.Canceled, err)
+	assert.Less(t, elapsed, config.RetryBackoff, "Should cancel immediately without waiting full backoff")
+}
+
 func Test_StopAllProcesses(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -284,6 +329,43 @@ func Test_StopAllProcesses(t *testing.T) {
 
 	processes := []Process{mockProcess1, mockProcess2}
 	r.stopAllProcesses(processes)
+}
+
+func Test_Shutdown_StopsProcessesOnce(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	mockProcess1 := NewMockProcess(ctrl)
+	mockProcess1.EXPECT().Name().Return("service1").AnyTimes()
+
+	mockProcess2 := NewMockProcess(ctrl)
+	mockProcess2.EXPECT().Name().Return("service2").AnyTimes()
+
+	mockService := NewMockService(ctrl)
+	mockService.EXPECT().Stop(mockProcess2).Return(nil).Times(1)
+	mockService.EXPECT().Stop(mockProcess1).Return(nil).Times(1)
+
+	r := &runner{
+		cfg:       cfg,
+		discovery: NewMockDiscovery(ctrl),
+		service:   mockService,
+		pool:      NewWorkerPool(),
+		log:       mockLogger,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
+	}
+
+	processes := []Process{mockProcess1, mockProcess2}
+
+	var processesMu sync.Mutex
+
+	var wg sync.WaitGroup
+
+	r.shutdown(processes, &processesMu, &wg)
 }
 
 func Test_StopAllProcesses_EmptyList(t *testing.T) {

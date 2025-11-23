@@ -11,7 +11,8 @@ import (
 )
 
 func Test_LoadConfig(t *testing.T) {
-	cfg, err := loadConfig()
+	cfg, topology, err := loadConfig()
+
 	if err != nil {
 		t.Skip("config loading failed, likely no fuku.yaml file in expected location")
 		return
@@ -22,9 +23,15 @@ func Test_LoadConfig(t *testing.T) {
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, cfg.Services)
 	assert.NotNil(t, cfg.Profiles)
+	assert.NotNil(t, topology)
 }
 
 func Test_CreateApp(t *testing.T) {
+	topology := &config.Topology{
+		Order:        []string{},
+		TierServices: make(map[string][]string),
+	}
+
 	tests := []struct {
 		name   string
 		config *config.Config
@@ -82,7 +89,7 @@ func Test_CreateApp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := createApp(tt.config, tt.noUI)
+			app := createApp(tt.config, topology, tt.noUI)
 			assert.NotNil(t, app)
 		})
 	}

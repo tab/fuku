@@ -19,13 +19,13 @@ func main() {
 
 // runApp contains the main application logic
 func runApp() {
-	cfg, err := loadConfig()
+	cfg, topology, err := loadConfig()
 	if err != nil {
 		os.Exit(1)
 	}
 
 	noUI := hasNoUIFlag(os.Args[1:])
-	application := createApp(cfg, noUI)
+	application := createApp(cfg, topology, noUI)
 	application.Run()
 }
 
@@ -41,12 +41,12 @@ func hasNoUIFlag(args []string) bool {
 }
 
 // loadConfig wraps config.Load for easier testing
-func loadConfig() (*config.Config, error) {
+func loadConfig() (*config.Config, *config.Topology, error) {
 	return config.Load()
 }
 
-// createApp creates the FX application with the given config
-func createApp(cfg *config.Config, noUI bool) *fx.App {
+// createApp creates the FX application with the given config and topology
+func createApp(cfg *config.Config, topology *config.Topology, noUI bool) *fx.App {
 	var logOutput io.Writer
 	if !noUI {
 		logOutput = io.Discard
@@ -54,7 +54,7 @@ func createApp(cfg *config.Config, noUI bool) *fx.App {
 
 	return fx.New(
 		fx.WithLogger(createFxLogger(cfg)),
-		fx.Supply(cfg),
+		fx.Supply(cfg, topology),
 		fx.Provide(func() logger.Logger {
 			return logger.NewLoggerWithOutput(cfg, logOutput)
 		}),

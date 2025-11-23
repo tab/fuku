@@ -128,7 +128,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		Critical: true,
 	})
 
-	r.shutdown(processes, &processesMu, &serviceMap, &serviceMapMu, &wg)
+	r.shutdown(processes, &processesMu, &wg)
 	r.log.Info().Msg("All services stopped")
 
 	r.event.Publish(runtime.Event{
@@ -152,7 +152,7 @@ func (r *runner) runStartupPhase(ctx context.Context, tiers []Tier, processes *[
 		case err := <-startupDone:
 			if err != nil {
 				r.log.Error().Err(err).Msg("Failed to start services")
-				r.shutdown(*processes, processesMu, serviceMap, serviceMapMu, wg)
+				r.shutdown(*processes, processesMu, wg)
 
 				return err
 			}
@@ -167,25 +167,25 @@ func (r *runner) runStartupPhase(ctx context.Context, tiers []Tier, processes *[
 				Critical: true,
 			})
 			r.log.Info().Msgf("Received signal %s during startup, shutting down services...", sig)
-			r.shutdown(*processes, processesMu, serviceMap, serviceMapMu, wg)
+			r.shutdown(*processes, processesMu, wg)
 
 			return fmt.Errorf("startup interrupted by signal %s", sig)
 		case <-ctx.Done():
 			r.log.Info().Msg("Context cancelled during startup, shutting down services...")
-			r.shutdown(*processes, processesMu, serviceMap, serviceMapMu, wg)
+			r.shutdown(*processes, processesMu, wg)
 
 			return ctx.Err()
 		case cmd, ok := <-commandChan:
 			if !ok {
 				r.log.Info().Msg("Command channel closed during startup, shutting down services...")
-				r.shutdown(*processes, processesMu, serviceMap, serviceMapMu, wg)
+				r.shutdown(*processes, processesMu, wg)
 
 				return fmt.Errorf("command channel closed")
 			}
 
 			if cmd.Type == runtime.CommandStopAll {
 				r.log.Info().Msg("Received StopAll command during startup, shutting down services...")
-				r.shutdown(*processes, processesMu, serviceMap, serviceMapMu, wg)
+				r.shutdown(*processes, processesMu, wg)
 
 				return fmt.Errorf("startup interrupted by StopAll command")
 			}
@@ -397,7 +397,12 @@ func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierNam
 				Data: runtime.RetryScheduledData{Service: name, Attempt: attempt + 1, MaxAttempts: config.RetryAttempt},
 			})
 			r.log.Info().Msgf("Retrying service '%s' (attempt %d/%d)", name, attempt+1, config.RetryAttempt)
-			time.Sleep(config.RetryBackoff)
+
+			select {
+			case <-time.After(config.RetryBackoff):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
 
 		startTime := time.Now()
@@ -482,17 +487,11 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, processes *[]P
 	return nil
 }
 
-func (r *runner) shutdown(processes []Process, processesMu *sync.Mutex, serviceMap *map[string]Process, serviceMapMu *sync.Mutex, wg *sync.WaitGroup) {
+func (r *runner) shutdown(processes []Process, processesMu *sync.Mutex, wg *sync.WaitGroup) {
 	processesMu.Lock()
-	serviceMapMu.Lock()
 	r.stopAllProcesses(processes)
-
-	for _, proc := range *serviceMap {
-		r.service.Stop(proc)
-	}
-
-	serviceMapMu.Unlock()
 	processesMu.Unlock()
+
 	wg.Wait()
 }
 

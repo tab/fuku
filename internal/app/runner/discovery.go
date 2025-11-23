@@ -20,13 +20,15 @@ type Discovery interface {
 }
 
 type discovery struct {
-	cfg *config.Config
+	cfg      *config.Config
+	topology *config.Topology
 }
 
 // NewDiscovery creates a new service discovery instance
-func NewDiscovery(cfg *config.Config) Discovery {
+func NewDiscovery(cfg *config.Config, topology *config.Topology) Discovery {
 	return &discovery{
-		cfg: cfg,
+		cfg:      cfg,
+		topology: topology,
 	}
 }
 
@@ -42,7 +44,13 @@ func (d *discovery) Resolve(profile string) ([]Tier, error) {
 		return nil, err
 	}
 
-	return d.groupServicesByTier(services), nil
+	if len(services) == 0 {
+		return []Tier{}, nil
+	}
+
+	tiers := d.groupServicesByTier(services)
+
+	return tiers, nil
 }
 
 // getServicesForProfile returns the list of services for a given profile
@@ -68,9 +76,12 @@ func (d *discovery) getServicesForProfile(profile string) ([]string, error) {
 	case []interface{}:
 		var services []string
 		for _, item := range v {
-			if str, ok := item.(string); ok {
-				services = append(services, str)
+			str, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("%w: profile '%s' contains non-string entry", errors.ErrUnsupportedProfileFormat, profile)
 			}
+
+			services = append(services, str)
 		}
 
 		return services, nil
@@ -97,34 +108,76 @@ func (d *discovery) resolveServiceOrder(serviceNames []string) ([]string, error)
 		}
 	}
 
+	tierIndexMap := d.buildTierIndexMap()
+
 	sort.SliceStable(result, func(i, j int) bool {
 		svcI := d.cfg.Services[result[i]]
 		svcJ := d.cfg.Services[result[j]]
 
-		return d.getTierOrder(svcI.Tier) < d.getTierOrder(svcJ.Tier)
+		tierI := svcI.Tier
+		if tierI == "" {
+			tierI = config.Default
+		}
+
+		tierJ := svcJ.Tier
+		if tierJ == "" {
+			tierJ = config.Default
+		}
+
+		return d.getTierIndex(tierI, tierIndexMap) < d.getTierIndex(tierJ, tierIndexMap)
 	})
 
 	return result, nil
 }
 
+// buildTierIndexMap creates a map of tier names to their index in the tier order
+func (d *discovery) buildTierIndexMap() map[string]int {
+	tierIndexMap := make(map[string]int)
+
+	for i, tier := range d.topology.Order {
+		tierIndexMap[tier] = i
+	}
+
+	if _, exists := tierIndexMap[config.Default]; !exists {
+		tierIndexMap[config.Default] = len(d.topology.Order)
+	}
+
+	return tierIndexMap
+}
+
+// getTierIndex returns the index for a tier, normalizing unknown tiers to default
+func (d *discovery) getTierIndex(tierName string, tierIndexMap map[string]int) int {
+	if idx, exists := tierIndexMap[tierName]; exists {
+		return idx
+	}
+
+	return tierIndexMap[config.Default]
+}
+
 // groupServicesByTier groups services by their tier order
 func (d *discovery) groupServicesByTier(services []string) []Tier {
+	tierIndexMap := d.buildTierIndexMap()
 	tiers := make(map[int]*Tier)
 
 	for _, name := range services {
 		srv := d.cfg.Services[name]
-		tierOrder := d.getTierOrder(srv.Tier)
+		tierName := srv.Tier
 
-		if tiers[tierOrder] == nil {
-			tierName := srv.Tier
-			if tierName == "" {
-				tierName = config.Default
-			}
-
-			tiers[tierOrder] = &Tier{Name: tierName, Services: []string{}}
+		if tierName == "" {
+			tierName = config.Default
 		}
 
-		tiers[tierOrder].Services = append(tiers[tierOrder].Services, name)
+		if _, exists := tierIndexMap[tierName]; !exists {
+			tierName = config.Default
+		}
+
+		tierIndex := d.getTierIndex(tierName, tierIndexMap)
+
+		if tiers[tierIndex] == nil {
+			tiers[tierIndex] = &Tier{Name: tierName, Services: []string{}}
+		}
+
+		tiers[tierIndex].Services = append(tiers[tierIndex].Services, name)
 	}
 
 	tierOrders := make([]int, 0, len(tiers))
@@ -141,17 +194,4 @@ func (d *discovery) groupServicesByTier(services []string) []Tier {
 	}
 
 	return result
-}
-
-func (d *discovery) getTierOrder(tier string) int {
-	switch tier {
-	case config.Foundation:
-		return 0
-	case config.Platform:
-		return 1
-	case config.Edge:
-		return 2
-	default:
-		return 3
-	}
 }

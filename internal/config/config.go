@@ -1,10 +1,15 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 
 	"fuku/internal/app/errors"
 )
@@ -19,6 +24,13 @@ type Config struct {
 		Format string `yaml:"format"`
 	}
 	Version int
+}
+
+// Topology represents the derived tier ordering and grouping metadata
+type Topology struct {
+	Order          []string
+	TierServices   map[string][]string
+	HasDefaultOnly bool
 }
 
 // Service represents a service configuration
@@ -50,9 +62,9 @@ type Option func(*Config)
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	cfg := &Config{
-		Version:  1,
 		Services: make(map[string]*Service),
 		Profiles: make(map[string]interface{}),
+		Version:  1,
 	}
 
 	cfg.Logging.Level = DefaultLogLevel
@@ -61,32 +73,49 @@ func DefaultConfig() *Config {
 	return cfg
 }
 
-// Load loads the configuration from file
-func Load() (*Config, error) {
+// Load loads the configuration from file and returns read-only config with derived topology
+func Load() (*Config, *Topology, error) {
 	cfg := DefaultConfig()
 
-	v := viper.New()
-	v.SetConfigName("fuku")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
+	defaultTopology := &Topology{
+		Order:          []string{},
+		TierServices:   make(map[string][]string),
+		HasDefaultOnly: true,
+	}
 
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, errors.ErrFailedToReadConfig
+	data, err := os.ReadFile("fuku.yaml")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cfg, defaultTopology, nil
 		}
-	} else {
-		if err = v.Unmarshal(cfg); err != nil {
-			return nil, errors.ErrFailedToParseConfig
-		}
+
+		return nil, nil, errors.ErrFailedToReadConfig
+	}
+
+	topology, err := parseTierOrder(data)
+	if err != nil {
+		return nil, nil, errors.ErrFailedToParseConfig
+	}
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+
+	if err := v.ReadConfig(bytes.NewReader(data)); err != nil {
+		return nil, nil, errors.ErrFailedToReadConfig
+	}
+
+	if err := v.Unmarshal(cfg); err != nil {
+		return nil, nil, errors.ErrFailedToParseConfig
 	}
 
 	cfg.ApplyDefaults()
+	cfg.normalizeTiers()
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", errors.ErrInvalidConfig, err)
+		return nil, nil, fmt.Errorf("%w: %w", errors.ErrInvalidConfig, err)
 	}
 
-	return cfg, nil
+	return cfg, topology, nil
 }
 
 // ApplyDefaults applies default configuration to services
@@ -109,33 +138,117 @@ func (c *Config) ApplyDefaults() {
 	}
 }
 
+// parseTierOrder reads fuku.yaml and extracts tier ordering
+func parseTierOrder(data []byte) (*Topology, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return nil, err
+	}
+
+	topology := &Topology{
+		Order:        []string{},
+		TierServices: make(map[string][]string),
+	}
+
+	tierSeen := make(map[string]bool)
+	hasDefaultServices := false
+
+	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
+		return topology, nil
+	}
+
+	doc := root.Content[0]
+	if doc.Kind != yaml.MappingNode {
+		return topology, nil
+	}
+
+	defaultTier := ""
+
+	for i := 0; i < len(doc.Content); i += 2 {
+		key := doc.Content[i]
+		value := doc.Content[i+1]
+
+		if key.Value == "defaults" && value.Kind == yaml.MappingNode {
+			for j := 0; j < len(value.Content); j += 2 {
+				fieldKey := value.Content[j]
+				fieldValue := value.Content[j+1]
+
+				if fieldKey.Value == "tier" {
+					defaultTier = normalizeTier(fieldValue.Value)
+					break
+				}
+			}
+		}
+	}
+
+	for i := 0; i < len(doc.Content); i += 2 {
+		key := doc.Content[i]
+		value := doc.Content[i+1]
+
+		if key.Value != "services" || value.Kind != yaml.MappingNode {
+			continue
+		}
+
+		for j := 0; j < len(value.Content); j += 2 {
+			serviceName := value.Content[j].Value
+			serviceNode := value.Content[j+1]
+
+			if serviceNode.Kind != yaml.MappingNode {
+				continue
+			}
+
+			tier := ""
+
+			for k := 0; k < len(serviceNode.Content); k += 2 {
+				fieldKey := serviceNode.Content[k]
+				fieldValue := serviceNode.Content[k+1]
+
+				if fieldKey.Value == "tier" {
+					tier = normalizeTier(fieldValue.Value)
+					break
+				}
+			}
+
+			if tier == "" {
+				if defaultTier != "" {
+					tier = defaultTier
+				} else {
+					tier = Default
+					hasDefaultServices = true
+				}
+			}
+
+			if tier != Default && !tierSeen[tier] {
+				tierSeen[tier] = true
+				topology.Order = append(topology.Order, tier)
+			}
+
+			topology.TierServices[tier] = append(topology.TierServices[tier], serviceName)
+		}
+	}
+
+	if hasDefaultServices {
+		topology.Order = append(topology.Order, Default)
+	}
+
+	for tier := range topology.TierServices {
+		sort.Strings(topology.TierServices[tier])
+	}
+
+	topology.HasDefaultOnly = len(topology.Order) == 0 || (len(topology.Order) == 1 && topology.Order[0] == Default)
+
+	return topology, nil
+}
+
 // Validate validates the configuration
 func (c *Config) Validate() error {
 	for name, service := range c.Services {
-		if err := service.validateTier(); err != nil {
-			return fmt.Errorf("service %s: %w", name, err)
-		}
-
 		if err := service.validateReadiness(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
 		}
 	}
 
 	return nil
-}
-
-// validateTier validates the tier value
-func (s *Service) validateTier() error {
-	if s.Tier == "" {
-		return nil
-	}
-
-	switch s.Tier {
-	case Foundation, Platform, Edge:
-		return nil
-	default:
-		return fmt.Errorf("%w: '%s' (must be one of foundation, platform, or edge)", errors.ErrInvalidTier, s.Tier)
-	}
 }
 
 // validateReadiness validates the readiness configuration
@@ -170,4 +283,20 @@ func (s *Service) validateReadiness() error {
 	}
 
 	return nil
+}
+
+// normalizeTiers normalizes tier names in services to match parsed values
+func (c *Config) normalizeTiers() {
+	for _, service := range c.Services {
+		service.Tier = normalizeTier(service.Tier)
+	}
+
+	if c.Defaults != nil {
+		c.Defaults.Tier = normalizeTier(c.Defaults.Tier)
+	}
+}
+
+// normalizeTier trims whitespace and lowercases a tier name
+func normalizeTier(tier string) string {
+	return strings.ToLower(strings.TrimSpace(tier))
 }
