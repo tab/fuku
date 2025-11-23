@@ -19,6 +19,14 @@ func Test_DefaultConfig(t *testing.T) {
 	assert.Equal(t, 1, cfg.Version)
 }
 
+func Test_DefaultTopology(t *testing.T) {
+	topology := DefaultTopology()
+
+	assert.NotNil(t, topology.TierServices)
+	assert.Empty(t, topology.Order)
+	assert.True(t, topology.HasDefaultOnly)
+}
+
 func Test_Load(t *testing.T) {
 	tests := []struct {
 		name        string

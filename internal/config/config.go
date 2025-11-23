@@ -73,15 +73,19 @@ func DefaultConfig() *Config {
 	return cfg
 }
 
-// Load loads the configuration from file and returns read-only config with derived topology
-func Load() (*Config, *Topology, error) {
-	cfg := DefaultConfig()
-
-	defaultTopology := &Topology{
+// DefaultTopology returns the default topology
+func DefaultTopology() *Topology {
+	return &Topology{
 		Order:          []string{},
 		TierServices:   make(map[string][]string),
 		HasDefaultOnly: true,
 	}
+}
+
+// Load loads the configuration from file and returns read-only config with derived topology
+func Load() (*Config, *Topology, error) {
+	cfg := DefaultConfig()
+	defaultTopology := DefaultTopology()
 
 	data, err := os.ReadFile("fuku.yaml")
 	if err != nil {
