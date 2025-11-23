@@ -12,7 +12,6 @@ import (
 
 func Test_LoadConfig(t *testing.T) {
 	cfg, topology, err := loadConfig()
-
 	if err != nil {
 		t.Skip("config loading failed, likely no fuku.yaml file in expected location")
 		return
