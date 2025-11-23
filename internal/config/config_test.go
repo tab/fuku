@@ -578,8 +578,9 @@ func Test_NormalizeTier(t *testing.T) {
 			expected: "platform",
 		},
 		{
-			name: "empty tier",
-			tier: "", expected: "",
+			name:     "empty tier",
+			tier:     "",
+			expected: "",
 		},
 	}
 
