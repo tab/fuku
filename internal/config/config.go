@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"fuku/internal/app/errors"
 )
