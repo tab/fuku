@@ -111,12 +111,21 @@ logging:
 
 ### Tiers
 
-Services are organized into tiers for startup ordering:
+Services are organized into tiers for startup ordering.
+You can use any tier names you want - the startup order is determined by the first occurrence of each tier name in your `fuku.yaml` file.
+
+Common tier naming pattern:
 - **foundation** - Base infrastructure (databases, message queues)
 - **platform** - Business logic services
 - **edge** - Client-facing services
 
-Services start tier-by-tier: foundation → platform → edge.
+You can also use custom tier names like `infrastructure`, `middleware`, `api`, `frontend`, etc. The key points:
+- Tier order is defined by first appearance in the YAML file
+- Services within each tier are sorted alphabetically by name
+- Services without a tier are placed in a `default` tier that runs last
+- Tier names are case-insensitive and whitespace is trimmed
+
+For example, if your YAML defines services with tiers in this order: `foundation` → `platform` → `edge`, services will start in that order, tier by tier.
 
 ### Readiness Checks
 

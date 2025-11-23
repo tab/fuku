@@ -277,6 +277,21 @@ go fmt ./... && make lint && make vet && make test
   - focus on minimal changes to address the specific issue at hand
   - preserve the existing patterns and conventions of the codebase
 
+## Handling Files with Formatting Issues
+
+When encountering files with mixed tabs/spaces or other formatting problems:
+- **Do NOT** just read the file and wait for manual fixing
+- **Do** use the Edit tool to fix formatting issues directly
+- **Do** run `go fmt ./...` after making any edits to ensure consistent formatting
+- If a file has pervasive formatting issues (mixed tabs/spaces throughout), consider using Write tool to rewrite with correct formatting
+- Always include formatting fixes in the same commit as code changes
+
+Example workflow:
+1. Read file and notice formatting issues
+2. Use Edit tool to fix the content AND formatting in one operation
+3. Run `go fmt ./...` to ensure consistency
+4. Verify with tests
+
 ## Code Style Guidelines
 
 ### Import Organization
@@ -326,11 +341,11 @@ go fmt ./... && make lint && make vet && make test
 ### Documentation
 - all exported functions, types, and methods must have clear godoc comments
 - begin comments with the name of the element being documented
-- include usage examples for complex functions
-- document any non-obvious behavior or edge cases
-- follow standard Go comment conventions: complete sentences should start with capital letters and end with periods
-- godoc comments for exported functions should start with the function name
-- keep internal comments concise and clear
+- godoc comments must be a single sentence without ending punctuation
+- start godoc comments with capital letter but no period at end
+- include additional details in parentheses within the single sentence if needed
+- keep internal comments concise and only when they add value
+- avoid comments that merely repeat what the code does
 
 ### Code Structure
 - keep code modular with focused responsibilities
@@ -422,6 +437,12 @@ git branch -D feature-branch-name
 ## Formatting Guidelines
 - always use `go fmt` for code formatting
 - run `go generate` for mock generation
+- respect `.editorconfig` settings when editing files:
+  - Go files use tabs for indentation (`indent_style = tab`)
+  - Project preference: `tab_width = 2` (display only, doesn't affect file contents)
+  - All files: UTF-8 encoding, LF line endings, final newline, trim trailing whitespace
+- when using Edit tool, preserve existing formatting and indentation style
+- `gofmt` handles actual file formatting regardless of editor display settings
 
 ## Logging Guidelines
 - use structured logging with zerolog

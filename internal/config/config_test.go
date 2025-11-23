@@ -19,6 +19,14 @@ func Test_DefaultConfig(t *testing.T) {
 	assert.Equal(t, 1, cfg.Version)
 }
 
+func Test_DefaultTopology(t *testing.T) {
+	topology := DefaultTopology()
+
+	assert.NotNil(t, topology.TierServices)
+	assert.Empty(t, topology.Order)
+	assert.True(t, topology.HasDefaultOnly)
+}
+
 func Test_Load(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -102,15 +110,17 @@ services: "this should be a map not a string"
 			cleanup := tt.setupFunc()
 			defer cleanup()
 
-			cfg, err := Load()
+			cfg, topology, err := Load()
 
 			if tt.error != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.error, err)
 				assert.Nil(t, cfg)
+				assert.Nil(t, topology)
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, cfg)
+				assert.NotNil(t, topology)
 			}
 		})
 	}
@@ -174,7 +184,7 @@ func Test_Validate(t *testing.T) {
 		errorMsg    string
 	}{
 		{
-			name: "valid configuration",
+			name: "valid configuration with standard tiers",
 			config: &Config{
 				Services: map[string]*Service{
 					"api": {Dir: "api", Tier: Foundation},
@@ -184,14 +194,24 @@ func Test_Validate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "service with invalid tier",
+			name: "valid configuration with custom tier",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api", Tier: "invalid"},
+					"api": {Dir: "api", Tier: "custom-tier"},
 				},
 			},
-			expectError: true,
-			errorMsg:    "service api",
+			expectError: false,
+		},
+		{
+			name: "valid configuration with mixed tiers",
+			config: &Config{
+				Services: map[string]*Service{
+					"api":     {Dir: "api", Tier: Foundation},
+					"custom":  {Dir: "custom", Tier: "middleware"},
+					"another": {Dir: "another", Tier: "services"},
+				},
+			},
+			expectError: false,
 		},
 		{
 			name: "service with invalid readiness type",
@@ -224,17 +244,6 @@ func Test_Validate(t *testing.T) {
 			errorMsg:    "service api",
 		},
 		{
-			name: "multiple services with one invalid",
-			config: &Config{
-				Services: map[string]*Service{
-					"api":     {Dir: "api", Tier: Foundation},
-					"invalid": {Dir: "invalid", Tier: "bad-tier"},
-				},
-			},
-			expectError: true,
-			errorMsg:    "service invalid",
-		},
-		{
 			name: "empty services map",
 			config: &Config{
 				Services: map[string]*Service{},
@@ -257,37 +266,6 @@ func Test_Validate(t *testing.T) {
 	}
 }
 
-func Test_ValidateTier(t *testing.T) {
-	tests := []struct {
-		name        string
-		tier        string
-		expectError bool
-		expectedErr error
-	}{
-		{name: "empty tier is valid", tier: "", expectError: false},
-		{name: "foundation tier is valid", tier: Foundation, expectError: false},
-		{name: "platform tier is valid", tier: Platform, expectError: false},
-		{name: "edge tier is valid", tier: Edge, expectError: false},
-		{name: "invalid tier", tier: "invalid", expectError: true, expectedErr: errors.ErrInvalidTier},
-		{name: "uppercase tier is invalid", tier: "FOUNDATION", expectError: true, expectedErr: errors.ErrInvalidTier},
-		{name: "mixed case tier is invalid", tier: "Foundation", expectError: true, expectedErr: errors.ErrInvalidTier},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			service := &Service{Tier: tt.tier}
-			err := service.validateTier()
-
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.ErrorIs(t, err, tt.expectedErr)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func Test_ValidateReadiness(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -295,14 +273,66 @@ func Test_ValidateReadiness(t *testing.T) {
 		expectError bool
 		expectedErr error
 	}{
-		{name: "nil readiness is valid", readiness: nil, expectError: false},
-		{name: "http type with url is valid", readiness: &Readiness{Type: TypeHTTP, URL: "http://localhost:8080"}, expectError: false},
-		{name: "log type with pattern is valid", readiness: &Readiness{Type: TypeLog, Pattern: "Server started"}, expectError: false},
-		{name: "http type without url", readiness: &Readiness{Type: TypeHTTP}, expectError: true, expectedErr: errors.ErrReadinessURLRequired},
-		{name: "log type without pattern", readiness: &Readiness{Type: TypeLog}, expectError: true, expectedErr: errors.ErrReadinessPatternRequired},
-		{name: "empty type", readiness: &Readiness{Type: ""}, expectError: true, expectedErr: errors.ErrReadinessTypeRequired},
-		{name: "invalid type", readiness: &Readiness{Type: "invalid"}, expectError: true, expectedErr: errors.ErrInvalidReadinessType},
-		{name: "uppercase type is invalid", readiness: &Readiness{Type: "HTTP", URL: "http://localhost:8080"}, expectError: true, expectedErr: errors.ErrInvalidReadinessType},
+		{
+			name:      "nil readiness is valid",
+			readiness: nil, expectError: false},
+		{
+			name: "http type with url is valid",
+			readiness: &Readiness{
+				Type: TypeHTTP,
+				URL:  "http://localhost:8080",
+			},
+			expectError: false,
+		},
+		{
+			name: "log type with pattern is valid",
+			readiness: &Readiness{
+				Type:    TypeLog,
+				Pattern: "Server started",
+			},
+			expectError: false,
+		},
+		{
+			name: "http type without url",
+			readiness: &Readiness{
+				Type: TypeHTTP,
+			},
+			expectError: true,
+			expectedErr: errors.ErrReadinessURLRequired,
+		},
+		{
+			name: "log type without pattern",
+			readiness: &Readiness{
+				Type: TypeLog,
+			},
+			expectError: true,
+			expectedErr: errors.ErrReadinessPatternRequired,
+		},
+		{
+			name: "empty type",
+			readiness: &Readiness{
+				Type: "",
+			},
+			expectError: true,
+			expectedErr: errors.ErrReadinessTypeRequired,
+		},
+		{
+			name: "invalid type",
+			readiness: &Readiness{
+				Type: "invalid",
+			},
+			expectError: true,
+			expectedErr: errors.ErrInvalidReadinessType,
+		},
+		{
+			name: "uppercase type is invalid",
+			readiness: &Readiness{
+				Type: "HTTP",
+				URL:  "http://localhost:8080",
+			},
+			expectError: true,
+			expectedErr: errors.ErrInvalidReadinessType,
+		},
 	}
 
 	for _, tt := range tests {
@@ -316,6 +346,248 @@ func Test_ValidateReadiness(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func Test_ParseTierOrder(t *testing.T) {
+	tests := []struct {
+		name              string
+		yaml              string
+		expectedTierOrder []string
+		expectedServices  map[string][]string
+	}{
+		{
+			name: "standard tiers in order",
+			yaml: `services:
+  storage:
+    tier: foundation
+  api:
+    tier: platform
+  web:
+    tier: edge`,
+			expectedTierOrder: []string{"foundation", "platform", "edge"},
+			expectedServices:  map[string][]string{"foundation": {"storage"}, "platform": {"api"}, "edge": {"web"}},
+		},
+		{
+			name: "custom tier names",
+			yaml: `services:
+  db:
+    tier: infrastructure
+  svc:
+    tier: middleware
+  ui:
+    tier: frontend`,
+			expectedTierOrder: []string{"infrastructure", "middleware", "frontend"},
+			expectedServices:  map[string][]string{"infrastructure": {"db"}, "middleware": {"svc"}, "frontend": {"ui"}},
+		},
+		{
+			name: "mixed tiers with duplicates",
+			yaml: `services:
+  db1:
+    tier: foundation
+  api1:
+    tier: platform
+  db2:
+    tier: foundation
+  api2:
+    tier: platform`,
+			expectedTierOrder: []string{"foundation", "platform"},
+			expectedServices:  map[string][]string{"foundation": {"db1", "db2"}, "platform": {"api1", "api2"}},
+		},
+		{
+			name: "services without tiers",
+			yaml: `services:
+  svc1:
+    dir: ./svc1
+  svc2:
+    dir: ./svc2`,
+			expectedTierOrder: []string{"default"},
+			expectedServices:  map[string][]string{"default": {"svc1", "svc2"}},
+		},
+		{
+			name: "mixed with and without tiers",
+			yaml: `services:
+  db:
+    tier: foundation
+  svc1:
+    dir: ./svc1
+  api:
+    tier: platform
+  svc2:
+    dir: ./svc2`,
+			expectedTierOrder: []string{"foundation", "platform", "default"},
+			expectedServices:  map[string][]string{"foundation": {"db"}, "default": {"svc1", "svc2"}, "platform": {"api"}},
+		},
+		{
+			name: "case insensitive and whitespace trimming",
+			yaml: `services:
+  svc1:
+    tier: " Foundation "
+  svc2:
+    tier: PLATFORM
+  svc3:
+    tier: foundation`,
+			expectedTierOrder: []string{"foundation", "platform"},
+			expectedServices:  map[string][]string{"foundation": {"svc1", "svc3"}, "platform": {"svc2"}},
+		},
+		{
+			name:              "empty services",
+			yaml:              `services: {}`,
+			expectedTierOrder: []string{},
+			expectedServices:  map[string][]string{},
+		},
+		{
+			name: "services inherit defaults.tier",
+			yaml: `services:
+  api:
+    dir: ./api
+  web:
+    dir: ./web
+defaults:
+  tier: platform`,
+			expectedTierOrder: []string{"platform"},
+			expectedServices:  map[string][]string{"platform": {"api", "web"}},
+		},
+		{
+			name: "mixed explicit and inherited tiers",
+			yaml: `services:
+  db:
+    tier: foundation
+  api:
+    dir: ./api
+  cache:
+    dir: ./cache
+defaults:
+  tier: platform`,
+			expectedTierOrder: []string{"foundation", "platform"},
+			expectedServices:  map[string][]string{"foundation": {"db"}, "platform": {"api", "cache"}},
+		},
+		{
+			name: "defaults.tier with whitespace and case",
+			yaml: `services:
+  api:
+    dir: ./api
+defaults:
+  tier: " PLATFORM "`,
+			expectedTierOrder: []string{"platform"},
+			expectedServices:  map[string][]string{"platform": {"api"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			topology, err := parseTierOrder([]byte(tt.yaml))
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedTierOrder, topology.Order)
+			assert.Equal(t, tt.expectedServices, topology.TierServices)
+		})
+	}
+}
+
+func Test_ParseTierOrder_HasDefaultOnly(t *testing.T) {
+	tests := []struct {
+		name                   string
+		yaml                   string
+		expectedHasDefaultOnly bool
+	}{
+		{
+			name:                   "empty services has default only",
+			yaml:                   `services: {}`,
+			expectedHasDefaultOnly: true,
+		},
+		{
+			name: "services without tiers has default only",
+			yaml: `services:
+  api:
+    dir: ./api`,
+			expectedHasDefaultOnly: true,
+		},
+		{
+			name: "services with only default tier has default only",
+			yaml: `services:
+  api:
+    tier: default`,
+			expectedHasDefaultOnly: true,
+		},
+		{
+			name: "services with multiple tiers not default only",
+			yaml: `services:
+  db:
+    tier: foundation
+  api:
+    tier: platform`,
+			expectedHasDefaultOnly: false,
+		},
+		{
+			name: "services with foundation tier not default only",
+			yaml: `services:
+  db:
+    tier: foundation`,
+			expectedHasDefaultOnly: false,
+		},
+		{
+			name: "mixed explicit and default not default only",
+			yaml: `services:
+  db:
+    tier: foundation
+  api:
+    dir: ./api`,
+			expectedHasDefaultOnly: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			topology, err := parseTierOrder([]byte(tt.yaml))
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedHasDefaultOnly, topology.HasDefaultOnly)
+		})
+	}
+}
+
+func Test_NormalizeTier(t *testing.T) {
+	tests := []struct {
+		name     string
+		tier     string
+		expected string
+	}{
+		{
+			name:     "lowercase tier unchanged",
+			tier:     "foundation",
+			expected: "foundation",
+		},
+		{
+			name:     "uppercase tier lowercased",
+			tier:     "FOUNDATION",
+			expected: "foundation",
+		},
+		{
+			name:     "mixed case tier lowercased",
+			tier:     "Foundation",
+			expected: "foundation",
+		},
+		{
+			name:     "whitespace trimmed",
+			tier:     "  foundation  ",
+			expected: "foundation",
+		},
+		{
+			name:     "mixed case with whitespace",
+			tier:     " Platform ",
+			expected: "platform",
+		},
+		{
+			name:     "empty tier",
+			tier:     "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeTier(tt.tier)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
