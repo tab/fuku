@@ -222,27 +222,114 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 
 ### Key Patterns
 
-1. **Service Map**: Track running processes by name
+1. **Registry**: Single source of truth for tracking running processes
+   - Maintains process lifecycle with WaitGroup synchronization
+   - Tracks insertion order for deterministic reverse-order shutdown
+   - Supports process detachment for restart scenarios
+   - Ensures WaitGroup only decrements when processes actually exit
 2. **Worker Pool**: Limit concurrent service starts
 3. **Retry with Backoff**: Automatic retry on transient failures
 4. **Graceful Shutdown**: SIGTERM → wait → SIGKILL
 
+### Registry Pattern
+
+The Registry provides centralized process lifecycle management with proper synchronization:
+
+```go
+type Lookup struct {
+    Proc     Process
+    Exists   bool
+    Detached bool
+}
+
+type Registry interface {
+    Add(name string, proc Process, tier string)
+    Get(name string) Lookup
+    SnapshotReverse() []Process
+    Detach(name string)
+    Wait()
+}
+```
+
+**Key behaviors**:
+
+1. **Add**: Registers process, increments WaitGroup, spawns goroutine to wait for exit
+2. **Get**: Returns Lookup struct containing process, existence status, and detachment status
+3. **Detach**: Removes from active map and marks as detached (for restart scenarios)
+4. **Wait**: Blocks until all processes have actually exited, with configurable timeout to prevent infinite hangs
+5. **SnapshotReverse**: Returns ALL processes (including detached) in reverse startup order for graceful shutdown
+
+**Critical semantics**:
+- WaitGroup only decrements when process **actually exits** (Done() channel closes)
+- Detach() does NOT decrement WaitGroup immediately
+- SnapshotReverse() includes BOTH active and detached processes to ensure shutdown can signal all processes
+- This ensures `Wait()` doesn't return while detached processes are still running
+- Prevents leftover PIDs and shutdown deadlocks
+
+**Restart flow**:
+```go
+// 1. Detach old process (remove from map, mark as detached)
+registry.Detach(serviceName)
+
+// 2. Stop old process
+service.Stop(oldProc)
+
+// 3. Start new process
+newProc := service.Start(ctx, serviceName, config)
+
+// 4. Add new process to registry
+registry.Add(serviceName, newProc, tier)
+
+// 5. Old process exits → Done() fires → WaitGroup decremented
+// 6. New process tracked independently
+```
+
+### Context Management
+
+The runner and UI use separate child contexts derived from a common root to enable independent lifecycle management while maintaining coordination:
+
+```go
+// CLI layer creates separate contexts
+ctx := context.Background()                    // Root context
+ctxRunner, cancelRunner := context.WithCancel(ctx)  // Runner's child context
+ctxUI, cancelUI := context.WithCancel(ctx)          // UI's child context
+
+// Runner subscribes with its own context
+commandChan := r.command.Subscribe(ctxRunner)
+
+// UI subscribes with its own context
+eventChan := event.Subscribe(ctxUI)
+```
+
+**Key benefits**:
+1. **Independent cancellation**: Runner can cancel its context (on StopAll) without closing UI's event channel
+2. **Event delivery**: UI receives PhaseStopped event even after runner context cancels
+3. **Coordinated lifecycle**: Both contexts share the same root, respecting parent cancellation
+4. **Testability**: Tests can pass their own contexts for lifecycle control
+
+**Critical events**: Lifecycle state changes are marked as `Critical: true` to guarantee delivery even when event buffers are full, preventing UI state desynchronization.
+
 ### Command Handling
+
+Commands are processed in both startup and running phases:
 
 ```go
 switch cmd.Type {
 case CommandStopService:
     r.stopService(data.Service)
-    // Publishes: EventServiceStopped
+    // Publishes: EventServiceStopped (or EventServiceFailed if not found)
 
 case CommandRestartService:
     r.restartService(ctx, data.Service)
     // Publishes: EventServiceStopped → EventServiceStarting → EventServiceReady
+    // Or EventServiceFailed if service config not found
 
 case CommandStopAll:
-    return true  // Exit run loop
+    return true  // Exit run loop, trigger shutdown
 }
 ```
+
+**Startup phase handling**: Commands (restart/stop individual services) are processed during startup to handle user interactions before all services are ready. StopAll command aborts the entire startup sequence.
 
 ## 3. FSM-Based UI State
 

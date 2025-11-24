@@ -1,10 +1,14 @@
 package runner
 
-import "fuku/internal/config"
+import (
+	"context"
+
+	"fuku/internal/config"
+)
 
 // WorkerPool manages concurrent worker execution with a maximum worker limit
 type WorkerPool interface {
-	Acquire()
+	Acquire(ctx context.Context) error
 	Release()
 }
 
@@ -19,9 +23,14 @@ func NewWorkerPool() WorkerPool {
 	}
 }
 
-// Acquire acquires a worker slot, blocking if all workers are busy
-func (w *workerPool) Acquire() {
-	w.sem <- struct{}{}
+// Acquire acquires a worker slot, blocking if all workers are busy or returning error if context is cancelled
+func (w *workerPool) Acquire(ctx context.Context) error {
+	select {
+	case w.sem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Release releases a worker slot

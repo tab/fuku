@@ -22,6 +22,8 @@ type eventMsg runtime.Event
 
 type tickMsg time.Time
 
+type channelClosedMsg struct{}
+
 // Update handles messages and updates the model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -79,6 +81,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case eventMsg:
 		return m.handleEvent(runtime.Event(msg))
+
+	case channelClosedMsg:
+		m.log.Warn().Msg("TUI: Event channel closed, quitting")
+		m.loader.StopAll()
+
+		return m, tea.Quit
 	}
 
 	return m, nil
@@ -463,7 +471,7 @@ func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
 	return func() tea.Msg {
 		event, ok := <-eventChan
 		if !ok {
-			return nil
+			return channelClosedMsg{}
 		}
 
 		return eventMsg(event)
