@@ -69,6 +69,7 @@ func DefaultConfig() *Config {
 
 	cfg.Logging.Level = DefaultLogLevel
 	cfg.Logging.Format = DefaultLogFormat
+	cfg.Profiles[DefaultProfile] = "*"
 
 	return cfg
 }

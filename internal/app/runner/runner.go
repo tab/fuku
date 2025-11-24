@@ -85,6 +85,17 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		services = append(services, tier.Services...)
 	}
 
+	if len(services) == 0 {
+		r.event.Publish(runtime.Event{
+			Type:     runtime.EventPhaseChanged,
+			Data:     runtime.PhaseChangedData{Phase: runtime.PhaseStopped},
+			Critical: true,
+		})
+		r.log.Warn().Msgf("No services found for profile '%s'. Nothing to run.", profile)
+
+		return nil
+	}
+
 	r.log.Info().Msgf("Starting services in profile '%s': %v", profile, services)
 
 	ctx, cancel := context.WithCancel(ctx)
