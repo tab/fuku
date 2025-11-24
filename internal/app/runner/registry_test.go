@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -155,7 +156,7 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 
 		mockProc.EXPECT().Done().Return(doneChan).AnyTimes()
 
-		serviceName := "service-" + string(rune('0'+i))
+		serviceName := fmt.Sprintf("service-%d", i)
 		go reg.Add(serviceName, mockProc, "default")
 	}
 
