@@ -170,6 +170,43 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{},
+	}
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Warn().Return(nil)
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+
+	mockDiscovery := NewMockDiscovery(ctrl)
+	mockDiscovery.EXPECT().Resolve("default").Return([]Tier{}, nil)
+
+	mockRegistry := NewMockRegistry(ctrl)
+	mockService := NewMockService(ctrl)
+	mockWorkerPool := NewMockWorkerPool(ctrl)
+
+	r := &runner{
+		cfg:       cfg,
+		discovery: mockDiscovery,
+		registry:  mockRegistry,
+		service:   mockService,
+		pool:      mockWorkerPool,
+		event:     runtime.NewNoOpEventBus(),
+		command:   runtime.NewNoOpCommandBus(),
+		log:       mockLogger,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := r.Run(ctx, "default")
+	require.NoError(t, err)
+}
+
 func Test_StartServiceWithRetry_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
