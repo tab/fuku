@@ -128,7 +128,15 @@ func (c *cli) handleRun(profile string, noUI bool) (int, error) {
 		return 0, nil
 	}
 
-	p, err := c.ui(ctx, profile)
+	ctxRunner, cancelRunner := context.WithCancel(ctx)
+	ctxUI, cancelUI := context.WithCancel(ctx)
+
+	defer func() {
+		cancelRunner()
+		cancelUI()
+	}()
+
+	p, err := c.ui(ctxUI, profile)
 	if err != nil {
 		c.log.Error().Err(err).Msg("Failed to create UI")
 		fmt.Fprintf(os.Stderr, "Failed to create UI: %v\n", err)
@@ -139,7 +147,7 @@ func (c *cli) handleRun(profile string, noUI bool) (int, error) {
 	errChan := make(chan error, 1)
 
 	go func() {
-		errChan <- c.runner.Run(ctx, profile)
+		errChan <- c.runner.Run(ctxRunner, profile)
 	}()
 
 	if _, err := p.Run(); err != nil {

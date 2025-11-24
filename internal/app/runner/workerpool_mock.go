@@ -10,6 +10,7 @@
 package runner
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -40,15 +41,17 @@ func (m *MockWorkerPool) EXPECT() *MockWorkerPoolMockRecorder {
 }
 
 // Acquire mocks base method.
-func (m *MockWorkerPool) Acquire() {
+func (m *MockWorkerPool) Acquire(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Acquire")
+	ret := m.ctrl.Call(m, "Acquire", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Acquire indicates an expected call of Acquire.
-func (mr *MockWorkerPoolMockRecorder) Acquire() *gomock.Call {
+func (mr *MockWorkerPoolMockRecorder) Acquire(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockWorkerPool)(nil).Acquire))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockWorkerPool)(nil).Acquire), ctx)
 }
 
 // Release mocks base method.

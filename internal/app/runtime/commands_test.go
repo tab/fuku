@@ -78,6 +78,38 @@ func Test_CommandBus_Unsubscribe_On_Context_Cancel(t *testing.T) {
 	assert.False(t, ok, "channel should be closed after context cancellation")
 }
 
+func Test_CommandBus_No_Commands_After_Context_Cancel(t *testing.T) {
+	cb := NewCommandBus(10)
+	defer cb.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sub := cb.Subscribe(ctx)
+
+	cmd1 := Command{Type: CommandStopService, Data: StopServiceData{Service: "test1"}}
+	cb.Publish(cmd1)
+
+	select {
+	case received := <-sub:
+		assert.Equal(t, CommandStopService, received.Type)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for command before cancel")
+	}
+
+	cancel()
+	time.Sleep(20 * time.Millisecond)
+
+	cmd2 := Command{Type: CommandStopService, Data: StopServiceData{Service: "test2"}}
+	cb.Publish(cmd2)
+
+	select {
+	case _, ok := <-sub:
+		if ok {
+			t.Fatal("should not receive commands after context cancel")
+		}
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func Test_CommandBus_Close_Closes_All_Subscribers(t *testing.T) {
 	cb := NewCommandBus(10)
 

@@ -47,7 +47,7 @@ func Test_CheckHTTP_Timeout(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	err := checker.CheckHTTP(ctx, server.URL, 200*time.Millisecond, 50*time.Millisecond)
+	err := checker.CheckHTTP(ctx, server.URL, 50*time.Millisecond, 10*time.Millisecond)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "readiness check timed out")
 }
@@ -60,7 +60,6 @@ func Test_CheckHTTP_ContextCanceled(t *testing.T) {
 	checker := NewReadiness(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(500 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -126,7 +125,7 @@ func Test_CheckLog_Timeout(t *testing.T) {
 	}()
 
 	ctx := context.Background()
-	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 200*time.Millisecond)
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 50*time.Millisecond)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "readiness check timed out")
 }
@@ -247,7 +246,7 @@ func Test_Check_Log(t *testing.T) {
 		defer stdoutWriter.Close()
 		defer stderrWriter.Close()
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		fmt.Fprintln(stdoutWriter, "Server ready on port 8080")
 	}()
 

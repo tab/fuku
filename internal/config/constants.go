@@ -34,7 +34,7 @@ const (
 	DefaultInterval = 500 * time.Millisecond
 
 	RetryAttempt = 3
-	RetryBackoff = 2 * time.Second
+	RetryBackoff = 500 * time.Millisecond
 )
 
 // service constants

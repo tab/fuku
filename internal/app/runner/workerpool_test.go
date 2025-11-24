@@ -1,24 +1,29 @@
 package runner
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_AcquireRelease(t *testing.T) {
 	pool := NewWorkerPool()
+	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		pool.Acquire()
+		err := pool.Acquire(ctx)
+		require.NoError(t, err)
 	}
 
 	done := make(chan bool)
 
 	go func() {
-		pool.Acquire()
+		err := pool.Acquire(ctx)
+		require.NoError(t, err)
 
 		done <- true
 	}()
@@ -43,6 +48,7 @@ func Test_AcquireRelease(t *testing.T) {
 }
 
 func Test_ConcurrentWorkers(t *testing.T) {
+	ctx := context.Background()
 	pool := NewWorkerPool()
 
 	var (
@@ -58,7 +64,9 @@ func Test_ConcurrentWorkers(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			pool.Acquire()
+			err := pool.Acquire(ctx)
+			require.NoError(t, err)
+
 			defer pool.Release()
 
 			mu.Lock()
@@ -85,4 +93,37 @@ func Test_ConcurrentWorkers(t *testing.T) {
 	assert.Equal(t, 0, activeWorkers)
 	assert.LessOrEqual(t, maxActive, 3)
 	assert.Greater(t, maxActive, 0)
+}
+
+func Test_AcquireContextCancelled(t *testing.T) {
+	ctx := context.Background()
+	pool := NewWorkerPool()
+
+	for i := 0; i < 3; i++ {
+		err := pool.Acquire(ctx)
+		require.NoError(t, err)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	done := make(chan error, 1)
+
+	go func() {
+		done <- pool.Acquire(ctx)
+	}()
+
+	time.Sleep(5 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Should have received context cancellation error")
+	}
+
+	for i := 0; i < 3; i++ {
+		pool.Release()
+	}
 }
