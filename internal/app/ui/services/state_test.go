@@ -38,11 +38,11 @@ func Test_FSM_Started_Transition(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, Running, fsm.Current())
-	assert.Equal(t, StatusReady, service.Status)
+	assert.Equal(t, StatusRunning, service.Status)
 }
 
 func Test_FSM_Stop_Transition(t *testing.T) {
-	service := &ServiceState{Name: "api", Status: StatusReady}
+	service := &ServiceState{Name: "api", Status: StatusRunning}
 	fsm := newServiceFSM(service, newTestLoader())
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
@@ -55,7 +55,7 @@ func Test_FSM_Stop_Transition(t *testing.T) {
 }
 
 func Test_FSM_Stopped_Transition(t *testing.T) {
-	service := &ServiceState{Name: "api", Status: StatusReady, Monitor: ServiceMonitor{PID: 1234}}
+	service := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
 	fsm := newServiceFSM(service, newTestLoader())
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
@@ -70,7 +70,7 @@ func Test_FSM_Stopped_Transition(t *testing.T) {
 }
 
 func Test_FSM_Restart_From_Running(t *testing.T) {
-	service := &ServiceState{Name: "api", Status: StatusReady}
+	service := &ServiceState{Name: "api", Status: StatusRunning}
 	fsm := newServiceFSM(service, newTestLoader())
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
@@ -116,7 +116,7 @@ func Test_FSM_Failed_From_Starting(t *testing.T) {
 }
 
 func Test_FSM_Failed_From_Running(t *testing.T) {
-	service := &ServiceState{Name: "api", Status: StatusReady}
+	service := &ServiceState{Name: "api", Status: StatusRunning}
 	fsm := newServiceFSM(service, newTestLoader())
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)
@@ -129,7 +129,7 @@ func Test_FSM_Failed_From_Running(t *testing.T) {
 }
 
 func Test_FSM_Failed_From_Restarting(t *testing.T) {
-	service := &ServiceState{Name: "api", Status: StatusReady}
+	service := &ServiceState{Name: "api", Status: StatusRunning}
 	fsm := newServiceFSM(service, newTestLoader())
 	_ = fsm.Event(context.Background(), Start)
 	_ = fsm.Event(context.Background(), Started)

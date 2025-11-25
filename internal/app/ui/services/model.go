@@ -29,7 +29,7 @@ type Status string
 
 const (
 	StatusStarting Status = "Starting"
-	StatusReady    Status = "Ready"
+	StatusRunning  Status = "Running"
 	StatusStopping Status = "Stopping"
 	StatusFailed   Status = "Failed"
 	StatusStopped  Status = "Stopped"
@@ -69,7 +69,7 @@ func (s *ServiceState) MarkStarting() {
 
 // MarkRunning sets the service status to ready (running)
 func (s *ServiceState) MarkRunning() {
-	s.Status = StatusReady
+	s.Status = StatusRunning
 }
 
 // MarkStopping sets the service status to stopping
@@ -226,7 +226,7 @@ func (m Model) getReadyServices() int {
 	count := 0
 
 	for _, service := range m.state.services {
-		if service.Status == StatusReady {
+		if service.Status == StatusRunning {
 			count++
 		}
 	}

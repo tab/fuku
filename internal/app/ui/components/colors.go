@@ -14,7 +14,7 @@ const (
 	BgSelection = lipgloss.Color("235") // Dark gray - selected background
 
 	// Status colors - service states
-	FgStatusReady   = lipgloss.Color("10") // Green - ready status
+	FgStatusRunning = lipgloss.Color("10") // Green - running status
 	FgStatusWarning = lipgloss.Color("11") // Yellow - starting/warning status
 	FgStatusError   = lipgloss.Color("9")  // Red - failed/error status
 	FgStatusStopped = lipgloss.Color("8")  // Gray - stopped status

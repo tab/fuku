@@ -26,22 +26,22 @@ func Test_GetUptime(t *testing.T) {
 		},
 		{
 			name:    "zero start time returns empty",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{StartTime: time.Time{}}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{StartTime: time.Time{}}},
 			want:    "",
 		},
 		{
 			name:    "seconds only",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{StartTime: now.Add(-30 * time.Second)}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{StartTime: now.Add(-30 * time.Second)}},
 			want:    "00:30",
 		},
 		{
 			name:    "minutes and seconds",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{StartTime: now.Add(-5*time.Minute - 45*time.Second)}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{StartTime: now.Add(-5*time.Minute - 45*time.Second)}},
 			want:    "05:45",
 		},
 		{
 			name:    "hours minutes seconds",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{StartTime: now.Add(-2*time.Hour - 30*time.Minute - 15*time.Second)}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{StartTime: now.Add(-2*time.Hour - 30*time.Minute - 15*time.Second)}},
 			want:    "02:30:15",
 		},
 	}
@@ -69,22 +69,22 @@ func Test_GetCPU(t *testing.T) {
 		},
 		{
 			name:    "zero PID returns empty",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 0, CPU: 50.0}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 0, CPU: 50.0}},
 			want:    "",
 		},
 		{
 			name:    "formats CPU percentage",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, CPU: 25.5}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, CPU: 25.5}},
 			want:    "25.5%",
 		},
 		{
 			name:    "zero CPU",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, CPU: 0.0}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, CPU: 0.0}},
 			want:    "0.0%",
 		},
 		{
 			name:    "high CPU",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, CPU: 99.9}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, CPU: 99.9}},
 			want:    "99.9%",
 		},
 	}
@@ -112,32 +112,32 @@ func Test_GetMem(t *testing.T) {
 		},
 		{
 			name:    "zero PID returns empty",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 0, MEM: 512.0}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 0, MEM: 512.0}},
 			want:    "",
 		},
 		{
 			name:    "formats MB",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, MEM: 256.0}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, MEM: 256.0}},
 			want:    "256MB",
 		},
 		{
 			name:    "formats MB with decimal truncation",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, MEM: 256.7}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, MEM: 256.7}},
 			want:    "257MB",
 		},
 		{
 			name:    "formats GB for 1024MB or more",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, MEM: 1024.0}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, MEM: 1024.0}},
 			want:    "1.0GB",
 		},
 		{
 			name:    "formats GB with decimal",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, MEM: 2560.0}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, MEM: 2560.0}},
 			want:    "2.5GB",
 		},
 		{
 			name:    "small memory",
-			service: &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234, MEM: 2.0}},
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, MEM: 2.0}},
 			want:    "2MB",
 		},
 	}

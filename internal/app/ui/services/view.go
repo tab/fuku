@@ -210,8 +210,8 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 	var styledStatus string
 
 	switch service.Status {
-	case StatusReady:
-		styledStatus = components.StatusReadyStyle.Render(statusStr)
+	case StatusRunning:
+		styledStatus = components.StatusRunningStyle.Render(statusStr)
 	case StatusStarting:
 		styledStatus = components.StatusStartingStyle.Render(statusStr)
 	case StatusFailed:
