@@ -95,6 +95,14 @@ func (m *Model) getMem(service *ServiceState) string {
 	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/components.MBToGB)
 }
 
+func (m *Model) getPID(service *ServiceState) string {
+	if service.Status == StatusRunning && service.Monitor.PID != 0 {
+		return fmt.Sprintf("%d", service.Monitor.PID)
+	}
+
+	return ""
+}
+
 func (m *Model) isServiceMonitored(service *ServiceState) bool {
 	return service.Status != StatusStopped && service.Monitor.PID != 0
 }
@@ -106,7 +114,6 @@ func pad(n int) string {
 // statsWorkerCmd schedules a single stats collection and returns the result
 func statsWorkerCmd(ctx context.Context, m *Model) tea.Cmd {
 	return tea.Tick(components.StatsPollingInterval, func(t time.Time) tea.Msg {
-		// Create batch-level timeout context
 		batchCtx, cancel := context.WithTimeout(ctx, components.StatsBatchTimeout)
 		defer cancel()
 
@@ -123,7 +130,6 @@ func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
 		pid  int
 	}
 
-	// Collect services to poll
 	var jobs []serviceJob
 
 	for name, service := range m.state.services {
@@ -136,7 +142,6 @@ func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
 		return nil
 	}
 
-	// Semaphore to limit concurrent GetStats calls
 	sem := make(chan struct{}, components.StatsMaxConcurrency)
 	results := make(chan struct {
 		name  string
@@ -144,19 +149,16 @@ func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
 		err   error
 	}, len(jobs))
 
-	// Launch workers with concurrency cap
 	launched := 0
 
 launchLoop:
 	for _, job := range jobs {
-		// Stop launching if batch context is cancelled
 		if ctx.Err() != nil {
 			break launchLoop
 		}
 
 		select {
 		case <-ctx.Done():
-			// Batch timeout reached
 			break launchLoop
 		case sem <- struct{}{}:
 			launched++
@@ -164,15 +166,12 @@ launchLoop:
 			go func(j serviceJob) {
 				defer func() { <-sem }()
 
-				// Create per-call timeout context
 				callCtx, cancel := context.WithTimeout(ctx, components.StatsCallTimeout)
 
-				// Poll stats with timeout
 				result, err := m.getStatsWithContext(callCtx, j.pid)
 
-				cancel() // Cancel immediately to release timer
+				cancel()
 
-				// Always send result, even on error, to prevent blocking
 				results <- struct {
 					name  string
 					stats ServiceStats
@@ -182,16 +181,13 @@ launchLoop:
 		}
 	}
 
-	// Collect results from launched workers only
 	stats := make(map[string]ServiceStats)
 
 	for i := 0; i < launched; i++ {
 		select {
 		case <-ctx.Done():
-			// Batch timeout reached, return partial results
 			return stats
 		case result := <-results:
-			// Only apply successful results; failures keep existing stats
 			if result.err == nil {
 				stats[result.name] = result.stats
 			}

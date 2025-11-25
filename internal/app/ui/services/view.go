@@ -152,6 +152,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	uptime := m.getUptime(service)
 	cpu := m.getCPU(service)
 	mem := m.getMem(service)
+	pid := m.getPID(service)
 
 	availableWidth := m.ui.servicesViewport.Width - components.FixedColumnsWidth
 	if availableWidth < components.ServiceNameMinWidth {
@@ -165,13 +166,14 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	serviceName := components.Truncate(service.Name, maxNameLen)
 	paddedServiceName := padServiceName(serviceName, maxNameLen)
 
-	row := fmt.Sprintf("%s%s %s  %-10s  %6s  %7s  %s",
+	row := fmt.Sprintf("%s%s %s  %-10s  %6s  %7s  %6s  %s",
 		indicator,
 		logCheckbox,
 		paddedServiceName,
 		string(service.Status),
 		cpu,
 		mem,
+		pid,
 		uptime,
 	)
 

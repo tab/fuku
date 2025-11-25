@@ -152,6 +152,44 @@ func Test_GetMem(t *testing.T) {
 	}
 }
 
+func Test_GetPID(t *testing.T) {
+	tests := []struct {
+		name    string
+		service *ServiceState
+		want    string
+	}{
+		{
+			name:    "stopped service returns empty",
+			service: &ServiceState{Status: StatusStopped, Monitor: ServiceMonitor{PID: 1234}},
+			want:    "",
+		},
+		{
+			name:    "zero PID returns empty",
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 0}},
+			want:    "",
+		},
+		{
+			name:    "formats PID",
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}},
+			want:    "1234",
+		},
+		{
+			name:    "large PID",
+			service: &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 99999}},
+			want:    "99999",
+		},
+	}
+
+	m := Model{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := m.getPID(tt.service)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func Test_Pad(t *testing.T) {
 	tests := []struct {
 		input int

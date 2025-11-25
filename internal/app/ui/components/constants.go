@@ -34,7 +34,7 @@ const (
 
 // Services view constants
 const (
-	FixedColumnsWidth    = 45
+	FixedColumnsWidth    = 53
 	ServiceNameMinWidth  = 20
 	ViewportWidthPadding = 2
 	RowWidthPadding      = 8
