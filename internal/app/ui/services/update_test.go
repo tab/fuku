@@ -387,7 +387,7 @@ func Test_HandleServiceStopped(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Stopping api…")
 
-	service := &ServiceState{Name: "api", Status: StatusReady, Monitor: ServiceMonitor{PID: 1234}}
+	service := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
 	m := Model{
 		ctx:        context.Background(),
 		loader:     loader,

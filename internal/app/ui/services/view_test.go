@@ -38,7 +38,7 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	m.state.ready = true
 	m.state.shuttingDown = true
 	m.state.phase = runtime.PhaseStopping
-	m.state.services = map[string]*ServiceState{"api": {Name: "api", Status: StatusReady}}
+	m.state.services = map[string]*ServiceState{"api": {Name: "api", Status: StatusRunning}}
 	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
 	m.ui.width = 100
 	m.ui.height = 50
@@ -62,7 +62,7 @@ func Test_RenderHeader_ServicesView(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, navigator: mockNav}
 	m.state.phase = runtime.PhaseRunning
-	m.state.services = map[string]*ServiceState{"api": {Status: StatusReady}}
+	m.state.services = map[string]*ServiceState{"api": {Status: StatusRunning}}
 	m.state.tiers = []Tier{{Services: []string{"api"}}}
 	m.ui.width = 100
 
@@ -155,7 +155,7 @@ func Test_RenderHeader_Width(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, navigator: mockNav}
 	m.state.phase = runtime.PhaseRunning
-	m.state.services = map[string]*ServiceState{"api": {Status: StatusReady}}
+	m.state.services = map[string]*ServiceState{"api": {Status: StatusRunning}}
 	m.state.tiers = []Tier{{Services: []string{"api"}}}
 	m.ui.width = 80
 
@@ -202,7 +202,7 @@ func Test_ApplyRowStyles_StatusColors(t *testing.T) {
 		name   string
 		status Status
 	}{
-		{name: "ready status", status: StatusReady},
+		{name: "ready status", status: StatusRunning},
 		{name: "starting status", status: StatusStarting},
 		{name: "failed status", status: StatusFailed},
 		{name: "stopped status", status: StatusStopped},
@@ -252,7 +252,7 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 			m := Model{logView: mockLogView}
 			m.ui.width = tt.viewportWidth + 8
 			m.ui.servicesViewport.Width = tt.viewportWidth
-			service := &ServiceState{Name: tt.serviceName, Status: StatusReady}
+			service := &ServiceState{Name: tt.serviceName, Status: StatusRunning}
 
 			result := m.renderServiceRow(service, false, tt.maxNameLen)
 
@@ -277,14 +277,14 @@ func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
 	m.ui.width = 120
 	m.ui.servicesViewport.Width = 112
 
-	service1 := &ServiceState{Name: "api", Status: StatusReady}
+	service1 := &ServiceState{Name: "api", Status: StatusRunning}
 	service2 := &ServiceState{Name: "user-management-service", Status: StatusStarting}
 
 	row1 := m.renderServiceRow(service1, false, 25)
 	row2 := m.renderServiceRow(service2, false, 25)
 
 	assert.Contains(t, row1, "[✓] api")
-	assert.Contains(t, row1, "Ready")
+	assert.Contains(t, row1, "Running")
 	assert.Contains(t, row2, "[ ] user-management-service")
 	assert.Contains(t, row2, "Starting")
 }
@@ -300,7 +300,7 @@ func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 	m.ui.width = 100
 	m.ui.servicesViewport.Width = 92
 
-	service := &ServiceState{Name: "api", Status: StatusReady}
+	service := &ServiceState{Name: "api", Status: StatusRunning}
 
 	notSelected := m.renderServiceRow(service, false, 20)
 	selected := m.renderServiceRow(service, true, 20)
@@ -318,8 +318,8 @@ func Test_RenderTier_Spacing(t *testing.T) {
 
 	m := Model{logView: mockLogView}
 	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusReady},
-		"db":  {Name: "db", Status: StatusReady},
+		"api": {Name: "api", Status: StatusRunning},
+		"db":  {Name: "db", Status: StatusRunning},
 	}
 	m.ui.width = 100
 	m.ui.servicesViewport.Width = 92
@@ -343,9 +343,9 @@ func Test_RenderTier_ServiceCount(t *testing.T) {
 
 	m := Model{logView: mockLogView}
 	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusReady},
-		"db":  {Name: "db", Status: StatusReady},
-		"web": {Name: "web", Status: StatusReady},
+		"api": {Name: "api", Status: StatusRunning},
+		"db":  {Name: "db", Status: StatusRunning},
+		"web": {Name: "web", Status: StatusRunning},
 	}
 	m.ui.width = 100
 	m.ui.servicesViewport.Width = 92
@@ -388,7 +388,7 @@ func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
-			service := &ServiceState{Name: "api", Status: StatusReady, FSM: nil}
+			service := &ServiceState{Name: "api", Status: StatusRunning, FSM: nil}
 			result := m.getServiceIndicator(service, tt.isSelected)
 			assert.Equal(t, tt.want, result)
 		})
@@ -411,7 +411,7 @@ func Test_GetServiceIndicator_GuardNonTransitionalState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
-			service := &ServiceState{Name: "api", Status: StatusReady}
+			service := &ServiceState{Name: "api", Status: StatusRunning}
 			service.FSM = newServiceFSM(service, newTestLoader())
 			service.FSM.SetState(tt.state)
 			result := m.getServiceIndicator(service, tt.isSelected)
@@ -435,7 +435,7 @@ func Test_GetServiceIndicator_GuardBlinkNil(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
-			service := &ServiceState{Name: "api", Status: StatusReady, Blink: nil}
+			service := &ServiceState{Name: "api", Status: StatusRunning, Blink: nil}
 			service.FSM = newServiceFSM(service, newTestLoader())
 			service.FSM.SetState(tt.state)
 			result := m.getServiceIndicator(service, tt.isSelected)
@@ -458,7 +458,7 @@ func Test_GetServiceIndicator_BlinkIndicatorNotSelected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
 			blink := components.NewBlink()
-			service := &ServiceState{Name: "api", Status: StatusReady, Blink: blink}
+			service := &ServiceState{Name: "api", Status: StatusRunning, Blink: blink}
 			service.FSM = newServiceFSM(service, newTestLoader())
 			service.FSM.SetState(tt.state)
 			result := m.getServiceIndicator(service, false)
@@ -482,7 +482,7 @@ func Test_GetServiceIndicator_BlinkIndicatorSelected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
 			blink := components.NewBlink()
-			service := &ServiceState{Name: "api", Status: StatusReady, Blink: blink}
+			service := &ServiceState{Name: "api", Status: StatusRunning, Blink: blink}
 			service.FSM = newServiceFSM(service, newTestLoader())
 			service.FSM.SetState(tt.state)
 			result := m.getServiceIndicator(service, true)

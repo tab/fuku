@@ -15,17 +15,17 @@ func Test_ServiceState_MarkStarting(t *testing.T) {
 func Test_ServiceState_MarkRunning(t *testing.T) {
 	service := &ServiceState{Status: StatusStarting}
 	service.MarkRunning()
-	assert.Equal(t, StatusReady, service.Status)
+	assert.Equal(t, StatusRunning, service.Status)
 }
 
 func Test_ServiceState_MarkStopping(t *testing.T) {
-	service := &ServiceState{Status: StatusReady}
+	service := &ServiceState{Status: StatusRunning}
 	service.MarkStopping()
 	assert.Equal(t, StatusStopping, service.Status)
 }
 
 func Test_ServiceState_MarkStopped(t *testing.T) {
-	service := &ServiceState{Status: StatusReady, Monitor: ServiceMonitor{PID: 1234}}
+	service := &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
 	service.MarkStopped()
 	assert.Equal(t, StatusStopped, service.Status)
 	assert.Equal(t, 0, service.Monitor.PID)
@@ -66,8 +66,8 @@ func Test_GetReadyServices(t *testing.T) {
 	}{
 		{name: "empty services", services: map[string]*ServiceState{}, want: 0},
 		{name: "no ready services", services: map[string]*ServiceState{"api": {Status: StatusStarting}, "db": {Status: StatusFailed}}, want: 0},
-		{name: "some ready", services: map[string]*ServiceState{"api": {Status: StatusReady}, "db": {Status: StatusStarting}}, want: 1},
-		{name: "all ready", services: map[string]*ServiceState{"api": {Status: StatusReady}, "db": {Status: StatusReady}}, want: 2},
+		{name: "some ready", services: map[string]*ServiceState{"api": {Status: StatusRunning}, "db": {Status: StatusStarting}}, want: 1},
+		{name: "all ready", services: map[string]*ServiceState{"api": {Status: StatusRunning}, "db": {Status: StatusRunning}}, want: 2},
 	}
 
 	for _, tt := range tests {
