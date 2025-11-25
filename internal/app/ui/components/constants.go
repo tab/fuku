@@ -43,6 +43,17 @@ const (
 	Selected             = "[✓]"
 )
 
+// Column widths for services table
+const (
+	ColWidthIndicator = 2
+	ColWidthCheckbox  = 3
+	ColWidthStatus    = 10
+	ColWidthCPU       = 6
+	ColWidthMem       = 6
+	ColWidthPID       = 8
+	ColWidthUptime    = 8
+)
+
 // Logs view constants
 const (
 	LogBufferSize          = 1000

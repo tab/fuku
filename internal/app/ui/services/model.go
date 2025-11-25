@@ -303,14 +303,17 @@ func (m *Model) updateServicesContent() {
 		return
 	}
 
-	tiers := make([]string, 0, len(m.state.tiers))
-	currentIdx := 0
 	maxNameLen := m.getMaxServiceNameLength()
 
+	sections := make([]string, 0, len(m.state.tiers)+1)
+	sections = append(sections, m.renderColumnHeaders(maxNameLen))
+
+	currentIdx := 0
+
 	for _, tier := range m.state.tiers {
-		tiers = append(tiers, m.renderTier(tier, &currentIdx, maxNameLen))
+		sections = append(sections, m.renderTier(tier, &currentIdx, maxNameLen))
 	}
 
-	content := lipgloss.JoinVertical(lipgloss.Left, tiers...)
+	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 	m.ui.servicesViewport.SetContent(content)
 }

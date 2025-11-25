@@ -28,10 +28,11 @@ var (
 	ErrFailedToStartCommand  = errors.New("failed to start command")
 	ErrFailedToCreateRequest = errors.New("failed to create request")
 
-	ErrStartupInterrupted    = errors.New("startup interrupted")
-	ErrCommandChannelClosed  = errors.New("command channel closed")
-	ErrFailedToAcquireWorker = errors.New("failed to acquire worker")
-	ErrMaxRetriesExceeded    = errors.New("max retry attempts exceeded")
+	ErrStartupInterrupted       = errors.New("startup interrupted")
+	ErrCommandChannelClosed     = errors.New("command channel closed")
+	ErrFailedToAcquireWorker    = errors.New("failed to acquire worker")
+	ErrMaxRetriesExceeded       = errors.New("max retry attempts exceeded")
+	ErrFailedToTerminateProcess = errors.New("failed to terminate process")
 )
 
 var (
