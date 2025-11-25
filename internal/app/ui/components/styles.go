@@ -25,8 +25,8 @@ var (
 	TierContainerStyle = lipgloss.NewStyle().MarginBottom(1)
 	TierHeaderStyle    = lipgloss.NewStyle().Bold(true).Foreground(FgPrimary).Padding(0, 1)
 
-	ServiceRowStyle = lipgloss.NewStyle().Padding(0, 2)
-
+	ServiceHeaderStyle      = lipgloss.NewStyle().Foreground(FgMuted).Padding(0, 2)
+	ServiceRowStyle         = lipgloss.NewStyle().Padding(0, 2)
 	SelectedServiceRowStyle = lipgloss.NewStyle().Background(BgSelection).Padding(0, 2)
 
 	StatusRunningStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning).Bold(true)

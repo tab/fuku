@@ -93,6 +93,31 @@ func (m Model) renderServices() string {
 	return m.ui.servicesViewport.View()
 }
 
+func (m Model) renderColumnHeaders(maxNameLen int) string {
+	availableWidth := m.ui.servicesViewport.Width - components.FixedColumnsWidth
+	if availableWidth < components.ServiceNameMinWidth {
+		availableWidth = components.ServiceNameMinWidth
+	}
+
+	if maxNameLen > availableWidth {
+		maxNameLen = availableWidth
+	}
+
+	prefixWidth := components.ColWidthIndicator + components.ColWidthCheckbox + 1 + maxNameLen
+
+	header := fmt.Sprintf(
+		"%*s  %-*s  %*s  %*s  %*s  %*s",
+		prefixWidth, "",
+		components.ColWidthStatus, "status",
+		components.ColWidthCPU, "cpu",
+		components.ColWidthMem, "mem",
+		components.ColWidthPID, "pid",
+		components.ColWidthUptime, "uptime",
+	)
+
+	return components.ServiceHeaderStyle.Render(header)
+}
+
 func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 	rows := make([]string, 0, len(tier.Services)+1)
 
@@ -166,15 +191,16 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	serviceName := components.Truncate(service.Name, maxNameLen)
 	paddedServiceName := padServiceName(serviceName, maxNameLen)
 
-	row := fmt.Sprintf("%s%s %s  %-10s  %6s  %6s  %8s  %7s",
+	row := fmt.Sprintf(
+		"%s%s %s  %-*s  %*s  %*s  %*s  %*s",
 		indicator,
 		logCheckbox,
 		paddedServiceName,
-		string(service.Status),
-		cpu,
-		mem,
-		pid,
-		uptime,
+		components.ColWidthStatus, string(service.Status),
+		components.ColWidthCPU, cpu,
+		components.ColWidthMem, mem,
+		components.ColWidthPID, pid,
+		components.ColWidthUptime, uptime,
 	)
 
 	rowWidth := m.ui.servicesViewport.Width
