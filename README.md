@@ -22,14 +22,19 @@
 ```bash
 git clone git@github.com:tab/fuku.git
 cd fuku
-go build -o fuku ./cmd
+go build -o cmd/fuku cmd/main.go
+```
+
+```bash
+ln -sf <path-to-fuku>/cmd/fuku /usr/local/bin/fuku
+chmod +x /usr/local/bin/fuku
 ```
 
 ## Quick Start
 
 ```bash
 # Run with TUI (default)
-fuku --run=default
+fuku
 
 # Run without TUI
 fuku --run=default --no-ui
@@ -141,18 +146,17 @@ run:
 	npm start
 ```
 
+Check examples in the [examples](examples/bookstore) directory for reference.
+
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architectural patterns and design decisions.
 
 ## Development
 
-### Building
+### Tests and linters
 
 ```bash
-# Build binary
-go build -o fuku ./cmd
-
 # Run tests
 make test
 
@@ -162,11 +166,14 @@ make lint
 # Run vet
 make vet
 
+# Run coverage
+make coverage
+
 # Format code
 go fmt ./...
 
 # Full validation
-go fmt ./... && make lint && make vet && make test
+make vet && make lint && make test
 ```
 
 ## About the Name
