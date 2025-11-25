@@ -8,6 +8,7 @@ import (
 var Module = fx.Options(
 	fx.Provide(
 		NewDiscovery,
+		NewLifecycle,
 		NewReadiness,
 		NewService,
 		NewRunner,

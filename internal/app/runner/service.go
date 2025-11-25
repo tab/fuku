@@ -8,8 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
-	"time"
 
 	"fuku/internal/app/errors"
 	"fuku/internal/app/runtime"
@@ -24,17 +22,19 @@ type Service interface {
 }
 
 type service struct {
+	lifecycle Lifecycle
 	readiness Readiness
-	log       logger.Logger
 	event     runtime.EventBus
+	log       logger.Logger
 }
 
 // NewService creates a new service instance
-func NewService(readiness Readiness, log logger.Logger, event runtime.EventBus) Service {
+func NewService(lifecycle Lifecycle, readiness Readiness, event runtime.EventBus, log logger.Logger) Service {
 	return &service{
+		lifecycle: lifecycle,
 		readiness: readiness,
-		log:       log,
 		event:     event,
+		log:       log,
 	}
 }
 
@@ -75,6 +75,8 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 		return nil, fmt.Errorf("%w (stderr): %w", errors.ErrFailedToCreatePipe, err)
 	}
 
+	s.lifecycle.Configure(cmd)
+
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("%w: %w", errors.ErrFailedToStartCommand, err)
 	}
@@ -114,39 +116,7 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 
 // Stop stops a running service process
 func (s *service) Stop(proc Process) error {
-	cmd := proc.Cmd()
-	if cmd.Process == nil {
-		return nil
-	}
-
-	s.log.Info().Msgf("Stopping service '%s' (PID: %d)", proc.Name(), cmd.Process.Pid)
-
-	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		s.log.Error().Err(err).Msgf("Failed to send SIGTERM to service '%s'", proc.Name())
-
-		if killErr := cmd.Process.Kill(); killErr != nil {
-			s.log.Error().Err(killErr).Msgf("Failed to kill service '%s'", proc.Name())
-			return killErr
-		}
-
-		return err
-	}
-
-	select {
-	case <-proc.Done():
-		return nil
-	case <-time.After(config.ShutdownTimeout):
-		s.log.Warn().Msgf("Service '%s' did not stop gracefully, forcing kill", proc.Name())
-
-		if killErr := cmd.Process.Kill(); killErr != nil {
-			s.log.Error().Err(killErr).Msgf("Failed to kill service '%s'", proc.Name())
-			return killErr
-		}
-
-		<-proc.Done()
-
-		return nil
-	}
+	return s.lifecycle.Terminate(proc, config.ShutdownTimeout)
 }
 
 func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, tier, streamType string) {
