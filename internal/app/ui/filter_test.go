@@ -104,6 +104,52 @@ func Test_LogFilter_ToggleAll(t *testing.T) {
 	}
 }
 
+func Test_LogFilter_All(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(f LogFilter)
+		expected map[string]bool
+	}{
+		{
+			name:     "Empty filter returns empty map",
+			setup:    func(f LogFilter) {},
+			expected: map[string]bool{},
+		},
+		{
+			name: "Returns copy of all settings",
+			setup: func(f LogFilter) {
+				f.Set("api", true)
+				f.Set("web", false)
+				f.Set("db", true)
+			},
+			expected: map[string]bool{"api": true, "web": false, "db": true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := NewLogFilter()
+			tt.setup(filter)
+
+			result := filter.All()
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_LogFilter_All_ReturnsCopy(t *testing.T) {
+	filter := NewLogFilter()
+	filter.Set("api", true)
+
+	result := filter.All()
+	result["api"] = false
+	result["new"] = true
+
+	assert.True(t, filter.IsEnabled("api"), "Original should be unchanged")
+	assert.False(t, filter.IsEnabled("new"), "Original should not have new key")
+}
+
 func Test_LogFilter_ThreadSafety(t *testing.T) {
 	filter := NewLogFilter()
 	done := make(chan bool, 10)
@@ -113,6 +159,7 @@ func Test_LogFilter_ThreadSafety(t *testing.T) {
 			for j := 0; j < 100; j++ {
 				filter.Set("service", true)
 				filter.IsEnabled("service")
+				filter.All()
 			}
 
 			done <- true

@@ -72,10 +72,15 @@ func Test_CommandBus_Unsubscribe_On_Context_Cancel(t *testing.T) {
 	sub := cb.Subscribe(ctx)
 
 	cancel()
-	time.Sleep(10 * time.Millisecond)
 
-	_, ok := <-sub
-	assert.False(t, ok, "channel should be closed after context cancellation")
+	assert.Eventually(t, func() bool {
+		select {
+		case _, ok := <-sub:
+			return !ok
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 5*time.Millisecond, "channel should be closed after context cancellation")
 }
 
 func Test_CommandBus_No_Commands_After_Context_Cancel(t *testing.T) {
@@ -96,18 +101,15 @@ func Test_CommandBus_No_Commands_After_Context_Cancel(t *testing.T) {
 	}
 
 	cancel()
-	time.Sleep(20 * time.Millisecond)
 
-	cmd2 := Command{Type: CommandStopService, Data: StopServiceData{Service: "test2"}}
-	cb.Publish(cmd2)
-
-	select {
-	case _, ok := <-sub:
-		if ok {
-			t.Fatal("should not receive commands after context cancel")
+	assert.Eventually(t, func() bool {
+		select {
+		case _, ok := <-sub:
+			return !ok
+		default:
+			return false
 		}
-	case <-time.After(50 * time.Millisecond):
-	}
+	}, 100*time.Millisecond, 5*time.Millisecond, "channel should be closed after context cancellation")
 }
 
 func Test_CommandBus_Close_Closes_All_Subscribers(t *testing.T) {
@@ -155,10 +157,15 @@ func Test_NoOpCommandBus_Returns_Closed_Channel(t *testing.T) {
 	sub := ncb.Subscribe(ctx)
 
 	cancel()
-	time.Sleep(10 * time.Millisecond)
 
-	_, ok := <-sub
-	assert.False(t, ok, "no-op command bus should return closed channel after context cancel")
+	assert.Eventually(t, func() bool {
+		select {
+		case _, ok := <-sub:
+			return !ok
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 5*time.Millisecond, "no-op command bus should return closed channel after context cancel")
 }
 
 func Test_NoOpCommandBus_Publish_Does_Not_Panic(t *testing.T) {

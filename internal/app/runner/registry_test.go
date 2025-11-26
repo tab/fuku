@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,10 +39,9 @@ func Test_Registry_Add(t *testing.T) {
 
 	close(doneChan)
 
-	time.Sleep(10 * time.Millisecond)
-
-	lookup = reg.Get("test-service")
-	assert.False(t, lookup.Exists)
+	assert.Eventually(t, func() bool {
+		return !reg.Get("test-service").Exists
+	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func Test_Registry_Get_NotFound(t *testing.T) {
@@ -91,10 +91,9 @@ func Test_Registry_Remove(t *testing.T) {
 
 	close(doneChan)
 
-	time.Sleep(10 * time.Millisecond)
-
-	lookup = reg.Get("test-service")
-	assert.False(t, lookup.Exists)
+	assert.Eventually(t, func() bool {
+		return !reg.Get("test-service").Exists
+	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func Test_Registry_Remove_Nonexistent(t *testing.T) {
@@ -149,6 +148,8 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 	numServices := 10
 	doneChans := make([]chan struct{}, numServices)
 
+	var addWg sync.WaitGroup
+
 	for i := 0; i < numServices; i++ {
 		mockProc := NewMockProcess(ctrl)
 		doneChan := make(chan struct{})
@@ -157,19 +158,37 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 		mockProc.EXPECT().Done().Return(doneChan).AnyTimes()
 
 		serviceName := fmt.Sprintf("service-%d", i)
-		go reg.Add(serviceName, mockProc, "default")
+
+		addWg.Add(1)
+
+		go func(name string, proc Process) {
+			defer addWg.Done()
+
+			reg.Add(name, proc, "default")
+		}(serviceName, mockProc)
 	}
 
-	time.Sleep(5 * time.Millisecond)
+	addWg.Wait()
+
+	var accessWg sync.WaitGroup
 
 	for i := 0; i < 5; i++ {
+		accessWg.Add(2)
+
 		go func() {
+			defer accessWg.Done()
+
 			_ = reg.Get("service-0")
 		}()
-		go reg.SnapshotReverse()
+
+		go func() {
+			defer accessWg.Done()
+
+			reg.SnapshotReverse()
+		}()
 	}
 
-	time.Sleep(5 * time.Millisecond)
+	accessWg.Wait()
 
 	for _, ch := range doneChans {
 		close(ch)
@@ -228,12 +247,12 @@ func Test_Registry_RemoveAndDone_ChecksPointerIdentity(t *testing.T) {
 	reg.Add("test-service", mockProc2, "default")
 
 	close(doneChan1)
-	time.Sleep(10 * time.Millisecond)
 
-	lookup := reg.Get("test-service")
-	assert.True(t, lookup.Exists, "New process should still be in registry after old process exits")
-	assert.False(t, lookup.Detached)
-	assert.Equal(t, mockProc2, lookup.Proc)
+	assert.Eventually(t, func() bool {
+		lookup := reg.Get("test-service")
+
+		return lookup.Exists && !lookup.Detached && lookup.Proc == mockProc2
+	}, 100*time.Millisecond, 5*time.Millisecond, "New process should still be in registry after old process exits")
 
 	close(doneChan2)
 }
@@ -259,12 +278,11 @@ func Test_Registry_RestartRaceCondition(t *testing.T) {
 
 	close(oldDone)
 
-	time.Sleep(10 * time.Millisecond)
+	assert.Eventually(t, func() bool {
+		lookup := reg.Get("test-service")
 
-	lookup := reg.Get("test-service")
-	assert.True(t, lookup.Exists, "New process should still be in registry after old process exits")
-	assert.False(t, lookup.Detached)
-	assert.Equal(t, newProc, lookup.Proc)
+		return lookup.Exists && !lookup.Detached && lookup.Proc == newProc
+	}, 100*time.Millisecond, 5*time.Millisecond, "New process should still be in registry after old process exits")
 
 	close(newDone)
 }

@@ -40,8 +40,6 @@ func Test_Subscriber_Start(t *testing.T) {
 
 	subscriber := NewSubscriber(mockEventBus, sendFunc)
 	subscriber.Start(ctx)
-
-	time.Sleep(10 * time.Millisecond)
 }
 
 func Test_Subscriber_StartCmd(t *testing.T) {
@@ -64,8 +62,6 @@ func Test_Subscriber_StartCmd(t *testing.T) {
 
 	msg := cmd()
 	assert.Nil(t, msg)
-
-	time.Sleep(10 * time.Millisecond)
 }
 
 func Test_Subscriber_ProcessEvents(t *testing.T) {

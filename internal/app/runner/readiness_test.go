@@ -72,6 +72,19 @@ func Test_CheckHTTP_ContextCanceled(t *testing.T) {
 	assert.Equal(t, context.Canceled, err)
 }
 
+func Test_CheckHTTP_InvalidURL(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	checker := NewReadiness(mockLogger)
+
+	ctx := context.Background()
+	err := checker.CheckHTTP(ctx, "http://invalid\x00url", 5*time.Second, 100*time.Millisecond)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create request")
+}
+
 func Test_CheckLog_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -174,6 +187,65 @@ func Test_CheckLog_MatchInStderr(t *testing.T) {
 	ctx := context.Background()
 	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 2*time.Second)
 	assert.NoError(t, err)
+}
+
+func Test_CheckLog_ContextCanceled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	checker := NewReadiness(mockLogger)
+
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+
+	defer stdoutReader.Close()
+	defer stderrReader.Close()
+
+	go func() {
+		defer stdoutWriter.Close()
+		defer stderrWriter.Close()
+
+		for {
+			time.Sleep(100 * time.Millisecond)
+			fmt.Fprintln(stdoutWriter, "still waiting...")
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 10*time.Second)
+	assert.Error(t, err)
+	assert.Equal(t, context.Canceled, err)
+}
+
+func Test_CheckLog_NegativeDuration(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	checker := NewReadiness(mockLogger)
+
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+
+	defer stdoutReader.Close()
+	defer stderrReader.Close()
+
+	go func() {
+		defer stdoutWriter.Close()
+		defer stderrWriter.Close()
+	}()
+
+	ctx := context.Background()
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, -1*time.Second)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "readiness check timed out")
 }
 
 func Test_Check_HTTP(t *testing.T) {

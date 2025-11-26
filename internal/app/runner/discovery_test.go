@@ -22,6 +22,13 @@ func Test_Resolve(t *testing.T) {
 		expected result
 	}{
 		{
+			name:     "Empty services returns empty tiers",
+			services: map[string]*config.Service{},
+			profiles: map[string]interface{}{"empty": "*"},
+			profile:  "empty",
+			expected: result{tiers: []Tier{}, error: false},
+		},
+		{
 			name:     "Profile not found",
 			services: map[string]*config.Service{"api": {Dir: "api"}},
 			profiles: map[string]interface{}{},

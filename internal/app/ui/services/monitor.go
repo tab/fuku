@@ -35,21 +35,21 @@ func (m *Model) updateBlinkAnimations() bool {
 	hasActiveBlinking := false
 
 	for _, service := range m.state.services {
-		if service.Blink == nil {
+		if service.Blink == nil || service.FSM == nil {
 			continue
 		}
 
-		if service.FSM != nil {
-			state := service.FSM.Current()
-			if state == Starting || state == Stopping || state == Restarting {
-				if !service.Blink.IsActive() {
-					service.Blink.Start()
-				}
+		switch service.FSM.Current() {
+		case Starting, Stopping, Restarting:
+			if !service.Blink.IsActive() {
+				service.Blink.Start()
+			}
 
-				service.Blink.Update()
+			service.Blink.Update()
 
-				hasActiveBlinking = true
-			} else if service.Blink.IsActive() {
+			hasActiveBlinking = true
+		default:
+			if service.Blink.IsActive() {
 				service.Blink.Stop()
 			}
 		}
@@ -123,18 +123,24 @@ func statsWorkerCmd(ctx context.Context, m *Model) tea.Cmd {
 	})
 }
 
+type job struct {
+	name string
+	pid  int
+}
+
+type result struct {
+	name  string
+	stats ServiceStats
+	err   error
+}
+
 // collectStats polls all services and returns batched stats with per-call timeouts
 func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
-	type serviceJob struct {
-		name string
-		pid  int
-	}
-
-	var jobs []serviceJob
+	var jobs []job
 
 	for name, service := range m.state.services {
 		if service.Monitor.PID > 0 && service.Status != StatusStopped {
-			jobs = append(jobs, serviceJob{name: name, pid: service.Monitor.PID})
+			jobs = append(jobs, job{name: name, pid: service.Monitor.PID})
 		}
 	}
 
@@ -143,43 +149,9 @@ func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
 	}
 
 	sem := make(chan struct{}, components.StatsMaxConcurrency)
-	results := make(chan struct {
-		name  string
-		stats ServiceStats
-		err   error
-	}, len(jobs))
+	results := make(chan result, len(jobs))
 
-	launched := 0
-
-launchLoop:
-	for _, job := range jobs {
-		if ctx.Err() != nil {
-			break launchLoop
-		}
-
-		select {
-		case <-ctx.Done():
-			break launchLoop
-		case sem <- struct{}{}:
-			launched++
-
-			go func(j serviceJob) {
-				defer func() { <-sem }()
-
-				callCtx, cancel := context.WithTimeout(ctx, components.StatsCallTimeout)
-
-				result, err := m.getStatsWithContext(callCtx, j.pid)
-
-				cancel()
-
-				results <- struct {
-					name  string
-					stats ServiceStats
-					err   error
-				}{name: j.name, stats: result, err: err}
-			}(job)
-		}
-	}
+	launched := m.launchStatsWorkers(ctx, jobs, sem, results)
 
 	stats := make(map[string]ServiceStats)
 
@@ -195,6 +167,36 @@ launchLoop:
 	}
 
 	return stats
+}
+
+func (m *Model) launchStatsWorkers(ctx context.Context, jobs []job, sem chan struct{}, results chan result) int {
+	launched := 0
+
+	for _, j := range jobs {
+		if ctx.Err() != nil {
+			return launched
+		}
+
+		select {
+		case <-ctx.Done():
+			return launched
+		case sem <- struct{}{}:
+			launched++
+
+			go func(j job) {
+				defer func() { <-sem }()
+
+				callCtx, cancel := context.WithTimeout(ctx, components.StatsCallTimeout)
+				stats, err := m.getStatsWithContext(callCtx, j.pid)
+
+				cancel()
+
+				results <- result{name: j.name, stats: stats, err: err}
+			}(j)
+		}
+	}
+
+	return launched
 }
 
 // getStatsWithContext calls monitor.GetStats with context for cancellation support
