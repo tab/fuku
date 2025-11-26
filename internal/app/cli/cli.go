@@ -30,13 +30,16 @@ TUI Controls (Services View):
   r                               Restart selected service
   s                               Stop/start selected service
   space                           Toggle logs for selected service
-  l                               Switch to logs view
+  ctrl+a                          Toggle all logs
+  tab                             Switch to logs view
   q                               Quit (stops all services)
 
 TUI Controls (Logs View):
   ↑/↓ or k/j                      Scroll logs
   pgup/pgdn/home/end              Scroll viewport
-  l                               Switch back to services view
+  a                               Toggle autoscroll
+  ctrl+r                          Clear logs
+  tab                             Switch back to services view
   q                               Quit (stops all services)`
 )
 
