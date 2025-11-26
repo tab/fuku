@@ -359,6 +359,9 @@ Example workflow:
   - avoid functions that are too small if they reduce readability
 - keep lines readable; while gofmt doesn't enforce line length, consider breaking very long lines for clarity
 - manage conditional complexity:
+  - avoid nested if statements (if { if { } else { } }) - they are hard to read and maintain
+  - use if statements only for guard clauses (early returns/continue) or simple single-level branches
+  - for multiple conditions or state-based logic, prefer switch statements
   - for many discrete values, prefer switch statements over long if-else-if chains
   - use early returns to reduce nesting depth when appropriate
   - extract complex conditions into well-named boolean functions or variables
