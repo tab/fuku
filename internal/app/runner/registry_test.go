@@ -39,10 +39,9 @@ func Test_Registry_Add(t *testing.T) {
 
 	close(doneChan)
 
-	time.Sleep(10 * time.Millisecond)
-
-	lookup = reg.Get("test-service")
-	assert.False(t, lookup.Exists)
+	assert.Eventually(t, func() bool {
+		return !reg.Get("test-service").Exists
+	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func Test_Registry_Get_NotFound(t *testing.T) {
@@ -92,10 +91,9 @@ func Test_Registry_Remove(t *testing.T) {
 
 	close(doneChan)
 
-	time.Sleep(10 * time.Millisecond)
-
-	lookup = reg.Get("test-service")
-	assert.False(t, lookup.Exists)
+	assert.Eventually(t, func() bool {
+		return !reg.Get("test-service").Exists
+	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func Test_Registry_Remove_Nonexistent(t *testing.T) {
@@ -249,12 +247,12 @@ func Test_Registry_RemoveAndDone_ChecksPointerIdentity(t *testing.T) {
 	reg.Add("test-service", mockProc2, "default")
 
 	close(doneChan1)
-	time.Sleep(10 * time.Millisecond)
 
-	lookup := reg.Get("test-service")
-	assert.True(t, lookup.Exists, "New process should still be in registry after old process exits")
-	assert.False(t, lookup.Detached)
-	assert.Equal(t, mockProc2, lookup.Proc)
+	assert.Eventually(t, func() bool {
+		lookup := reg.Get("test-service")
+
+		return lookup.Exists && !lookup.Detached && lookup.Proc == mockProc2
+	}, 100*time.Millisecond, 5*time.Millisecond, "New process should still be in registry after old process exits")
 
 	close(doneChan2)
 }
@@ -280,12 +278,11 @@ func Test_Registry_RestartRaceCondition(t *testing.T) {
 
 	close(oldDone)
 
-	time.Sleep(10 * time.Millisecond)
+	assert.Eventually(t, func() bool {
+		lookup := reg.Get("test-service")
 
-	lookup := reg.Get("test-service")
-	assert.True(t, lookup.Exists, "New process should still be in registry after old process exits")
-	assert.False(t, lookup.Detached)
-	assert.Equal(t, newProc, lookup.Proc)
+		return lookup.Exists && !lookup.Detached && lookup.Proc == newProc
+	}, 100*time.Millisecond, 5*time.Millisecond, "New process should still be in registry after old process exits")
 
 	close(newDone)
 }

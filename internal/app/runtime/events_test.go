@@ -73,10 +73,15 @@ func Test_EventBus_Unsubscribe_On_Context_Cancel(t *testing.T) {
 	sub := eb.Subscribe(ctx)
 
 	cancel()
-	time.Sleep(10 * time.Millisecond)
 
-	_, ok := <-sub
-	assert.False(t, ok, "channel should be closed after context cancellation")
+	assert.Eventually(t, func() bool {
+		select {
+		case _, ok := <-sub:
+			return !ok
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 5*time.Millisecond, "channel should be closed after context cancellation")
 }
 
 func Test_EventBus_Close_Closes_All_Subscribers(t *testing.T) {

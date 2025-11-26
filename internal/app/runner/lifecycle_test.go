@@ -108,12 +108,24 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 
 	lc := NewLifecycle(mockLogger)
 
-	cmd := exec.Command("sh", "-c", "trap '' TERM INT; sleep 60")
+	cmd := exec.Command("sh", "-c", "trap '' TERM INT; echo ready; sleep 60")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	err := cmd.Start()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Skip("Cannot create stdout pipe")
+	}
+
+	err = cmd.Start()
 	if err != nil {
 		t.Skip("Cannot start test process")
+	}
+
+	buf := make([]byte, 6)
+
+	_, err = stdout.Read(buf)
+	if err != nil {
+		t.Skip("Cannot read from stdout")
 	}
 
 	done := make(chan struct{})
@@ -122,8 +134,6 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 		cmd.Wait()
 		close(done)
 	}()
-
-	time.Sleep(50 * time.Millisecond)
 
 	mockProcess := NewMockProcess(ctrl)
 	mockProcess.EXPECT().Cmd().Return(cmd).AnyTimes()
