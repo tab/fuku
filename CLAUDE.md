@@ -4,7 +4,7 @@
 
 **Fuku** is a lightweight CLI orchestrator for running and managing multiple local services in development environments. It's designed for speed, simplicity, and readability. Key features include:
 
-- Service orchestration with dependency resolution
+- Service orchestration with tier-based startup ordering
 - Concurrent service execution with proper startup ordering
 - Process lifecycle management with signal handling
 - Simple YAML configuration format
@@ -22,7 +22,7 @@
 2. **Core Packages** (`internal/`)
    - **app/** - Main application container and lifecycle management
    - **app/cli/** - Command-line interface parsing and command handling
-   - **app/runner/** - Service orchestration, process management, and dependency resolution
+   - **app/runner/** - Service orchestration, process management, and tier-based startup ordering
    - **app/runtime/** - Event and command buses for pub/sub communication
    - **app/ui/services/** - Interactive TUI with Bubble Tea framework
    - **config/** - Configuration loading, parsing, and data structures
@@ -83,8 +83,7 @@
    - Handles unknown commands with appropriate error messages
 
 4. **Service Orchestration** (`internal/app/runner/runner.go`)
-   - Resolves service dependencies using topological sort
-   - Starts services in dependency order with 2-second delays
+   - Orders services by tier for startup sequencing
    - Manages process lifecycle with signal handling (SIGINT, SIGTERM)
    - Streams service logs with prefixed output format
    - Stops services in reverse order on shutdown
@@ -102,25 +101,19 @@
 
 1. **Service Definition**
    - Directory-based service configuration
-   - Dependency specification with `depends_on` arrays
+   - Tier-based startup ordering
    - Automatic environment file detection (`.env.development`)
    - Makefile-based service execution (`make run`)
 
 2. **Profile Management**
    - Logical grouping of services for batch execution
-   - Include lists defining services per profile
-   - Wildcard support (`*`) for all services
+   - Profile values can be `"*"` (all services) or a list of service names
    - Default profile support for common configurations
 
 3. **Logging Configuration**
    - Console and JSON format support
    - Configurable log levels (debug, info, warn, error)
    - Service-specific log streaming with prefixes
-
-4. **Dependency Resolution**
-   - Topological sort for startup ordering
-   - Circular dependency detection
-   - Missing service validation
 
 ### Testing Patterns
 
@@ -183,7 +176,7 @@
 
 4. **Test Coverage**
    - CLI command parsing and execution: ~57.6%
-   - Service dependency resolution algorithms: ~69.7%
+   - Service tier ordering: ~69.7%
    - Main application entry point: ~66.7%
    - Application container lifecycle: ~58.3%
    - Configuration loading: ~96.2%
@@ -197,7 +190,7 @@
 - `cmd/main_test.go` - Tests for entry point functions and FX application creation
 - `internal/app/app_test.go` - Application container and lifecycle testing
 - `internal/app/cli/cli_test.go` - CLI argument parsing and command execution
-- `internal/app/runner/runner_test.go` - Service orchestration and dependency resolution
+- `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
 - `internal/app/runtime/events_test.go` - Event bus pub/sub testing
 - `internal/app/runtime/commands_test.go` - Command bus pub/sub testing
 - `internal/app/ui/components/keys_test.go` - Shared key bindings
@@ -458,13 +451,11 @@ version: 1
 services:
   service-name:
     dir: path/to/service
-    depends_on: [dependency1, dependency2]
+    tier: foundation
 
 profiles:
-  profile-name:
-    include:
-      - service1
-      - service2
+  default: "*"
+  backend: [service1, service2]
 
 logging:
   format: console
@@ -473,9 +464,9 @@ logging:
 
 ## Working with Services
 
-- services are defined with a directory path and optional dependencies
+- services are defined with a directory path and optional tier
 - profiles allow grouping services for batch operations
-- dependencies ensure services start in the correct order
+- tiers determine startup ordering (services in earlier tiers start first)
 - each service runs `make run` in its specified directory
 - services must have a Makefile with a `run` target
 - environment files (`.env.development`) are automatically detected and passed via ENV_FILE
@@ -484,8 +475,8 @@ logging:
 
 Based on the complex microservices example provided, fuku can handle large-scale service orchestration with:
 - multiple API services
-- complex dependency chains
+- tier-based startup ordering
 - service grouping via profiles
 - centralized logging configuration
 
-The tool is particularly useful for development environments where you need to start multiple interdependent services with a single command.
+The tool is particularly useful for development environments where you need to start multiple services with a single command.
