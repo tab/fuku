@@ -108,7 +108,7 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 
 	lc := NewLifecycle(mockLogger)
 
-	cmd := exec.Command("sh", "-c", "trap '' TERM INT; while true; do sleep 0.1; done")
+	cmd := exec.Command("sh", "-c", "trap '' TERM INT; sleep 60")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	err := cmd.Start()
