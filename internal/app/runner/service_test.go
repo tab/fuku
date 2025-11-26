@@ -329,3 +329,132 @@ func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
 		t.Fatal("Expected readiness check to be called asynchronously for Log type")
 	}
 }
+
+func Test_HandleReadinessCheck_UnknownType(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	mockReadiness := NewMockReadiness(ctrl)
+	mockLifecycle := NewMockLifecycle(ctrl)
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
+	svc := &service{
+		lifecycle: mockLifecycle,
+		readiness: mockReadiness,
+		log:       mockLogger,
+	}
+
+	proc := &process{
+		ready: make(chan error, 1),
+	}
+
+	stdout, stdoutWriter := io.Pipe()
+	stderr, stderrWriter := io.Pipe()
+
+	defer stdout.Close()
+	defer stdoutWriter.Close()
+	defer stderr.Close()
+	defer stderrWriter.Close()
+
+	serviceCfg := &config.Service{
+		Dir: "/tmp/test",
+		Readiness: &config.Readiness{
+			Type: "unknown",
+		},
+	}
+
+	svc.handleReadinessCheck(ctx, "test-service", serviceCfg, proc, stdout, stderr)
+
+	select {
+	case err := <-proc.ready:
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown readiness type")
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Expected ready signal with error for unknown type")
+	}
+}
+
+func Test_TeeStream_WithOutput(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+
+	eventBus := runtime.NewNoOpEventBus()
+
+	svc := &service{
+		event: eventBus,
+		log:   mockLogger,
+	}
+
+	reader, writer := io.Pipe()
+	dstReader, dstWriter := io.Pipe()
+
+	done := make(chan struct{})
+
+	go func() {
+		svc.teeStream(reader, dstWriter, "test-service", "platform", "STDOUT")
+		close(done)
+	}()
+
+	go func() {
+		writer.Write([]byte("test line 1\n"))
+		writer.Write([]byte("test line 2\n"))
+		writer.Close()
+	}()
+
+	go func() {
+		io.Copy(io.Discard, dstReader)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("teeStream did not complete")
+	}
+}
+
+func Test_TeeStream_EmptyTier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+
+	eventBus := runtime.NewNoOpEventBus()
+
+	svc := &service{
+		event: eventBus,
+		log:   mockLogger,
+	}
+
+	reader, writer := io.Pipe()
+	dstReader, dstWriter := io.Pipe()
+
+	done := make(chan struct{})
+
+	go func() {
+		svc.teeStream(reader, dstWriter, "test-service", "", "STDOUT")
+		close(done)
+	}()
+
+	go func() {
+		writer.Write([]byte("test output\n"))
+		writer.Close()
+	}()
+
+	go func() {
+		io.Copy(io.Discard, dstReader)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("teeStream did not complete")
+	}
+}

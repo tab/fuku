@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -149,6 +150,8 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 	numServices := 10
 	doneChans := make([]chan struct{}, numServices)
 
+	var addWg sync.WaitGroup
+
 	for i := 0; i < numServices; i++ {
 		mockProc := NewMockProcess(ctrl)
 		doneChan := make(chan struct{})
@@ -157,19 +160,37 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 		mockProc.EXPECT().Done().Return(doneChan).AnyTimes()
 
 		serviceName := fmt.Sprintf("service-%d", i)
-		go reg.Add(serviceName, mockProc, "default")
+
+		addWg.Add(1)
+
+		go func(name string, proc Process) {
+			defer addWg.Done()
+
+			reg.Add(name, proc, "default")
+		}(serviceName, mockProc)
 	}
 
-	time.Sleep(5 * time.Millisecond)
+	addWg.Wait()
+
+	var accessWg sync.WaitGroup
 
 	for i := 0; i < 5; i++ {
+		accessWg.Add(2)
+
 		go func() {
+			defer accessWg.Done()
+
 			_ = reg.Get("service-0")
 		}()
-		go reg.SnapshotReverse()
+
+		go func() {
+			defer accessWg.Done()
+
+			reg.SnapshotReverse()
+		}()
 	}
 
-	time.Sleep(5 * time.Millisecond)
+	accessWg.Wait()
 
 	for _, ch := range doneChans {
 		close(ch)

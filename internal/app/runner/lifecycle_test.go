@@ -108,8 +108,49 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 
 	lc := NewLifecycle(mockLogger)
 
-	cmd := exec.Command("sh", "-c", "trap '' TERM; sleep 10")
+	cmd := exec.Command("sh", "-c", "trap '' TERM INT; while true; do sleep 0.1; done")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	err := cmd.Start()
+	if err != nil {
+		t.Skip("Cannot start test process")
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	mockProcess := NewMockProcess(ctrl)
+	mockProcess.EXPECT().Cmd().Return(cmd).AnyTimes()
+	mockProcess.EXPECT().Name().Return("test-service").AnyTimes()
+	mockProcess.EXPECT().Done().Return(done).AnyTimes()
+
+	err = lc.Terminate(mockProcess, 100*time.Millisecond)
+	assert.NoError(t, err)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Process should have been killed")
+	}
+}
+
+func Test_Terminate_SignalGroupFailsFallbackToDirectSignal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+
+	lc := NewLifecycle(mockLogger)
+
+	cmd := exec.Command("sleep", "10")
 
 	err := cmd.Start()
 	if err != nil {
@@ -128,12 +169,42 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 	mockProcess.EXPECT().Name().Return("test-service").AnyTimes()
 	mockProcess.EXPECT().Done().Return(done).AnyTimes()
 
-	err = lc.Terminate(mockProcess, 100*time.Millisecond)
+	err = lc.Terminate(mockProcess, 5*time.Second)
 	assert.NoError(t, err)
+}
 
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Process should have been killed")
+func Test_Terminate_ProcessAlreadyExited(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
+	lc := NewLifecycle(mockLogger)
+
+	cmd := exec.Command("true")
+
+	err := cmd.Start()
+	if err != nil {
+		t.Skip("Cannot start test process")
 	}
+
+	done := make(chan struct{})
+
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	<-done
+
+	mockProcess := NewMockProcess(ctrl)
+	mockProcess.EXPECT().Cmd().Return(cmd).AnyTimes()
+	mockProcess.EXPECT().Name().Return("test-service").AnyTimes()
+	mockProcess.EXPECT().Done().Return(done).AnyTimes()
+
+	err = lc.Terminate(mockProcess, time.Second)
+	assert.Error(t, err)
 }
