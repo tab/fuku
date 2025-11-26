@@ -21,13 +21,12 @@
 
 ```bash
 git clone git@github.com:tab/fuku.git
-cd fuku
-go build -o cmd/fuku cmd/main.go
 ```
 
 ```bash
-ln -sf <path-to-fuku>/cmd/fuku /usr/local/bin/fuku
-chmod +x /usr/local/bin/fuku
+cd fuku
+go build -o cmd/fuku cmd/main.go
+sudo ln -s $(pwd)/cmd/fuku /usr/local/bin/fuku
 ```
 
 ## Quick Start
