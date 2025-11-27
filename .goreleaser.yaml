@@ -1,0 +1,31 @@
+project_name: fuku
+dist: .bin
+builds:
+  - id: fuku
+    binary: "fuku"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    dir: cmd
+    main: ./main.go
+    ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
+
+archives:
+  - id: fuku
+    name_template: >-
+      {{.ProjectName}}_
+      {{- .Tag}}_
+      {{- if eq .Os "darwin"}}macos
+      {{- else}}{{.Os}}{{end}}_
+      {{- if eq .Arch "amd64"}}x86_64
+      {{- else if eq .Arch "386"}}i386
+      {{- else}}{{.Arch}}{{end}}
+    files:
+      - LICENSE
+      - README.md
