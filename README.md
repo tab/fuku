@@ -1,6 +1,7 @@
 # fuku
 
 [![CI](https://github.com/tab/fuku/actions/workflows/checks.yaml/badge.svg)](https://github.com/tab/fuku/actions/workflows/checks.yaml)
+[![codecov](https://codecov.io/github/tab/shortly/graph/badge.svg?token=R8T7W6DQ9T)](https://codecov.io/github/tab/shortly)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **fuku** is a lightweight CLI orchestrator for running and managing multiple local services in development environments.
