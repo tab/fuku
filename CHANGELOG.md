@@ -1,6 +1,25 @@
 # CHANGELOG
 
-## [0.8.0]
+## [v0.8.1]
+
+### Fixes
+- **fix:** Adjust process command to prevent indefinite blocking
+- **fix:** Replace time.Sleep with assert.Eventually
+
+### Chore
+- **chore:** Fix help key bindings info
+- **chore:** Add goreleaser workflow
+- **chore:** Add CHANGELOG.md
+
+### Tests
+- **test:** Add filter tests
+- **test:** Add runner package tests
+- **test:** Add monitor package tests
+
+### Documentation
+- **docs:** Add codecov coverage badge
+
+## v0.8.0
 
 ### Features
 - **feat:** Add process group termination and graceful shutdown
@@ -13,12 +32,12 @@
 ### Chore
 - **chore:** Update format string in renderServiceRow
 
-## [0.7.1]
+## v0.7.1
 
 ### Fixes
 - **fix:** Resolve issue when no services are found for a profile
 
-## [0.7.0]
+## v0.7.0
 
 ### Features
 - **feat:** Add registry for process lifecycle management
@@ -26,7 +45,7 @@
 ### Fixes
 - **fix:** Correct service name generation in tests
 
-## [0.6.0]
+## v0.6.0
 
 ### Features
 - **feat:** Enable custom tier names in configuration
@@ -47,7 +66,7 @@
 ### Documentation
 - **docs:** Updated CLAUDE.md and README.md
 
-## [0.5.0]
+## v0.5.0
 
 ### Features
 - **feat:** Add log clear with ctrl+r
@@ -76,7 +95,7 @@
 ### Documentation
 - **docs:** Update README.md
 
-## [0.4.0]
+## v0.4.0
 
 ### Features
 - **feat:** Add toggle all log streams; update keybindings
@@ -86,7 +105,7 @@
 - **fix:** Change UI key bindings from 'l' to 'tab'
 - **fix:** Remove unused style variables
 
-## [0.3.2]
+## v0.3.2
 
 ### Fixes
 - **fix:** Fix header layout
@@ -97,7 +116,7 @@
 - **chore:** Update README.md and ARCHITECTURE.md
 - **chore:** Use auth service in examples
 
-## [0.3.1]
+## v0.3.1
 
 ### Features
 - **feat:** Add monitor package
@@ -117,12 +136,12 @@
 ### Documentation
 - **docs:** Add screenshot image to README
 
-## [0.3.0]
+## v0.3.0
 
 ### Features
-- **feat(ui):** Add FSM for service state management
-- **feat(tier):** Enable running services in tiers
-- **feat(cli):** Enhance CLI with scoped run commands
+- **feat:** Add FSM for service state management
+- **feat:** Enable running services in tiers
+- **feat:** Enhance CLI with scoped run commands
 
 ### Fixes
 - **fix:** Correct startTier and drainPipe methods
