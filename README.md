@@ -20,14 +20,40 @@
 
 ## Installation
 
+### Download from Releases
+
+Download the latest binary from [GitHub Releases](https://github.com/tab/fuku/releases)
+
+**macOS (Apple Silicon):**
 ```bash
-git clone git@github.com:tab/fuku.git
+cd ~/Downloads
+tar -xzf fuku_v0.8.1_macos_arm64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.8.1_macos_arm64/fuku
+sudo mv ~/Downloads/fuku_v0.8.1_macos_arm64/fuku /usr/local/bin/fuku
 ```
 
+**macOS (Intel):**
 ```bash
+cd ~/Downloads
+tar -xzf fuku_v0.8.1_macos_amd64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.8.1_macos_amd64/fuku
+sudo mv ~/Downloads/fuku_v0.8.1_macos_amd64/fuku /usr/local/bin/fuku
+```
+
+**Linux:**
+```bash
+cd ~/Downloads
+tar -xzf fuku_v0.8.1_linux_amd64.tar.gz
+sudo mv ~/Downloads/fuku_v0.8.1_linux_amd64/fuku /usr/local/bin/fuku
+```
+
+### Build from Source
+
+```bash
+git clone git@github.com:tab/fuku.git
 cd fuku
 go build -o cmd/fuku cmd/main.go
-sudo ln -s $(pwd)/cmd/fuku /usr/local/bin/fuku
+sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku
 ```
 
 ## Quick Start
