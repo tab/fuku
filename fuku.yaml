@@ -18,6 +18,12 @@ services:
     readiness:
       <<: *readiness
       pattern: "Starting storage"
+  failed-service:
+    dir: examples/bookstore/failed-service
+    tier: foundation
+    readiness:
+      <<: *readiness
+      pattern: "Never matches"
 
   # Platform tier: Business logic services that depend on foundation
   user:

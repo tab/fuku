@@ -14,6 +14,7 @@ const (
 	EventPhaseChanged    EventType = "phase_changed"
 	EventTierStarting    EventType = "tier_starting"
 	EventTierReady       EventType = "tier_ready"
+	EventTierFailed      EventType = "tier_failed"
 	EventServiceStarting EventType = "service_starting"
 	EventServiceReady    EventType = "service_ready"
 	EventServiceFailed   EventType = "service_failed"
@@ -68,6 +69,13 @@ type TierStartingData struct {
 // TierReadyData contains tier ready details
 type TierReadyData struct {
 	Name string
+}
+
+// TierFailedData contains tier failure details
+type TierFailedData struct {
+	Name           string
+	FailedServices []string
+	TotalServices  int
 }
 
 // ServiceStartingData contains service startup details

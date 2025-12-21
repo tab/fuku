@@ -16,8 +16,8 @@ import (
 
 // Readiness handles service readiness checking
 type Readiness interface {
-	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration) error
-	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration) error
+	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error
+	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error
 	Check(ctx context.Context, name string, service *config.Service, process Process)
 }
 
@@ -33,11 +33,17 @@ func NewReadiness(log logger.Logger) Readiness {
 }
 
 // CheckHTTP checks if an HTTP endpoint is ready
-func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration) error {
+func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error {
 	client := &http.Client{Timeout: interval}
 	deadline := time.Now().Add(timeout)
 
 	for {
+		select {
+		case <-done:
+			return errors.ErrProcessExited
+		default:
+		}
+
 		if time.Now().After(deadline) {
 			return fmt.Errorf("%w: HTTP check after %v", errors.ErrReadinessTimeout, timeout)
 		}
@@ -60,13 +66,15 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-done:
+			return errors.ErrProcessExited
 		case <-time.After(interval):
 		}
 	}
 }
 
 // CheckLog checks if a log pattern appears in stdout/stderr
-func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration) error {
+func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errors.ErrInvalidRegexPattern, err)
@@ -102,6 +110,8 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-done:
+		return errors.ErrProcessExited
 	case <-time.After(duration):
 		return fmt.Errorf("%w: log pattern check after %v", errors.ErrReadinessTimeout, timeout)
 	}
@@ -114,11 +124,13 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 
 	var err error
 
+	done := process.Done()
+
 	switch options.Type {
 	case config.TypeHTTP:
-		err = r.CheckHTTP(ctx, options.URL, options.Timeout, options.Interval)
+		err = r.CheckHTTP(ctx, options.URL, options.Timeout, options.Interval, done)
 	case config.TypeLog:
-		err = r.CheckLog(ctx, options.Pattern, process.StdoutReader(), process.StderrReader(), options.Timeout)
+		err = r.CheckLog(ctx, options.Pattern, process.StdoutReader(), process.StderrReader(), options.Timeout, done)
 	default:
 		err = fmt.Errorf("%w: %s", errors.ErrInvalidReadinessType, options.Type)
 	}

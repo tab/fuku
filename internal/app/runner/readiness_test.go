@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/errors"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -29,8 +30,9 @@ func Test_CheckHTTP_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckHTTP(ctx, server.URL, 5*time.Second, 100*time.Millisecond)
+	err := checker.CheckHTTP(ctx, server.URL, 5*time.Second, 100*time.Millisecond, done)
 	assert.NoError(t, err)
 }
 
@@ -46,8 +48,9 @@ func Test_CheckHTTP_Timeout(t *testing.T) {
 	}))
 	defer server.Close()
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckHTTP(ctx, server.URL, 50*time.Millisecond, 10*time.Millisecond)
+	err := checker.CheckHTTP(ctx, server.URL, 50*time.Millisecond, 10*time.Millisecond, done)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "readiness check timed out")
 }
@@ -64,10 +67,11 @@ func Test_CheckHTTP_ContextCanceled(t *testing.T) {
 	}))
 	defer server.Close()
 
+	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := checker.CheckHTTP(ctx, server.URL, 5*time.Second, 100*time.Millisecond)
+	err := checker.CheckHTTP(ctx, server.URL, 5*time.Second, 100*time.Millisecond, done)
 	assert.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
@@ -79,8 +83,9 @@ func Test_CheckHTTP_InvalidURL(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	checker := NewReadiness(mockLogger)
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckHTTP(ctx, "http://invalid\x00url", 5*time.Second, 100*time.Millisecond)
+	err := checker.CheckHTTP(ctx, "http://invalid\x00url", 5*time.Second, 100*time.Millisecond, done)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create request")
 }
@@ -109,8 +114,9 @@ func Test_CheckLog_Success(t *testing.T) {
 		defer stderrWriter.Close()
 	}()
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 2*time.Second)
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 2*time.Second, done)
 	assert.NoError(t, err)
 }
 
@@ -137,8 +143,9 @@ func Test_CheckLog_Timeout(t *testing.T) {
 		defer stderrWriter.Close()
 	}()
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 50*time.Millisecond)
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 50*time.Millisecond, done)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "readiness check timed out")
 }
@@ -156,8 +163,9 @@ func Test_CheckLog_InvalidPattern(t *testing.T) {
 	defer stdoutReader.Close()
 	defer stderrReader.Close()
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckLog(ctx, "[invalid(", stdoutReader, stderrReader, 1*time.Second)
+	err := checker.CheckLog(ctx, "[invalid(", stdoutReader, stderrReader, 1*time.Second, done)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid regex pattern")
 }
@@ -184,8 +192,9 @@ func Test_CheckLog_MatchInStderr(t *testing.T) {
 		fmt.Fprintln(stderrWriter, "Server ready on port 8080")
 	}()
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 2*time.Second)
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 2*time.Second, done)
 	assert.NoError(t, err)
 }
 
@@ -212,6 +221,7 @@ func Test_CheckLog_ContextCanceled(t *testing.T) {
 		}
 	}()
 
+	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
@@ -219,7 +229,7 @@ func Test_CheckLog_ContextCanceled(t *testing.T) {
 		cancel()
 	}()
 
-	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 10*time.Second)
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 10*time.Second, done)
 	assert.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
@@ -242,8 +252,9 @@ func Test_CheckLog_NegativeDuration(t *testing.T) {
 		defer stderrWriter.Close()
 	}()
 
+	done := make(chan struct{})
 	ctx := context.Background()
-	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, -1*time.Second)
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, -1*time.Second, done)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "readiness check timed out")
 }
@@ -274,6 +285,7 @@ func Test_Check_HTTP(t *testing.T) {
 	proc := &process{
 		name:  "test-service",
 		ready: make(chan error, 1),
+		done:  make(chan struct{}),
 	}
 
 	ctx := context.Background()
@@ -310,6 +322,7 @@ func Test_Check_Log(t *testing.T) {
 	proc := &process{
 		name:         "test-service",
 		ready:        make(chan error, 1),
+		done:         make(chan struct{}),
 		stdoutReader: stdoutReader,
 		stderrReader: stderrReader,
 	}
@@ -353,6 +366,7 @@ func Test_Check_InvalidType(t *testing.T) {
 	proc := &process{
 		name:  "test-service",
 		ready: make(chan error, 1),
+		done:  make(chan struct{}),
 	}
 
 	ctx := context.Background()
@@ -365,4 +379,52 @@ func Test_Check_InvalidType(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("readiness check didn't complete")
 	}
+}
+
+func Test_CheckHTTP_ProcessExited(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	checker := NewReadiness(mockLogger)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	done := make(chan struct{})
+	close(done)
+
+	ctx := context.Background()
+	err := checker.CheckHTTP(ctx, server.URL, 5*time.Second, 100*time.Millisecond, done)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errors.ErrProcessExited)
+}
+
+func Test_CheckLog_ProcessExited(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	checker := NewReadiness(mockLogger)
+
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+
+	defer stdoutReader.Close()
+	defer stderrReader.Close()
+
+	go func() {
+		defer stdoutWriter.Close()
+		defer stderrWriter.Close()
+	}()
+
+	done := make(chan struct{})
+	close(done)
+
+	ctx := context.Background()
+	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 5*time.Second, done)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errors.ErrProcessExited)
 }

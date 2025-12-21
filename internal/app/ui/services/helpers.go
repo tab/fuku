@@ -1,11 +1,38 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	apperrors "fuku/internal/app/errors"
 )
+
+// simplifyErrorMessage returns a user-friendly short error message
+func simplifyErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	switch {
+	case errors.Is(err, apperrors.ErrMaxRetriesExceeded):
+		return "max retries exceeded"
+	case errors.Is(err, apperrors.ErrProcessExited):
+		return "process exited"
+	case errors.Is(err, apperrors.ErrReadinessTimeout):
+		return "readiness timeout"
+	case errors.Is(err, apperrors.ErrFailedToStartCommand):
+		return "failed to start"
+	case errors.Is(err, apperrors.ErrServiceNotFound):
+		return "service not found"
+	case errors.Is(err, apperrors.ErrServiceDirectoryNotExist):
+		return "directory not found"
+	default:
+		return err.Error()
+	}
+}
 
 // truncateErrorMessage truncates an error message to fit within availableWidth display columns
 func truncateErrorMessage(errorText string, availableWidth int) string {

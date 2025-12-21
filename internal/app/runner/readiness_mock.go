@@ -56,29 +56,29 @@ func (mr *MockReadinessMockRecorder) Check(ctx, name, service, process any) *gom
 }
 
 // CheckHTTP mocks base method.
-func (m *MockReadiness) CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration) error {
+func (m *MockReadiness) CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckHTTP", ctx, url, timeout, interval)
+	ret := m.ctrl.Call(m, "CheckHTTP", ctx, url, timeout, interval, done)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CheckHTTP indicates an expected call of CheckHTTP.
-func (mr *MockReadinessMockRecorder) CheckHTTP(ctx, url, timeout, interval any) *gomock.Call {
+func (mr *MockReadinessMockRecorder) CheckHTTP(ctx, url, timeout, interval, done any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckHTTP", reflect.TypeOf((*MockReadiness)(nil).CheckHTTP), ctx, url, timeout, interval)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckHTTP", reflect.TypeOf((*MockReadiness)(nil).CheckHTTP), ctx, url, timeout, interval, done)
 }
 
 // CheckLog mocks base method.
-func (m *MockReadiness) CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration) error {
+func (m *MockReadiness) CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckLog", ctx, pattern, stdout, stderr, timeout)
+	ret := m.ctrl.Call(m, "CheckLog", ctx, pattern, stdout, stderr, timeout, done)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CheckLog indicates an expected call of CheckLog.
-func (mr *MockReadinessMockRecorder) CheckLog(ctx, pattern, stdout, stderr, timeout any) *gomock.Call {
+func (mr *MockReadinessMockRecorder) CheckLog(ctx, pattern, stdout, stderr, timeout, done any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLog", reflect.TypeOf((*MockReadiness)(nil).CheckLog), ctx, pattern, stdout, stderr, timeout)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLog", reflect.TypeOf((*MockReadiness)(nil).CheckLog), ctx, pattern, stdout, stderr, timeout, done)
 }

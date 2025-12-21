@@ -59,7 +59,7 @@ func (m *Model) updateBlinkAnimations() bool {
 }
 
 func (m *Model) getUptime(service *ServiceState) string {
-	if service.Status == StatusStopped || service.Monitor.StartTime.IsZero() {
+	if service.Status == StatusStopped || service.Status == StatusFailed || service.Monitor.StartTime.IsZero() {
 		return ""
 	}
 
@@ -104,7 +104,7 @@ func (m *Model) getPID(service *ServiceState) string {
 }
 
 func (m *Model) isServiceMonitored(service *ServiceState) bool {
-	return service.Status != StatusStopped && service.Monitor.PID != 0
+	return service.Status != StatusStopped && service.Status != StatusFailed && service.Monitor.PID != 0
 }
 
 func pad(n int) string {
