@@ -66,7 +66,7 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 				return errors.ErrProcessExited
 			}
 
-			return ctx.Err()
+			return reqCtx.Err()
 		case <-time.After(interval):
 		}
 	}
@@ -152,6 +152,7 @@ func (r *readiness) contextWithDone(ctx context.Context, done <-chan struct{}) (
 		select {
 		case <-done:
 			cancel()
+			<-newCtx.Done()
 		case <-newCtx.Done():
 		}
 
