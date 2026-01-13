@@ -152,7 +152,6 @@ func (r *readiness) contextWithDone(ctx context.Context, done <-chan struct{}) (
 		select {
 		case <-done:
 			cancel()
-			<-newCtx.Done()
 		case <-newCtx.Done():
 		}
 
