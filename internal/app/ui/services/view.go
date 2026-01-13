@@ -212,7 +212,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 		rowDisplayWidth := lipgloss.Width(row)
 		availableWidth := rowWidth - rowDisplayWidth
 
-		errorText := truncateErrorMessage(service.Error.Error(), availableWidth)
+		errorText := truncateErrorMessage(simplifyErrorMessage(service.Error), availableWidth)
 		row += errorText
 	}
 
@@ -253,7 +253,7 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 	result = strings.Replace(result, statusStr, styledStatus, 1)
 
 	if service.Error != nil {
-		errorText := fmt.Sprintf("(%s)", service.Error.Error())
+		errorText := fmt.Sprintf("(%s)", simplifyErrorMessage(service.Error))
 		styledError := components.ErrorStyle.Render(errorText)
 		result = strings.Replace(result, errorText, styledError, 1)
 	}

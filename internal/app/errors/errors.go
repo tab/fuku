@@ -21,6 +21,7 @@ var (
 	ErrReadinessURLRequired     = errors.New("readiness type 'http' requires url field")
 	ErrReadinessPatternRequired = errors.New("readiness type 'log' requires pattern field")
 	ErrReadinessTimeout         = errors.New("readiness check timed out")
+	ErrProcessExited            = errors.New("process exited before readiness")
 	ErrInvalidRegexPattern      = errors.New("invalid regex pattern")
 
 	ErrFailedToGetWorkingDir = errors.New("failed to get working directory")

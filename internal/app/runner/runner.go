@@ -146,23 +146,18 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 }
 
 func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []Tier, registry Registry, sigChan chan os.Signal, commandChan <-chan runtime.Command) error {
-	startupDone := make(chan error, 1)
+	startupDone := make(chan struct{}, 1)
 
 	go func() {
-		startupDone <- r.startAllTiers(ctx, tiers, registry)
+		r.startAllTiers(ctx, tiers, registry)
+
+		startupDone <- struct{}{}
 	}()
 
 	for {
 		select {
-		case err := <-startupDone:
-			if err != nil {
-				r.log.Error().Err(err).Msg("Failed to start services")
-				r.shutdown(registry)
-
-				return err
-			}
-
-			r.log.Info().Msg("All services started successfully, waiting for signals...")
+		case <-startupDone:
+			r.log.Info().Msg("Startup phase complete, waiting for signals...")
 
 			return nil
 		case sig := <-sigChan:
@@ -201,10 +196,10 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 				r.shutdown(registry)
 
 				return fmt.Errorf("%w: StopAll command", errors.ErrStartupInterrupted)
-			} else {
-				r.log.Debug().Msgf("Handling command during startup: %v", cmd.Type)
-				_ = r.handleCommand(ctx, cmd, registry)
 			}
+
+			r.log.Debug().Msgf("Handling command during startup: %v", cmd.Type)
+			_ = r.handleCommand(ctx, cmd, registry)
 		}
 	}
 }
@@ -338,8 +333,8 @@ func (r *runner) restartService(ctx context.Context, serviceName string, registr
 	}()
 }
 
-func (r *runner) startTier(ctx context.Context, tierName string, tierServices []string, registry Registry) error {
-	errChan := make(chan error, len(tierServices))
+func (r *runner) startTier(ctx context.Context, tierName string, tierServices []string, registry Registry) []string {
+	failedChan := make(chan string, len(tierServices))
 	procChan := make(chan Process, len(tierServices))
 
 	var tierWg sync.WaitGroup
@@ -351,7 +346,15 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 			defer tierWg.Done()
 
 			if err := r.pool.Acquire(ctx); err != nil {
-				errChan <- fmt.Errorf("service '%s': %w: %w", name, errors.ErrFailedToAcquireWorker, err)
+				r.log.Error().Err(err).Msgf("Failed to acquire worker for service '%s'", name)
+				r.event.Publish(runtime.Event{
+					Type:     runtime.EventServiceFailed,
+					Data:     runtime.ServiceFailedData{Service: name, Tier: tierName, Error: fmt.Errorf("%w: %w", errors.ErrFailedToAcquireWorker, err)},
+					Critical: true,
+				})
+
+				failedChan <- name
+
 				return
 			}
 			defer r.pool.Release()
@@ -360,13 +363,14 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 
 			proc, err := r.startServiceWithRetry(ctx, name, tierName, srv)
 			if err != nil {
+				r.log.Error().Err(err).Msgf("Failed to start service '%s'", name)
 				r.event.Publish(runtime.Event{
 					Type:     runtime.EventServiceFailed,
 					Data:     runtime.ServiceFailedData{Service: name, Tier: tierName, Error: err},
 					Critical: true,
 				})
 
-				errChan <- fmt.Errorf("service '%s': %w", name, err)
+				failedChan <- name
 
 				return
 			}
@@ -376,7 +380,7 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 	}
 
 	tierWg.Wait()
-	close(errChan)
+	close(failedChan)
 	close(procChan)
 
 	for proc := range procChan {
@@ -393,12 +397,12 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 		}(proc, tierName)
 	}
 
-	select {
-	case err := <-errChan:
-		return err
-	default:
-		return nil
+	failedServices := make([]string, 0, len(tierServices))
+	for name := range failedChan {
+		failedServices = append(failedServices, name)
 	}
+
+	return failedServices
 }
 
 func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierName string, service *config.Service) (Process, error) {
@@ -429,9 +433,14 @@ func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierNam
 			continue
 		}
 
+		pid := 0
+		if proc.Cmd() != nil && proc.Cmd().Process != nil {
+			pid = proc.Cmd().Process.Pid
+		}
+
 		r.event.Publish(runtime.Event{
 			Type:     runtime.EventServiceStarting,
-			Data:     runtime.ServiceStartingData{Service: name, Tier: tierName, Attempt: attempt + 1, PID: proc.Cmd().Process.Pid},
+			Data:     runtime.ServiceStartingData{Service: name, Tier: tierName, Attempt: attempt + 1, PID: pid},
 			Critical: true,
 		})
 
@@ -471,7 +480,7 @@ func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierNam
 	return nil, fmt.Errorf("%w after %d attempts: %w", errors.ErrMaxRetriesExceeded, config.RetryAttempt, lastErr)
 }
 
-func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Registry) error {
+func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Registry) {
 	for tierIdx, tier := range tiers {
 		if len(tier.Services) > 0 {
 			r.event.Publish(runtime.Event{
@@ -482,12 +491,16 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Regis
 			r.log.Info().Msgf("Starting tier '%s' (%d/%d) with services: %v", tier.Name, tierIdx+1, len(tiers), tier.Services)
 		}
 
-		err := r.startTier(ctx, tier.Name, tier.Services, registry)
-		if err != nil {
-			return err
-		}
+		failedServices := r.startTier(ctx, tier.Name, tier.Services, registry)
 
-		if len(tier.Services) > 0 {
+		if len(failedServices) > 0 {
+			r.event.Publish(runtime.Event{
+				Type:     runtime.EventTierFailed,
+				Data:     runtime.TierFailedData{Name: tier.Name, FailedServices: failedServices, TotalServices: len(tier.Services)},
+				Critical: true,
+			})
+			r.log.Warn().Msgf("Tier '%s' partially failed: %d/%d services failed: %v", tier.Name, len(failedServices), len(tier.Services), failedServices)
+		} else if len(tier.Services) > 0 {
 			r.event.Publish(runtime.Event{
 				Type:     runtime.EventTierReady,
 				Data:     runtime.TierReadyData{Name: tier.Name},
@@ -496,8 +509,6 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Regis
 			r.log.Info().Msgf("Tier '%s' started successfully, all services ready", tier.Name)
 		}
 	}
-
-	return nil
 }
 
 func (r *runner) shutdown(registry Registry) {

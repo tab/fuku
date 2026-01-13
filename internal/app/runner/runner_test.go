@@ -1006,9 +1006,9 @@ func Test_StartTier_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
+	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
 
-	assert.NoError(t, err)
+	assert.Empty(t, failedServices)
 }
 
 func Test_StartTier_AcquireError(t *testing.T) {
@@ -1022,6 +1022,7 @@ func Test_StartTier_AcquireError(t *testing.T) {
 	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
 
@@ -1041,11 +1042,10 @@ func Test_StartTier_AcquireError(t *testing.T) {
 
 	ctx := context.Background()
 	mockRegistry := NewMockRegistry(ctrl)
-	err := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
+	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "service 'api'")
-	assert.Contains(t, err.Error(), "failed to acquire worker")
+	assert.Len(t, failedServices, 1)
+	assert.Contains(t, failedServices, "api")
 }
 
 func Test_StartTier_ServiceStartupError(t *testing.T) {
@@ -1061,6 +1061,7 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(config.RetryAttempt)
@@ -1082,13 +1083,13 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 
 	ctx := context.Background()
 	mockRegistry := NewMockRegistry(ctrl)
-	err := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
+	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "service 'api'")
+	assert.Len(t, failedServices, 1)
+	assert.Contains(t, failedServices, "api")
 }
 
-func Test_RunStartupPhase_StartupError(t *testing.T) {
+func Test_RunStartupPhase_TierWithFailures(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1100,7 +1101,8 @@ func Test_RunStartupPhase_StartupError(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(config.RetryAttempt)
@@ -1110,8 +1112,6 @@ func Test_RunStartupPhase_StartupError(t *testing.T) {
 	mockWorkerPool.EXPECT().Release()
 
 	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{})
-	mockRegistry.EXPECT().Wait()
 
 	r := &runner{
 		cfg:       cfg,
@@ -1133,7 +1133,7 @@ func Test_RunStartupPhase_StartupError(t *testing.T) {
 	tiers := []Tier{{Name: "platform", Services: []string{"api"}}}
 	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
 
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
@@ -1219,6 +1219,8 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
@@ -1274,6 +1276,8 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
@@ -1331,6 +1335,8 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
