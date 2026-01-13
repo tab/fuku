@@ -99,6 +99,9 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 	go scanStream(stdout)
 	go scanStream(stderr)
 
+	reqCtx, cancel := r.contextWithDone(ctx, done)
+	defer cancel()
+
 	duration := time.Until(deadline)
 	if duration < 0 {
 		duration = 0
@@ -107,10 +110,12 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 	select {
 	case <-matched:
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-done:
-		return errors.ErrProcessExited
+	case <-reqCtx.Done():
+		if r.isDone(done) {
+			return errors.ErrProcessExited
+		}
+
+		return reqCtx.Err()
 	case <-time.After(duration):
 		return fmt.Errorf("%w: log pattern check after %v", errors.ErrReadinessTimeout, timeout)
 	}

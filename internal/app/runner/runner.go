@@ -196,10 +196,10 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 				r.shutdown(registry)
 
 				return fmt.Errorf("%w: StopAll command", errors.ErrStartupInterrupted)
-			} else {
-				r.log.Debug().Msgf("Handling command during startup: %v", cmd.Type)
-				_ = r.handleCommand(ctx, cmd, registry)
 			}
+
+			r.log.Debug().Msgf("Handling command during startup: %v", cmd.Type)
+			_ = r.handleCommand(ctx, cmd, registry)
 		}
 	}
 }
@@ -433,9 +433,14 @@ func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierNam
 			continue
 		}
 
+		pid := 0
+		if proc.Cmd() != nil && proc.Cmd().Process != nil {
+			pid = proc.Cmd().Process.Pid
+		}
+
 		r.event.Publish(runtime.Event{
 			Type:     runtime.EventServiceStarting,
-			Data:     runtime.ServiceStartingData{Service: name, Tier: tierName, Attempt: attempt + 1, PID: proc.Cmd().Process.Pid},
+			Data:     runtime.ServiceStartingData{Service: name, Tier: tierName, Attempt: attempt + 1, PID: pid},
 			Critical: true,
 		})
 
