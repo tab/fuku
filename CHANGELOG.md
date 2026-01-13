@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [v0.8.2]
+
+### Fixes
+- **fix:** Add graceful degradation for failed services during startup
+- **fix:** Correct context cancellation handling
+
+### Build
+- **build:** Bump actions/checkout from 5 to 6
+- **build:** Bump github.com/shirou/gopsutil/v4 from 4.25.10 to 4.25.12
+- **build:** Bump codecov/codecov-action from 5.5.1 to 5.5.2
+
 ## [v0.8.1]
 
 ### Fixes
