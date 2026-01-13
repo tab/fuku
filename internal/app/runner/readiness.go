@@ -16,8 +16,8 @@ import (
 
 // Readiness handles service readiness checking
 type Readiness interface {
-	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration) error
-	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration) error
+	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error
+	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error
 	Check(ctx context.Context, name string, service *config.Service, process Process)
 }
 
@@ -33,16 +33,19 @@ func NewReadiness(log logger.Logger) Readiness {
 }
 
 // CheckHTTP checks if an HTTP endpoint is ready
-func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration) error {
+func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error {
 	client := &http.Client{Timeout: interval}
 	deadline := time.Now().Add(timeout)
+
+	reqCtx, cancel := r.contextWithDone(ctx, done)
+	defer cancel()
 
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("%w: HTTP check after %v", errors.ErrReadinessTimeout, timeout)
 		}
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 		if err != nil {
 			return fmt.Errorf("%w: %w", errors.ErrFailedToCreateRequest, err)
 		}
@@ -58,7 +61,11 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 		}
 
 		select {
-		case <-ctx.Done():
+		case <-reqCtx.Done():
+			if r.isDone(done) {
+				return errors.ErrProcessExited
+			}
+
 			return ctx.Err()
 		case <-time.After(interval):
 		}
@@ -66,7 +73,7 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 }
 
 // CheckLog checks if a log pattern appears in stdout/stderr
-func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration) error {
+func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errors.ErrInvalidRegexPattern, err)
@@ -102,6 +109,8 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-done:
+		return errors.ErrProcessExited
 	case <-time.After(duration):
 		return fmt.Errorf("%w: log pattern check after %v", errors.ErrReadinessTimeout, timeout)
 	}
@@ -114,11 +123,13 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 
 	var err error
 
+	done := process.Done()
+
 	switch options.Type {
 	case config.TypeHTTP:
-		err = r.CheckHTTP(ctx, options.URL, options.Timeout, options.Interval)
+		err = r.CheckHTTP(ctx, options.URL, options.Timeout, options.Interval, done)
 	case config.TypeLog:
-		err = r.CheckLog(ctx, options.Pattern, process.StdoutReader(), process.StderrReader(), options.Timeout)
+		err = r.CheckLog(ctx, options.Pattern, process.StdoutReader(), process.StderrReader(), options.Timeout, done)
 	default:
 		err = fmt.Errorf("%w: %s", errors.ErrInvalidReadinessType, options.Type)
 	}
@@ -130,4 +141,35 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 	}
 
 	process.SignalReady(err)
+}
+
+// contextWithDone creates a context that cancels when either ctx is cancelled or done is closed
+func (r *readiness) contextWithDone(ctx context.Context, done <-chan struct{}) (context.Context, context.CancelFunc) {
+	newCtx, cancel := context.WithCancel(ctx)
+	stopped := make(chan struct{})
+
+	go func() {
+		select {
+		case <-done:
+			cancel()
+		case <-newCtx.Done():
+		}
+
+		close(stopped)
+	}()
+
+	return newCtx, func() {
+		cancel()
+		<-stopped
+	}
+}
+
+// isDone checks if the done channel is closed
+func (r *readiness) isDone(done <-chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
 }

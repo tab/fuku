@@ -1,11 +1,13 @@
 package services
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 
+	"fuku/internal/app/errors"
 	"fuku/internal/app/ui/components"
 )
 
@@ -439,6 +441,34 @@ func Test_padServiceName_AlignmentConsistency(t *testing.T) {
 			resultWidth := lipgloss.Width(result)
 
 			assert.Equal(t, maxWidth, resultWidth, "All names should pad to same display width")
+		})
+	}
+}
+
+func Test_simplifyErrorMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{name: "nil error", err: nil, expected: ""},
+		{name: "max retries exceeded", err: errors.ErrMaxRetriesExceeded, expected: "max retries exceeded"},
+		{name: "process exited", err: errors.ErrProcessExited, expected: "process exited"},
+		{name: "readiness timeout", err: errors.ErrReadinessTimeout, expected: "readiness timeout"},
+		{name: "failed to start command", err: errors.ErrFailedToStartCommand, expected: "failed to start"},
+		{name: "service not found", err: errors.ErrServiceNotFound, expected: "service not found"},
+		{name: "service directory not exist", err: errors.ErrServiceDirectoryNotExist, expected: "directory not found"},
+		{name: "unknown error returns message", err: fmt.Errorf("custom error"), expected: "custom error"},
+		{name: "wrapped max retries", err: fmt.Errorf("failed: %w", errors.ErrMaxRetriesExceeded), expected: "max retries exceeded"},
+		{name: "wrapped process exited", err: fmt.Errorf("service api: %w", errors.ErrProcessExited), expected: "process exited"},
+		{name: "wrapped readiness timeout", err: fmt.Errorf("check failed: %w", errors.ErrReadinessTimeout), expected: "readiness timeout"},
+		{name: "deeply wrapped error", err: fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", errors.ErrServiceNotFound)), expected: "service not found"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := simplifyErrorMessage(tt.err)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
