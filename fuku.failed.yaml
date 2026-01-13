@@ -1,0 +1,62 @@
+version: 1
+
+x-readiness: &readiness
+  type: log
+  timeout: 30s
+
+services:
+  # Foundation tier: Base infrastructure services
+  auth:
+    dir: examples/bookstore/auth
+    tier: foundation
+    readiness:
+      <<: *readiness
+      pattern: "Starting auth"
+  storage:
+    dir: examples/bookstore/storage
+    tier: foundation
+    readiness:
+      <<: *readiness
+      pattern: "Starting storage"
+  failed-service:
+    dir: examples/bookstore/failed-service
+    tier: foundation
+    readiness:
+      <<: *readiness
+      pattern: "Never matches"
+
+  # Platform tier: Business logic services that depend on foundation
+  user:
+    dir: examples/bookstore/user
+    tier: platform
+    readiness:
+      <<: *readiness
+      pattern: "Starting user"
+
+  api:
+    dir: examples/bookstore/api
+    tier: platform
+    readiness:
+      <<: *readiness
+      pattern: "Starting api"
+
+  # Edge tier: Client-facing services
+  frontend-api:
+    dir: examples/bookstore/frontend-api
+    tier: edge
+    profiles: [core]
+    readiness:
+      <<: *readiness
+      pattern: "Starting frontend-api"
+
+defaults:
+  profiles: [default]
+
+profiles:
+  default: "*"                        # All services
+  core: [api, frontend-api, storage]  # Core services for typical development
+  minimal: [api, storage]             # Minimal set for lightweight testing
+
+logging:
+  level: debug
+  format: console
