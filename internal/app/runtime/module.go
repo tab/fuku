@@ -7,5 +7,6 @@ var Module = fx.Module("runtime",
 	fx.Provide(
 		func() EventBus { return NewEventBus(100) },
 		func() CommandBus { return NewCommandBus(10) },
+		NewLogWriter,
 	),
 )

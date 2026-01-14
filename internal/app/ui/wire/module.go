@@ -23,7 +23,14 @@ var Module = fx.Options(
 	navigation.Module,
 	services.Module,
 	logs.Module,
-	fx.Provide(NewUI),
+	fx.Provide(
+		fx.Annotate(
+			ui.NewLogFilter,
+			fx.As(new(ui.LogFilter)),
+			fx.As(new(runtime.LogFilter)),
+		),
+		NewUI,
+	),
 )
 
 // UIParams contains dependencies for creating the UI factory

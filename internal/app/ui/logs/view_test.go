@@ -193,7 +193,7 @@ func Test_truncateServiceName_DisplayWidth(t *testing.T) {
 }
 
 func Test_updateContent_AppendOnly(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 	m.SetEnabled("db", true)
@@ -212,7 +212,7 @@ func Test_updateContent_AppendOnly(t *testing.T) {
 }
 
 func Test_updateContent_FilterToggleTriggersRebuild(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 	m.SetEnabled("db", false)
@@ -235,7 +235,7 @@ func Test_updateContent_FilterToggleTriggersRebuild(t *testing.T) {
 }
 
 func Test_updateContent_WidthChangeTriggersRebuild(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(50, 24)
 	m.SetEnabled("api", true)
 
@@ -253,7 +253,7 @@ func Test_updateContent_WidthChangeTriggersRebuild(t *testing.T) {
 }
 
 func Test_updateContent_NoDuplication(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 
@@ -267,7 +267,7 @@ func Test_updateContent_NoDuplication(t *testing.T) {
 }
 
 func Test_HandleLog_BufferTrimming(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 	m.maxSize = 10
@@ -294,7 +294,7 @@ func Test_HandleLog_BufferTrimming(t *testing.T) {
 }
 
 func Test_updateContent_AppendOnlyPath(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 
@@ -316,7 +316,7 @@ func Test_updateContent_AppendOnlyPath(t *testing.T) {
 }
 
 func Test_updateContent_RebuildOnFilterChange(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 	m.SetEnabled("db", false)
@@ -338,7 +338,7 @@ func Test_updateContent_RebuildOnFilterChange(t *testing.T) {
 }
 
 func Test_updateContent_RebuildOnWidthChange(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(50, 24)
 	m.SetEnabled("api", true)
 
@@ -357,7 +357,7 @@ func Test_updateContent_RebuildOnWidthChange(t *testing.T) {
 }
 
 func Test_updateContent_RebuildOnBufferEviction(t *testing.T) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 	m.maxSize = 5
@@ -419,7 +419,7 @@ func indexFrom(text, substr string, start int) int {
 }
 
 func Benchmark_HandleLog_IncrementalAppend(b *testing.B) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 
@@ -435,7 +435,7 @@ func Benchmark_HandleLog_IncrementalAppend(b *testing.B) {
 }
 
 func Benchmark_HandleLog_FullRebuild(b *testing.B) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 
@@ -452,7 +452,7 @@ func Benchmark_HandleLog_FullRebuild(b *testing.B) {
 }
 
 func Benchmark_HandleLog_LargeBuffer(b *testing.B) {
-	m := NewModel()
+	m := NewModel(ui.NewLogFilter())
 	m.SetSize(80, 24)
 	m.SetEnabled("api", true)
 

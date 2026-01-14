@@ -44,8 +44,8 @@ type Model struct {
 	widthDirty        bool // True when width changed, triggers re-render
 }
 
-// NewModel creates a new logs model with its own filter
-func NewModel() Model {
+// NewModel creates a new logs model with a shared filter
+func NewModel(filter ui.LogFilter) Model {
 	maxSize := components.LogBufferSize
 
 	return Model{
@@ -60,7 +60,7 @@ func NewModel() Model {
 		contentLines:      make([]string, maxSize),
 		contentHead:       0,
 		contentCount:      0,
-		filter:            ui.NewLogFilter(),
+		filter:            filter,
 		viewport:          viewport.New(0, 0),
 		autoscroll:        false,
 		lastWidth:         0,

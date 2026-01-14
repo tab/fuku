@@ -7,20 +7,23 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/app/cli"
+	"fuku/internal/app/runtime"
 	"fuku/internal/config/logger"
 )
 
 // App represents the main application container
 type App struct {
-	cli cli.CLI
-	log logger.Logger
+	cli       cli.CLI
+	logWriter runtime.LogWriter
+	log       logger.Logger
 }
 
 // NewApp creates a new application instance with its dependencies
-func NewApp(cli cli.CLI, log logger.Logger) *App {
+func NewApp(cli cli.CLI, logWriter runtime.LogWriter, log logger.Logger) *App {
 	return &App{
-		cli: cli,
-		log: log,
+		cli:       cli,
+		logWriter: logWriter,
+		log:       log,
 	}
 }
 
@@ -45,11 +48,14 @@ func (a *App) execute(args []string) int {
 func Register(lifecycle fx.Lifecycle, app *App) {
 	lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			app.logWriter.Start(ctx)
+
 			go app.Run()
+
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			return nil
+			return app.logWriter.Close()
 		},
 	})
 }

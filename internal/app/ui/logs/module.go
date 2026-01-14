@@ -16,8 +16,8 @@ var Module = fx.Options(
 )
 
 // NewLogView creates a new LogView implementation
-func NewLogView() ui.LogView {
-	model := NewModel()
+func NewLogView(filter ui.LogFilter) ui.LogView {
+	model := NewModel(filter)
 
 	return &model
 }

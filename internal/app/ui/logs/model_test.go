@@ -12,7 +12,7 @@ import (
 )
 
 func Test_NewModel(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	assert.NotNil(t, model.filter)
 	assert.Equal(t, components.LogBufferSize, model.maxSize)
 	assert.False(t, model.autoscroll)
@@ -35,7 +35,7 @@ func Test_Model_IsEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewModel()
+			model := NewModel(ui.NewLogFilter())
 			tt.setup(&model)
 			assert.Equal(t, tt.expected, model.IsEnabled(tt.service))
 		})
@@ -43,7 +43,7 @@ func Test_Model_IsEnabled(t *testing.T) {
 }
 
 func Test_Model_SetEnabled(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetEnabled("api", true)
 	assert.True(t, model.IsEnabled("api"))
 	model.SetEnabled("api", false)
@@ -83,7 +83,7 @@ func Test_Model_ToggleAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewModel()
+			model := NewModel(ui.NewLogFilter())
 			tt.setup(&model)
 			model.ToggleAll(tt.services)
 
@@ -107,7 +107,7 @@ func Test_Model_HandleLog(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewModel()
+			model := NewModel(ui.NewLogFilter())
 			model.SetSize(100, 50)
 
 			for i := 0; i < tt.entries; i++ {
@@ -132,7 +132,7 @@ func Test_Model_SetSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewModel()
+			model := NewModel(ui.NewLogFilter())
 			model.SetSize(tt.width, tt.height)
 			assert.Equal(t, tt.width, model.width)
 			assert.Equal(t, tt.height, model.height)
@@ -141,7 +141,7 @@ func Test_Model_SetSize(t *testing.T) {
 }
 
 func Test_Model_ToggleAutoscroll(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	assert.False(t, model.Autoscroll())
 	model.ToggleAutoscroll()
 	assert.True(t, model.Autoscroll())
@@ -150,7 +150,7 @@ func Test_Model_ToggleAutoscroll(t *testing.T) {
 }
 
 func Test_Model_HandleKey(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(100, 50)
 
 	msg := tea.KeyMsg{Type: tea.KeyUp}
@@ -179,7 +179,7 @@ func Test_Model_View(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewModel()
+			model := NewModel(ui.NewLogFilter())
 			tt.setup(&model)
 			view := model.View()
 			assert.Contains(t, view, tt.contains)
@@ -188,7 +188,7 @@ func Test_Model_View(t *testing.T) {
 }
 
 func Test_Model_FilterRerender(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 20)
 
 	// Service logs arrive while disabled
@@ -205,7 +205,7 @@ func Test_Model_FilterRerender(t *testing.T) {
 }
 
 func Test_Model_ScrollPositionPreserved_WhenAutoscrollOff(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 10)
 	model.SetEnabled("api", true)
 
@@ -226,7 +226,7 @@ func Test_Model_ScrollPositionPreserved_WhenAutoscrollOff(t *testing.T) {
 }
 
 func Test_Model_ScrollPositionClamped_WhenContentShrinks(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 10)
 	model.SetEnabled("service-a", true)
 	model.SetEnabled("service-b", true)
@@ -253,7 +253,7 @@ func Test_Model_ScrollPositionClamped_WhenContentShrinks(t *testing.T) {
 }
 
 func Test_Model_AutoscrollToBottom_WhenAutoscrollOn(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 10)
 	model.SetEnabled("api", true)
 
@@ -279,7 +279,7 @@ func Test_Model_AutoscrollToBottom_WhenAutoscrollOn(t *testing.T) {
 }
 
 func Test_Model_ScrollPosition_WithEmptyContent(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 10)
 
 	// Start with no logs, YOffset should be 0
@@ -294,7 +294,7 @@ func Test_Model_ScrollPosition_WithEmptyContent(t *testing.T) {
 }
 
 func Test_Model_ScrollPosition_ContentShorterThanViewport(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 50)
 	model.SetEnabled("api", true)
 
@@ -315,7 +315,7 @@ func Test_Model_ScrollPosition_ContentShorterThanViewport(t *testing.T) {
 }
 
 func Test_Model_Clear(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 20)
 	model.SetEnabled("api", true)
 	model.ToggleAutoscroll()
@@ -342,7 +342,7 @@ func Test_Model_Clear(t *testing.T) {
 }
 
 func Test_Model_Clear_NewLogsAfterClear(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 20)
 	model.SetEnabled("api", true)
 
@@ -360,7 +360,7 @@ func Test_Model_Clear_NewLogsAfterClear(t *testing.T) {
 }
 
 func Test_Model_Clear_EmptyBuffer(t *testing.T) {
-	model := NewModel()
+	model := NewModel(ui.NewLogFilter())
 	model.SetSize(80, 20)
 
 	model.Clear()

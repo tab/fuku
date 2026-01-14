@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/cli"
+	"fuku/internal/app/runtime"
 	"fuku/internal/config/logger"
 )
 
@@ -18,12 +19,14 @@ func Test_NewApp(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
+	mockLogWriter := runtime.NewMockLogWriter(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	application := NewApp(mockCLI, mockLogger)
+	application := NewApp(mockCLI, mockLogWriter, mockLogger)
 
 	assert.NotNil(t, application)
 	assert.Equal(t, mockCLI, application.cli)
+	assert.Equal(t, mockLogWriter, application.logWriter)
 	assert.Equal(t, mockLogger, application.log)
 }
 
@@ -32,11 +35,13 @@ func Test_execute(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
+	mockLogWriter := runtime.NewMockLogWriter(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	app := &App{
-		cli: mockCLI,
-		log: mockLogger,
+		cli:       mockCLI,
+		logWriter: mockLogWriter,
+		log:       mockLogger,
 	}
 
 	tests := []struct {
@@ -94,8 +99,9 @@ func Test_Register(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
+	mockLogWriter := runtime.NewMockLogWriter(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-	app := NewApp(mockCLI, mockLogger)
+	app := NewApp(mockCLI, mockLogWriter, mockLogger)
 
 	var (
 		registered   bool
@@ -121,8 +127,9 @@ func Test_Register_OnStopHook(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
+	mockLogWriter := runtime.NewMockLogWriter(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-	app := NewApp(mockCLI, mockLogger)
+	app := NewApp(mockCLI, mockLogWriter, mockLogger)
 
 	var capturedHook fx.Hook
 
@@ -133,6 +140,8 @@ func Test_Register_OnStopHook(t *testing.T) {
 	}
 
 	Register(testLifecycle, app)
+
+	mockLogWriter.EXPECT().Close().Return(nil)
 
 	assert.NotNil(t, capturedHook.OnStop)
 	err := capturedHook.OnStop(context.Background())
