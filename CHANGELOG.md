@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [v0.8.3]
+
+### Fixes
+
+- **fix:** Add buffer size constant and configure scanner buffer
+
 ## [v0.8.2]
 
 ### Fixes
