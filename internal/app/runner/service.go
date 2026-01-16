@@ -15,6 +15,13 @@ import (
 	"fuku/internal/config/logger"
 )
 
+const (
+	// scannerBufferSize is the initial buffer size for reading service output (64KB)
+	scannerBufferSize = 64 * 1024
+	// scannerBufferSize is the maximum buffer size for reading service output (4MB)
+	scannerMaxBufferSize = 4 * 1024 * 1024
+)
+
 // Service handles starting and stopping individual services
 type Service interface {
 	Start(ctx context.Context, name string, service *config.Service) (Process, error)
@@ -121,6 +128,7 @@ func (s *service) Stop(proc Process) error {
 
 func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, tier, streamType string) {
 	scanner := bufio.NewScanner(src)
+	scanner.Buffer(make([]byte, scannerBufferSize), scannerMaxBufferSize)
 
 	if tier == "" {
 		tier = config.Default
@@ -156,6 +164,8 @@ func (s *service) startDraining(stdout, stderr *io.PipeReader) {
 
 func (s *service) drainPipe(reader *io.PipeReader) {
 	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, scannerBufferSize), scannerMaxBufferSize)
+
 	for scanner.Scan() {
 	}
 
