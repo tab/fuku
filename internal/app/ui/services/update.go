@@ -8,9 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
 	"fuku/internal/app/ui/components"
-	"fuku/internal/app/ui/navigation"
 )
 
 const (
@@ -42,7 +40,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.ui.servicesViewport.Width = msg.Width - components.ViewportWidthPadding
 		m.ui.servicesViewport.Height = panelHeight
-		m.logView.SetSize(msg.Width, panelHeight)
 
 		if !m.state.ready {
 			m.state.ready = true
@@ -112,45 +109,24 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		return m, waitForEventCmd(m.eventChan)
 
-	case key.Matches(msg, m.ui.servicesKeys.ToggleLogs):
-		m.navigator.Toggle()
-
-		return m, nil
-
-	case key.Matches(msg, m.ui.logsKeys.Autoscroll):
-		return m.handleAutoscroll()
-
-	case key.Matches(msg, m.ui.logsKeys.ClearLogs):
-		return m.handleClearLogs()
-
 	case key.Matches(msg, m.ui.servicesKeys.Up):
-		return m.handleUpKey(msg)
+		return m.handleUpKey()
 
 	case key.Matches(msg, m.ui.servicesKeys.Down):
-		return m.handleDownKey(msg)
+		return m.handleDownKey()
 
 	case key.Matches(msg, m.ui.servicesKeys.Stop):
 		return m.handleStopKey()
 
 	case key.Matches(msg, m.ui.servicesKeys.Restart):
 		return m.handleRestartKey()
-
-	case key.Matches(msg, m.ui.servicesKeys.ToggleLogStream):
-		return m.handleToggleLogStream()
-
-	case key.Matches(msg, m.ui.servicesKeys.ToggleAllLogStreams):
-		return m.handleToggleAllLogStreams()
 	}
 
 	switch msg.String() {
 	case "pgup", "pgdown", "home", "end":
 		var cmd tea.Cmd
 
-		if m.navigator.IsLogs() {
-			cmd = m.logView.HandleKey(msg)
-		} else {
-			m.ui.servicesViewport, cmd = m.ui.servicesViewport.Update(msg)
-		}
+		m.ui.servicesViewport, cmd = m.ui.servicesViewport.Update(msg)
 
 		return m, cmd
 	}
@@ -158,29 +134,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleAutoscroll() (tea.Model, tea.Cmd) {
-	if m.navigator.IsLogs() {
-		m.logView.ToggleAutoscroll()
-	}
-
-	return m, nil
-}
-
-func (m Model) handleClearLogs() (tea.Model, tea.Cmd) {
-	if m.navigator.IsLogs() {
-		m.logView.Clear()
-	}
-
-	return m, nil
-}
-
-func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.navigator.IsLogs() {
-		cmd := m.logView.HandleKey(msg)
-
-		return m, cmd
-	}
-
+func (m Model) handleUpKey() (tea.Model, tea.Cmd) {
 	if m.state.selected > 0 {
 		m.state.selected--
 		m.updateServicesContent()
@@ -190,13 +144,7 @@ func (m Model) handleUpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleDownKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.navigator.IsLogs() {
-		cmd := m.logView.HandleKey(msg)
-
-		return m, cmd
-	}
-
+func (m Model) handleDownKey() (tea.Model, tea.Cmd) {
 	total := m.getTotalServices()
 	if m.state.selected < total-1 {
 		m.state.selected++
@@ -208,10 +156,6 @@ func (m Model) handleDownKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
-	if m.navigator.CurrentView() != navigation.ViewServices {
-		return m, nil
-	}
-
 	service := m.getSelectedService()
 	if service == nil || service.FSM == nil {
 		return m, nil
@@ -231,10 +175,6 @@ func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
-	if m.navigator.CurrentView() != navigation.ViewServices {
-		return m, nil
-	}
-
 	service := m.getSelectedService()
 	if service == nil || service.FSM == nil {
 		return m, nil
@@ -243,35 +183,6 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 	m.controller.Restart(m.ctx, service)
 
 	return m, m.loader.Model.Tick
-}
-
-func (m Model) handleToggleLogStream() (tea.Model, tea.Cmd) {
-	if m.navigator.CurrentView() != navigation.ViewServices {
-		return m, nil
-	}
-
-	service := m.getSelectedService()
-	if service != nil {
-		enabled := m.logView.IsEnabled(service.Name)
-		m.logView.SetEnabled(service.Name, !enabled)
-	}
-
-	return m, nil
-}
-
-func (m Model) handleToggleAllLogStreams() (tea.Model, tea.Cmd) {
-	if m.navigator.CurrentView() != navigation.ViewServices {
-		return m, nil
-	}
-
-	var services []string
-	for _, tier := range m.state.tiers {
-		services = append(services, tier.Services...)
-	}
-
-	m.logView.ToggleAll(services)
-
-	return m, nil
 }
 
 func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
@@ -292,8 +203,6 @@ func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 		m = m.handleServiceFailed(event)
 	case runtime.EventServiceStopped:
 		m = m.handleServiceStopped(event)
-	case runtime.EventLogLine:
-		m.handleLogLine(event)
 	case runtime.EventSignalCaught:
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
@@ -315,8 +224,6 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 	m.state.selected = 0
 	m.loader.StopAll()
 
-	var services []string
-
 	m.state.tiers = make([]Tier, len(data.Tiers))
 	for i, tier := range data.Tiers {
 		m.log.Debug().Msgf("TUI: Adding tier %s with %d services: %v", tier.Name, len(tier.Services), tier.Services)
@@ -331,11 +238,8 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 			}
 			service.FSM = newServiceFSM(service, m.loader)
 			m.state.services[serviceName] = service
-			services = append(services, serviceName)
 		}
 	}
-
-	m.logView.ToggleAll(services)
 
 	m.log.Debug().Msgf("TUI: After ProfileResolved - tiers=%d, services=%d", len(m.state.tiers), len(m.state.services))
 
@@ -450,21 +354,6 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 	}
 
 	return m
-}
-
-func (m Model) handleLogLine(event runtime.Event) {
-	data, ok := event.Data.(runtime.LogLineData)
-	if !ok {
-		return
-	}
-
-	m.logView.HandleLog(ui.LogEntry{
-		Timestamp: event.Timestamp,
-		Service:   data.Service,
-		Tier:      data.Tier,
-		Stream:    data.Stream,
-		Message:   data.Message,
-	})
 }
 
 func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {

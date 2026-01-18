@@ -21,7 +21,6 @@ const (
 	EventServiceStopped  EventType = "service_stopped"
 	EventRetryScheduled  EventType = "retry_scheduled"
 	EventSignalCaught    EventType = "signal_caught"
-	EventLogLine         EventType = "log_line"
 )
 
 // Phase represents the application phase
@@ -118,14 +117,6 @@ type SignalCaughtData struct {
 	Signal string
 }
 
-// LogLineData contains log line details
-type LogLineData struct {
-	Service string
-	Tier    string
-	Stream  string
-	Message string
-}
-
 // EventBus defines the interface for event publishing and subscription
 type EventBus interface {
 	Subscribe(ctx context.Context) <-chan Event
@@ -175,15 +166,18 @@ func (eb *eventBus) Publish(event Event) {
 
 	event.Timestamp = time.Now()
 
-	if event.Critical {
-		for _, ch := range eb.subscribers {
-			ch <- event
-		}
-	} else {
-		for _, ch := range eb.subscribers {
-			select {
-			case ch <- event:
-			default:
+	for _, ch := range eb.subscribers {
+		select {
+		case ch <- event:
+		default:
+			if event.Critical {
+				go func(c chan Event, e Event) {
+					defer func() {
+						recover()
+					}()
+
+					c <- e
+				}(ch, event)
 			}
 		}
 	}

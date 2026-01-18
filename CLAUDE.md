@@ -22,6 +22,7 @@
 2. **Core Packages** (`internal/`)
    - **app/** - Main application container and lifecycle management
    - **app/cli/** - Command-line interface parsing and command handling
+   - **app/logs/** - Log streaming via Unix sockets (server, hub, client, formatter)
    - **app/runner/** - Service orchestration, process management, and tier-based startup ordering
    - **app/runtime/** - Event and command buses for pub/sub communication
    - **app/ui/services/** - Interactive TUI with Bubble Tea framework
@@ -40,7 +41,7 @@
 2. **cli.CLI** - Interface for command-line operations:
    ```go
    type CLI interface {
-       Run(args []string) error
+       Run(args []string) (exitCode int, err error)
    }
    ```
 
@@ -61,6 +62,23 @@
        Subscribe(ctx context.Context) <-chan Command
        Publish(cmd Command)
        Close()
+   }
+   ```
+
+6. **logs.Runner** - Log streaming mode runner:
+   ```go
+   type Runner interface {
+       Run(args []string) int
+   }
+   ```
+
+7. **logs.Client** - Unix socket client for log streaming:
+   ```go
+   type Client interface {
+       Connect(socketPath string) error
+       Subscribe(services []string) error
+       Stream(ctx context.Context, output io.Writer) error
+       Close() error
    }
    ```
 
@@ -190,12 +208,12 @@
 - `cmd/main_test.go` - Tests for entry point functions and FX application creation
 - `internal/app/app_test.go` - Application container and lifecycle testing
 - `internal/app/cli/cli_test.go` - CLI argument parsing and command execution
+- `internal/app/logs/client_test.go` - Unix socket client testing
+- `internal/app/logs/runner_test.go` - Log streaming runner testing
 - `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
 - `internal/app/runtime/events_test.go` - Event bus pub/sub testing
 - `internal/app/runtime/commands_test.go` - Command bus pub/sub testing
 - `internal/app/ui/components/keys_test.go` - Shared key bindings
-- `internal/app/ui/logs/keys_test.go` - Logs view key bindings
-- `internal/app/ui/logs/model_test.go` - Logs model and buffer management
 - `internal/app/ui/services/loader_test.go` - Loader queue operations
 - `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
 - `internal/app/ui/services/model_test.go` - Service state methods and helpers

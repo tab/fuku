@@ -13,8 +13,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
 
@@ -34,14 +32,7 @@ func Test_HandleProfileResolved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().ToggleAll([]string{"db", "api", "web"})
-
-	m := Model{
-		log:     newTestLogger(ctrl),
-		logView: mockLogView,
-		loader:  NewLoader(),
-	}
+	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
@@ -86,15 +77,10 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().ToggleAll([]string{"db", "api", "web"})
-	mockLogView.EXPECT().ToggleAll([]string{"storage", "cache"})
-
-	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: NewLoader()}
+	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
-	// Load first profile with services A, B, C
 	event1 := runtime.Event{
 		Type: runtime.EventProfileResolved,
 		Data: runtime.ProfileResolvedData{
@@ -111,7 +97,6 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 	assert.NotNil(t, result.state.services["api"])
 	assert.NotNil(t, result.state.services["web"])
 
-	// Load second profile with different services D, E
 	event2 := runtime.Event{
 		Type: runtime.EventProfileResolved,
 		Data: runtime.ProfileResolvedData{
@@ -135,10 +120,7 @@ func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().ToggleAll([]string{"db"})
-
-	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: NewLoader()}
+	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 	m.state.selected = 5
@@ -159,10 +141,7 @@ func Test_HandleProfileResolved_PreservesReadyState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().ToggleAll([]string{"db"})
-
-	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: NewLoader()}
+	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 	m.state.ready = true
@@ -183,14 +162,11 @@ func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockLogView.EXPECT().ToggleAll([]string{"new-service"})
-
 	loader := NewLoader()
 	loader.Start("old-service-1", "Starting old-service-1")
 	loader.Start("old-service-2", "Starting old-service-2")
 
-	m := Model{log: newTestLogger(ctrl), logView: mockLogView, loader: loader}
+	m := Model{log: newTestLogger(ctrl), loader: loader}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
@@ -555,83 +531,6 @@ func Test_Update_EventMsg(t *testing.T) {
 
 	assert.True(t, result.state.shuttingDown)
 	assert.NotNil(t, cmd)
-}
-
-func Test_HandleToggleAllLogStreams_InServicesView(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewServices)
-	mockLogView.EXPECT().ToggleAll([]string{"api", "web", "db"})
-
-	m := Model{logView: mockLogView, navigator: mockNav}
-	m.state.tiers = []Tier{
-		{Name: "tier1", Services: []string{"api", "web"}},
-		{Name: "tier2", Services: []string{"db"}},
-	}
-
-	teaModel, cmd := m.handleToggleAllLogStreams()
-	result := teaModel.(Model)
-
-	assert.NotNil(t, result)
-	assert.Nil(t, cmd)
-}
-
-func Test_HandleToggleAllLogStreams_InLogsView(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().CurrentView().Return(navigation.ViewLogs)
-
-	m := Model{logView: mockLogView, navigator: mockNav}
-	m.state.tiers = []Tier{
-		{Name: "tier1", Services: []string{"api", "web"}},
-	}
-
-	teaModel, cmd := m.handleToggleAllLogStreams()
-	result := teaModel.(Model)
-
-	assert.NotNil(t, result)
-	assert.Nil(t, cmd)
-}
-
-func Test_HandleClearLogs_InLogsView(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().IsLogs().Return(true)
-	mockLogView.EXPECT().Clear()
-
-	m := Model{logView: mockLogView, navigator: mockNav}
-
-	teaModel, cmd := m.handleClearLogs()
-	result := teaModel.(Model)
-
-	assert.NotNil(t, result)
-	assert.Nil(t, cmd)
-}
-
-func Test_HandleClearLogs_InServicesView(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockNav := navigation.NewMockNavigator(ctrl)
-	mockNav.EXPECT().IsLogs().Return(false)
-
-	m := Model{logView: mockLogView, navigator: mockNav}
-
-	teaModel, cmd := m.handleClearLogs()
-	result := teaModel.(Model)
-
-	assert.NotNil(t, result)
-	assert.Nil(t, cmd)
 }
 
 func toKeyMsg(s string) tea.KeyMsg {

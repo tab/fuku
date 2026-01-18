@@ -12,17 +12,9 @@ import (
 
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
 	"fuku/internal/app/ui/components"
-	"fuku/internal/app/ui/logs"
-	"fuku/internal/app/ui/navigation"
 	"fuku/internal/config/logger"
 )
-
-// subscriber interface for starting log event subscription
-type subscriber interface {
-	StartCmd(ctx context.Context) tea.Cmd
-}
 
 // Status represents the status of a service
 type Status string
@@ -95,10 +87,7 @@ type Model struct {
 	command    runtime.CommandBus
 	controller Controller
 	monitor    monitor.Monitor
-	logView    ui.LogView
-	navigator  navigation.Navigator
 	loader     *Loader
-	subscriber subscriber
 	eventChan  <-chan runtime.Event
 
 	state struct {
@@ -115,7 +104,6 @@ type Model struct {
 		width            int
 		height           int
 		servicesKeys     KeyMap
-		logsKeys         logs.KeyMap
 		help             help.Model
 		servicesViewport viewport.Model
 		tickCounter      int
@@ -132,10 +120,7 @@ func NewModel(
 	command runtime.CommandBus,
 	controller Controller,
 	monitor monitor.Monitor,
-	logView ui.LogView,
-	navigator navigation.Navigator,
 	loader *Loader,
-	sub subscriber,
 	log logger.Logger,
 ) Model {
 	eventChan := event.Subscribe(ctx)
@@ -149,10 +134,7 @@ func NewModel(
 		controller: controller,
 		monitor:    monitor,
 		loader:     loader,
-		subscriber: sub,
 		eventChan:  eventChan,
-		logView:    logView,
-		navigator:  navigator,
 		log:        log,
 	}
 
@@ -167,7 +149,6 @@ func NewModel(
 	m.ui.width = 0
 	m.ui.height = 0
 	m.ui.servicesKeys = DefaultKeyMap()
-	m.ui.logsKeys = logs.DefaultKeyMap()
 	m.ui.help = help.New()
 	m.ui.servicesViewport = viewport.New(0, 0)
 
@@ -176,18 +157,12 @@ func NewModel(
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{
+	return tea.Batch(
 		m.loader.Model.Tick,
 		waitForEventCmd(m.eventChan),
 		tickCmd(),
 		statsWorkerCmd(m.ctx, &m),
-	}
-
-	if m.subscriber != nil {
-		cmds = append(cmds, m.subscriber.StartCmd(m.ctx))
-	}
-
-	return tea.Batch(cmds...)
+	)
 }
 
 // getSelectedService returns the currently selected service state

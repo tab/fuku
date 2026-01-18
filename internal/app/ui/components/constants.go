@@ -39,14 +39,11 @@ const (
 	ViewportWidthPadding = 2
 	RowWidthPadding      = 8
 	Current              = "› "
-	Empty                = "[ ]"
-	Selected             = "[✓]"
 )
 
 // Column widths for services table
 const (
 	ColWidthIndicator = 2
-	ColWidthCheckbox  = 3
 	ColWidthStatus    = 10
 	ColWidthCPU       = 6
 	ColWidthMem       = 6
@@ -54,14 +51,11 @@ const (
 	ColWidthUptime    = 8
 )
 
-// Logs view constants
-const (
-	LogBufferSize          = 1000
-	LogServiceNameMaxWidth = 15
-	LogMessageMinWidth     = 20
-	DefaultViewportWidth   = 80
-)
-
 const (
 	MBToGB = 1024
+)
+
+// Log stream constants
+const (
+	DefaultMaxServiceLen = 12
 )

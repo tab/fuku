@@ -59,6 +59,7 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
@@ -66,6 +67,8 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 
 	mockRegistry := NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
+	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
+
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
@@ -89,6 +92,7 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
@@ -96,6 +100,8 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 
 	mockRegistry := NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
+	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
+
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
@@ -121,6 +127,7 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
@@ -141,6 +148,7 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
 
 	mockService := NewMockService(ctrl)
+	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
 	mockService.EXPECT().Stop(mockProcess).Return(nil).AnyTimes()
 
@@ -180,7 +188,8 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Warn().Return(nil)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
@@ -188,6 +197,8 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 
 	mockRegistry := NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
+	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
+
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 
 	r := &runner{

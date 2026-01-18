@@ -16,7 +16,7 @@
 - **Graceful Shutdown** - SIGTERM with timeout before force kill
 - **Profile Support** - Group services for batch operations
 - **Readiness Checks** - HTTP and log-pattern based detection
-- **Log Streaming** - Filter and view service logs in real-time
+- **Log Streaming** - Stream logs from running instances via `fuku --logs`
 
 ## Installation
 
@@ -65,6 +65,11 @@ fuku
 # Run without TUI
 fuku --run=default --no-ui
 
+# Stream logs from running instance (in separate terminal)
+fuku --logs                     # All services
+fuku --logs api db              # Specific services
+fuku --logs --profile=backend   # From specific profile
+
 # Show help
 fuku help
 
@@ -72,7 +77,7 @@ fuku help
 fuku version
 ```
 
-### TUI Controls (services)
+### TUI Controls
 
 ```
 ↑/↓ or k/j       Navigate services
@@ -80,21 +85,6 @@ pgup/pgdn        Scroll viewport
 home/end         Jump to start/end
 r                Restart selected service
 s                Stop/start selected service
-space            Toggle logs for selected service
-ctrl+a           Toggle all logs
-tab              Switch to logs view
-q                Quit
-```
-
-### TUI Controls (logs)
-
-```
-↑/↓ or k/j       Scroll logs
-pgup/pgdn        Scroll viewport
-home/end         Jump to start/end
-a                Toggle autoscroll
-ctrl+r           Clear logs
-tab              Switch back to services view
 q                Quit
 ```
 
