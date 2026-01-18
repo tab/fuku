@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/logs"
 	"fuku/internal/app/runtime"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -56,6 +57,18 @@ func NewRunner(
 
 // Run executes the specified profile by starting all services in dependency and tier order
 func (r *runner) Run(ctx context.Context, profile string) error {
+	logsServer := logs.NewServer(profile, r.log)
+	if err := logsServer.Start(ctx); err != nil {
+		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
+	} else {
+		r.service.SetBroadcaster(logsServer)
+
+		defer func() {
+			r.service.SetBroadcaster(nil)
+			logsServer.Stop()
+		}()
+	}
+
 	r.event.Publish(runtime.Event{
 		Type:     runtime.EventPhaseChanged,
 		Data:     runtime.PhaseChangedData{Phase: runtime.PhaseStartup},

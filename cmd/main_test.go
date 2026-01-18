@@ -32,9 +32,9 @@ func Test_CreateApp(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		config *config.Config
-		noUI   bool
+		name    string
+		config  *config.Config
+		options config.Options
 	}{
 		{
 			name: "Creates app with info level logging and TUI",
@@ -46,7 +46,7 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.InfoLevel,
 				},
 			},
-			noUI: false,
+			options: config.Options{NoUI: false},
 		},
 		{
 			name: "Creates app with debug level logging and no UI",
@@ -58,7 +58,7 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.DebugLevel,
 				},
 			},
-			noUI: true,
+			options: config.Options{NoUI: true},
 		},
 		{
 			name: "Creates app with error level logging",
@@ -70,10 +70,10 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.ErrorLevel,
 				},
 			},
-			noUI: false,
+			options: config.Options{NoUI: false},
 		},
 		{
-			name: "Creates app with warn level logging",
+			name: "Creates app with warn level logging and logs mode",
 			config: &config.Config{
 				Logging: struct {
 					Level  string `yaml:"level"`
@@ -82,35 +82,37 @@ func Test_CreateApp(t *testing.T) {
 					Level: logger.WarnLevel,
 				},
 			},
-			noUI: true,
+			options: config.Options{NoUI: false, Logs: true},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := createApp(tt.config, topology, tt.noUI)
+			app := createApp(tt.config, topology, tt.options)
 			assert.NotNil(t, app)
 		})
 	}
 }
 
-func Test_HasNoUIFlag(t *testing.T) {
+func Test_HasFlag(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
+		flag     string
 		expected bool
 	}{
-		{name: "No args returns false", args: []string{}, expected: false},
-		{name: "Only --run flag returns false", args: []string{"--run=default"}, expected: false},
-		{name: "--no-ui flag returns true", args: []string{"--no-ui"}, expected: true},
-		{name: "--run and --no-ui returns true", args: []string{"--run=default", "--no-ui"}, expected: true},
-		{name: "--no-ui and --run returns true", args: []string{"--no-ui", "--run=core"}, expected: true},
-		{name: "Other flags return false", args: []string{"help", "version"}, expected: false},
+		{name: "No args returns false", args: []string{}, flag: "--no-ui", expected: false},
+		{name: "Only --run flag returns false", args: []string{"--run=default"}, flag: "--no-ui", expected: false},
+		{name: "--no-ui flag returns true", args: []string{"--no-ui"}, flag: "--no-ui", expected: true},
+		{name: "--run and --no-ui returns true", args: []string{"--run=default", "--no-ui"}, flag: "--no-ui", expected: true},
+		{name: "--logs flag returns true", args: []string{"--logs"}, flag: "--logs", expected: true},
+		{name: "--logs with services returns true", args: []string{"--logs", "api", "db"}, flag: "--logs", expected: true},
+		{name: "Other flags return false", args: []string{"help", "version"}, flag: "--no-ui", expected: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := hasNoUIFlag(tt.args)
+			result := hasFlag(tt.args, tt.flag)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -231,6 +233,27 @@ func Test_CreateFxLogger_FunctionCreation(t *testing.T) {
 
 			assert.NotNil(t, result1)
 			assert.NotNil(t, result2)
+		})
+	}
+}
+
+func Test_ParseOptions(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		expected config.Options
+	}{
+		{name: "No args", args: []string{}, expected: config.Options{NoUI: false, Logs: false}},
+		{name: "--no-ui only", args: []string{"--no-ui"}, expected: config.Options{NoUI: true, Logs: false}},
+		{name: "--logs only", args: []string{"--logs"}, expected: config.Options{NoUI: false, Logs: true}},
+		{name: "Both flags", args: []string{"--no-ui", "--logs"}, expected: config.Options{NoUI: true, Logs: true}},
+		{name: "With --run flag", args: []string{"--run=default", "--no-ui"}, expected: config.Options{NoUI: true, Logs: false}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseOptions(tt.args)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

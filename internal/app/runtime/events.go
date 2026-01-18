@@ -166,15 +166,18 @@ func (eb *eventBus) Publish(event Event) {
 
 	event.Timestamp = time.Now()
 
-	if event.Critical {
-		for _, ch := range eb.subscribers {
-			ch <- event
-		}
-	} else {
-		for _, ch := range eb.subscribers {
-			select {
-			case ch <- event:
-			default:
+	for _, ch := range eb.subscribers {
+		select {
+		case ch <- event:
+		default:
+			if event.Critical {
+				go func(c chan Event, e Event) {
+					defer func() {
+						recover()
+					}()
+
+					c <- e
+				}(ch, event)
 			}
 		}
 	}

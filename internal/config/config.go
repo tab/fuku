@@ -59,6 +59,12 @@ type ServiceDefaults struct {
 // Option allows for functional options pattern
 type Option func(*Config)
 
+// Options contains application startup options
+type Options struct {
+	NoUI bool
+	Logs bool
+}
+
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	cfg := &Config{

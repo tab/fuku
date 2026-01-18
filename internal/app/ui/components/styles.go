@@ -6,8 +6,6 @@ import "github.com/charmbracelet/lipgloss"
 var (
 	HelpStyle = lipgloss.NewStyle().Foreground(FgBorder)
 
-	TimestampStyle = lipgloss.NewStyle().Foreground(FgMuted)
-
 	ErrorStyle = lipgloss.NewStyle().Foreground(FgStatusError)
 
 	EmptyStateStyle = lipgloss.NewStyle().Foreground(FgMuted).Padding(0, 1)
@@ -40,13 +38,4 @@ var (
 	PhaseMutedStyle    = lipgloss.NewStyle().Foreground(FgMuted)
 
 	IndicatorActiveStyle = lipgloss.NewStyle().Foreground(FgStatusWarning)
-
-	ServiceNameStyle = lipgloss.NewStyle().Foreground(FgPrimary).Bold(true)
-
-	LogLevelDebugStyle = lipgloss.NewStyle().Foreground(FgLogDebug)
-	LogLevelInfoStyle  = lipgloss.NewStyle().Foreground(FgLogInfo)
-	LogLevelWarnStyle  = lipgloss.NewStyle().Foreground(FgLogWarn)
-	LogLevelErrorStyle = lipgloss.NewStyle().Foreground(FgLogError)
-
-	UUIDStyle = lipgloss.NewStyle().Foreground(FgLight)
 )

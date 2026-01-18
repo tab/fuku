@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/logs"
 	"fuku/internal/app/runtime"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -26,13 +27,15 @@ const (
 type Service interface {
 	Start(ctx context.Context, name string, service *config.Service) (Process, error)
 	Stop(proc Process) error
+	SetBroadcaster(broadcaster logs.Broadcaster)
 }
 
 type service struct {
-	lifecycle Lifecycle
-	readiness Readiness
-	event     runtime.EventBus
-	log       logger.Logger
+	lifecycle   Lifecycle
+	readiness   Readiness
+	event       runtime.EventBus
+	log         logger.Logger
+	broadcaster logs.Broadcaster
 }
 
 // NewService creates a new service instance
@@ -126,6 +129,11 @@ func (s *service) Stop(proc Process) error {
 	return s.lifecycle.Terminate(proc, config.ShutdownTimeout)
 }
 
+// SetBroadcaster sets the broadcaster for streaming logs to clients
+func (s *service) SetBroadcaster(broadcaster logs.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
 func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, streamType string) {
 	scanner := bufio.NewScanner(src)
 	scanner.Buffer(make([]byte, scannerBufferSize), scannerMaxBufferSize)
@@ -137,6 +145,10 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 			Str("stream", streamType).
 			Msg(line)
 		fmt.Fprintln(dst, line)
+
+		if s.broadcaster != nil {
+			s.broadcaster.Broadcast(serviceName, line)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {

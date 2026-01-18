@@ -1,13 +1,13 @@
 package main
 
 import (
-	"io"
 	"os"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 
 	"fuku/internal/app"
+	"fuku/internal/app/logs"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -24,15 +24,23 @@ func runApp() {
 		os.Exit(1)
 	}
 
-	noUI := hasNoUIFlag(os.Args[1:])
-	application := createApp(cfg, topology, noUI)
+	options := parseOptions(os.Args[1:])
+	application := createApp(cfg, topology, options)
 	application.Run()
 }
 
-// hasNoUIFlag checks if --no-ui flag is present in args
-func hasNoUIFlag(args []string) bool {
+// parseOptions extracts application options from command-line arguments
+func parseOptions(args []string) config.Options {
+	return config.Options{
+		NoUI: hasFlag(args, "--no-ui"),
+		Logs: hasFlag(args, "--logs"),
+	}
+}
+
+// hasFlag checks if a flag is present in args
+func hasFlag(args []string, flag string) bool {
 	for _, arg := range args {
-		if arg == "--no-ui" {
+		if arg == flag {
 			return true
 		}
 	}
@@ -46,17 +54,18 @@ func loadConfig() (*config.Config, *config.Topology, error) {
 }
 
 // createApp creates the FX application with the given config and topology
-func createApp(cfg *config.Config, topology *config.Topology, noUI bool) *fx.App {
-	var logOutput io.Writer
-	if !noUI {
-		logOutput = io.Discard
+func createApp(cfg *config.Config, topology *config.Topology, options config.Options) *fx.App {
+	formatter := logs.NewLogFormatter(cfg)
+
+	if options.NoUI || options.Logs {
+		formatter.SetEnabled(true)
 	}
 
 	return fx.New(
 		fx.WithLogger(createFxLogger(cfg)),
-		fx.Supply(cfg, topology),
+		fx.Supply(cfg, topology, formatter, options),
 		fx.Provide(func() logger.Logger {
-			return logger.NewLoggerWithOutput(cfg, logOutput)
+			return logger.NewLoggerWithOutput(cfg, formatter)
 		}),
 		app.Module,
 	)

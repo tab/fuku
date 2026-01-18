@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
 	"fuku/internal/config"
@@ -24,20 +25,24 @@ func Test_NewCLI(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
+	options := config.Options{NoUI: true}
 	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogsRunner := logs.NewMockRunner(ctrl)
 	mockUI := func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
 	}
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	cliInstance := NewCLI(cfg, mockRunner, mockUI, mockLogger)
+	cliInstance := NewCLI(cfg, options, mockRunner, mockLogsRunner, mockUI, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
 	assert.True(t, ok)
 	assert.NotNil(t, instance)
 	assert.Equal(t, cfg, instance.cfg)
+	assert.Equal(t, options, instance.options)
 	assert.Equal(t, mockRunner, instance.runner)
+	assert.Equal(t, mockLogsRunner, instance.logsRunner)
 	assert.NotNil(t, instance.ui)
 	assert.Equal(t, mockLogger, instance.log)
 }
@@ -54,10 +59,11 @@ func Test_Run(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	c := &cli{
-		cfg:    cfg,
-		runner: mockRunner,
-		ui:     mockUI,
-		log:    mockLogger,
+		cfg:     cfg,
+		options: config.Options{NoUI: true},
+		runner:  mockRunner,
+		ui:      mockUI,
+		log:     mockLogger,
 	}
 
 	tests := []struct {
@@ -175,6 +181,28 @@ func Test_Run(t *testing.T) {
 	}
 }
 
+func Test_Run_LogsMode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogsRunner := logs.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	c := &cli{
+		options:    config.Options{Logs: true},
+		logsRunner: mockLogsRunner,
+		log:        mockLogger,
+	}
+
+	mockLogger.EXPECT().Debug().Return(nil)
+	mockLogsRunner.EXPECT().Run([]string{"--logs", "api"}).Return(0)
+
+	exitCode, err := c.Run([]string{"--logs", "api"})
+
+	assert.Equal(t, 0, exitCode)
+	assert.NoError(t, err)
+}
+
 func Test_handleRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -183,8 +211,9 @@ func Test_handleRun(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	c := &cli{
-		runner: mockRunner,
-		log:    mockLogger,
+		options: config.Options{NoUI: true},
+		runner:  mockRunner,
+		log:     mockLogger,
 	}
 
 	tests := []struct {
@@ -224,7 +253,7 @@ func Test_handleRun(t *testing.T) {
 			os.Stdout = w
 
 			tt.before()
-			exitCode, err := c.handleRun(tt.profile, true)
+			exitCode, err := c.handleRun(tt.profile)
 
 			w.Close()
 
@@ -324,4 +353,127 @@ func Test_handleUnknown(t *testing.T) {
 	output := buf.String()
 
 	assert.Equal(t, "Unknown command. Use 'fuku help' for more information\n", output)
+}
+
+type quitModel struct{}
+
+func (m quitModel) Init() tea.Cmd                       { return tea.Quit }
+func (m quitModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return m, tea.Quit }
+func (m quitModel) View() string                        { return "" }
+
+func Test_runWithUI(t *testing.T) {
+	t.Run("UI creation error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRunner := runner.NewMockRunner(ctrl)
+		mockLogger := logger.NewMockLogger(ctrl)
+		mockLogger.EXPECT().Error().Return(nil)
+
+		// Runner may or may not be called depending on goroutine timing
+		mockRunner.EXPECT().Run(gomock.Any(), "test").Return(nil).AnyTimes()
+
+		c := &cli{
+			runner: mockRunner,
+			log:    mockLogger,
+			ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+				return nil, errors.New("failed to create UI")
+			},
+		}
+
+		oldStderr := os.Stderr
+		r, w, _ := os.Pipe()
+		os.Stderr = w
+
+		exitCode, err := c.runWithUI(context.Background(), "test")
+
+		w.Close()
+
+		os.Stderr = oldStderr
+
+		var buf bytes.Buffer
+
+		_, _ = io.Copy(&buf, r)
+
+		assert.Equal(t, 1, exitCode)
+		assert.Error(t, err)
+		assert.Contains(t, buf.String(), "Failed to create UI")
+	})
+
+	t.Run("Runner error after UI exits", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRunner := runner.NewMockRunner(ctrl)
+		mockLogger := logger.NewMockLogger(ctrl)
+
+		mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
+			<-ctx.Done()
+			return errors.New("runner failed")
+		})
+		mockLogger.EXPECT().Error().Return(nil)
+
+		// Create a pipe for input that closes immediately to simulate EOF
+		inputR, inputW, _ := os.Pipe()
+		inputW.Close()
+
+		c := &cli{
+			runner: mockRunner,
+			log:    mockLogger,
+			ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+				return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
+			},
+		}
+
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		exitCode, err := c.runWithUI(context.Background(), "test")
+
+		w.Close()
+
+		os.Stdout = oldStdout
+
+		inputR.Close()
+
+		var buf bytes.Buffer
+
+		_, _ = io.Copy(&buf, r)
+
+		assert.Equal(t, 1, exitCode)
+		assert.Error(t, err)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRunner := runner.NewMockRunner(ctrl)
+		mockLogger := logger.NewMockLogger(ctrl)
+
+		mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
+			<-ctx.Done()
+			return nil
+		})
+
+		// Create a pipe for input that closes immediately to simulate EOF
+		inputR, inputW, _ := os.Pipe()
+		inputW.Close()
+
+		c := &cli{
+			runner: mockRunner,
+			log:    mockLogger,
+			ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+				return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
+			},
+		}
+
+		exitCode, err := c.runWithUI(context.Background(), "test")
+
+		inputR.Close()
+
+		assert.Equal(t, 0, exitCode)
+		assert.NoError(t, err)
+	})
 }

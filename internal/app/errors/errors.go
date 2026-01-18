@@ -34,6 +34,18 @@ var (
 	ErrFailedToAcquireWorker    = errors.New("failed to acquire worker")
 	ErrMaxRetriesExceeded       = errors.New("max retry attempts exceeded")
 	ErrFailedToTerminateProcess = errors.New("failed to terminate process")
+
+	ErrFailedToConnectSocket    = errors.New("failed to connect to socket")
+	ErrFailedToListenSocket     = errors.New("failed to listen on socket")
+	ErrFailedToReadSocket       = errors.New("failed to read from socket")
+	ErrFailedToWriteSocket      = errors.New("failed to write to socket")
+	ErrFailedToMarshalMessage   = errors.New("failed to marshal message")
+	ErrFailedToCleanupSocket    = errors.New("failed to cleanup stale socket")
+	ErrSocketAlreadyInUse       = errors.New("socket is already in use")
+	ErrSocketSearchFailed       = errors.New("failed to search for sockets")
+	ErrNoInstanceRunning        = errors.New("no fuku instance is running")
+	ErrMultipleInstancesRunning = errors.New("multiple fuku instances running")
+	ErrInstanceNotFound         = errors.New("no fuku instance running with profile")
 )
 
 var (

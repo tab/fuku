@@ -4,10 +4,12 @@ import "time"
 
 // app constants
 const (
+	AppName = "fuku"
+
 	DefaultLogLevel  = "info"
 	DefaultLogFormat = "console"
 
-	Version = "0.8.3"
+	Version = "0.9.0"
 )
 
 // profile constants
@@ -40,4 +42,12 @@ const (
 // service constants
 const (
 	ShutdownTimeout = 5 * time.Second
+)
+
+// socket constants
+const (
+	SocketDir      = "/tmp"
+	SocketPrefix   = "fuku-"
+	SocketSuffix   = ".sock"
+	LogsBufferSize = 100
 )
