@@ -22,27 +22,27 @@ Fuku uses a layered architecture with three distinct patterns:
 │                   (internal/app - Uber FX)                  │
 └─────────────────────────────────────────────────────────────┘
                               │
-              ┌───────────────┴───────────────┐
-              ▼                               ▼
-┌──────────────────────┐         ┌──────────────────────┐
-│   Runner Package     │         │     UI Package       │
-│  (Event-Driven)      │◄───────►│    (FSM-Based)       │
-│  ├─ discovery        │         │  ├─ services/        │
-│  ├─ readiness        │         │  ├─ logs/            │
-│  ├─ process          │         │  ├─ navigation/      │
-│  ├─ service          │         │  ├─ components/      │
-│  └─ workerpool       │         │  └─ wire/            │
-└──────────────────────┘         └──────────────────────┘
-              │                               │
-              └───────────┬───────────────────┘
-                          ▼
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+┌──────────────────┐ ┌──────────────┐ ┌──────────────────┐
+│  Runner Package  │ │ Logs Package │ │   UI Package     │
+│  (Event-Driven)  │ │ (Streaming)  │ │  (FSM-Based)     │
+│  ├─ discovery    │ │ ├─ server    │ │  ├─ services/    │
+│  ├─ readiness    │ │ ├─ hub       │ │  ├─ components/  │
+│  ├─ service      │ │ ├─ client    │ │  └─ wire/        │
+│  ├─ registry     │ │ └─ formatter │ └──────────────────┘
+│  └─ workerpool   │ └──────────────┘          │
+└──────────────────┘        │                  │
+         │                  │                  │
+         └──────────────────┼──────────────────┘
+                            ▼
               ┌──────────────────────┐
               │   Runtime Package    │
               │ (Data/Communication) │
               │   events + commands  │
               └──────────────────────┘
-                          │
-                          ▼
+                            │
+                            ▼
               ┌──────────────────────┐
               │   Config Package     │
               │  (internal/config)   │
@@ -286,26 +286,34 @@ registry.Add(serviceName, newProc, tier)
 
 ### Context Management
 
-The runner and UI use separate child contexts derived from a common root to enable independent lifecycle management while maintaining coordination:
+The CLI creates a single cancellable context that coordinates both the runner and UI lifecycles:
 
 ```go
-// CLI layer creates separate contexts
-ctx := context.Background()                    // Root context
-ctxRunner, cancelRunner := context.WithCancel(ctx)  // Runner's child context
-ctxUI, cancelUI := context.WithCancel(ctx)          // UI's child context
+func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
+    ctx, cancel := context.WithCancel(ctx)
+    defer cancel()
 
-// Runner subscribes with its own context
-commandChan := r.command.Subscribe(ctxRunner)
+    // Runner runs in background goroutine
+    go func() {
+        runnerErrChan <- c.runner.Run(ctx, profile)
+    }()
 
-// UI subscribes with its own context
-eventChan := event.Subscribe(ctxUI)
+    // UI runs in foreground, blocks until user quits
+    p, _ := c.ui(ctx, profile)
+    p.Run()
+
+    // When UI exits, cancel context to stop runner
+    cancel()
+
+    // Wait for runner to finish
+    err := <-runnerErrChan
+}
 ```
 
 **Key benefits**:
-1. **Independent cancellation**: Runner can cancel its context (on StopAll) without closing UI's event channel
-2. **Event delivery**: UI receives PhaseStopped event even after runner context cancels
-3. **Coordinated lifecycle**: Both contexts share the same root, respecting parent cancellation
-4. **Testability**: Tests can pass their own contexts for lifecycle control
+1. **Single source of truth**: One context controls entire application lifecycle
+2. **Clean shutdown**: UI exit triggers context cancellation, runner responds gracefully
+3. **Testability**: Tests can pass their own contexts for lifecycle control
 
 **Critical events**: Lifecycle state changes are marked as `Critical: true` to guarantee delivery even when event buffers are full, preventing UI state desynchronization.
 
@@ -469,6 +477,61 @@ This provides:
 - Predictable message ordering
 - Multiple concurrent operations
 - Visual feedback for each operation
+
+## 4. Log Streaming
+
+**Package**: `internal/app/logs`
+
+The logs package provides real-time log streaming from running fuku instances via Unix sockets.
+
+### Architecture
+
+```
+┌─────────────────────────┐
+│   fuku --logs api db    │ ◄─── Separate terminal
+└───────────┬─────────────┘
+            │ Unix Socket
+            │ /tmp/fuku-<profile>.sock
+            ▼
+┌──────────────────────────────────────────────┐
+│        fuku --run=profile (main process)      │
+│  Service → teeStream → Hub → SocketServer    │
+└──────────────────────────────────────────────┘
+```
+
+### Components
+
+1. **Server** - Unix socket server that accepts client connections
+2. **Hub** - Connection hub for broadcasting log messages to subscribers
+3. **Client** - Connects to running instance and streams logs
+4. **Formatter** - Formats log output with colors (console) or JSON
+
+### Protocol
+
+JSON lines over Unix socket:
+
+```json
+// Client → Server (subscribe)
+{"type":"subscribe","services":["api","db"]}
+
+// Server → Client (log message)
+{"type":"log","service":"api","message":"Server started on :8080"}
+```
+
+### FX Dependency Injection
+
+All components use proper FX wiring:
+
+```go
+// logs/module.go
+var Module = fx.Options(
+    fx.Provide(NewClient),
+    fx.Provide(NewRunner),
+)
+
+// NewLogFormatter takes *config.Config and configures styles internally
+func NewLogFormatter(cfg *config.Config) *LogFormatter
+```
 
 ## Separation of Concerns
 
