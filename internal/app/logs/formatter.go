@@ -94,10 +94,13 @@ func (f *LogFormatter) FormatMessage(service, message string) string {
 	defer f.mu.Unlock()
 
 	if f.format == logger.JSONFormat {
-		data, _ := json.Marshal(map[string]string{
+		data, err := json.Marshal(map[string]string{
 			"service": service,
 			"message": message,
 		})
+		if err != nil {
+			return fmt.Sprintf(`{"service":%q,"message":%q}`+"\n", service, message)
+		}
 
 		return string(data) + "\n"
 	}
