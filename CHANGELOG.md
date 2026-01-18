@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [v0.9.0]
+
+### Features
+- **feat:** Add Unix socket-based log streaming
+
+### Documentation
+- **docs:** Update documentation for log streaming architecture and components
+
 ## [v0.8.3]
 
 ### Fixes
