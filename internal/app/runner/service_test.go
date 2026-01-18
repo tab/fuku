@@ -398,7 +398,7 @@ func Test_TeeStream_WithOutput(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		svc.teeStream(reader, dstWriter, "test-service", "platform", "STDOUT")
+		svc.teeStream(reader, dstWriter, "test-service", "STDOUT")
 		close(done)
 	}()
 
@@ -439,7 +439,7 @@ func Test_TeeStream_EmptyTier(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		svc.teeStream(reader, dstWriter, "test-service", "", "STDOUT")
+		svc.teeStream(reader, dstWriter, "test-service", "STDOUT")
 		close(done)
 	}()
 

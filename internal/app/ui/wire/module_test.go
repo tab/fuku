@@ -9,9 +9,6 @@ import (
 
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/logs"
-	"fuku/internal/app/ui/navigation"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config/logger"
 )
@@ -24,23 +21,14 @@ func Test_NewUI(t *testing.T) {
 	mockCommandBus := runtime.NewMockCommandBus(ctrl)
 	mockController := services.NewMockController(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockNavigator := navigation.NewMockNavigator(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
-
-	sender := logs.NewSender()
-	subscriber := logs.NewSubscriber(mockEventBus, sender)
 
 	params := UIParams{
 		EventBus:   mockEventBus,
 		CommandBus: mockCommandBus,
 		Controller: mockController,
 		Monitor:    mockMonitor,
-		LogView:    mockLogView,
-		Navigator:  mockNavigator,
 		Loader:     services.NewLoader(),
-		Sender:     sender,
-		Subscriber: subscriber,
 		Logger:     mockLogger,
 	}
 
@@ -56,32 +44,21 @@ func Test_UI_CreateProgram(t *testing.T) {
 	mockCommandBus := runtime.NewMockCommandBus(ctrl)
 	mockController := services.NewMockController(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockNavigator := navigation.NewMockNavigator(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	ctx := context.Background()
 	eventChan := make(chan runtime.Event)
 	close(eventChan)
 
-	sender := logs.NewSender()
-
 	mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockNavigator.EXPECT().CurrentView().Return(navigation.ViewServices).AnyTimes()
-
-	subscriber := logs.NewSubscriber(mockEventBus, sender)
 
 	params := UIParams{
 		EventBus:   mockEventBus,
 		CommandBus: mockCommandBus,
 		Controller: mockController,
 		Monitor:    mockMonitor,
-		LogView:    mockLogView,
-		Navigator:  mockNavigator,
 		Loader:     services.NewLoader(),
-		Sender:     sender,
-		Subscriber: subscriber,
 		Logger:     mockLogger,
 	}
 
@@ -100,8 +77,6 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 	mockCommandBus := runtime.NewMockCommandBus(ctrl)
 	mockController := services.NewMockController(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
-	mockLogView := ui.NewMockLogView(ctrl)
-	mockNavigator := navigation.NewMockNavigator(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	tests := []struct {
@@ -119,24 +94,15 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 			eventChan := make(chan runtime.Event)
 			close(eventChan)
 
-			sender := logs.NewSender()
-
 			mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
 			mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-			mockNavigator.EXPECT().CurrentView().Return(navigation.ViewServices).AnyTimes()
-
-			subscriber := logs.NewSubscriber(mockEventBus, sender)
 
 			params := UIParams{
 				EventBus:   mockEventBus,
 				CommandBus: mockCommandBus,
 				Controller: mockController,
 				Monitor:    mockMonitor,
-				LogView:    mockLogView,
-				Navigator:  mockNavigator,
 				Loader:     services.NewLoader(),
-				Sender:     sender,
-				Subscriber: subscriber,
 				Logger:     mockLogger,
 			}
 

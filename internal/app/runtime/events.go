@@ -21,7 +21,6 @@ const (
 	EventServiceStopped  EventType = "service_stopped"
 	EventRetryScheduled  EventType = "retry_scheduled"
 	EventSignalCaught    EventType = "signal_caught"
-	EventLogLine         EventType = "log_line"
 )
 
 // Phase represents the application phase
@@ -116,14 +115,6 @@ type RetryScheduledData struct {
 // SignalCaughtData contains signal details
 type SignalCaughtData struct {
 	Signal string
-}
-
-// LogLineData contains log line details
-type LogLineData struct {
-	Service string
-	Tier    string
-	Stream  string
-	Message string
 }
 
 // EventBus defines the interface for event publishing and subscription

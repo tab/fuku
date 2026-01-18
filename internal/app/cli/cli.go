@@ -24,22 +24,11 @@ Examples:
   fuku --run=core --no-ui         Run core services without TUI
   fuku --run=minimal              Run minimal services with TUI
 
-TUI Controls (Services View):
+TUI Controls:
   ↑/↓ or k/j                      Navigate services
   pgup/pgdn/home/end              Scroll viewport
   r                               Restart selected service
   s                               Stop/start selected service
-  space                           Toggle logs for selected service
-  ctrl+a                          Toggle all logs
-  tab                             Switch to logs view
-  q                               Quit (stops all services)
-
-TUI Controls (Logs View):
-  ↑/↓ or k/j                      Scroll logs
-  pgup/pgdn/home/end              Scroll viewport
-  a                               Toggle autoscroll
-  ctrl+r                          Clear logs
-  tab                             Switch back to services view
   q                               Quit (stops all services)`
 )
 

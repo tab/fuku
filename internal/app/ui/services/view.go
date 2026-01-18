@@ -19,15 +19,10 @@ func (m Model) View() string {
 	header := m.renderHeader()
 	panelHeight := m.ui.height - components.PanelHeightPadding
 
-	var panel string
-	if m.navigator.IsLogs() {
-		panel = m.renderLogs()
-	} else {
-		panel = lipgloss.NewStyle().
-			Width(m.ui.width - components.PanelBorderPadding).
-			Height(panelHeight).
-			Render(m.renderServices())
-	}
+	panel := lipgloss.NewStyle().
+		Width(m.ui.width - components.PanelBorderPadding).
+		Height(panelHeight).
+		Render(m.renderServices())
 
 	footer := m.renderFooter()
 
@@ -53,26 +48,16 @@ func (m Model) renderInfo() string {
 		phaseStyle = components.PhaseStoppingStyle
 	}
 
-	info := fmt.Sprintf("%s  %d/%d ready",
+	return fmt.Sprintf("%s  %d/%d ready",
 		phaseStyle.Render(phaseStr),
 		ready,
 		total,
 	)
-
-	if m.navigator.IsLogs() && m.logView.Autoscroll() {
-		info += "  " + components.TimestampStyle.Render("[autoscroll]")
-	}
-
-	return info
 }
 
 func (m Model) renderTitle() string {
 	if m.loader.Active {
 		return m.loader.Model.View() + " " + m.loader.Message()
-	}
-
-	if m.navigator.IsLogs() {
-		return components.HeaderTitleStyle.Render("logs")
 	}
 
 	return components.HeaderTitleStyle.Render("services")
@@ -103,7 +88,7 @@ func (m Model) renderColumnHeaders(maxNameLen int) string {
 		maxNameLen = availableWidth
 	}
 
-	prefixWidth := components.ColWidthIndicator + components.ColWidthCheckbox + 1 + maxNameLen
+	prefixWidth := components.ColWidthIndicator + 1 + maxNameLen
 
 	header := fmt.Sprintf(
 		"%*s  %-*s  %*s  %*s  %*s  %*s",
@@ -169,11 +154,6 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
 	indicator := m.getServiceIndicator(service, isSelected)
 
-	logCheckbox := components.Empty
-	if m.logView.IsEnabled(service.Name) {
-		logCheckbox = components.Selected
-	}
-
 	uptime := m.getUptime(service)
 	cpu := m.getCPU(service)
 	mem := m.getMem(service)
@@ -192,9 +172,8 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	paddedServiceName := padServiceName(serviceName, maxNameLen)
 
 	row := fmt.Sprintf(
-		"%s%s %s  %-*s  %*s  %*s  %*s  %*s",
+		"%s %s  %-*s  %*s  %*s  %*s  %*s",
 		indicator,
-		logCheckbox,
 		paddedServiceName,
 		components.ColWidthStatus, string(service.Status),
 		components.ColWidthCPU, cpu,
@@ -261,18 +240,6 @@ func (m Model) applyRowStyles(row string, service *ServiceState) string {
 	return result
 }
 
-func (m Model) renderLogs() string {
-	return m.logView.View()
-}
-
 func (m Model) renderFooter() string {
-	var helpText string
-
-	if m.navigator.IsLogs() {
-		helpText = m.ui.help.View(m.ui.logsKeys)
-	} else {
-		helpText = m.ui.help.View(m.ui.servicesKeys)
-	}
-
-	return components.RenderFooter(m.ui.width, helpText)
+	return components.RenderFooter(m.ui.width, m.ui.help.View(m.ui.servicesKeys))
 }

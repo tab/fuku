@@ -8,9 +8,6 @@ import (
 
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runtime"
-	"fuku/internal/app/ui"
-	"fuku/internal/app/ui/logs"
-	"fuku/internal/app/ui/navigation"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config/logger"
 )
@@ -20,9 +17,7 @@ type UI func(ctx context.Context, profile string) (*tea.Program, error)
 
 // Module aggregates all UI modules and provides the UI factory
 var Module = fx.Options(
-	navigation.Module,
 	services.Module,
-	logs.Module,
 	fx.Provide(NewUI),
 )
 
@@ -34,11 +29,7 @@ type UIParams struct {
 	CommandBus runtime.CommandBus
 	Controller services.Controller
 	Monitor    monitor.Monitor
-	LogView    ui.LogView
-	Navigator  navigation.Navigator
 	Loader     *services.Loader
-	Subscriber *logs.Subscriber
-	Sender     *logs.Sender
 	Logger     logger.Logger
 }
 
@@ -52,10 +43,7 @@ func NewUI(params UIParams) UI {
 			params.CommandBus,
 			params.Controller,
 			params.Monitor,
-			params.LogView,
-			params.Navigator,
 			params.Loader,
-			params.Subscriber,
 			params.Logger,
 		)
 
@@ -65,7 +53,6 @@ func NewUI(params UIParams) UI {
 			tea.WithContext(ctx),
 		)
 
-		params.Sender.Set(p.Send)
 		params.Logger.Debug().Msg("TUI: Program created via factory")
 
 		return p, nil

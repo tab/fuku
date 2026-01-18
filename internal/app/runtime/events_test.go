@@ -157,7 +157,7 @@ func Test_EventBus_Critical_Events_Always_Delivered(t *testing.T) {
 	}()
 
 	for i := 0; i < 10; i++ {
-		eb.Publish(Event{Type: EventLogLine, Critical: false})
+		eb.Publish(Event{Type: EventTierReady, Critical: false})
 	}
 
 	criticalEvent := Event{Type: EventPhaseChanged, Data: PhaseChangedData{Phase: PhaseStopped}, Critical: true}

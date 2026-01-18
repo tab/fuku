@@ -102,8 +102,8 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 		stderrReader: stderrReader,
 	}
 
-	go s.teeStream(stdoutPipe, stdoutWriter, name, svc.Tier, "STDOUT")
-	go s.teeStream(stderrPipe, stderrWriter, name, svc.Tier, "STDERR")
+	go s.teeStream(stdoutPipe, stdoutWriter, name, "STDOUT")
+	go s.teeStream(stderrPipe, stderrWriter, name, "STDERR")
 
 	go func() {
 		defer close(proc.done)
@@ -126,25 +126,12 @@ func (s *service) Stop(proc Process) error {
 	return s.lifecycle.Terminate(proc, config.ShutdownTimeout)
 }
 
-func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, tier, streamType string) {
+func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, streamType string) {
 	scanner := bufio.NewScanner(src)
 	scanner.Buffer(make([]byte, scannerBufferSize), scannerMaxBufferSize)
 
-	if tier == "" {
-		tier = config.Default
-	}
-
 	for scanner.Scan() {
 		line := scanner.Text()
-		s.event.Publish(runtime.Event{
-			Type: runtime.EventLogLine,
-			Data: runtime.LogLineData{
-				Service: serviceName,
-				Tier:    tier,
-				Stream:  streamType,
-				Message: line,
-			},
-		})
 		s.log.Info().
 			Str("service", serviceName).
 			Str("stream", streamType).
