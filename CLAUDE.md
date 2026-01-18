@@ -96,8 +96,9 @@
    - Handles graceful shutdown
 
 3. **Command Processing** (`internal/app/cli/cli.go`)
-   - Parses command-line arguments for run, help, version commands
+   - Parses command-line arguments for run, logs, help, version commands
    - Delegates service execution to runner with specified profile
+   - Handles `--logs` mode via logs.Runner for streaming from running instances
    - Handles unknown commands with appropriate error messages
 
 4. **Service Orchestration** (`internal/app/runner/runner.go`)

@@ -59,16 +59,15 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku
 ## Quick Start
 
 ```bash
-# Run with TUI (default)
+# Run with TUI (default profile)
 fuku
 
-# Run without TUI
-fuku --run=default --no-ui
+# Run with specified profile without TUI
+fuku --run=core --no-ui
 
 # Stream logs from running instance (in separate terminal)
 fuku --logs                     # All services
-fuku --logs api db              # Specific services
-fuku --logs --profile=backend   # From specific profile
+fuku --logs api auth            # Specific services
 
 # Show help
 fuku help
@@ -85,7 +84,7 @@ pgup/pgdn        Scroll viewport
 home/end         Jump to start/end
 r                Restart selected service
 s                Stop/start selected service
-q                Quit
+q                Quit (stops all services)
 ```
 
 ## Configuration

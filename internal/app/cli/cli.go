@@ -15,6 +15,7 @@ import (
 
 const (
 	Usage = `Usage:
+  fuku                            Run services with default profile (with TUI)
   fuku --run=<PROFILE>            Run services with specified profile (with TUI)
   fuku --run=<PROFILE> --no-ui    Run services without TUI
   fuku --logs [service...]        Stream logs from running services
@@ -22,9 +23,8 @@ const (
   fuku version                    Show version
 
 Examples:
-  fuku --run=default              Run all services with TUI
+  fuku                            Run default profile with TUI
   fuku --run=core --no-ui         Run core services without TUI
-  fuku --run=minimal              Run minimal services with TUI
   fuku --logs                     Stream all logs from running fuku
   fuku --logs api auth            Stream logs from api and auth services
 
