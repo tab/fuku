@@ -129,7 +129,7 @@ func (s *server) cleanupStaleSocket() error {
 		return nil
 	}
 
-	conn, err := net.DialTimeout("unix", s.socketPath, 100*1000000)
+	conn, err := net.DialTimeout("unix", s.socketPath, config.SocketDialTimeout)
 	if err == nil {
 		conn.Close()
 
