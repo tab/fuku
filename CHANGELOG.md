@@ -1,6 +1,14 @@
 # CHANGELOG
 
-## [v0.9.0]
+## v0.9.1
+
+### Fixes
+- **fix:** Refine getServiceIndicator UI component
+
+### Chore
+- **chore:** Update log command examples in CLI documentation
+
+## v0.9.0
 
 ### Features
 - **feat:** Add Unix socket-based log streaming
@@ -8,13 +16,12 @@
 ### Documentation
 - **docs:** Update documentation for log streaming architecture and components
 
-## [v0.8.3]
+## v0.8.3
 
 ### Fixes
-
 - **fix:** Add buffer size constant and configure scanner buffer
 
-## [v0.8.2]
+## v0.8.2
 
 ### Fixes
 - **fix:** Add graceful degradation for failed services during startup
@@ -25,7 +32,7 @@
 - **build:** Bump github.com/shirou/gopsutil/v4 from 4.25.10 to 4.25.12
 - **build:** Bump codecov/codecov-action from 5.5.1 to 5.5.2
 
-## [v0.8.1]
+## v0.8.1
 
 ### Fixes
 - **fix:** Adjust process command to prevent indefinite blocking
