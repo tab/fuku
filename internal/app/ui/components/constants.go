@@ -34,16 +34,16 @@ const (
 
 // Services view constants
 const (
-	FixedColumnsWidth    = 53
+	FixedColumnsWidth    = 50
 	ServiceNameMinWidth  = 20
 	ViewportWidthPadding = 2
 	RowWidthPadding      = 8
-	Current              = "› "
+	Current              = "›"
 )
 
 // Column widths for services table
 const (
-	ColWidthIndicator = 2
+	ColWidthIndicator = 1
 	ColWidthStatus    = 10
 	ColWidthCPU       = 6
 	ColWidthMem       = 6

@@ -126,7 +126,7 @@ func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 }
 
 func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) string {
-	defaultIndicator := "  "
+	defaultIndicator := " "
 	if isSelected {
 		defaultIndicator = components.Current
 	}
@@ -145,10 +145,10 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 	}
 
 	if isSelected {
-		return service.Blink.Frame() + " "
+		return service.Blink.Frame()
 	}
 
-	return service.Blink.Render(components.IndicatorActiveStyle) + " "
+	return service.Blink.Render(components.IndicatorActiveStyle)
 }
 
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
