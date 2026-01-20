@@ -6,6 +6,7 @@ import "time"
 const (
 	UITickInterval   = 100 * time.Millisecond
 	UITicksPerSecond = int(time.Second / UITickInterval) // 1000/100 = 10
+	TipRotationTicks = 10 * UITicksPerSecond
 
 	StatsPollingInterval = 1 * time.Second
 	StatsCallTimeout     = 500 * time.Millisecond
@@ -15,30 +16,35 @@ const (
 
 // Layout constants
 const (
-	PanelHeightPadding = 8
-	PanelBorderPadding = 2
+	PanelHeightPadding = 4
+	PanelInnerPadding  = 2
+	PanelBorderHeight  = 2
 	MinPanelHeight     = 10
+	BorderEdgeWidth    = 3
+	SpacerWidth        = 2
 )
 
-// Header layout constants
+// Border characters
 const (
-	HeaderSeparatorMinWidth = 4
-	HeaderFixedChars        = 10
+	BorderTopLeft     = "╭"
+	BorderTopRight    = "╮"
+	BorderBottomLeft  = "╰"
+	BorderBottomRight = "╯"
+	BorderHorizontal  = "─"
+	BorderVertical    = "│"
 )
 
-// Footer layout constants
+// Indicator characters
 const (
-	FooterSeparatorMinWidth = 4
-	FooterFixedChars        = 5
+	IndicatorSelected = "›"
+	IndicatorEmpty    = " "
 )
 
 // Services view constants
 const (
-	FixedColumnsWidth    = 50
-	ServiceNameMinWidth  = 20
-	ViewportWidthPadding = 2
-	RowWidthPadding      = 8
-	Current              = "›"
+	FixedColumnsWidth   = 50
+	ServiceNameMinWidth = 20
+	RowWidthPadding     = 8
 )
 
 // Column widths for services table

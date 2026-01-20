@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -101,12 +102,14 @@ type Model struct {
 	}
 
 	ui struct {
-		width            int
 		height           int
+		width            int
 		servicesKeys     KeyMap
+		tickCounter      int
+		showTips         bool
+		tipOffset        int
 		help             help.Model
 		servicesViewport viewport.Model
-		tickCounter      int
 	}
 
 	log logger.Logger
@@ -146,9 +149,11 @@ func NewModel(
 	m.state.ready = false
 	m.state.shuttingDown = false
 
-	m.ui.width = 0
 	m.ui.height = 0
+	m.ui.width = 0
 	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.showTips = true
+	m.ui.tipOffset = rand.Intn(len(components.Tips)) //nolint:gosec // not security-critical
 	m.ui.help = help.New()
 	m.ui.servicesViewport = viewport.New(0, 0)
 
@@ -229,7 +234,7 @@ func (m Model) calculateScrollOffset() int {
 		return m.ui.servicesViewport.YOffset
 	}
 
-	lineNumber := 0
+	lineNumber := 1
 	currentIdx := 0
 
 	for i, tier := range m.state.tiers {

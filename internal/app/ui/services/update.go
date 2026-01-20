@@ -38,8 +38,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			panelHeight = components.MinPanelHeight
 		}
 
-		m.ui.servicesViewport.Width = msg.Width - components.ViewportWidthPadding
-		m.ui.servicesViewport.Height = panelHeight
+		m.ui.servicesViewport.Width = msg.Width - components.PanelInnerPadding
+		m.ui.servicesViewport.Height = panelHeight - components.PanelBorderHeight
 
 		if !m.state.ready {
 			m.state.ready = true
@@ -120,6 +120,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, m.ui.servicesKeys.Restart):
 		return m.handleRestartKey()
+
+	case key.Matches(msg, m.ui.servicesKeys.ToggleTips):
+		m.ui.showTips = !m.ui.showTips
+		return m, nil
 	}
 
 	switch msg.String() {
