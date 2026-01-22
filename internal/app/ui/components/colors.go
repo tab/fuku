@@ -7,7 +7,6 @@ const (
 	// Foreground colors - text and elements
 	FgPrimary = lipgloss.Color("#7D56F4") // Purple - primary/focus color
 	FgMuted   = lipgloss.Color("7")       // Light gray - muted elements
-	FgLight   = lipgloss.Color("15")      // White - light text
 	FgBorder  = lipgloss.Color("8")       // Gray - borders and help text
 
 	// Background colors

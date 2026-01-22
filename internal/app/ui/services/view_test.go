@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 
 	"fuku/internal/app/runtime"
@@ -41,7 +40,7 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	assert.Contains(t, result, "Shutting down")
 }
 
-func Test_RenderHeader_ServicesView(t *testing.T) {
+func Test_RenderTitle_ServicesView(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 	m.state.phase = runtime.PhaseRunning
@@ -49,14 +48,11 @@ func Test_RenderHeader_ServicesView(t *testing.T) {
 	m.state.tiers = []Tier{{Services: []string{"api"}}}
 	m.ui.width = 100
 
-	header := m.renderHeader()
-	assert.Contains(t, header, "───")
-	assert.Contains(t, header, "services")
-	assert.Contains(t, header, "Running")
-	assert.Contains(t, header, "1/1")
+	title := m.renderTitle()
+	assert.Contains(t, title, "services")
 }
 
-func Test_RenderHeader_WithActiveLoader(t *testing.T) {
+func Test_RenderTitle_WithActiveLoader(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: true, queue: make([]LoaderItem, 0)}
 	loader.Start("api", "Starting api…")
 	m := Model{loader: loader}
@@ -65,12 +61,11 @@ func Test_RenderHeader_WithActiveLoader(t *testing.T) {
 	m.state.tiers = []Tier{}
 	m.ui.width = 100
 
-	header := m.renderHeader()
-	assert.Contains(t, header, "───")
-	assert.Contains(t, header, "Starting api…")
+	title := m.renderTitle()
+	assert.Contains(t, title, "Starting api…")
 }
 
-func Test_RenderInfo_PhaseColors(t *testing.T) {
+func Test_RenderStatus_PhaseColors(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 
@@ -91,22 +86,10 @@ func Test_RenderInfo_PhaseColors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m.state.phase = tt.phase
 
-			info := m.renderInfo()
+			info := m.renderStatus()
 			assert.Contains(t, info, tt.wantContains)
 		})
 	}
-}
-
-func Test_RenderHeader_Width(t *testing.T) {
-	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
-	m := Model{loader: loader}
-	m.state.phase = runtime.PhaseRunning
-	m.state.services = map[string]*ServiceState{"api": {Status: StatusRunning}}
-	m.state.tiers = []Tier{{Services: []string{"api"}}}
-	m.ui.width = 80
-
-	header := m.renderHeader()
-	assert.Equal(t, m.ui.width, lipgloss.Width(header))
 }
 
 func Test_RenderServices_Empty(t *testing.T) {
@@ -118,46 +101,28 @@ func Test_RenderServices_Empty(t *testing.T) {
 	assert.Contains(t, result, "No services configured")
 }
 
-func Test_RenderFooter(t *testing.T) {
-	m := Model{}
-	m.ui.servicesKeys = DefaultKeyMap()
-	m.ui.help = help.New()
-	m.ui.width = 80
-
-	result := m.renderFooter()
-	assert.NotEmpty(t, result)
-}
-
-func Test_ApplyRowStyles_StatusColors(t *testing.T) {
+func Test_GetStyledAndPaddedStatus(t *testing.T) {
 	tests := []struct {
-		name   string
-		status Status
+		name       string
+		status     Status
+		isSelected bool
 	}{
-		{name: "ready status", status: StatusRunning},
-		{name: "starting status", status: StatusStarting},
-		{name: "failed status", status: StatusFailed},
-		{name: "stopped status", status: StatusStopped},
+		{name: "running status not selected", status: StatusRunning, isSelected: false},
+		{name: "starting status not selected", status: StatusStarting, isSelected: false},
+		{name: "failed status not selected", status: StatusFailed, isSelected: false},
+		{name: "stopped status not selected", status: StatusStopped, isSelected: false},
+		{name: "running status selected", status: StatusRunning, isSelected: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
 			service := &ServiceState{Status: tt.status}
-			row := "  api   " + string(tt.status) + "  25.5%  256MB  00:30"
 
-			result := m.applyRowStyles(row, service)
+			result := m.getStyledAndPaddedStatus(service, tt.isSelected)
 			assert.Contains(t, result, string(tt.status))
 		})
 	}
-}
-
-func Test_ApplyRowStyles_WithError(t *testing.T) {
-	m := Model{}
-	service := &ServiceState{Status: StatusFailed, Error: assert.AnError}
-	row := "  api   Failed  (assert.AnError general error for testing)"
-
-	result := m.applyRowStyles(row, service)
-	assert.Contains(t, result, "Failed")
 }
 
 func Test_RenderServiceRow_Truncation(t *testing.T) {
@@ -220,7 +185,7 @@ func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 	selected := m.renderServiceRow(service, true, 20)
 
 	assert.Contains(t, notSelected, "  ")
-	assert.Contains(t, selected, components.Current+" ")
+	assert.Contains(t, selected, components.IndicatorSelected+" ")
 }
 
 func Test_RenderTier_Spacing(t *testing.T) {
@@ -276,7 +241,7 @@ func Test_GetServiceIndicator_DefaultSelected(t *testing.T) {
 	service := &ServiceState{Name: "api", Status: StatusStopped}
 
 	result := m.getServiceIndicator(service, true)
-	assert.Equal(t, components.Current, result)
+	assert.Equal(t, components.IndicatorSelected, result)
 }
 
 func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
@@ -289,7 +254,7 @@ func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
 		want       string
 	}{
 		{name: "FSM nil not selected", isSelected: false, want: " "},
-		{name: "FSM nil selected", isSelected: true, want: components.Current},
+		{name: "FSM nil selected", isSelected: true, want: components.IndicatorSelected},
 	}
 
 	for _, tt := range tests {
@@ -312,7 +277,7 @@ func Test_GetServiceIndicator_GuardNonTransitionalState(t *testing.T) {
 		want       string
 	}{
 		{name: "Running state not selected", state: Running, isSelected: false, want: " "},
-		{name: "Running state selected", state: Running, isSelected: true, want: components.Current},
+		{name: "Running state selected", state: Running, isSelected: true, want: components.IndicatorSelected},
 		{name: "Stopped state not selected", state: Stopped, isSelected: false, want: " "},
 		{name: "Failed state not selected", state: Failed, isSelected: false, want: " "},
 	}
@@ -339,7 +304,7 @@ func Test_GetServiceIndicator_GuardBlinkNil(t *testing.T) {
 		want       string
 	}{
 		{name: "Starting state Blink nil not selected", state: Starting, isSelected: false, want: " "},
-		{name: "Stopping state Blink nil selected", state: Stopping, isSelected: true, want: components.Current},
+		{name: "Stopping state Blink nil selected", state: Stopping, isSelected: true, want: components.IndicatorSelected},
 		{name: "Restarting state Blink nil not selected", state: Restarting, isSelected: false, want: " "},
 	}
 
@@ -402,4 +367,42 @@ func Test_GetServiceIndicator_BlinkIndicatorSelected(t *testing.T) {
 			assert.Equal(t, blink.Frame(), result)
 		})
 	}
+}
+
+func Test_RenderTip_RotatesOverTime(t *testing.T) {
+	tipCount := len(components.Tips)
+	wrapTick := tipCount * components.TipRotationTicks
+
+	tests := []struct {
+		name        string
+		tipOffset   int
+		tickCounter int
+		wantIndex   int
+	}{
+		{name: "tick 0 with offset 0", tipOffset: 0, tickCounter: 0, wantIndex: 0},
+		{name: "tick 100 with offset 0", tipOffset: 0, tickCounter: 100, wantIndex: 1},
+		{name: "tick 0 with offset 3", tipOffset: 3, tickCounter: 0, wantIndex: 3},
+		{name: "wraps after all tips", tipOffset: 0, tickCounter: wrapTick, wantIndex: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.tipOffset = tt.tipOffset
+			m.ui.tickCounter = tt.tickCounter
+			m.ui.showTips = true
+
+			result := m.renderTip()
+			assert.Equal(t, components.Tips[tt.wantIndex], result)
+		})
+	}
+}
+
+func Test_RenderTip_HiddenWhenDisabled(t *testing.T) {
+	m := Model{}
+	m.ui.showTips = false
+	m.ui.tickCounter = 0
+
+	result := m.renderTip()
+	assert.Empty(t, result)
 }

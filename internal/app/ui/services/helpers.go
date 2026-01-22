@@ -3,11 +3,11 @@ package services
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 
 	apperrors "fuku/internal/app/errors"
+	"fuku/internal/app/ui/components"
 )
 
 // simplifyErrorMessage returns a user-friendly short error message
@@ -81,12 +81,5 @@ func truncateErrorMessage(errorText string, availableWidth int) string {
 
 // padServiceName pads a service name to maxWidth using display width (not rune count)
 func padServiceName(serviceName string, maxWidth int) string {
-	currentWidth := lipgloss.Width(serviceName)
-	if currentWidth >= maxWidth {
-		return serviceName
-	}
-
-	padding := maxWidth - currentWidth
-
-	return serviceName + strings.Repeat(" ", padding)
+	return components.PadRight(serviceName, maxWidth)
 }
