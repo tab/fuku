@@ -41,7 +41,7 @@
 2. **cli.CLI** - Interface for command-line operations:
    ```go
    type CLI interface {
-       Run(args []string) (exitCode int, err error)
+       Execute() (exitCode int, err error)
    }
    ```
 
@@ -68,7 +68,7 @@
 6. **logs.Runner** - Log streaming mode runner:
    ```go
    type Runner interface {
-       Run(args []string) int
+       Run(profile string, services []string) int
    }
    ```
 
@@ -85,21 +85,21 @@
 ### Execution Flow
 
 1. **CLI Entry Point** (`cmd/main.go`)
-   - Refactored with testable functions: `runApp()`, `loadConfig()`, `createApp()`, `createFxLogger()`
+   - Parses command-line arguments using cobra via `cli.Parse()`
    - Loads configuration from `fuku.yaml` using Viper
    - Initializes FX container with all dependencies
    - Starts application lifecycle
 
 2. **Application Container** (`internal/app/app.go`)
    - Manages application lifecycle with FX hooks
-   - Coordinates CLI execution with dependencies
+   - Calls `cli.Execute()` to run the parsed command
    - Handles graceful shutdown
 
-3. **Command Processing** (`internal/app/cli/cli.go`)
-   - Parses command-line arguments for run, logs, help, version commands
-   - Delegates service execution to runner with specified profile
-   - Handles `--logs` mode via logs.Runner for streaming from running instances
-   - Handles unknown commands with appropriate error messages
+3. **Command Processing** (`internal/app/cli/`)
+   - `commands.go` - Cobra-based argument parsing with `Parse()` function
+   - `cli.go` - Command execution via `Execute()` method
+   - Supports flags in any position (e.g., `--no-ui run core` or `run core --no-ui`)
+   - Commands: `run`, `logs`, `version`, `help` with short aliases
 
 4. **Service Orchestration** (`internal/app/runner/runner.go`)
    - Orders services by tier for startup sequencing
@@ -208,7 +208,8 @@
 ### Current Test Files
 - `cmd/main_test.go` - Tests for entry point functions and FX application creation
 - `internal/app/app_test.go` - Application container and lifecycle testing
-- `internal/app/cli/cli_test.go` - CLI argument parsing and command execution
+- `internal/app/cli/cli_test.go` - CLI command execution testing
+- `internal/app/cli/commands_test.go` - Cobra command parsing tests
 - `internal/app/logs/client_test.go` - Unix socket client testing
 - `internal/app/logs/runner_test.go` - Log streaming runner testing
 - `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
@@ -281,7 +282,7 @@ go fmt ./... && make lint && make vet && make test
 - avoid deeply nested conditionals (more than 3 levels)
 - never use goto
 - prefer early returns to reduce nesting, but else/else if are acceptable when they improve readability
-- write tests in compact form by fitting struct fields to a single line (up to 130 characters)
+- never inline table test cases; always use multi-line format with each field on its own line
 - before any significant refactoring, ensure all tests pass and consider creating a new branch
 - when refactoring, editing, or fixing failed tests:
   - do not redesign fundamental parts of the code architecture
@@ -418,10 +419,22 @@ Example workflow:
   - always use mockgen-generated mocks, not testify mock
   - do NOT add `//go:generate` directives to source files
 - for testing functions that can fail due to external dependencies (like config loading), use `t.Skip()` with descriptive messages rather than failing the test
-- use descriptive test names that explain the scenario being tested (e.g., "No arguments - default profile", "Run command with --run= (empty profile defaults to default profile)")
+- use descriptive test names that explain the scenario being tested (e.g., "No arguments - default profile", "Run command with profile and --no-ui")
 - when testing CLI return values, test both exit codes and error conditions separately in table test fields like `expectedExit` and `expectedError`
 - for testable code extraction: separate business logic from system calls (os.Exit, os.Args) by creating internal functions that can be unit tested
 - always test multiple command variations (e.g., "help", "--help", "-h") to ensure all aliases work correctly
+- never inline table test cases; always use multi-line format:
+  ```go
+  // BAD - inline format
+  {name: "test case", input: "value", expected: true},
+
+  // GOOD - multi-line format
+  {
+      name:     "test case",
+      input:    "value",
+      expected: true,
+  },
+  ```
 
 ## Git Workflow
 
@@ -439,6 +452,7 @@ git branch -D feature-branch-name
 
 ## Commonly Used Libraries
 - dependency injection: `go.uber.org/fx`
+- CLI framework: `github.com/spf13/cobra`
 - configuration: `github.com/spf13/viper`
 - logging: `github.com/rs/zerolog`
 - testing: `github.com/stretchr/testify`
