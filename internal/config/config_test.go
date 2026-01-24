@@ -274,8 +274,10 @@ func Test_ValidateReadiness(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name:      "nil readiness is valid",
-			readiness: nil, expectError: false},
+			name:        "nil readiness is valid",
+			readiness:   nil,
+			expectError: false,
+		},
 		{
 			name: "http type with url is valid",
 			readiness: &Readiness{

@@ -7,36 +7,29 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/app/cli"
-	"fuku/internal/config/logger"
 )
 
 // App represents the main application container
 type App struct {
 	cli cli.CLI
-	log logger.Logger
 }
 
 // NewApp creates a new application instance with its dependencies
-func NewApp(cli cli.CLI, log logger.Logger) *App {
+func NewApp(cli cli.CLI) *App {
 	return &App{
 		cli: cli,
-		log: log,
 	}
 }
 
-// Run executes the application with command line arguments
+// Run executes the application
 func (a *App) Run() {
-	args := os.Args[1:]
-	exitCode := a.execute(args)
+	exitCode := a.execute()
 	os.Exit(exitCode)
 }
 
-// execute runs the CLI with given args and handles errors - extracted for testing
-func (a *App) execute(args []string) int {
-	exitCode, err := a.cli.Run(args)
-	if err != nil {
-		a.log.Error().Err(err).Msg("Application error")
-	}
+// execute runs the CLI and returns exit code - extracted for testing
+func (a *App) execute() int {
+	exitCode, _ := a.cli.Execute()
 
 	return exitCode
 }

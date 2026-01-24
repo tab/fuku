@@ -25,33 +25,6 @@ func Test_NewRunner(t *testing.T) {
 	assert.Equal(t, mockClient, impl.client)
 }
 
-func Test_parseArgs(t *testing.T) {
-	r := &runner{}
-
-	tests := []struct {
-		name             string
-		args             []string
-		expectedProfile  string
-		expectedServices []string
-	}{
-		{name: "Empty args", args: []string{}, expectedProfile: "", expectedServices: nil},
-		{name: "Single service", args: []string{"api"}, expectedProfile: "", expectedServices: []string{"api"}},
-		{name: "Multiple services", args: []string{"api", "db", "cache"}, expectedProfile: "", expectedServices: []string{"api", "db", "cache"}},
-		{name: "Profile only", args: []string{"--profile=prod"}, expectedProfile: "prod", expectedServices: nil},
-		{name: "Profile with services", args: []string{"--profile=dev", "api", "db"}, expectedProfile: "dev", expectedServices: []string{"api", "db"}},
-		{name: "Skips unknown flags", args: []string{"--logs", "-v", "api"}, expectedProfile: "", expectedServices: []string{"api"}},
-		{name: "Mixed args order", args: []string{"api", "--profile=staging", "db"}, expectedProfile: "staging", expectedServices: []string{"api", "db"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			profile, services := r.parseArgs(tt.args)
-			assert.Equal(t, tt.expectedProfile, profile)
-			assert.Equal(t, tt.expectedServices, services)
-		})
-	}
-}
-
 func Test_streamLogs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
