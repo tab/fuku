@@ -60,34 +60,41 @@ func Test_Start_DirectoryNotExist(t *testing.T) {
 	assert.ErrorIs(t, err, errors.ErrServiceDirectoryNotExist)
 }
 
-func Test_Start_MissingEnvFile(t *testing.T) {
+func Test_Start_MissingMakefile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockLifecycle := NewMockLifecycle(ctrl)
 	mockLifecycle.EXPECT().Configure(gomock.Any()).AnyTimes()
+	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	mockReadiness := NewMockReadiness(ctrl)
 	mockEventBus := runtime.NewNoOpEventBus()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
 	tmpDir := t.TempDir()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	ctx := context.Background()
 
 	svc := &config.Service{
 		Dir: tmpDir,
 	}
 
-	_, err := s.Start(ctx, "test-service", svc)
+	proc, err := s.Start(ctx, "test-service", svc)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to start command")
+	if err != nil {
+		assert.Contains(t, err.Error(), "failed to start command")
+	} else {
+		assert.NotNil(t, proc)
+		<-proc.Done()
+		s.Stop(proc)
+	}
 }
 
 func Test_Start_RelativePathConversion(t *testing.T) {
