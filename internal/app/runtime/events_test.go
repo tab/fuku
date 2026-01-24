@@ -182,3 +182,138 @@ func Test_EventBus_Critical_Events_Always_Delivered(t *testing.T) {
 done:
 	assert.True(t, foundCritical, "critical event should have been delivered")
 }
+
+func Test_EventBus_Close_Twice_Does_Not_Panic(t *testing.T) {
+	eb := NewEventBus(10)
+
+	assert.NotPanics(t, func() {
+		eb.Close()
+		eb.Close()
+	})
+}
+
+func Test_EventBus_AllEventTypes(t *testing.T) {
+	eventTypes := []EventType{
+		EventProfileResolved,
+		EventPhaseChanged,
+		EventTierStarting,
+		EventTierReady,
+		EventTierFailed,
+		EventServiceStarting,
+		EventServiceReady,
+		EventServiceFailed,
+		EventServiceStopped,
+		EventRetryScheduled,
+		EventSignalCaught,
+	}
+
+	for _, et := range eventTypes {
+		t.Run(string(et), func(t *testing.T) {
+			eb := NewEventBus(10)
+			defer eb.Close()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			sub := eb.Subscribe(ctx)
+
+			eb.Publish(Event{Type: et})
+
+			select {
+			case received := <-sub:
+				assert.Equal(t, et, received.Type)
+			case <-time.After(100 * time.Millisecond):
+				t.Fatalf("timeout waiting for event %s", et)
+			}
+		})
+	}
+}
+
+func Test_EventBus_AllPhases(t *testing.T) {
+	phases := []Phase{
+		PhaseStartup,
+		PhaseRunning,
+		PhaseStopping,
+		PhaseStopped,
+	}
+
+	for _, p := range phases {
+		t.Run(string(p), func(t *testing.T) {
+			data := PhaseChangedData{Phase: p}
+			assert.Equal(t, p, data.Phase)
+		})
+	}
+}
+
+func Test_EventData_Types(t *testing.T) {
+	t.Run("TierData", func(t *testing.T) {
+		data := TierData{Name: "tier1", Services: []string{"svc1", "svc2"}}
+		assert.Equal(t, "tier1", data.Name)
+		assert.Len(t, data.Services, 2)
+	})
+
+	t.Run("ProfileResolvedData", func(t *testing.T) {
+		data := ProfileResolvedData{
+			Profile: "default",
+			Tiers:   []TierData{{Name: "tier1"}},
+		}
+		assert.Equal(t, "default", data.Profile)
+		assert.Len(t, data.Tiers, 1)
+	})
+
+	t.Run("TierStartingData", func(t *testing.T) {
+		data := TierStartingData{Name: "tier1", Index: 0, Total: 3}
+		assert.Equal(t, "tier1", data.Name)
+		assert.Equal(t, 0, data.Index)
+		assert.Equal(t, 3, data.Total)
+	})
+
+	t.Run("TierReadyData", func(t *testing.T) {
+		data := TierReadyData{Name: "tier1"}
+		assert.Equal(t, "tier1", data.Name)
+	})
+
+	t.Run("TierFailedData", func(t *testing.T) {
+		data := TierFailedData{Name: "tier1", FailedServices: []string{"svc1"}, TotalServices: 2}
+		assert.Equal(t, "tier1", data.Name)
+		assert.Len(t, data.FailedServices, 1)
+		assert.Equal(t, 2, data.TotalServices)
+	})
+
+	t.Run("ServiceStartingData", func(t *testing.T) {
+		data := ServiceStartingData{Service: "svc1", Tier: "tier1", Attempt: 1, PID: 1234}
+		assert.Equal(t, "svc1", data.Service)
+		assert.Equal(t, "tier1", data.Tier)
+		assert.Equal(t, 1, data.Attempt)
+		assert.Equal(t, 1234, data.PID)
+	})
+
+	t.Run("ServiceReadyData", func(t *testing.T) {
+		data := ServiceReadyData{Service: "svc1", Tier: "tier1", Duration: time.Second}
+		assert.Equal(t, "svc1", data.Service)
+		assert.Equal(t, time.Second, data.Duration)
+	})
+
+	t.Run("ServiceFailedData", func(t *testing.T) {
+		data := ServiceFailedData{Service: "svc1", Tier: "tier1", Error: assert.AnError}
+		assert.Equal(t, "svc1", data.Service)
+		assert.Error(t, data.Error)
+	})
+
+	t.Run("ServiceStoppedData", func(t *testing.T) {
+		data := ServiceStoppedData{Service: "svc1", Tier: "tier1"}
+		assert.Equal(t, "svc1", data.Service)
+	})
+
+	t.Run("RetryScheduledData", func(t *testing.T) {
+		data := RetryScheduledData{Service: "svc1", Attempt: 2, MaxAttempts: 3}
+		assert.Equal(t, "svc1", data.Service)
+		assert.Equal(t, 2, data.Attempt)
+		assert.Equal(t, 3, data.MaxAttempts)
+	})
+
+	t.Run("SignalCaughtData", func(t *testing.T) {
+		data := SignalCaughtData{Signal: "SIGINT"}
+		assert.Equal(t, "SIGINT", data.Signal)
+	})
+}

@@ -43,10 +43,26 @@ func Test_GetTotalServices(t *testing.T) {
 		tiers []Tier
 		want  int
 	}{
-		{name: "empty tiers", tiers: []Tier{}, want: 0},
-		{name: "single tier single service", tiers: []Tier{{Services: []string{"api"}}}, want: 1},
-		{name: "single tier multiple services", tiers: []Tier{{Services: []string{"api", "db", "cache"}}}, want: 3},
-		{name: "multiple tiers", tiers: []Tier{{Services: []string{"db"}}, {Services: []string{"api", "web"}}}, want: 3},
+		{
+			name:  "empty tiers",
+			tiers: []Tier{},
+			want:  0,
+		},
+		{
+			name:  "single tier single service",
+			tiers: []Tier{{Services: []string{"api"}}},
+			want:  1,
+		},
+		{
+			name:  "single tier multiple services",
+			tiers: []Tier{{Services: []string{"api", "db", "cache"}}},
+			want:  3,
+		},
+		{
+			name:  "multiple tiers",
+			tiers: []Tier{{Services: []string{"db"}}, {Services: []string{"api", "web"}}},
+			want:  3,
+		},
 	}
 
 	for _, tt := range tests {
@@ -64,10 +80,26 @@ func Test_GetReadyServices(t *testing.T) {
 		services map[string]*ServiceState
 		want     int
 	}{
-		{name: "empty services", services: map[string]*ServiceState{}, want: 0},
-		{name: "no ready services", services: map[string]*ServiceState{"api": {Status: StatusStarting}, "db": {Status: StatusFailed}}, want: 0},
-		{name: "some ready", services: map[string]*ServiceState{"api": {Status: StatusRunning}, "db": {Status: StatusStarting}}, want: 1},
-		{name: "all ready", services: map[string]*ServiceState{"api": {Status: StatusRunning}, "db": {Status: StatusRunning}}, want: 2},
+		{
+			name:     "empty services",
+			services: map[string]*ServiceState{},
+			want:     0,
+		},
+		{
+			name:     "no ready services",
+			services: map[string]*ServiceState{"api": {Status: StatusStarting}, "db": {Status: StatusFailed}},
+			want:     0,
+		},
+		{
+			name:     "some ready",
+			services: map[string]*ServiceState{"api": {Status: StatusRunning}, "db": {Status: StatusStarting}},
+			want:     1,
+		},
+		{
+			name:     "all ready",
+			services: map[string]*ServiceState{"api": {Status: StatusRunning}, "db": {Status: StatusRunning}},
+			want:     2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -95,11 +127,31 @@ func Test_GetSelectedService(t *testing.T) {
 		selected int
 		want     string
 	}{
-		{name: "first service", selected: 0, want: "db"},
-		{name: "second service", selected: 1, want: "api"},
-		{name: "third service", selected: 2, want: "web"},
-		{name: "negative index", selected: -1, want: ""},
-		{name: "out of bounds", selected: 10, want: ""},
+		{
+			name:     "first service",
+			selected: 0,
+			want:     "db",
+		},
+		{
+			name:     "second service",
+			selected: 1,
+			want:     "api",
+		},
+		{
+			name:     "third service",
+			selected: 2,
+			want:     "web",
+		},
+		{
+			name:     "negative index",
+			selected: -1,
+			want:     "",
+		},
+		{
+			name:     "out of bounds",
+			selected: 10,
+			want:     "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -126,12 +178,36 @@ func Test_GetMaxServiceNameLength(t *testing.T) {
 		services map[string]*ServiceState
 		want     int
 	}{
-		{name: "empty services returns default", services: map[string]*ServiceState{}, want: 20},
-		{name: "short names return default", services: map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}}, want: 20},
-		{name: "long name exceeds default", services: map[string]*ServiceState{"action-confirmation-management-service": {Name: "action-confirmation-management-service"}}, want: 38},
-		{name: "mixed lengths uses longest", services: map[string]*ServiceState{"api": {Name: "api"}, "user-management-service": {Name: "user-management-service"}}, want: 23},
-		{name: "emoji display width", services: map[string]*ServiceState{"api-🔥": {Name: "api-🔥"}}, want: 20},
-		{name: "CJK double-width characters", services: map[string]*ServiceState{"测试服务": {Name: "测试服务"}}, want: 20},
+		{
+			name:     "empty services returns default",
+			services: map[string]*ServiceState{},
+			want:     20,
+		},
+		{
+			name:     "short names return default",
+			services: map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}},
+			want:     20,
+		},
+		{
+			name:     "long name exceeds default",
+			services: map[string]*ServiceState{"action-confirmation-management-service": {Name: "action-confirmation-management-service"}},
+			want:     38,
+		},
+		{
+			name:     "mixed lengths uses longest",
+			services: map[string]*ServiceState{"api": {Name: "api"}, "user-management-service": {Name: "user-management-service"}},
+			want:     23,
+		},
+		{
+			name:     "emoji display width",
+			services: map[string]*ServiceState{"api-🔥": {Name: "api-🔥"}},
+			want:     20,
+		},
+		{
+			name:     "CJK double-width characters",
+			services: map[string]*ServiceState{"测试服务": {Name: "测试服务"}},
+			want:     20,
+		},
 	}
 
 	for _, tt := range tests {

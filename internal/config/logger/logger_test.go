@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -312,10 +314,22 @@ func Test_NewLogger_AllFormats(t *testing.T) {
 		name   string
 		format string
 	}{
-		{"console format", ConsoleFormat},
-		{"json format", JSONFormat},
-		{"empty format", ""},
-		{"unknown format", "unknown"},
+		{
+			name:   "console format",
+			format: ConsoleFormat,
+		},
+		{
+			name:   "json format",
+			format: JSONFormat,
+		},
+		{
+			name:   "empty format",
+			format: "",
+		},
+		{
+			name:   "unknown format",
+			format: "unknown",
+		},
 	}
 
 	for _, tt := range tests {
@@ -345,15 +359,42 @@ func Test_NewLogger_AllLevels(t *testing.T) {
 		name  string
 		level string
 	}{
-		{"debug level", DebugLevel},
-		{"info level", InfoLevel},
-		{"warn level", WarnLevel},
-		{"error level", ErrorLevel},
-		{"fatal level", FatalLevel},
-		{"panic level", PanicLevel},
-		{"trace level", TraceLevel},
-		{"empty level", ""},
-		{"unknown level", "unknown"},
+		{
+			name:  "debug level",
+			level: DebugLevel,
+		},
+		{
+			name:  "info level",
+			level: InfoLevel,
+		},
+		{
+			name:  "warn level",
+			level: WarnLevel,
+		},
+		{
+			name:  "error level",
+			level: ErrorLevel,
+		},
+		{
+			name:  "fatal level",
+			level: FatalLevel,
+		},
+		{
+			name:  "panic level",
+			level: PanicLevel,
+		},
+		{
+			name:  "trace level",
+			level: TraceLevel,
+		},
+		{
+			name:  "empty level",
+			level: "",
+		},
+		{
+			name:  "unknown level",
+			level: "unknown",
+		},
 	}
 
 	for _, tt := range tests {
@@ -369,6 +410,56 @@ func Test_NewLogger_AllLevels(t *testing.T) {
 			}
 
 			logger := NewLogger(cfg)
+			assert.NotNil(t, logger)
+
+			appLogger, ok := logger.(*AppLogger)
+			assert.True(t, ok)
+			assert.NotNil(t, appLogger.log)
+		})
+	}
+}
+
+func Test_NewLoggerWithOutput(t *testing.T) {
+	tests := []struct {
+		name         string
+		customOutput io.Writer
+		format       string
+	}{
+		{
+			name:         "with custom output",
+			customOutput: &bytes.Buffer{},
+			format:       ConsoleFormat,
+		},
+		{
+			name:         "with custom output and JSON format",
+			customOutput: &bytes.Buffer{},
+			format:       JSONFormat,
+		},
+		{
+			name:         "nil output with console format",
+			customOutput: nil,
+			format:       ConsoleFormat,
+		},
+		{
+			name:         "nil output with JSON format",
+			customOutput: nil,
+			format:       JSONFormat,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Logging: struct {
+					Level  string `yaml:"level"`
+					Format string `yaml:"format"`
+				}{
+					Level:  InfoLevel,
+					Format: tt.format,
+				},
+			}
+
+			logger := NewLoggerWithOutput(cfg, tt.customOutput)
 			assert.NotNil(t, logger)
 
 			appLogger, ok := logger.(*AppLogger)
