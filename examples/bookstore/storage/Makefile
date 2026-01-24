@@ -1,8 +1,23 @@
 .PHONY: run
 run:
-	sleep 3;
-	@echo "INFO: Starting storage service..."
-	@counter=0; \
+	@echo "INFO: [STORAGE] Starting storage service (PID: $$$$)..."
+	@sleep 1
+	@echo "INFO: [STORAGE] Mounting volumes..."
+	@sleep 1
+	@echo "INFO: [STORAGE] Service ready, accepting requests..."
+	@cleanup() { \
+		echo "INFO: [STORAGE] Received shutdown signal, starting graceful shutdown..."; \
+		echo "INFO: [STORAGE] Completing pending writes..."; \
+		sleep 1; \
+		echo "INFO: [STORAGE] Syncing data to disk..."; \
+		sleep 2; \
+		echo "INFO: [STORAGE] Unmounting volumes..."; \
+		sleep 1; \
+		echo "INFO: [STORAGE] Shutdown complete, goodbye!"; \
+		exit 0; \
+	}; \
+	trap cleanup SIGTERM SIGINT; \
+	counter=0; \
 	while true; do \
 		case $$((counter % 10)) in \
 			0) echo "level=info msg=\"File uploaded successfully\" size=2048" ;; \
@@ -17,5 +32,5 @@ run:
 			9) echo "CRITICAL: Replication lag detected X-Trace-ID=8f9a0b1c-2d3e-4f5g-6h7i-8j9k0l1m2n3o Primary-Region=us-west-2 Replica-Region=eu-central-1 Lag=5432ms Last-Sync=$$(date -u +%Y-%m-%dT%H:%M:%SZ) Objects-Pending=1247 Status=degraded" ;; \
 		esac; \
 		counter=$$((counter + 1)); \
-		sleep 10; \
+		sleep 3 & wait; \
 	done

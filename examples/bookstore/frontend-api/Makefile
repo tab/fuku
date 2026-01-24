@@ -1,7 +1,19 @@
 .PHONY: run
 run:
-	@echo "INFO: Starting frontend-api service..."
-	@counter=0; \
+	@echo "INFO: [FRONTEND] Starting frontend-api service (PID: $$$$)..."
+	@sleep 1
+	@echo "INFO: [FRONTEND] Service ready, accepting requests..."
+	@cleanup() { \
+		echo "INFO: [FRONTEND] Received shutdown signal, starting graceful shutdown..."; \
+		echo "INFO: [FRONTEND] Draining client connections..."; \
+		sleep 1; \
+		echo "INFO: [FRONTEND] Closing WebSocket connections..."; \
+		sleep 1; \
+		echo "INFO: [FRONTEND] Shutdown complete, goodbye!"; \
+		exit 0; \
+	}; \
+	trap cleanup SIGTERM SIGINT; \
+	counter=0; \
 	while true; do \
 		case $$((counter % 9)) in \
 			0) echo "[INFO] Request received from client" ;; \
@@ -15,5 +27,5 @@ run:
 			8) echo "[DEBUG] Request pipeline trace X-Trace-ID=5g6h7i8j-9k0l-1m2n-3o4p-5q6r7s8t9u0v Middleware-Chain=cors,auth,rate-limit,logging,compression Auth-Time=12ms Rate-Limit-Time=3ms Compression-Ratio=3.2x Original-Size=8192 Compressed-Size=2560 Total-Overhead=18ms Request-Size=245 Response-Size=2560" ;; \
 		esac; \
 		counter=$$((counter + 1)); \
-		sleep 3; \
+		sleep 2 & wait; \
 	done

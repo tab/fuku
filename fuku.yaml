@@ -11,13 +11,13 @@ services:
     tier: foundation
     readiness:
       <<: *readiness
-      pattern: "Starting auth"
+      pattern: "Service ready"
   storage:
     dir: examples/bookstore/storage
     tier: foundation
     readiness:
       <<: *readiness
-      pattern: "Starting storage"
+      pattern: "Service ready"
 
   # Platform tier: Business logic services that depend on foundation
   user:
@@ -25,14 +25,14 @@ services:
     tier: platform
     readiness:
       <<: *readiness
-      pattern: "Starting user"
+      pattern: "Service ready"
 
   api:
     dir: examples/bookstore/api
     tier: platform
     readiness:
       <<: *readiness
-      pattern: "Starting api"
+      pattern: "Service ready"
 
   # Edge tier: Client-facing services
   frontend-api:
@@ -41,7 +41,7 @@ services:
     profiles: [core]
     readiness:
       <<: *readiness
-      pattern: "Starting frontend-api"
+      pattern: "Service ready"
 
 defaults:
   profiles: [default]

@@ -1,8 +1,21 @@
 .PHONY: run
 run:
-	sleep 5;
-	@echo "[INFO] Starting auth service..."
-	@counter=0; \
+	@echo "INFO: [AUTH] Starting auth service (PID: $$$$)..."
+	@sleep 1
+	@echo "INFO: [AUTH] Loading JWT keys..."
+	@sleep 1
+	@echo "INFO: [AUTH] Service ready, accepting requests..."
+	@cleanup() { \
+		echo "INFO: [AUTH] Received shutdown signal, starting graceful shutdown..."; \
+		echo "INFO: [AUTH] Invalidating active sessions..."; \
+		sleep 1; \
+		echo "INFO: [AUTH] Revoking temporary tokens..."; \
+		sleep 1; \
+		echo "INFO: [AUTH] Shutdown complete, goodbye!"; \
+		exit 0; \
+	}; \
+	trap cleanup SIGTERM SIGINT; \
+	counter=0; \
 	while true; do \
 		case $$((counter % 9)) in \
 			0) echo "[INFO] User authentication successful" ;; \
@@ -16,5 +29,5 @@ run:
 			8) echo "level=debug msg=\"OAuth callback received\" X-Trace-ID=4b5c6d7e-8f9a-0b1c-2d3e-4f5g6h7i8j9k Provider=google State=state_abc123 Code=code_xyz789 Redirect-URI=https://bookstore.example.com/auth/callback Session-ID=sess_oauth_ghi789" ;; \
 		esac; \
 		counter=$$((counter + 1)); \
-		sleep 5; \
+		sleep 3 & wait; \
 	done

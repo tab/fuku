@@ -1,7 +1,17 @@
 .PHONY: run
 run:
-	@echo "[INFO] Starting user service..."
-	@counter=0; \
+	@echo "INFO: [USER] Starting user service (PID: $$$$)..."
+	@sleep 1
+	@echo "INFO: [USER] Service ready, accepting requests..."
+	@cleanup() { \
+		echo "INFO: [USER] Received shutdown signal, starting graceful shutdown..."; \
+		echo "INFO: [USER] Saving user session states..."; \
+		sleep 1; \
+		echo "INFO: [USER] Shutdown complete, goodbye!"; \
+		exit 0; \
+	}; \
+	trap cleanup SIGTERM SIGINT; \
+	counter=0; \
 	while true; do \
 		case $$((counter % 7)) in \
 			0) echo "info: User profile updated" ;; \
@@ -13,5 +23,5 @@ run:
 			6) echo "warning: Concurrent profile update detected X-Trace-ID=1c2d3e4f-5g6h-7i8j-9k0l-1m2n3o4p5q6r User-ID=user_bob_builder Session-IDs=sess_web_mno345,sess_mobile_pqr678 Conflict-Field=preferences.notifications Last-Modified-Web=$$(date -u +%Y-%m-%dT%H:%M:%SZ) Last-Modified-Mobile=$$(date -u +%Y-%m-%dT%H:%M:%SZ) Resolution=last_write_wins" ;; \
 		esac; \
 		counter=$$((counter + 1)); \
-		sleep 15; \
+		sleep 4 & wait; \
 	done
