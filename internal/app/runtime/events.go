@@ -9,6 +9,7 @@ import (
 // EventType represents the type of event
 type EventType string
 
+// Event types for runtime notifications
 const (
 	EventProfileResolved EventType = "profile_resolved"
 	EventPhaseChanged    EventType = "phase_changed"
@@ -26,6 +27,7 @@ const (
 // Phase represents the application phase
 type Phase string
 
+// Phase values for application lifecycle
 const (
 	PhaseStartup  Phase = "startup"
 	PhaseRunning  Phase = "running"
@@ -124,6 +126,7 @@ type EventBus interface {
 	Close()
 }
 
+// eventBus implements the EventBus interface
 type eventBus struct {
 	subscribers []chan Event
 	mu          sync.RWMutex
@@ -201,6 +204,7 @@ func (eb *eventBus) Close() {
 	eb.subscribers = nil
 }
 
+// unsubscribe removes a channel from subscribers and closes it
 func (eb *eventBus) unsubscribe(ch chan Event) {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
@@ -224,6 +228,7 @@ func NewNoOpEventBus() EventBus {
 	return &noOpEventBus{}
 }
 
+// Subscribe returns an immediately closed channel
 func (neb *noOpEventBus) Subscribe(ctx context.Context) <-chan Event {
 	ch := make(chan Event)
 	close(ch)
@@ -231,6 +236,8 @@ func (neb *noOpEventBus) Subscribe(ctx context.Context) <-chan Event {
 	return ch
 }
 
+// Publish is a no-op
 func (neb *noOpEventBus) Publish(event Event) {}
 
+// Close is a no-op
 func (neb *noOpEventBus) Close() {}

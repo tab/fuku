@@ -48,6 +48,7 @@ func (c *ClientConn) ShouldReceive(service string) bool {
 	return c.Services[service]
 }
 
+// hub implements the Hub interface
 type hub struct {
 	clients    map[*ClientConn]bool
 	register   chan *ClientConn

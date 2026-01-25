@@ -34,6 +34,7 @@ func (m Model) View() string {
 	return components.AppContainerStyle.Render(panel)
 }
 
+// renderStatus renders the status bar with phase and service counts
 func (m Model) renderStatus() string {
 	ready := m.getReadyServices()
 	total := m.getTotalServices()
@@ -60,14 +61,17 @@ func (m Model) renderStatus() string {
 	)
 }
 
+// renderVersion renders the version string
 func (m Model) renderVersion() string {
 	return fmt.Sprintf("v%s", config.Version)
 }
 
+// renderHelp renders the help text with keybindings
 func (m Model) renderHelp() string {
 	return components.HelpStyle.Render(m.ui.help.View(m.ui.servicesKeys))
 }
 
+// renderTip returns the current rotating tip or empty string if tips disabled
 func (m Model) renderTip() string {
 	if !m.ui.showTips {
 		return ""
@@ -79,6 +83,7 @@ func (m Model) renderTip() string {
 	return components.Tips[tipIndex]
 }
 
+// renderTitle renders the title with optional loading spinner
 func (m Model) renderTitle() string {
 	if m.loader.Active {
 		var b strings.Builder
@@ -91,6 +96,7 @@ func (m Model) renderTitle() string {
 	return "services"
 }
 
+// renderServices renders the services list or empty state
 func (m Model) renderServices() string {
 	if len(m.state.tiers) == 0 {
 		return components.EmptyStateStyle.Render("No services configured")
@@ -99,6 +105,7 @@ func (m Model) renderServices() string {
 	return m.ui.servicesViewport.View()
 }
 
+// getRowWidth returns the available width for service rows
 func (m Model) getRowWidth() int {
 	rowWidth := m.ui.servicesViewport.Width
 	if rowWidth < 1 {
@@ -108,6 +115,7 @@ func (m Model) getRowWidth() int {
 	return rowWidth
 }
 
+// clampNameWidth constrains service name width to available space
 func (m Model) clampNameWidth(maxNameLen int) int {
 	availableWidth := m.getRowWidth() - components.FixedColumnsWidth
 	if availableWidth < components.ServiceNameMinWidth {
@@ -121,6 +129,7 @@ func (m Model) clampNameWidth(maxNameLen int) int {
 	return maxNameLen
 }
 
+// renderColumnHeaders renders the column headers row
 func (m Model) renderColumnHeaders(maxNameLen int) string {
 	rowWidth := m.getRowWidth()
 	maxNameLen = m.clampNameWidth(maxNameLen)
@@ -139,6 +148,7 @@ func (m Model) renderColumnHeaders(maxNameLen int) string {
 	return components.ServiceHeaderStyle.Width(rowWidth).Render(header)
 }
 
+// renderTier renders a tier header and its service rows
 func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 	rowWidth := m.getRowWidth()
 	rows := make([]string, 0, len(tier.Services)+1)
@@ -162,6 +172,7 @@ func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 	return components.TierContainerStyle.Render(content)
 }
 
+// getServiceIndicator returns the selection or status indicator for a service
 func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) string {
 	defaultIndicator := components.IndicatorEmpty
 	if isSelected {
@@ -188,6 +199,7 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 	return service.Blink.Render(components.IndicatorActiveStyle)
 }
 
+// renderServiceRow renders a single service row with all columns
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
 	rowWidth := m.getRowWidth()
 	maxNameLen = m.clampNameWidth(maxNameLen)
@@ -227,6 +239,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 	return components.ServiceRowStyle.Width(rowWidth).Render(row)
 }
 
+// getStyledAndPaddedStatus returns the styled status string with padding
 func (m Model) getStyledAndPaddedStatus(service *ServiceState, isSelected bool) string {
 	statusStr := string(service.Status)
 	padding := strings.Repeat(components.IndicatorEmpty, components.ColWidthStatus-len(statusStr))

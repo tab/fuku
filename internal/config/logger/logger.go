@@ -12,6 +12,7 @@ import (
 	"fuku/internal/config"
 )
 
+// Logger configuration constants
 const (
 	DebugLevel = "debug"
 	InfoLevel  = "info"

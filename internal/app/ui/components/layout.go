@@ -123,6 +123,7 @@ func Truncate(s string, maxWidth int) string {
 	return ellipsis
 }
 
+// buildTopBorder builds the top border with title and status
 func buildTopBorder(border func(string) string, titleText, topRightText string, middleWidth int) string {
 	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
 	spacer := PanelTitleSpacer.Render("")
@@ -138,6 +139,7 @@ func buildTopBorder(border func(string) string, titleText, topRightText string, 
 	return result
 }
 
+// buildBottomBorder builds the bottom border with version
 func buildBottomBorder(border func(string) string, bottomRightText string, innerWidth int) string {
 	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
 
@@ -160,6 +162,7 @@ func buildBottomBorder(border func(string) string, bottomRightText string, inner
 	return result
 }
 
+// splitAndPadContent splits content into lines and pads to fill height
 func splitAndPadContent(content string, height int) []string {
 	lines := strings.Split(content, "\n")
 
@@ -174,6 +177,7 @@ func splitAndPadContent(content string, height int) []string {
 	return lines
 }
 
+// appendContentLines adds content lines with borders and padding
 func appendContentLines(result, contentLines []string, innerWidth int, border func(string) string) []string {
 	for _, line := range contentLines {
 		lineWidth := lipgloss.Width(line)
@@ -190,6 +194,7 @@ func appendContentLines(result, contentLines []string, innerWidth int, border fu
 	return result
 }
 
+// splitAtDisplayWidth splits a string at half its display width
 func splitAtDisplayWidth(s string) (left, right string) {
 	runes := []rune(s)
 	totalWidth := lipgloss.Width(s)
@@ -212,6 +217,7 @@ func splitAtDisplayWidth(s string) (left, right string) {
 	return string(runes[:splitIdx]), string(runes[splitIdx:])
 }
 
+// renderFooter renders the footer with help and tips
 func renderFooter(help, tips string, width int) string {
 	content := FooterStyle.Render(help)
 

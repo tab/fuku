@@ -16,6 +16,7 @@ type Runner interface {
 	Run(profile string, services []string) int
 }
 
+// runner implements the Runner interface
 type runner struct {
 	client Client
 	log    logger.Logger

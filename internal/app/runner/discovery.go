@@ -19,6 +19,7 @@ type Discovery interface {
 	Resolve(profile string) ([]Tier, error)
 }
 
+// discovery implements the Discovery interface
 type discovery struct {
 	cfg      *config.Config
 	topology *config.Topology

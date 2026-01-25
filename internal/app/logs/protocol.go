@@ -8,6 +8,7 @@ type Broadcaster interface {
 // MessageType represents the type of message in the wire protocol
 type MessageType string
 
+// Message types for the wire protocol
 const (
 	// MessageSubscribe is sent from client to server to subscribe to services
 	MessageSubscribe MessageType = "subscribe"

@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Blink animation constants
 const (
 	empty = "◯"
 	full  = "◉"
@@ -46,8 +47,10 @@ type Blink struct {
 	state     state
 }
 
+// state represents the current phase of the blink animation
 type state int
 
+// Animation state phases
 const (
 	settle   state = iota // Settle phase (empty)
 	beat1                 // First beat (full)

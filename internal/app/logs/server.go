@@ -24,6 +24,7 @@ type Server interface {
 	SocketPath() string
 }
 
+// server implements the Server interface
 type server struct {
 	profile    string
 	socketPath string
@@ -124,6 +125,7 @@ func (s *server) Broadcast(service, message string) {
 	}
 }
 
+// cleanupStaleSocket removes stale socket file if not in use
 func (s *server) cleanupStaleSocket() error {
 	if _, err := os.Stat(s.socketPath); os.IsNotExist(err) {
 		return nil
@@ -141,6 +143,7 @@ func (s *server) cleanupStaleSocket() error {
 	return os.Remove(s.socketPath)
 }
 
+// acceptConnections handles incoming client connections
 func (s *server) acceptConnections(ctx context.Context) {
 	for s.running.Load() {
 		conn, err := s.listener.Accept()
@@ -162,6 +165,7 @@ func (s *server) acceptConnections(ctx context.Context) {
 	}
 }
 
+// handleConnection processes a single client connection
 func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 

@@ -11,6 +11,7 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// Help text constants
 const (
 	Usage = `Usage:
   fuku                            Run services with default profile (with TUI)

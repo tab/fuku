@@ -31,6 +31,7 @@ func (m *Model) applyStatsUpdate(msg statsUpdateMsg) {
 	}
 }
 
+// updateBlinkAnimations updates blink state for services in transition states
 func (m *Model) updateBlinkAnimations() bool {
 	hasActiveBlinking := false
 
@@ -58,6 +59,7 @@ func (m *Model) updateBlinkAnimations() bool {
 	return hasActiveBlinking
 }
 
+// getUptime returns formatted uptime string for a service
 func (m *Model) getUptime(service *ServiceState) string {
 	if service.Status == StatusStopped || service.Status == StatusFailed || service.Monitor.StartTime.IsZero() {
 		return ""
@@ -75,6 +77,7 @@ func (m *Model) getUptime(service *ServiceState) string {
 	return pad(minutes) + ":" + pad(seconds)
 }
 
+// getCPU returns formatted CPU usage for a service
 func (m *Model) getCPU(service *ServiceState) string {
 	if !m.isServiceMonitored(service) {
 		return ""
@@ -83,6 +86,7 @@ func (m *Model) getCPU(service *ServiceState) string {
 	return fmt.Sprintf("%.1f%%", service.Monitor.CPU)
 }
 
+// getMem returns formatted memory usage for a service
 func (m *Model) getMem(service *ServiceState) string {
 	if !m.isServiceMonitored(service) {
 		return ""
@@ -95,6 +99,7 @@ func (m *Model) getMem(service *ServiceState) string {
 	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/components.MBToGB)
 }
 
+// getPID returns the process ID string for a running service
 func (m *Model) getPID(service *ServiceState) string {
 	if service.Status == StatusRunning && service.Monitor.PID != 0 {
 		return fmt.Sprintf("%d", service.Monitor.PID)
@@ -103,10 +108,12 @@ func (m *Model) getPID(service *ServiceState) string {
 	return ""
 }
 
+// isServiceMonitored returns true if service has valid monitoring data
 func (m *Model) isServiceMonitored(service *ServiceState) bool {
 	return service.Status != StatusStopped && service.Status != StatusFailed && service.Monitor.PID != 0
 }
 
+// pad formats a number with leading zero
 func pad(n int) string {
 	return fmt.Sprintf("%02d", n)
 }
@@ -123,11 +130,13 @@ func statsWorkerCmd(ctx context.Context, m *Model) tea.Cmd {
 	})
 }
 
+// job represents a stats collection task
 type job struct {
 	name string
 	pid  int
 }
 
+// result holds stats collection output
 type result struct {
 	name  string
 	stats ServiceStats
@@ -169,6 +178,7 @@ func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
 	return stats
 }
 
+// launchStatsWorkers spawns goroutines to collect stats concurrently
 func (m *Model) launchStatsWorkers(ctx context.Context, jobs []job, sem chan struct{}, results chan result) int {
 	launched := 0
 
