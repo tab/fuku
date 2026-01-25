@@ -5,7 +5,7 @@ import "time"
 // Application metadata
 const (
 	AppName = "fuku"
-	Version = "0.9.1"
+	Version = "0.10.0"
 )
 
 // Default values

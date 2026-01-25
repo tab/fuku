@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## v0.10.0
+
+### Features
+- **feat:** Add concurrency workers configuration (`concurrency.workers`)
+- **feat:** Add retry configuration (`retry.attempts`, `retry.backoff`)
+- **feat:** Add logs buffer size configuration (`logs.buffer`)
+- **feat:** Add command parsing with Cobra framework
+
+### Fixes
+- **fix:** Handle force quit key press in TUI
+- **fix:** Update config constants
+
+### Refactor
+- **refactor:** Refactor app layout in TUI
+- **refactor:** Add `WithComponent` method to logger
+- **refactor:** Add logger into logs runner
+
+### Chore
+- **chore:** Add godoc comments across packages
+- **chore:** Add `IsNil` method for ServiceState
+- **chore:** Update demo assets
+- **chore:** Update examples
+
+### Tests
+- **test:** Add tests for missing makefile and directory
+- **test:** Add formatter tests
+- **test:** Use expected hash values in formatter_test
+- **test:** Add layout component tests
+
 ## v0.9.1
 
 ### Fixes
