@@ -32,7 +32,7 @@ func NewController(command runtime.CommandBus) Controller {
 
 // Start requests a service start if it's currently stopped
 func (c *controller) Start(ctx context.Context, service *ServiceState) {
-	if service == nil || service.FSM == nil {
+	if service.IsNil() {
 		return
 	}
 
@@ -49,7 +49,7 @@ func (c *controller) Start(ctx context.Context, service *ServiceState) {
 
 // Stop requests a service stop if it's currently running
 func (c *controller) Stop(ctx context.Context, service *ServiceState) {
-	if service == nil || service.FSM == nil {
+	if service.IsNil() {
 		return
 	}
 
@@ -67,7 +67,7 @@ func (c *controller) Stop(ctx context.Context, service *ServiceState) {
 
 // Restart requests a service restart if it's running, failed, or stopped
 func (c *controller) Restart(ctx context.Context, service *ServiceState) {
-	if service == nil || service.FSM == nil {
+	if service.IsNil() {
 		return
 	}
 

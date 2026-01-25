@@ -169,7 +169,7 @@ func (m Model) handleDownKey() (tea.Model, tea.Cmd) {
 // handleStopKey toggles the selected service between running and stopped
 func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 	service := m.getSelectedService()
-	if service == nil || service.FSM == nil {
+	if service.IsNil() {
 		return m, nil
 	}
 
@@ -189,7 +189,7 @@ func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 // handleRestartKey restarts the selected service
 func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 	service := m.getSelectedService()
-	if service == nil || service.FSM == nil {
+	if service.IsNil() {
 		return m, nil
 	}
 

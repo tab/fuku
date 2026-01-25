@@ -37,6 +37,36 @@ func Test_ServiceState_MarkFailed(t *testing.T) {
 	assert.Equal(t, StatusFailed, service.Status)
 }
 
+func Test_ServiceState_IsNil(t *testing.T) {
+	tests := []struct {
+		name    string
+		service *ServiceState
+		want    bool
+	}{
+		{
+			name:    "nil service",
+			service: nil,
+			want:    true,
+		},
+		{
+			name:    "nil FSM",
+			service: &ServiceState{Name: "test"},
+			want:    true,
+		},
+		{
+			name:    "valid service",
+			service: &ServiceState{Name: "test", FSM: newServiceFSM(&ServiceState{}, nil)},
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.service.IsNil())
+		})
+	}
+}
+
 func Test_GetTotalServices(t *testing.T) {
 	tests := []struct {
 		name  string
