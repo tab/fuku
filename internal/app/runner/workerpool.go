@@ -17,10 +17,10 @@ type workerPool struct {
 	sem chan struct{}
 }
 
-// NewWorkerPool creates a new worker pool with the specified maximum workers
-func NewWorkerPool() WorkerPool {
+// NewWorkerPool creates a new worker pool with the configured maximum workers
+func NewWorkerPool(cfg *config.Config) WorkerPool {
 	return &workerPool{
-		sem: make(chan struct{}, config.MaxWorkers),
+		sem: make(chan struct{}, cfg.Concurrency.Workers),
 	}
 }
 

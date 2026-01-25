@@ -23,6 +23,9 @@ type Config struct {
 		Level  string `yaml:"level"`
 		Format string `yaml:"format"`
 	}
+	Concurrency struct {
+		Workers int `yaml:"workers"`
+	}
 	Version int
 }
 
@@ -64,9 +67,12 @@ func DefaultConfig() *Config {
 		Version:  1,
 	}
 
+	cfg.Profiles[Default] = "*"
+
 	cfg.Logging.Level = LogLevel
 	cfg.Logging.Format = LogFormat
-	cfg.Profiles[Default] = "*"
+
+	cfg.Concurrency.Workers = MaxWorkers
 
 	return cfg
 }
@@ -244,10 +250,23 @@ func parseTierOrder(data []byte) (*Topology, error) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
+	if err := c.validateConcurrency(); err != nil {
+		return err
+	}
+
 	for name, service := range c.Services {
 		if err := service.validateReadiness(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
 		}
+	}
+
+	return nil
+}
+
+// validateConcurrency validates concurrency settings
+func (c *Config) validateConcurrency() error {
+	if c.Concurrency.Workers <= 0 {
+		return errors.ErrInvalidConcurrencyWorkers
 	}
 
 	return nil

@@ -16,6 +16,7 @@ func Test_DefaultConfig(t *testing.T) {
 	assert.NotNil(t, cfg.Profiles)
 	assert.Equal(t, LogLevel, cfg.Logging.Level)
 	assert.Equal(t, LogFormat, cfg.Logging.Format)
+	assert.Equal(t, MaxWorkers, cfg.Concurrency.Workers)
 	assert.Equal(t, 1, cfg.Version)
 }
 
@@ -68,6 +69,46 @@ logging:
 			error: nil,
 		},
 		{
+			name: "valid config file with concurrency",
+			setupFunc: func() func() {
+				content := `version: 1
+services:
+  test-service:
+    dir: ./test
+concurrency:
+  workers: 10
+`
+
+				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				return func() { os.Remove("fuku.yaml") }
+			},
+			error: nil,
+		},
+		{
+			name: "invalid concurrency workers zero",
+			setupFunc: func() func() {
+				content := `version: 1
+services:
+  test-service:
+    dir: ./test
+concurrency:
+  workers: 0
+`
+
+				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				return func() { os.Remove("fuku.yaml") }
+			},
+			error: errors.ErrInvalidConfig,
+		},
+		{
 			name: "invalid yaml structure for unmarshal",
 			setupFunc: func() func() {
 				content := `version: "invalid_version_type"
@@ -114,7 +155,7 @@ services: "this should be a map not a string"
 
 			if tt.error != nil {
 				assert.Error(t, err)
-				assert.Equal(t, tt.error, err)
+				assert.True(t, errors.Is(err, tt.error), "expected error %v, got %v", tt.error, err)
 				assert.Nil(t, cfg)
 				assert.Nil(t, topology)
 			} else {
@@ -122,6 +163,48 @@ services: "this should be a map not a string"
 				assert.NotNil(t, cfg)
 				assert.NotNil(t, topology)
 			}
+		})
+	}
+}
+
+func Test_LoadConcurrencyConfig(t *testing.T) {
+	tests := []struct {
+		name            string
+		yaml            string
+		expectedWorkers int
+	}{
+		{
+			name:            "default workers when not specified",
+			yaml:            `version: 1`,
+			expectedWorkers: MaxWorkers,
+		},
+		{
+			name: "custom workers value",
+			yaml: `version: 1
+concurrency:
+  workers: 10`,
+			expectedWorkers: 10,
+		},
+		{
+			name: "workers value of 1",
+			yaml: `version: 1
+concurrency:
+  workers: 1`,
+			expectedWorkers: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove("fuku.yaml")
+
+			cfg, _, err := Load()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedWorkers, cfg.Concurrency.Workers)
 		})
 	}
 }
@@ -184,70 +267,123 @@ func Test_Validate(t *testing.T) {
 		errorMsg    string
 	}{
 		{
+			name:        "valid configuration with default workers",
+			config:      DefaultConfig(),
+			expectError: false,
+		},
+		{
+			name: "valid configuration with custom workers",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Concurrency.Workers = 10
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "invalid workers zero",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Concurrency.Workers = 0
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "concurrency workers must be greater than 0",
+		},
+		{
+			name: "invalid workers negative",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Concurrency.Workers = -1
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "concurrency workers must be greater than 0",
+		},
+		{
 			name: "valid configuration with standard tiers",
-			config: &Config{
-				Services: map[string]*Service{
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
 					"api": {Dir: "api", Tier: "foundation"},
 					"web": {Dir: "web", Tier: "platform"},
-				},
-			},
+				}
+
+				return cfg
+			}(),
 			expectError: false,
 		},
 		{
 			name: "valid configuration with custom tier",
-			config: &Config{
-				Services: map[string]*Service{
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
 					"api": {Dir: "api", Tier: "custom-tier"},
-				},
-			},
+				}
+
+				return cfg
+			}(),
 			expectError: false,
 		},
 		{
 			name: "valid configuration with mixed tiers",
-			config: &Config{
-				Services: map[string]*Service{
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
 					"api":     {Dir: "api", Tier: "foundation"},
 					"custom":  {Dir: "custom", Tier: "middleware"},
 					"another": {Dir: "another", Tier: "services"},
-				},
-			},
+				}
+
+				return cfg
+			}(),
 			expectError: false,
 		},
 		{
 			name: "service with invalid readiness type",
-			config: &Config{
-				Services: map[string]*Service{
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
 					"api": {Dir: "api", Readiness: &Readiness{Type: "invalid"}},
-				},
-			},
+				}
+
+				return cfg
+			}(),
 			expectError: true,
 			errorMsg:    "service api",
 		},
 		{
 			name: "service with http readiness missing url",
-			config: &Config{
-				Services: map[string]*Service{
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
 					"api": {Dir: "api", Readiness: &Readiness{Type: TypeHTTP}},
-				},
-			},
+				}
+
+				return cfg
+			}(),
 			expectError: true,
 			errorMsg:    "service api",
 		},
 		{
 			name: "service with log readiness missing pattern",
-			config: &Config{
-				Services: map[string]*Service{
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
 					"api": {Dir: "api", Readiness: &Readiness{Type: TypeLog}},
-				},
-			},
+				}
+
+				return cfg
+			}(),
 			expectError: true,
 			errorMsg:    "service api",
 		},
 		{
-			name: "empty services map",
-			config: &Config{
-				Services: map[string]*Service{},
-			},
+			name:        "empty services map",
+			config:      DefaultConfig(),
 			expectError: false,
 		},
 	}

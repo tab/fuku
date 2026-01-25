@@ -13,10 +13,11 @@ import (
 )
 
 func Test_AcquireRelease(t *testing.T) {
-	pool := NewWorkerPool()
 	ctx := context.Background()
+	cfg := config.DefaultConfig()
+	pool := NewWorkerPool(cfg)
 
-	for i := 0; i < config.MaxWorkers; i++ {
+	for i := 0; i < cfg.Concurrency.Workers; i++ {
 		err := pool.Acquire(ctx)
 		require.NoError(t, err)
 	}
@@ -44,14 +45,15 @@ func Test_AcquireRelease(t *testing.T) {
 		t.Fatal("Should have acquired worker slot after release")
 	}
 
-	for i := 0; i < config.MaxWorkers; i++ {
+	for i := 0; i < cfg.Concurrency.Workers; i++ {
 		pool.Release()
 	}
 }
 
 func Test_ConcurrentWorkers(t *testing.T) {
 	ctx := context.Background()
-	pool := NewWorkerPool()
+	cfg := config.DefaultConfig()
+	pool := NewWorkerPool(cfg)
 
 	var (
 		activeWorkers int
@@ -93,15 +95,16 @@ func Test_ConcurrentWorkers(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 0, activeWorkers)
-	assert.LessOrEqual(t, maxActive, config.MaxWorkers)
+	assert.LessOrEqual(t, maxActive, cfg.Concurrency.Workers)
 	assert.Greater(t, maxActive, 0)
 }
 
 func Test_AcquireContextCancelled(t *testing.T) {
 	ctx := context.Background()
-	pool := NewWorkerPool()
+	cfg := config.DefaultConfig()
+	pool := NewWorkerPool(cfg)
 
-	for i := 0; i < config.MaxWorkers; i++ {
+	for i := 0; i < cfg.Concurrency.Workers; i++ {
 		err := pool.Acquire(ctx)
 		require.NoError(t, err)
 	}
@@ -125,7 +128,7 @@ func Test_AcquireContextCancelled(t *testing.T) {
 		t.Fatal("Should have received context cancellation error")
 	}
 
-	for i := 0; i < config.MaxWorkers; i++ {
+	for i := 0; i < cfg.Concurrency.Workers; i++ {
 		pool.Release()
 	}
 }
