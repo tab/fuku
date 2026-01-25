@@ -78,6 +78,7 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
+
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
 	ctx := context.Background()
 
@@ -115,6 +116,7 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
+
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
 	ctx := context.Background()
 
@@ -302,6 +304,7 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 	mockDiscovery := NewMockDiscovery(ctrl)
 	mockRegistry := NewMockRegistry(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
+
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,

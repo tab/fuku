@@ -9,6 +9,7 @@ import (
 	"fuku/internal/app/runner"
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui/wire"
+	"fuku/internal/app/watcher"
 )
 
 // Module provides the fx dependency injection options for the app package
@@ -18,6 +19,7 @@ var Module = fx.Options(
 	monitor.Module,
 	runner.Module,
 	runtime.Module,
+	watcher.Module,
 	wire.Module,
 	fx.Provide(NewApp),
 	fx.Invoke(Register),

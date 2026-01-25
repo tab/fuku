@@ -16,6 +16,7 @@ import (
 	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
+	"fuku/internal/app/watcher"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -26,6 +27,7 @@ func Test_NewCLI(t *testing.T) {
 
 	cmd := &Options{Type: CommandRun, Profile: config.Default, NoUI: true}
 	mockRunner := runner.NewMockRunner(ctrl)
+	mockWatcher := watcher.NewMockWatcher(ctrl)
 	mockLogsRunner := logs.NewMockRunner(ctrl)
 	mockUI := func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
@@ -34,7 +36,7 @@ func Test_NewCLI(t *testing.T) {
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("CLI").Return(componentLogger)
 
-	cliInstance := NewCLI(cmd, mockRunner, mockLogsRunner, mockUI, mockLogger)
+	cliInstance := NewCLI(cmd, mockRunner, mockWatcher, mockLogsRunner, mockUI, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -42,6 +44,7 @@ func Test_NewCLI(t *testing.T) {
 	assert.NotNil(t, instance)
 	assert.Equal(t, cmd, instance.cmd)
 	assert.Equal(t, mockRunner, instance.runner)
+	assert.Equal(t, mockWatcher, instance.watcher)
 	assert.Equal(t, mockLogsRunner, instance.streamer)
 	assert.NotNil(t, instance.ui)
 	assert.Equal(t, componentLogger, instance.log)
@@ -52,6 +55,7 @@ func Test_Execute(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRunner := runner.NewMockRunner(ctrl)
+	mockWatcher := watcher.NewMockWatcher(ctrl)
 	mockUI := wire.UI(func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
 	})
@@ -73,7 +77,9 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.Default).Return(nil)
+				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -111,7 +117,9 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -125,7 +133,9 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockWatcher.EXPECT().Close()
 				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedExit:  1,
@@ -136,10 +146,11 @@ func Test_Execute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cli{
-				cmd:    tt.cmd,
-				runner: mockRunner,
-				ui:     mockUI,
-				log:    mockLogger,
+				cmd:     tt.cmd,
+				runner:  mockRunner,
+				watcher: mockWatcher,
+				ui:      mockUI,
+				log:     mockLogger,
 			}
 
 			oldStdout := os.Stdout
@@ -228,6 +239,7 @@ func Test_handleRun(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRunner := runner.NewMockRunner(ctrl)
+	mockWatcher := watcher.NewMockWatcher(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	tests := []struct {
@@ -242,7 +254,9 @@ func Test_handleRun(t *testing.T) {
 			profile: "test-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -252,7 +266,9 @@ func Test_handleRun(t *testing.T) {
 			profile: "failed-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockWatcher.EXPECT().Close()
 				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedExit:  1,
@@ -263,9 +279,10 @@ func Test_handleRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cli{
-				cmd:    &Options{Type: CommandRun, Profile: tt.profile, NoUI: true},
-				runner: mockRunner,
-				log:    mockLogger,
+				cmd:     &Options{Type: CommandRun, Profile: tt.profile, NoUI: true},
+				runner:  mockRunner,
+				watcher: mockWatcher,
+				log:     mockLogger,
 			}
 
 			oldStdout := os.Stdout

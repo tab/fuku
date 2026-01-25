@@ -22,6 +22,7 @@ const (
 	EventServiceStopped  EventType = "service_stopped"
 	EventRetryScheduled  EventType = "retry_scheduled"
 	EventSignalCaught    EventType = "signal_caught"
+	EventWatchTriggered  EventType = "watch_triggered"
 )
 
 // Phase represents the application phase
@@ -117,6 +118,12 @@ type RetryScheduledData struct {
 // SignalCaughtData contains signal details
 type SignalCaughtData struct {
 	Signal string
+}
+
+// WatchTriggeredData contains file watch trigger details
+type WatchTriggeredData struct {
+	Service      string
+	ChangedFiles []string
 }
 
 // EventBus defines the interface for event publishing and subscription

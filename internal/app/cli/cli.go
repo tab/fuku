@@ -7,6 +7,7 @@ import (
 	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
+	"fuku/internal/app/watcher"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -44,6 +45,7 @@ type CLI interface {
 type cli struct {
 	cmd      *Options
 	runner   runner.Runner
+	watcher  watcher.Watcher
 	streamer logs.Runner
 	ui       wire.UI
 	log      logger.Logger
@@ -53,6 +55,7 @@ type cli struct {
 func NewCLI(
 	cmd *Options,
 	runner runner.Runner,
+	watcher watcher.Watcher,
 	streamer logs.Runner,
 	ui wire.UI,
 	log logger.Logger,
@@ -60,6 +63,7 @@ func NewCLI(
 	return &cli{
 		cmd:      cmd,
 		runner:   runner,
+		watcher:  watcher,
 		streamer: streamer,
 		ui:       ui,
 		log:      log.WithComponent("CLI"),
@@ -85,6 +89,9 @@ func (c *cli) handleRun(profile string) (int, error) {
 	c.log.Debug().Msgf("Running with profile: %s", profile)
 
 	ctx := context.Background()
+
+	c.watcher.Start(ctx)
+	defer c.watcher.Close()
 
 	if c.cmd.NoUI {
 		if err := c.runner.Run(ctx, profile); err != nil {

@@ -221,6 +221,8 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 
 // runServicePhase runs the main event loop handling signals and commands
 func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc, sigChan chan os.Signal, registry Registry, commandChan <-chan runtime.Command) {
+	eventChan := r.event.Subscribe(ctx)
+
 	for {
 		select {
 		case sig := <-sigChan:
@@ -244,6 +246,16 @@ func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc,
 			if r.handleCommand(ctx, cmd, registry) {
 				cancel()
 				return
+			}
+		case event, ok := <-eventChan:
+			if !ok {
+				continue
+			}
+
+			if event.Type == runtime.EventWatchTriggered {
+				if data, ok := event.Data.(runtime.WatchTriggeredData); ok {
+					r.handleWatchEvent(ctx, data.Service, data.ChangedFiles, registry)
+				}
 			}
 		}
 	}
@@ -276,6 +288,12 @@ func (r *runner) handleCommand(ctx context.Context, cmd runtime.Command, registr
 	}
 
 	return false
+}
+
+// handleWatchEvent processes a file watch event and triggers service restart
+func (r *runner) handleWatchEvent(ctx context.Context, service string, changedFiles []string, registry Registry) {
+	r.log.Info().Msgf("File change detected for service '%s': %v", service, changedFiles)
+	r.restartService(ctx, service, registry)
 }
 
 // stopService stops a single service by name
