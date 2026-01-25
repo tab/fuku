@@ -58,6 +58,9 @@ retry:
   attempts: 5
   backoff: 1s
 
+logs:
+  buffer: 500
+
 logging:
   level: debug
   format: console

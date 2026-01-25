@@ -58,7 +58,7 @@ func NewRunner(
 
 // Run executes the specified profile by starting all services in dependency and tier order
 func (r *runner) Run(ctx context.Context, profile string) error {
-	logsServer := logs.NewServer(profile, r.log)
+	logsServer := logs.NewServer(r.cfg, profile, r.log)
 	if err := logsServer.Start(ctx); err != nil {
 		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
 	} else {

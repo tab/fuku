@@ -45,9 +45,9 @@ const (
 
 // Socket configuration
 const (
-	SocketDir         = "/tmp"
-	SocketPrefix      = "fuku-"
-	SocketSuffix      = ".sock"
-	SocketDialTimeout = 100 * time.Millisecond
-	LogsBufferSize    = 100
+	SocketDir            = "/tmp"
+	SocketPrefix         = "fuku-"
+	SocketSuffix         = ".sock"
+	SocketDialTimeout    = 100 * time.Millisecond
+	SocketLogsBufferSize = 100
 )

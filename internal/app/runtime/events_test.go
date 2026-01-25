@@ -9,14 +9,13 @@ import (
 )
 
 func Test_EventBus_Publish_And_Subscribe(t *testing.T) {
-	eb := NewEventBus(10)
-	defer eb.Close()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sub := eb.Subscribe(ctx)
+	eb := NewEventBus(10)
+	defer eb.Close()
 
+	sub := eb.Subscribe(ctx)
 	event := Event{
 		Type: EventServiceStarting,
 		Data: ServiceStartingData{Service: "test-service", Tier: "default", Attempt: 1},
@@ -37,15 +36,14 @@ func Test_EventBus_Publish_And_Subscribe(t *testing.T) {
 }
 
 func Test_EventBus_Multiple_Subscribers(t *testing.T) {
-	eb := NewEventBus(10)
-	defer eb.Close()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	eb := NewEventBus(10)
+	defer eb.Close()
+
 	sub1 := eb.Subscribe(ctx)
 	sub2 := eb.Subscribe(ctx)
-
 	event := Event{Type: EventPhaseChanged, Data: PhaseChangedData{Phase: PhaseRunning}}
 
 	eb.Publish(event)
@@ -85,9 +83,8 @@ func Test_EventBus_Unsubscribe_On_Context_Cancel(t *testing.T) {
 }
 
 func Test_EventBus_Close_Closes_All_Subscribers(t *testing.T) {
-	eb := NewEventBus(10)
-
 	ctx := context.Background()
+	eb := NewEventBus(10)
 	sub1 := eb.Subscribe(ctx)
 	sub2 := eb.Subscribe(ctx)
 
@@ -110,22 +107,27 @@ func Test_EventBus_Publish_After_Close_Does_Not_Panic(t *testing.T) {
 }
 
 func Test_EventBus_Buffer_Full_Does_Not_Block(t *testing.T) {
+	ctx := context.Background()
 	eb := NewEventBus(1)
+
 	defer eb.Close()
 
-	ctx := context.Background()
 	eb.Subscribe(ctx)
 
 	for i := 0; i < 10; i++ {
 		eb.Publish(Event{Type: EventServiceStarting})
 	}
+
+	// Test passes if no deadlock occurs
 }
 
 func Test_NoOpEventBus_Returns_Closed_Channel(t *testing.T) {
+	ctx := context.Background()
+
 	neb := NewNoOpEventBus()
+
 	defer neb.Close()
 
-	ctx := context.Background()
 	sub := neb.Subscribe(ctx)
 
 	_, ok := <-sub
@@ -142,12 +144,12 @@ func Test_NoOpEventBus_Publish_Does_Not_Panic(t *testing.T) {
 }
 
 func Test_EventBus_Critical_Events_Always_Delivered(t *testing.T) {
+	ctx := context.Background()
 	eb := NewEventBus(2)
+
 	defer eb.Close()
 
-	ctx := context.Background()
 	sub := eb.Subscribe(ctx)
-
 	receivedEvents := make(chan Event, 20)
 
 	go func() {
@@ -161,6 +163,7 @@ func Test_EventBus_Critical_Events_Always_Delivered(t *testing.T) {
 	}
 
 	criticalEvent := Event{Type: EventPhaseChanged, Data: PhaseChangedData{Phase: PhaseStopped}, Critical: true}
+
 	eb.Publish(criticalEvent)
 
 	var foundCritical bool
