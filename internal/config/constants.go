@@ -19,11 +19,7 @@ const (
 
 // tier constants
 const (
-	Foundation = "foundation"
-	Platform   = "platform"
-	Edge       = "edge"
 	Default    = "default"
-
 	MaxWorkers = 3
 )
 

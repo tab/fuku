@@ -87,7 +87,6 @@ func Test_Start_MissingMakefile(t *testing.T) {
 	}
 
 	proc, err := s.Start(ctx, "test-service", svc)
-
 	if err != nil {
 		assert.Contains(t, err.Error(), "failed to start command")
 	} else {
