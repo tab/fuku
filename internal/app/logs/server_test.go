@@ -21,11 +21,13 @@ func Test_NewServer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := config.DefaultConfig()
+
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("SERVER").Return(componentLogger)
 
-	s := NewServer("test-profile", mockLogger)
+	s := NewServer(cfg, "test-profile", mockLogger)
 
 	assert.NotNil(t, s)
 
@@ -40,11 +42,13 @@ func Test_Server_SocketPath(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := config.DefaultConfig()
+
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("SERVER").Return(componentLogger)
 
-	s := NewServer("my-profile", mockLogger)
+	s := NewServer(cfg, "my-profile", mockLogger)
 
 	expected := filepath.Join(config.SocketDir, config.SocketPrefix+"my-profile"+config.SocketSuffix)
 	assert.Equal(t, expected, s.SocketPath())
@@ -66,7 +70,7 @@ func Test_Server_StartStop(t *testing.T) {
 		s := &server{
 			profile:    "test",
 			socketPath: socketPath,
-			hub:        NewHub(),
+			hub:        NewHub(config.DefaultConfig()),
 			log:        mockLogger,
 		}
 
@@ -108,7 +112,7 @@ func Test_Server_StartStop(t *testing.T) {
 		s := &server{
 			profile:    "test",
 			socketPath: "/nonexistent/path/test.sock",
-			hub:        NewHub(),
+			hub:        NewHub(config.DefaultConfig()),
 			log:        mockLogger,
 		}
 
@@ -227,7 +231,7 @@ func Test_Server_handleConnection(t *testing.T) {
 		s := &server{
 			profile:    "test",
 			socketPath: socketPath,
-			hub:        NewHub(),
+			hub:        NewHub(config.DefaultConfig()),
 			log:        mockLogger,
 		}
 
@@ -282,7 +286,7 @@ func Test_Server_handleConnection(t *testing.T) {
 		s := &server{
 			profile:    "test",
 			socketPath: socketPath,
-			hub:        NewHub(),
+			hub:        NewHub(config.DefaultConfig()),
 			log:        mockLogger,
 		}
 
@@ -320,7 +324,7 @@ func Test_Server_handleConnection(t *testing.T) {
 		s := &server{
 			profile:    "test",
 			socketPath: socketPath,
-			hub:        NewHub(),
+			hub:        NewHub(config.DefaultConfig()),
 			log:        mockLogger,
 		}
 

@@ -38,13 +38,13 @@ type server struct {
 }
 
 // NewServer creates a new tail server
-func NewServer(profile string, log logger.Logger) Server {
+func NewServer(cfg *config.Config, profile string, log logger.Logger) Server {
 	socketPath := filepath.Join(config.SocketDir, config.SocketPrefix+profile+config.SocketSuffix)
 
 	return &server{
 		profile:    profile,
 		socketPath: socketPath,
-		hub:        NewHub(),
+		hub:        NewHub(cfg),
 		log:        log.WithComponent("SERVER"),
 	}
 }
@@ -171,7 +171,7 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 	connID := s.connID.Add(1)
 	clientID := fmt.Sprintf("client-%d", connID)
-	client := NewClientConn(clientID)
+	client := s.hub.NewClientConn(clientID)
 
 	s.log.Debug().Msgf("Client connected: %s", clientID)
 

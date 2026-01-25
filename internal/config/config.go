@@ -30,6 +30,9 @@ type Config struct {
 		Attempts int           `yaml:"attempts"`
 		Backoff  time.Duration `yaml:"backoff"`
 	}
+	Logs struct {
+		Buffer int `yaml:"buffer"`
+	}
 	Version int
 }
 
@@ -78,6 +81,8 @@ func DefaultConfig() *Config {
 
 	cfg.Retry.Attempts = RetryAttempts
 	cfg.Retry.Backoff = RetryBackoff
+
+	cfg.Logs.Buffer = SocketLogsBufferSize
 
 	cfg.Profiles[Default] = "*"
 
@@ -265,6 +270,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateLogs(); err != nil {
+		return err
+	}
+
 	for name, service := range c.Services {
 		if err := service.validateReadiness(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
@@ -291,6 +300,15 @@ func (c *Config) validateRetry() error {
 
 	if c.Retry.Backoff < 0 {
 		return errors.ErrInvalidRetryBackoff
+	}
+
+	return nil
+}
+
+// validateLogs validates logs settings
+func (c *Config) validateLogs() error {
+	if c.Logs.Buffer <= 0 {
+		return errors.ErrInvalidLogsBuffer
 	}
 
 	return nil

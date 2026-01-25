@@ -9,6 +9,7 @@ import (
 
 // Hub manages client connections and broadcasts log messages
 type Hub interface {
+	NewClientConn(id string) *ClientConn
 	Register(conn *ClientConn)
 	Unregister(conn *ClientConn)
 	Broadcast(service, message string)
@@ -22,12 +23,12 @@ type ClientConn struct {
 	SendChan chan LogMessage
 }
 
-// NewClientConn creates a new client connection
-func NewClientConn(id string) *ClientConn {
+// newClientConn creates a new client connection with the specified buffer size
+func newClientConn(id string, bufferSize int) *ClientConn {
 	return &ClientConn{
 		ID:       id,
 		Services: make(map[string]bool),
-		SendChan: make(chan LogMessage, config.LogsBufferSize),
+		SendChan: make(chan LogMessage, bufferSize),
 	}
 }
 
@@ -50,6 +51,7 @@ func (c *ClientConn) ShouldReceive(service string) bool {
 
 // hub implements the Hub interface
 type hub struct {
+	cfg        *config.Config
 	clients    map[*ClientConn]bool
 	register   chan *ClientConn
 	unregister chan *ClientConn
@@ -58,15 +60,21 @@ type hub struct {
 	mu         sync.RWMutex
 }
 
-// NewHub creates a new Hub instance
-func NewHub() Hub {
+// NewHub creates a new Hub instance with the configured buffer size
+func NewHub(cfg *config.Config) Hub {
 	return &hub{
+		cfg:        cfg,
 		clients:    make(map[*ClientConn]bool),
 		register:   make(chan *ClientConn),
 		unregister: make(chan *ClientConn),
-		broadcast:  make(chan LogMessage, config.LogsBufferSize),
+		broadcast:  make(chan LogMessage, cfg.Logs.Buffer),
 		done:       make(chan struct{}),
 	}
+}
+
+// NewClientConn creates a new client connection using the hub's configured buffer size
+func (h *hub) NewClientConn(id string) *ClientConn {
+	return newClientConn(id, h.cfg.Logs.Buffer)
 }
 
 // Register adds a client to the hub

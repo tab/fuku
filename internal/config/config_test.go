@@ -20,6 +20,7 @@ func Test_DefaultConfig(t *testing.T) {
 	assert.Equal(t, MaxWorkers, cfg.Concurrency.Workers)
 	assert.Equal(t, RetryAttempts, cfg.Retry.Attempts)
 	assert.Equal(t, RetryBackoff, cfg.Retry.Backoff)
+	assert.Equal(t, SocketLogsBufferSize, cfg.Logs.Buffer)
 	assert.Equal(t, 1, cfg.Version)
 }
 
@@ -261,6 +262,41 @@ retry:
 	}
 }
 
+func Test_LoadLogsConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		yaml           string
+		expectedBuffer int
+	}{
+		{
+			name:           "default buffer when not specified",
+			yaml:           `version: 1`,
+			expectedBuffer: SocketLogsBufferSize,
+		},
+		{
+			name: "custom buffer value",
+			yaml: `version: 1
+logs:
+  buffer: 500`,
+			expectedBuffer: 500,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove("fuku.yaml")
+
+			cfg, _, err := Load()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedBuffer, cfg.Logs.Buffer)
+		})
+	}
+}
+
 func Test_ApplyDefaults(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -387,6 +423,28 @@ func Test_Validate(t *testing.T) {
 			}(),
 			expectError: true,
 			errorMsg:    "retry backoff must not be negative",
+		},
+		{
+			name: "invalid logs buffer zero",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Logs.Buffer = 0
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "logs buffer must be greater than 0",
+		},
+		{
+			name: "invalid logs buffer negative",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Logs.Buffer = -1
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "logs buffer must be greater than 0",
 		},
 		{
 			name: "valid configuration with standard tiers",

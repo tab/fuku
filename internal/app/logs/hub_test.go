@@ -11,11 +11,13 @@ import (
 )
 
 func Test_NewHub(t *testing.T) {
-	h := NewHub()
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 	assert.NotNil(t, h)
 
 	impl, ok := h.(*hub)
 	assert.True(t, ok)
+	assert.NotNil(t, impl.cfg)
 	assert.NotNil(t, impl.clients)
 	assert.NotNil(t, impl.register)
 	assert.NotNil(t, impl.unregister)
@@ -24,16 +26,22 @@ func Test_NewHub(t *testing.T) {
 }
 
 func Test_NewClientConn(t *testing.T) {
-	c := NewClientConn("test-client")
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
+
+	c := h.NewClientConn("test-client")
+
 	assert.NotNil(t, c)
 	assert.Equal(t, "test-client", c.ID)
 	assert.NotNil(t, c.Services)
 	assert.Empty(t, c.Services)
 	assert.NotNil(t, c.SendChan)
-	assert.Equal(t, config.LogsBufferSize, cap(c.SendChan))
+	assert.Equal(t, cfg.Logs.Buffer, cap(c.SendChan))
 }
 
 func Test_SetSubscription(t *testing.T) {
+	cfg := config.DefaultConfig()
+
 	tests := []struct {
 		name            string
 		existingService string
@@ -48,7 +56,7 @@ func Test_SetSubscription(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewClientConn("test")
+			c := newClientConn("test", cfg.Logs.Buffer)
 			if tt.existingService != "" {
 				c.Services[tt.existingService] = true
 			}
@@ -65,6 +73,8 @@ func Test_SetSubscription(t *testing.T) {
 }
 
 func Test_ShouldReceive(t *testing.T) {
+	cfg := config.DefaultConfig()
+
 	tests := []struct {
 		name         string
 		subscription []string
@@ -80,7 +90,7 @@ func Test_ShouldReceive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewClientConn("test")
+			c := newClientConn("test", cfg.Logs.Buffer)
 			if tt.subscription != nil {
 				c.SetSubscription(tt.subscription)
 			}
@@ -92,12 +102,13 @@ func Test_ShouldReceive(t *testing.T) {
 }
 
 func Test_Register(t *testing.T) {
-	h := NewHub()
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go h.Run(ctx)
 
-	client := NewClientConn("test")
+	client := newClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
 
 	time.Sleep(10 * time.Millisecond)
@@ -111,7 +122,8 @@ func Test_Register(t *testing.T) {
 }
 
 func Test_Register_AfterDone(t *testing.T) {
-	h := NewHub()
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go h.Run(ctx)
@@ -119,17 +131,18 @@ func Test_Register_AfterDone(t *testing.T) {
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
-	client := NewClientConn("test")
+	client := newClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
 }
 
 func Test_Unregister(t *testing.T) {
-	h := NewHub()
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go h.Run(ctx)
 
-	client := NewClientConn("test")
+	client := newClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
 
 	time.Sleep(10 * time.Millisecond)
@@ -147,12 +160,13 @@ func Test_Unregister(t *testing.T) {
 }
 
 func Test_Unregister_NonExistent(t *testing.T) {
-	h := NewHub()
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go h.Run(ctx)
 
-	client := NewClientConn("test")
+	client := newClientConn("test", cfg.Logs.Buffer)
 	h.Unregister(client)
 
 	time.Sleep(10 * time.Millisecond)
@@ -161,7 +175,8 @@ func Test_Unregister_NonExistent(t *testing.T) {
 }
 
 func Test_Unregister_AfterDone(t *testing.T) {
-	h := NewHub()
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go h.Run(ctx)
@@ -169,22 +184,23 @@ func Test_Unregister_AfterDone(t *testing.T) {
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
-	client := NewClientConn("test")
+	client := newClientConn("test", cfg.Logs.Buffer)
 	h.Unregister(client)
 }
 
 func Test_Broadcast_ToSubscribedClients(t *testing.T) {
-	h := NewHub()
-	ctx, cancel := context.WithCancel(context.Background())
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go h.Run(ctx)
 
-	client1 := NewClientConn("client1")
+	client1 := h.NewClientConn("client1")
 	client1.SetSubscription([]string{"api"})
 
-	client2 := NewClientConn("client2")
+	client2 := h.NewClientConn("client2")
 	client2.SetSubscription([]string{"db"})
 
 	h.Register(client1)
@@ -213,14 +229,15 @@ func Test_Broadcast_ToSubscribedClients(t *testing.T) {
 }
 
 func Test_Broadcast_ToAllWhenNoFilter(t *testing.T) {
-	h := NewHub()
-	ctx, cancel := context.WithCancel(context.Background())
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go h.Run(ctx)
 
-	client := NewClientConn("client")
+	client := h.NewClientConn("client")
 	h.Register(client)
 
 	time.Sleep(10 * time.Millisecond)
@@ -238,17 +255,18 @@ func Test_Broadcast_ToAllWhenNoFilter(t *testing.T) {
 }
 
 func Test_Broadcast_DropsWhenBufferFull(t *testing.T) {
-	h := NewHub().(*hub)
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg).(*hub)
 
-	for i := 0; i < config.LogsBufferSize+10; i++ {
+	for i := 0; i < cfg.Logs.Buffer+10; i++ {
 		h.Broadcast("api", "message")
 	}
 }
 
 func Test_Run_ContextCancellation(t *testing.T) {
-	h := NewHub()
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
-
 	done := make(chan struct{})
 
 	go func() {
@@ -256,7 +274,7 @@ func Test_Run_ContextCancellation(t *testing.T) {
 		close(done)
 	}()
 
-	client := NewClientConn("test")
+	client := newClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
 
 	time.Sleep(10 * time.Millisecond)
