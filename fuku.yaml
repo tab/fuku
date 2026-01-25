@@ -54,3 +54,6 @@ profiles:
 logging:
   level: debug
   format: console
+
+concurrency:
+  workers: 10

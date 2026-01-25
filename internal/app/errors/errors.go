@@ -5,9 +5,10 @@ import (
 )
 
 var (
-	ErrFailedToReadConfig  = errors.New("failed to read config file")
-	ErrFailedToParseConfig = errors.New("failed to parse config file")
-	ErrInvalidConfig       = errors.New("invalid configuration")
+	ErrFailedToReadConfig        = errors.New("failed to read config file")
+	ErrFailedToParseConfig       = errors.New("failed to parse config file")
+	ErrInvalidConfig             = errors.New("invalid configuration")
+	ErrInvalidConcurrencyWorkers = errors.New("concurrency workers must be greater than 0")
 
 	ErrProfileNotFound          = errors.New("profile not found")
 	ErrUnsupportedProfileFormat = errors.New("unsupported profile format")
@@ -50,5 +51,6 @@ var (
 
 var (
 	As  = errors.As
+	Is  = errors.Is
 	New = errors.New
 )
