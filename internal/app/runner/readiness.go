@@ -21,6 +21,7 @@ type Readiness interface {
 	Check(ctx context.Context, name string, service *config.Service, process Process)
 }
 
+// readiness implements the Readiness interface
 type readiness struct {
 	log logger.Logger
 }

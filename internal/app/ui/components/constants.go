@@ -57,6 +57,7 @@ const (
 	ColWidthUptime    = 8
 )
 
+// Unit conversion constants
 const (
 	MBToGB = 1024
 )

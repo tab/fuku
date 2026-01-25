@@ -23,6 +23,7 @@ type Client interface {
 	Close() error
 }
 
+// client implements the Client interface
 type client struct {
 	conn      net.Conn
 	formatter *LogFormatter

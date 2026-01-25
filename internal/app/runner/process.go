@@ -16,6 +16,7 @@ type Process interface {
 	StderrReader() *io.PipeReader
 }
 
+// process implements the Process interface
 type process struct {
 	name         string
 	cmd          *exec.Cmd
@@ -25,22 +26,27 @@ type process struct {
 	stderrReader *io.PipeReader
 }
 
+// Name returns the service name
 func (p *process) Name() string {
 	return p.name
 }
 
+// Cmd returns the underlying exec command
 func (p *process) Cmd() *exec.Cmd {
 	return p.cmd
 }
 
+// Done returns a channel that closes when the process exits
 func (p *process) Done() <-chan struct{} {
 	return p.done
 }
 
+// Ready returns a channel that receives when the process is ready
 func (p *process) Ready() <-chan error {
 	return p.ready
 }
 
+// SignalReady signals the ready channel with optional error
 func (p *process) SignalReady(err error) {
 	if err != nil {
 		select {
@@ -52,10 +58,12 @@ func (p *process) SignalReady(err error) {
 	close(p.ready)
 }
 
+// StdoutReader returns the stdout pipe reader
 func (p *process) StdoutReader() *io.PipeReader {
 	return p.stdoutReader
 }
 
+// StderrReader returns the stderr pipe reader
 func (p *process) StderrReader() *io.PipeReader {
 	return p.stderrReader
 }

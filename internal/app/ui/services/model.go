@@ -20,6 +20,7 @@ import (
 // Status represents the status of a service
 type Status string
 
+// Status values for service lifecycle
 const (
 	StatusStarting Status = "Starting"
 	StatusRunning  Status = "Running"

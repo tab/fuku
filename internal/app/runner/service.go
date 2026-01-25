@@ -16,6 +16,7 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// Scanner buffer size constants
 const (
 	// scannerBufferSize is the initial buffer size for reading service output (64KB)
 	scannerBufferSize = 64 * 1024
@@ -30,6 +31,7 @@ type Service interface {
 	SetBroadcaster(broadcaster logs.Broadcaster)
 }
 
+// service implements the Service interface
 type service struct {
 	lifecycle   Lifecycle
 	readiness   Readiness
@@ -134,6 +136,7 @@ func (s *service) SetBroadcaster(broadcaster logs.Broadcaster) {
 	s.broadcaster = broadcaster
 }
 
+// teeStream reads from source and writes to destination while logging output
 func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, streamType string) {
 	scanner := bufio.NewScanner(src)
 	scanner.Buffer(make([]byte, scannerBufferSize), scannerMaxBufferSize)
@@ -156,11 +159,13 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 	}
 }
 
+// startDraining begins consuming both stdout and stderr pipes
 func (s *service) startDraining(stdout, stderr *io.PipeReader) {
 	go s.drainPipe(stdout)
 	go s.drainPipe(stderr)
 }
 
+// drainPipe consumes all data from a pipe until EOF
 func (s *service) drainPipe(reader *io.PipeReader) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, scannerBufferSize), scannerMaxBufferSize)
@@ -173,6 +178,7 @@ func (s *service) drainPipe(reader *io.PipeReader) {
 	}
 }
 
+// handleReadinessCheck sets up the appropriate readiness check based on service config
 func (s *service) handleReadinessCheck(ctx context.Context, name string, svc *config.Service, proc *process, stdout, stderr *io.PipeReader) {
 	if svc.Readiness == nil {
 		proc.SignalReady(nil)

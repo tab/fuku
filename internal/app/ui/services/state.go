@@ -35,6 +35,7 @@ const (
 	OnFailed     = "enter_failed"
 )
 
+// newServiceFSM creates a state machine for service lifecycle management
 func newServiceFSM(service *ServiceState, loader *Loader) *fsm.FSM {
 	serviceName := service.Name
 

@@ -12,6 +12,7 @@ type WorkerPool interface {
 	Release()
 }
 
+// workerPool implements the WorkerPool interface
 type workerPool struct {
 	sem chan struct{}
 }

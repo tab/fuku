@@ -9,6 +9,7 @@ import (
 // CommandType represents the type of CLI command
 type CommandType int
 
+// Command type values
 const (
 	CommandRun CommandType = iota
 	CommandLogs

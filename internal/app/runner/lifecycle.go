@@ -16,6 +16,7 @@ type Lifecycle interface {
 	Terminate(proc Process, timeout time.Duration) error
 }
 
+// lifecycle implements the Lifecycle interface
 type lifecycle struct {
 	log logger.Logger
 }
@@ -59,10 +60,12 @@ func (l *lifecycle) Terminate(proc Process, timeout time.Duration) error {
 	}
 }
 
+// signalGroup sends a signal to the process group
 func (l *lifecycle) signalGroup(pid int, sig syscall.Signal) error {
 	return syscall.Kill(-pid, sig)
 }
 
+// forceKill sends SIGKILL to the process group
 func (l *lifecycle) forceKill(proc Process, pid int) error {
 	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
 		l.log.Warn().Err(err).Msgf("Failed to SIGKILL process group, trying direct kill")

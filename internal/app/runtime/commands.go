@@ -8,6 +8,7 @@ import (
 // CommandType represents the type of command
 type CommandType string
 
+// Command types for service control
 const (
 	CommandStopService    CommandType = "stop_service"
 	CommandRestartService CommandType = "restart_service"
@@ -37,6 +38,7 @@ type CommandBus interface {
 	Close()
 }
 
+// commandBus implements the CommandBus interface
 type commandBus struct {
 	subscribers []chan Command
 	mu          sync.RWMutex
@@ -103,6 +105,7 @@ func (cb *commandBus) Close() {
 	cb.subscribers = nil
 }
 
+// unsubscribe removes a channel from subscribers and closes it
 func (cb *commandBus) unsubscribe(ch chan Command) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -126,6 +129,7 @@ func NewNoOpCommandBus() CommandBus {
 	return &noOpCommandBus{}
 }
 
+// Subscribe returns a channel that closes when context is cancelled
 func (ncb *noOpCommandBus) Subscribe(ctx context.Context) <-chan Command {
 	ch := make(chan Command)
 
@@ -137,6 +141,8 @@ func (ncb *noOpCommandBus) Subscribe(ctx context.Context) <-chan Command {
 	return ch
 }
 
+// Publish is a no-op
 func (ncb *noOpCommandBus) Publish(cmd Command) {}
 
+// Close is a no-op
 func (ncb *noOpCommandBus) Close() {}

@@ -11,15 +11,19 @@ import (
 	"fuku/internal/app/ui/components"
 )
 
+// Tick timing constants
 const (
 	tickInterval       = components.UITickInterval
 	tickCounterMaximum = 1000000
 )
 
+// eventMsg wraps a runtime event for tea messaging
 type eventMsg runtime.Event
 
+// tickMsg signals a UI tick for animations
 type tickMsg time.Time
 
+// channelClosedMsg signals the event channel has closed
 type channelClosedMsg struct{}
 
 // Update handles messages and updates the model
@@ -89,6 +93,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleKeyPress processes keyboard input
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, m.ui.servicesKeys.ForceQuit) {
 		m.log.Warn().Msg("TUI: Force quit requested, exiting immediately")
@@ -138,6 +143,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleUpKey moves selection up one service
 func (m Model) handleUpKey() (tea.Model, tea.Cmd) {
 	if m.state.selected > 0 {
 		m.state.selected--
@@ -148,6 +154,7 @@ func (m Model) handleUpKey() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleDownKey moves selection down one service
 func (m Model) handleDownKey() (tea.Model, tea.Cmd) {
 	total := m.getTotalServices()
 	if m.state.selected < total-1 {
@@ -159,6 +166,7 @@ func (m Model) handleDownKey() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleStopKey toggles the selected service between running and stopped
 func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 	service := m.getSelectedService()
 	if service == nil || service.FSM == nil {
@@ -178,6 +186,7 @@ func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleRestartKey restarts the selected service
 func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 	service := m.getSelectedService()
 	if service == nil || service.FSM == nil {
@@ -189,6 +198,7 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 	return m, m.loader.Model.Tick
 }
 
+// handleEvent dispatches runtime events to specific handlers
 func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 	switch event.Type {
 	case runtime.EventProfileResolved:
@@ -215,6 +225,7 @@ func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 	return m, waitForEventCmd(m.eventChan)
 }
 
+// handleProfileResolved initializes services from profile data
 func (m Model) handleProfileResolved(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.ProfileResolvedData)
 	if !ok {
@@ -250,6 +261,7 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 	return m
 }
 
+// handlePhaseChanged updates the application phase state
 func (m Model) handlePhaseChanged(event runtime.Event) (Model, tea.Cmd) {
 	data, ok := event.Data.(runtime.PhaseChangedData)
 	if !ok {
@@ -266,6 +278,7 @@ func (m Model) handlePhaseChanged(event runtime.Event) (Model, tea.Cmd) {
 	return m, waitForEventCmd(m.eventChan)
 }
 
+// handleTierStarting marks a tier as not ready when starting
 func (m Model) handleTierStarting(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.TierStartingData)
 	if !ok {
@@ -282,6 +295,7 @@ func (m Model) handleTierStarting(event runtime.Event) Model {
 	return m
 }
 
+// handleTierReady marks a tier as ready
 func (m Model) handleTierReady(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.TierReadyData)
 	if !ok {
@@ -298,6 +312,7 @@ func (m Model) handleTierReady(event runtime.Event) Model {
 	return m
 }
 
+// handleServiceStarting updates a service when it begins starting
 func (m Model) handleServiceStarting(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.ServiceStartingData)
 	if !ok {
@@ -313,6 +328,7 @@ func (m Model) handleServiceStarting(event runtime.Event) Model {
 	return m
 }
 
+// handleServiceReady updates a service when it becomes ready
 func (m Model) handleServiceReady(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.ServiceReadyData)
 	if !ok {
@@ -329,6 +345,7 @@ func (m Model) handleServiceReady(event runtime.Event) Model {
 	return m
 }
 
+// handleServiceFailed updates a service when it fails
 func (m Model) handleServiceFailed(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.ServiceFailedData)
 	if !ok {
@@ -344,6 +361,7 @@ func (m Model) handleServiceFailed(event runtime.Event) Model {
 	return m
 }
 
+// handleServiceStopped updates a service when it stops
 func (m Model) handleServiceStopped(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.ServiceStoppedData)
 	if !ok {
@@ -360,6 +378,7 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 	return m
 }
 
+// waitForEventCmd returns a command that waits for the next event
 func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
 	return func() tea.Msg {
 		event, ok := <-eventChan
@@ -371,6 +390,7 @@ func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
 	}
 }
 
+// tickCmd returns a command that sends a tick after the interval
 func tickCmd() tea.Cmd {
 	return tea.Tick(tickInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)

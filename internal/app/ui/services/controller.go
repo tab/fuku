@@ -18,17 +18,19 @@ type Controller interface {
 	HandleStopped(ctx context.Context, service *ServiceState) bool
 }
 
+// controller implements the Controller interface
 type controller struct {
 	command runtime.CommandBus
 }
 
-// NewController creates a new service controller
+// NewController creates a new controller with the given command bus
 func NewController(command runtime.CommandBus) Controller {
 	return &controller{
 		command: command,
 	}
 }
 
+// Start requests a service start if it's currently stopped
 func (c *controller) Start(ctx context.Context, service *ServiceState) {
 	if service == nil || service.FSM == nil {
 		return
@@ -45,6 +47,7 @@ func (c *controller) Start(ctx context.Context, service *ServiceState) {
 	_ = service.FSM.Event(ctx, Start)
 }
 
+// Stop requests a service stop if it's currently running
 func (c *controller) Stop(ctx context.Context, service *ServiceState) {
 	if service == nil || service.FSM == nil {
 		return
@@ -62,6 +65,7 @@ func (c *controller) Stop(ctx context.Context, service *ServiceState) {
 	_ = service.FSM.Event(ctx, Stop)
 }
 
+// Restart requests a service restart if it's running, failed, or stopped
 func (c *controller) Restart(ctx context.Context, service *ServiceState) {
 	if service == nil || service.FSM == nil {
 		return
@@ -80,10 +84,12 @@ func (c *controller) Restart(ctx context.Context, service *ServiceState) {
 	_ = service.FSM.Event(ctx, Restart)
 }
 
+// StopAll sends a command to stop all services
 func (c *controller) StopAll() {
 	c.command.Publish(runtime.Command{Type: runtime.CommandStopAll})
 }
 
+// HandleStarting updates service state when a process starts
 func (c *controller) HandleStarting(ctx context.Context, service *ServiceState, pid int) {
 	if service == nil {
 		return
@@ -95,6 +101,7 @@ func (c *controller) HandleStarting(ctx context.Context, service *ServiceState, 
 	}
 }
 
+// HandleReady updates service state when it becomes ready
 func (c *controller) HandleReady(ctx context.Context, service *ServiceState) {
 	if service == nil {
 		return
@@ -105,6 +112,7 @@ func (c *controller) HandleReady(ctx context.Context, service *ServiceState) {
 	}
 }
 
+// HandleFailed updates service state when it fails
 func (c *controller) HandleFailed(ctx context.Context, service *ServiceState) {
 	if service == nil {
 		return
@@ -115,6 +123,7 @@ func (c *controller) HandleFailed(ctx context.Context, service *ServiceState) {
 	}
 }
 
+// HandleStopped updates service state when it stops, returns true if it was restarting
 func (c *controller) HandleStopped(ctx context.Context, service *ServiceState) bool {
 	if service == nil {
 		return false

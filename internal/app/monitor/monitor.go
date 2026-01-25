@@ -18,6 +18,7 @@ type Monitor interface {
 	GetStats(ctx context.Context, pid int) (Stats, error)
 }
 
+// monitor implements the Monitor interface
 type monitor struct{}
 
 // NewMonitor creates a new Monitor instance
@@ -25,6 +26,7 @@ func NewMonitor() Monitor {
 	return &monitor{}
 }
 
+// GetStats retrieves CPU and memory statistics for a process
 func (m *monitor) GetStats(ctx context.Context, pid int) (Stats, error) {
 	if pid <= 0 || pid > math.MaxInt32 {
 		return Stats{}, nil

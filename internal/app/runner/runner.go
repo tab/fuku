@@ -21,6 +21,7 @@ type Runner interface {
 	Run(ctx context.Context, profile string) error
 }
 
+// runner implements the Runner interface
 type runner struct {
 	cfg       *config.Config
 	discovery Discovery
@@ -158,6 +159,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	return nil
 }
 
+// runStartupPhase handles the service startup phase and waits for completion or interruption
 func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []Tier, registry Registry, sigChan chan os.Signal, commandChan <-chan runtime.Command) error {
 	startupDone := make(chan struct{}, 1)
 
@@ -217,6 +219,7 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 	}
 }
 
+// runServicePhase runs the main event loop handling signals and commands
 func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc, sigChan chan os.Signal, registry Registry, commandChan <-chan runtime.Command) {
 	for {
 		select {
@@ -246,6 +249,7 @@ func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc,
 	}
 }
 
+// handleCommand processes a command and returns true if shutdown is requested
 func (r *runner) handleCommand(ctx context.Context, cmd runtime.Command, registry Registry) bool {
 	switch cmd.Type {
 	case runtime.CommandStopService:
@@ -274,6 +278,7 @@ func (r *runner) handleCommand(ctx context.Context, cmd runtime.Command, registr
 	return false
 }
 
+// stopService stops a single service by name
 func (r *runner) stopService(serviceName string, registry Registry) {
 	lookup := registry.Get(serviceName)
 	if !lookup.Exists {
@@ -293,6 +298,7 @@ func (r *runner) stopService(serviceName string, registry Registry) {
 	r.service.Stop(lookup.Proc)
 }
 
+// restartService stops and starts a service, or just starts if not running
 func (r *runner) restartService(ctx context.Context, serviceName string, registry Registry) {
 	lookup := registry.Get(serviceName)
 
@@ -346,6 +352,7 @@ func (r *runner) restartService(ctx context.Context, serviceName string, registr
 	}()
 }
 
+// startTier starts all services in a tier concurrently and returns failed service names
 func (r *runner) startTier(ctx context.Context, tierName string, tierServices []string, registry Registry) []string {
 	failedChan := make(chan string, len(tierServices))
 	procChan := make(chan Process, len(tierServices))
@@ -418,6 +425,7 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 	return failedServices
 }
 
+// startServiceWithRetry attempts to start a service with configurable retries
 func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierName string, service *config.Service) (Process, error) {
 	var lastErr error
 
@@ -493,6 +501,7 @@ func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierNam
 	return nil, fmt.Errorf("%w after %d attempts: %w", errors.ErrMaxRetriesExceeded, config.RetryAttempt, lastErr)
 }
 
+// startAllTiers starts services tier by tier in order
 func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Registry) {
 	for tierIdx, tier := range tiers {
 		if len(tier.Services) > 0 {
@@ -524,6 +533,7 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Regis
 	}
 }
 
+// shutdown stops all services in reverse order and waits for completion
 func (r *runner) shutdown(registry Registry) {
 	processes := registry.SnapshotReverse()
 
