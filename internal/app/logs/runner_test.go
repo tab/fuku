@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	"fuku/internal/config/logger"
 )
 
 func Test_NewRunner(t *testing.T) {
@@ -16,13 +18,15 @@ func Test_NewRunner(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient := NewMockClient(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
 
-	r := NewRunner(mockClient)
+	r := NewRunner(mockClient, mockLogger)
 	assert.NotNil(t, r)
 
 	impl, ok := r.(*runner)
 	assert.True(t, ok)
 	assert.Equal(t, mockClient, impl.client)
+	assert.Equal(t, mockLogger, impl.log)
 }
 
 func Test_streamLogs(t *testing.T) {
@@ -30,6 +34,7 @@ func Test_streamLogs(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient := NewMockClient(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
 
 	tests := []struct {
 		name           string
@@ -54,6 +59,7 @@ func Test_streamLogs(t *testing.T) {
 			services: []string{"api"},
 			before: func() {
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(errors.New("connection failed"))
+				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -64,6 +70,7 @@ func Test_streamLogs(t *testing.T) {
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
 				mockClient.EXPECT().Subscribe([]string{"api"}).Return(errors.New("subscribe failed"))
 				mockClient.EXPECT().Close().Return(nil)
+				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -75,6 +82,7 @@ func Test_streamLogs(t *testing.T) {
 				mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
 				mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(errors.New("stream failed"))
 				mockClient.EXPECT().Close().Return(nil)
+				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -99,7 +107,7 @@ func Test_streamLogs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			r := NewRunner(mockClient).(*runner)
+			r := NewRunner(mockClient, mockLogger).(*runner)
 
 			var output bytes.Buffer
 
