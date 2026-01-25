@@ -51,9 +51,13 @@ profiles:
   core: [api, frontend-api, storage]  # Core services for typical development
   minimal: [api, storage]             # Minimal set for lightweight testing
 
+concurrency:
+  workers: 10
+
+retry:
+  attempts: 5
+  backoff: 1s
+
 logging:
   level: debug
   format: console
-
-concurrency:
-  workers: 10

@@ -23,7 +23,7 @@ func Test_NewRunner(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -56,9 +56,7 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{},
-	}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -98,9 +96,7 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{},
-	}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -140,11 +136,8 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -207,9 +200,7 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{},
-	}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -249,11 +240,8 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -295,16 +283,13 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {
-				Dir: "api",
-				Readiness: &config.Readiness{
-					Type:    config.TypeHTTP,
-					URL:     "http://localhost:8080",
-					Timeout: 30 * time.Second,
-				},
-			},
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{
+		Dir: "api",
+		Readiness: &config.Readiness{
+			Type:    config.TypeHTTP,
+			URL:     "http://localhost:8080",
+			Timeout: 30 * time.Second,
 		},
 	}
 
@@ -351,11 +336,8 @@ func Test_StartServiceWithRetry_CancellationDuringBackoff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -392,14 +374,14 @@ func Test_StartServiceWithRetry_CancellationDuringBackoff(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, proc)
 	assert.Equal(t, context.Canceled, err)
-	assert.Less(t, elapsed, config.RetryBackoff, "Should cancel immediately without waiting full backoff")
+	assert.Less(t, elapsed, cfg.Retry.Backoff, "Should cancel immediately without waiting full backoff")
 }
 
 func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 
@@ -437,7 +419,7 @@ func Test_Shutdown_StopsProcessesOnce(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 
@@ -475,7 +457,7 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 
@@ -504,7 +486,7 @@ func Test_HandleCommand_StopService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -538,11 +520,8 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api", Tier: "platform"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -595,7 +574,7 @@ func Test_HandleCommand_StopAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -621,7 +600,7 @@ func Test_HandleCommand_InvalidStopServiceData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
@@ -647,7 +626,7 @@ func Test_HandleCommand_InvalidRestartServiceData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
@@ -673,7 +652,7 @@ func Test_StopService_ServiceExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -703,7 +682,7 @@ func Test_StopService_ServiceNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
@@ -728,11 +707,8 @@ func Test_RestartService_ExistingService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api", Tier: "platform"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -782,11 +758,8 @@ func Test_RestartService_StoppedService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -831,9 +804,7 @@ func Test_RestartService_ConfigNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{},
-	}
+	cfg := config.DefaultConfig()
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -861,18 +832,15 @@ func Test_RestartService_StartFailed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(config.RetryAttempt)
+	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
 
 	mockRegistry := NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: nil, Exists: false, Detached: false})
@@ -896,7 +864,7 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -933,7 +901,7 @@ func Test_RunServicePhase_ContextCancelled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -967,7 +935,7 @@ func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	r := &runner{
@@ -1000,11 +968,8 @@ func Test_StartTier_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1052,11 +1017,8 @@ func Test_StartTier_AcquireError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil)
@@ -1089,11 +1051,8 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1101,7 +1060,7 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 	mockLogger.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(config.RetryAttempt)
+	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
@@ -1130,11 +1089,8 @@ func Test_RunStartupPhase_TierWithFailures(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1142,7 +1098,7 @@ func Test_RunStartupPhase_TierWithFailures(t *testing.T) {
 	mockLogger.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(config.RetryAttempt)
+	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
@@ -1177,11 +1133,8 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1248,11 +1201,8 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1305,11 +1255,8 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1364,11 +1311,8 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1424,11 +1368,8 @@ func Test_RunStartupPhase_OtherCommandDuringStartup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {Dir: "api"},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
@@ -1488,7 +1429,7 @@ func Test_RunServicePhase_SignalReceived(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{}
+	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -1523,16 +1464,13 @@ func Test_StartServiceWithRetry_ReadinessCheckSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {
-				Dir: "api",
-				Readiness: &config.Readiness{
-					Type:    config.TypeHTTP,
-					URL:     "http://localhost:8080",
-					Timeout: 100 * time.Millisecond,
-				},
-			},
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{
+		Dir: "api",
+		Readiness: &config.Readiness{
+			Type:    config.TypeHTTP,
+			URL:     "http://localhost:8080",
+			Timeout: 100 * time.Millisecond,
 		},
 	}
 
@@ -1574,16 +1512,13 @@ func Test_StartServiceWithRetry_ReadinessCheckFailed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Services: map[string]*config.Service{
-			"api": {
-				Dir: "api",
-				Readiness: &config.Readiness{
-					Type:    config.TypeHTTP,
-					URL:     "http://localhost:8080",
-					Timeout: 100 * time.Millisecond,
-				},
-			},
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{
+		Dir: "api",
+		Readiness: &config.Readiness{
+			Type:    config.TypeHTTP,
+			URL:     "http://localhost:8080",
+			Timeout: 100 * time.Millisecond,
 		},
 	}
 

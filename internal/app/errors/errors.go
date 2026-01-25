@@ -9,6 +9,8 @@ var (
 	ErrFailedToParseConfig       = errors.New("failed to parse config file")
 	ErrInvalidConfig             = errors.New("invalid configuration")
 	ErrInvalidConcurrencyWorkers = errors.New("concurrency workers must be greater than 0")
+	ErrInvalidRetryAttempts      = errors.New("retry attempts must be greater than 0")
+	ErrInvalidRetryBackoff       = errors.New("retry backoff must not be negative")
 
 	ErrProfileNotFound          = errors.New("profile not found")
 	ErrUnsupportedProfileFormat = errors.New("unsupported profile format")

@@ -429,17 +429,17 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierName string, service *config.Service) (Process, error) {
 	var lastErr error
 
-	for attempt := 0; attempt < config.RetryAttempt; attempt++ {
+	for attempt := 0; attempt < r.cfg.Retry.Attempts; attempt++ {
 		if attempt > 0 {
 			r.event.Publish(runtime.Event{
 				Type:     runtime.EventRetryScheduled,
-				Data:     runtime.RetryScheduledData{Service: name, Attempt: attempt + 1, MaxAttempts: config.RetryAttempt},
+				Data:     runtime.RetryScheduledData{Service: name, Attempt: attempt + 1, MaxAttempts: r.cfg.Retry.Attempts},
 				Critical: true,
 			})
-			r.log.Info().Msgf("Retrying service '%s' (attempt %d/%d)", name, attempt+1, config.RetryAttempt)
+			r.log.Info().Msgf("Retrying service '%s' (attempt %d/%d)", name, attempt+1, r.cfg.Retry.Attempts)
 
 			select {
-			case <-time.After(config.RetryBackoff):
+			case <-time.After(r.cfg.Retry.Backoff):
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}
@@ -498,7 +498,7 @@ func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierNam
 		}
 	}
 
-	return nil, fmt.Errorf("%w after %d attempts: %w", errors.ErrMaxRetriesExceeded, config.RetryAttempt, lastErr)
+	return nil, fmt.Errorf("%w after %d attempts: %w", errors.ErrMaxRetriesExceeded, r.cfg.Retry.Attempts, lastErr)
 }
 
 // startAllTiers starts services tier by tier in order
