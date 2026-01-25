@@ -2,45 +2,48 @@ package config
 
 import "time"
 
-// app constants
+// Application metadata
 const (
 	AppName = "fuku"
-
-	DefaultLogLevel  = "info"
-	DefaultLogFormat = "console"
-
 	Version = "0.9.1"
 )
 
-// profile constants
+// Default values
 const (
-	DefaultProfile = "default"
+	Default = "default"
 )
 
-// tier constants
+// Logging defaults
 const (
-	Default    = "default"
-	MaxWorkers = 3
+	LogLevel  = "info"
+	LogFormat = "console"
 )
 
-// readiness constants
+// Concurrency settings
+const (
+	MaxWorkers = 5
+)
+
+// Readiness check types
 const (
 	TypeHTTP = "http"
 	TypeLog  = "log"
+)
 
+// Timing constants
+const (
 	DefaultTimeout  = 30 * time.Second
 	DefaultInterval = 500 * time.Millisecond
+	ShutdownTimeout = 5 * time.Second
+)
 
+// Retry settings
+const (
 	RetryAttempt = 3
 	RetryBackoff = 500 * time.Millisecond
 )
 
-// service constants
-const (
-	ShutdownTimeout = 5 * time.Second
-)
-
-// socket constants
+// Socket configuration
 const (
 	SocketDir         = "/tmp"
 	SocketPrefix      = "fuku-"

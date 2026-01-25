@@ -29,7 +29,7 @@ type Options struct {
 func Parse(args []string) (*Options, error) {
 	result := &Options{
 		Type:    CommandRun,
-		Profile: config.DefaultProfile,
+		Profile: config.Default,
 	}
 
 	var (

@@ -8,13 +8,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"fuku/internal/config"
 )
 
 func Test_AcquireRelease(t *testing.T) {
 	pool := NewWorkerPool()
 	ctx := context.Background()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < config.MaxWorkers; i++ {
 		err := pool.Acquire(ctx)
 		require.NoError(t, err)
 	}
@@ -30,7 +32,7 @@ func Test_AcquireRelease(t *testing.T) {
 
 	select {
 	case <-done:
-		t.Fatal("Should not have acquired fourth worker slot immediately")
+		t.Fatal("Should not have acquired extra worker slot immediately")
 	case <-time.After(50 * time.Millisecond):
 	}
 
@@ -42,7 +44,7 @@ func Test_AcquireRelease(t *testing.T) {
 		t.Fatal("Should have acquired worker slot after release")
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < config.MaxWorkers; i++ {
 		pool.Release()
 	}
 }
@@ -91,7 +93,7 @@ func Test_ConcurrentWorkers(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 0, activeWorkers)
-	assert.LessOrEqual(t, maxActive, 3)
+	assert.LessOrEqual(t, maxActive, config.MaxWorkers)
 	assert.Greater(t, maxActive, 0)
 }
 
@@ -99,7 +101,7 @@ func Test_AcquireContextCancelled(t *testing.T) {
 	ctx := context.Background()
 	pool := NewWorkerPool()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < config.MaxWorkers; i++ {
 		err := pool.Acquire(ctx)
 		require.NoError(t, err)
 	}
@@ -123,7 +125,7 @@ func Test_AcquireContextCancelled(t *testing.T) {
 		t.Fatal("Should have received context cancellation error")
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < config.MaxWorkers; i++ {
 		pool.Release()
 	}
 }
