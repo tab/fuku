@@ -167,23 +167,23 @@ func Test_hashString(t *testing.T) {
 			expect: 0,
 		},
 		{
-			name:  "Simple string",
-			input: "api",
+			name:   "Simple string",
+			input:  "api",
+			expect: 96794,
 		},
 		{
-			name:  "Longer string",
-			input: "authentication-service",
+			name:   "Longer string",
+			input:  "authentication-service",
+			expect: 8745230323607049312,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := hashString(tt.input)
-			assert.GreaterOrEqual(t, result, 0)
 
-			if tt.expect > 0 {
-				assert.Equal(t, tt.expect, result)
-			}
+			assert.GreaterOrEqual(t, result, 0)
+			assert.Equal(t, tt.expect, result)
 		})
 	}
 }
