@@ -4,6 +4,10 @@ x-readiness: &readiness
   type: log
   timeout: 30s
 
+x-watch: &watch
+  paths: ["**/*.go", "**/*.yaml"]
+  ignore: ["*_test.go", "vendor/**", "mock_*.go", "**/*_mock.go"]
+
 services:
   # Foundation tier: Base infrastructure services
   auth:
@@ -33,6 +37,9 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
+      paths: ["**/*.go"]
 
   # Edge tier: Client-facing services
   frontend-api:
