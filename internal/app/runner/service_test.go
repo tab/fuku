@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -60,13 +61,17 @@ func Test_Start_DirectoryNotExist(t *testing.T) {
 	assert.ErrorIs(t, err, errors.ErrServiceDirectoryNotExist)
 }
 
-func Test_Start_MissingMakefile(t *testing.T) {
+func Test_Start_EmptyDirectory_MakefileNotFound(t *testing.T) {
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("Skipping: make is not available on this system")
+	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockLifecycle := NewMockLifecycle(ctrl)
-	mockLifecycle.EXPECT().Configure(gomock.Any()).AnyTimes()
-	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockLifecycle.EXPECT().Configure(gomock.Any())
+	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil)
 
 	mockReadiness := NewMockReadiness(ctrl)
 	mockEventBus := runtime.NewNoOpEventBus()
@@ -78,22 +83,43 @@ func Test_Start_MissingMakefile(t *testing.T) {
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
-	tmpDir := t.TempDir()
-
 	ctx := context.Background()
-
-	svc := &config.Service{
-		Dir: tmpDir,
-	}
+	svc := &config.Service{Dir: t.TempDir()}
 
 	proc, err := s.Start(ctx, "test-service", svc)
-	if err != nil {
-		assert.Contains(t, err.Error(), "failed to start command")
-	} else {
-		assert.NotNil(t, proc)
-		<-proc.Done()
-		s.Stop(proc)
+
+	require.NoError(t, err)
+	require.NotNil(t, proc)
+
+	<-proc.Done()
+	s.Stop(proc)
+}
+
+func Test_Start_EmptyDirectory_MakeNotFound(t *testing.T) {
+	if _, err := exec.LookPath("make"); err == nil {
+		t.Skip("Skipping: make is available on this system")
 	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLifecycle := NewMockLifecycle(ctrl)
+	mockReadiness := NewMockReadiness(ctrl)
+	mockEventBus := runtime.NewNoOpEventBus()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+
+	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+
+	ctx := context.Background()
+	svc := &config.Service{Dir: t.TempDir()}
+
+	proc, err := s.Start(ctx, "test-service", svc)
+
+	assert.Error(t, err)
+	assert.Nil(t, proc)
+	assert.Contains(t, err.Error(), "failed to start command")
 }
 
 func Test_Start_RelativePathConversion(t *testing.T) {
