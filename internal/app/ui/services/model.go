@@ -126,9 +126,10 @@ func NewModel(
 	loader *Loader,
 	log logger.Logger,
 ) Model {
+	log = log.WithComponent("UI")
 	eventChan := event.Subscribe(ctx)
 
-	log.Debug().Msg("TUI: Created model and subscribed to events")
+	log.Debug().Msg("Created model and subscribed to events")
 
 	m := Model{
 		ctx:        ctx,

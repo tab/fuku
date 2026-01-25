@@ -17,13 +17,15 @@ func Test_NewLifecycle(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
 
 	lc := NewLifecycle(mockLogger)
 
 	assert.NotNil(t, lc)
 	instance, ok := lc.(*lifecycle)
 	assert.True(t, ok)
-	assert.Equal(t, mockLogger, instance.log)
+	assert.Equal(t, componentLogger, instance.log)
 }
 
 func Test_Configure(t *testing.T) {
@@ -31,6 +33,8 @@ func Test_Configure(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
 
 	lc := NewLifecycle(mockLogger)
 
@@ -48,6 +52,8 @@ func Test_Terminate_NilProcess(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
 
 	lc := NewLifecycle(mockLogger)
 
@@ -64,8 +70,10 @@ func Test_Terminate_ProcessExitsGracefully(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
 	lc := NewLifecycle(mockLogger)
 
@@ -103,8 +111,10 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
 	lc := NewLifecycle(mockLogger)
 
@@ -155,8 +165,10 @@ func Test_Terminate_SignalGroupFailsFallbackToDirectSignal(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
 	lc := NewLifecycle(mockLogger)
 
@@ -188,9 +200,11 @@ func Test_Terminate_ProcessAlreadyExited(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	lc := NewLifecycle(mockLogger)
 

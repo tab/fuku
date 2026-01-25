@@ -23,6 +23,8 @@ func Test_CheckHTTP_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +43,8 @@ func Test_CheckHTTP_Timeout(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +64,8 @@ func Test_CheckHTTP_ContextCanceled(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +87,8 @@ func Test_CheckHTTP_InvalidURL(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	done := make(chan struct{})
@@ -95,6 +103,8 @@ func Test_CheckLog_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
@@ -125,6 +135,8 @@ func Test_CheckLog_Timeout(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
@@ -155,6 +167,8 @@ func Test_CheckLog_InvalidPattern(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	stdoutReader, _ := io.Pipe()
@@ -175,6 +189,8 @@ func Test_CheckLog_MatchInStderr(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
@@ -203,6 +219,8 @@ func Test_CheckLog_ContextCanceled(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
@@ -239,6 +257,8 @@ func Test_CheckLog_NegativeDuration(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
@@ -264,7 +284,9 @@ func Test_Check_HTTP(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 
 	checker := NewReadiness(mockLogger)
 
@@ -304,7 +326,9 @@ func Test_Check_Log(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 
 	checker := NewReadiness(mockLogger)
 
@@ -351,8 +375,10 @@ func Test_Check_InvalidType(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	checker := NewReadiness(mockLogger)
 
@@ -386,6 +412,8 @@ func Test_CheckHTTP_ProcessExited(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -407,6 +435,8 @@ func Test_CheckLog_ProcessExited(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	checker := NewReadiness(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()

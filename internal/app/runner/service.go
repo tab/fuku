@@ -44,7 +44,7 @@ func NewService(lifecycle Lifecycle, readiness Readiness, event runtime.EventBus
 		lifecycle: lifecycle,
 		readiness: readiness,
 		event:     event,
-		log:       log,
+		log:       log.WithComponent("SERVICE"),
 	}
 }
 

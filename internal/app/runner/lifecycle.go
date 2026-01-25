@@ -22,7 +22,7 @@ type lifecycle struct {
 
 // NewLifecycle creates a new Lifecycle instance
 func NewLifecycle(log logger.Logger) Lifecycle {
-	return &lifecycle{log: log}
+	return &lifecycle{log: log.WithComponent("LIFECYCLE")}
 }
 
 // Configure sets up process group for the command

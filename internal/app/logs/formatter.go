@@ -41,8 +41,9 @@ func NewLogFormatter(cfg *config.Config) *LogFormatter {
 
 // logEntry represents a parsed JSON log entry
 type logEntry struct {
-	Message string `json:"message"`
-	Service string `json:"service"`
+	Component string `json:"component"`
+	Message   string `json:"message"`
+	Service   string `json:"service"`
 }
 
 // Write implements io.Writer for logger output
@@ -82,7 +83,12 @@ func (f *LogFormatter) writeConsole(p []byte) int {
 		serviceName = config.AppName
 	}
 
-	line := f.formatLine(serviceName, entry.Message)
+	message := entry.Message
+	if entry.Component != "" {
+		message = fmt.Sprintf("[%s] %s", entry.Component, message)
+	}
+
+	line := f.formatLine(serviceName, message)
 	os.Stdout.Write([]byte(line))
 
 	return len(p)

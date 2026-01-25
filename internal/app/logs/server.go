@@ -44,7 +44,7 @@ func NewServer(profile string, log logger.Logger) Server {
 		profile:    profile,
 		socketPath: socketPath,
 		hub:        NewHub(),
-		log:        log,
+		log:        log.WithComponent("SERVER"),
 	}
 }
 

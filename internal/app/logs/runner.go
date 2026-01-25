@@ -25,7 +25,7 @@ type runner struct {
 func NewRunner(client Client, log logger.Logger) Runner {
 	return &runner{
 		client: client,
-		log:    log,
+		log:    log.WithComponent("LOGS"),
 	}
 }
 

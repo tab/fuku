@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -32,6 +33,7 @@ type Logger interface {
 	Info() *zerolog.Event
 	Warn() *zerolog.Event
 	Error() *zerolog.Event
+	WithComponent(name string) Logger
 }
 
 // AppLogger represents a logger implementation using zerolog
@@ -71,15 +73,9 @@ func NewLoggerWithOutput(cfg *config.Config, customOutput io.Writer) Logger {
 		case JSONFormat:
 			output = os.Stdout
 		case ConsoleFormat:
-			output = zerolog.ConsoleWriter{
-				Out:        os.Stdout,
-				TimeFormat: TimeFormat,
-			}
+			output = newConsoleWriter()
 		default:
-			output = zerolog.ConsoleWriter{
-				Out:        os.Stdout,
-				TimeFormat: TimeFormat,
-			}
+			output = newConsoleWriter()
 		}
 	}
 
@@ -112,6 +108,42 @@ func (l *AppLogger) Warn() *zerolog.Event {
 // Error returns an error level Event for logging error messages
 func (l *AppLogger) Error() *zerolog.Event {
 	return l.log.Error()
+}
+
+// WithComponent creates a new logger with a component name for contextual logging
+func (l *AppLogger) WithComponent(name string) Logger {
+	return &AppLogger{
+		log: l.log.With().Str("component", name).Logger(),
+	}
+}
+
+// newConsoleWriter creates a console writer with component formatting
+func newConsoleWriter() zerolog.ConsoleWriter {
+	return zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: TimeFormat,
+		FormatFieldName: func(i interface{}) string {
+			if s, ok := i.(string); ok && s == "component" {
+				return ""
+			}
+
+			return fmt.Sprintf("%s=", i)
+		},
+		FormatPrepare: func(m map[string]interface{}) error {
+			if component, ok := m["component"].(string); ok {
+				m["component"] = fmt.Sprintf("[%s]", component)
+			}
+
+			return nil
+		},
+		PartsOrder: []string{
+			zerolog.TimestampFieldName,
+			zerolog.LevelFieldName,
+			"component",
+			zerolog.CallerFieldName,
+			zerolog.MessageFieldName,
+		},
+	}
 }
 
 // getLogLevel converts string level to zerolog.Level

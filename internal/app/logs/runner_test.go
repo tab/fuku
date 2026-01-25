@@ -19,6 +19,8 @@ func Test_NewRunner(t *testing.T) {
 
 	mockClient := NewMockClient(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LOGS").Return(componentLogger)
 
 	r := NewRunner(mockClient, mockLogger)
 	assert.NotNil(t, r)
@@ -26,7 +28,7 @@ func Test_NewRunner(t *testing.T) {
 	impl, ok := r.(*runner)
 	assert.True(t, ok)
 	assert.Equal(t, mockClient, impl.client)
-	assert.Equal(t, mockLogger, impl.log)
+	assert.Equal(t, componentLogger, impl.log)
 }
 
 func Test_streamLogs(t *testing.T) {
@@ -35,6 +37,7 @@ func Test_streamLogs(t *testing.T) {
 
 	mockClient := NewMockClient(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
 
 	tests := []struct {
 		name           string
@@ -47,6 +50,7 @@ func Test_streamLogs(t *testing.T) {
 			name:     "Success",
 			services: []string{"api"},
 			before: func() {
+				mockLogger.EXPECT().WithComponent("LOGS").Return(componentLogger)
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
 				mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
 				mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(nil)
@@ -58,8 +62,9 @@ func Test_streamLogs(t *testing.T) {
 			name:     "Connect error",
 			services: []string{"api"},
 			before: func() {
+				mockLogger.EXPECT().WithComponent("LOGS").Return(componentLogger)
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(errors.New("connection failed"))
-				mockLogger.EXPECT().Error().Return(nil)
+				componentLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -67,10 +72,11 @@ func Test_streamLogs(t *testing.T) {
 			name:     "Subscribe error",
 			services: []string{"api"},
 			before: func() {
+				mockLogger.EXPECT().WithComponent("LOGS").Return(componentLogger)
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
 				mockClient.EXPECT().Subscribe([]string{"api"}).Return(errors.New("subscribe failed"))
 				mockClient.EXPECT().Close().Return(nil)
-				mockLogger.EXPECT().Error().Return(nil)
+				componentLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -78,11 +84,12 @@ func Test_streamLogs(t *testing.T) {
 			name:     "Stream error",
 			services: []string{"api"},
 			before: func() {
+				mockLogger.EXPECT().WithComponent("LOGS").Return(componentLogger)
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
 				mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
 				mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(errors.New("stream failed"))
 				mockClient.EXPECT().Close().Return(nil)
-				mockLogger.EXPECT().Error().Return(nil)
+				componentLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -90,6 +97,7 @@ func Test_streamLogs(t *testing.T) {
 			name:     "Writes to output",
 			services: []string{},
 			before: func() {
+				mockLogger.EXPECT().WithComponent("LOGS").Return(componentLogger)
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
 				mockClient.EXPECT().Subscribe([]string{}).Return(nil)
 				mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, w io.Writer) error {

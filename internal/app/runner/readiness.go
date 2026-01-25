@@ -28,7 +28,7 @@ type readiness struct {
 // NewReadiness creates a new readiness checker instance
 func NewReadiness(log logger.Logger) Readiness {
 	return &readiness{
-		log: log,
+		log: log.WithComponent("READINESS"),
 	}
 }
 

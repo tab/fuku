@@ -95,3 +95,17 @@ func (mr *MockLoggerMockRecorder) Warn() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Warn", reflect.TypeOf((*MockLogger)(nil).Warn))
 }
+
+// WithComponent mocks base method.
+func (m *MockLogger) WithComponent(name string) Logger {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WithComponent", name)
+	ret0, _ := ret[0].(Logger)
+	return ret0
+}
+
+// WithComponent indicates an expected call of WithComponent.
+func (mr *MockLoggerMockRecorder) WithComponent(name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithComponent", reflect.TypeOf((*MockLogger)(nil).WithComponent), name)
+}

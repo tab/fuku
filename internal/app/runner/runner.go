@@ -51,7 +51,7 @@ func NewRunner(
 		pool:      pool,
 		event:     event,
 		command:   command,
-		log:       log,
+		log:       log.WithComponent("RUNNER"),
 	}
 }
 
@@ -85,13 +85,13 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		tierData[i] = runtime.TierData{Name: tier.Name, Services: tier.Services}
 	}
 
-	r.log.Debug().Msgf("[RUNNER] Publishing EventProfileResolved: profile=%s, tiers=%d", profile, len(tierData))
+	r.log.Debug().Msgf("Publishing EventProfileResolved: profile=%s, tiers=%d", profile, len(tierData))
 	r.event.Publish(runtime.Event{
 		Type:     runtime.EventProfileResolved,
 		Data:     runtime.ProfileResolvedData{Profile: profile, Tiers: tierData},
 		Critical: true,
 	})
-	r.log.Debug().Msg("[RUNNER] EventProfileResolved published")
+	r.log.Debug().Msg("EventProfileResolved published")
 
 	var services []string
 	for _, tier := range tiers {

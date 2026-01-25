@@ -61,7 +61,7 @@ func NewCLI(
 		runner:   runner,
 		streamer: streamer,
 		ui:       ui,
-		log:      log,
+		log:      log.WithComponent("CLI"),
 	}
 }
 
