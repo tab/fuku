@@ -7,11 +7,11 @@ Set Width 2560
 Set Height 1440
 
 Type "f"
-Sleep 0.25s
+Sleep 0.15s
 Type "u"
-Sleep 0.25s
+Sleep 0.15s
 Type "k"
-Sleep 0.25s
+Sleep 0.15s
 Type "u"
 Sleep 0.5s
 
