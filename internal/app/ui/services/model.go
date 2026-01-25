@@ -82,6 +82,11 @@ func (s *ServiceState) MarkFailed() {
 	s.Status = StatusFailed
 }
 
+// IsNil returns true if the service or its FSM is nil (handles nil receiver)
+func (s *ServiceState) IsNil() bool {
+	return s == nil || s.FSM == nil
+}
+
 // Model represents the Bubble Tea model for the services UI
 type Model struct {
 	ctx        context.Context
