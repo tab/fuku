@@ -134,6 +134,18 @@
    - Configurable log levels (debug, info, warn, error)
    - Service-specific log streaming with prefixes
 
+4. **Concurrency Configuration**
+   - Worker pool size (`concurrency.workers`, default: 5)
+   - Controls max concurrent service starts
+
+5. **Retry Configuration**
+   - Max retry attempts (`retry.attempts`, default: 3)
+   - Initial backoff duration (`retry.backoff`, default: 500ms)
+
+6. **Log Streaming Configuration**
+   - Buffer size (`logs.buffer`, default: 100)
+   - Controls socket log streaming buffer
+
 ### Testing Patterns
 
 1. **Mock Generation**

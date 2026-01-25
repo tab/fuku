@@ -130,6 +130,16 @@ profiles:
   backend: [postgres, api]        # Backend services only
   minimal: [api, postgres]        # Minimal set
 
+concurrency:
+  workers: 5                      # Max concurrent service starts
+
+retry:
+  attempts: 3                     # Max retry attempts
+  backoff: 500ms                  # Initial backoff duration
+
+logs:
+  buffer: 100                     # Log streaming buffer size
+
 logging:
   format: console
   level: info
