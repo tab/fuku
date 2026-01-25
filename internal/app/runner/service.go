@@ -19,7 +19,7 @@ import (
 const (
 	// scannerBufferSize is the initial buffer size for reading service output (64KB)
 	scannerBufferSize = 64 * 1024
-	// scannerBufferSize is the maximum buffer size for reading service output (4MB)
+	// scannerMaxBufferSize is the maximum buffer size for reading service output (4MB)
 	scannerMaxBufferSize = 4 * 1024 * 1024
 )
 
