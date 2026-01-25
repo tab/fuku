@@ -872,3 +872,135 @@ func Test_NormalizeTier(t *testing.T) {
 		})
 	}
 }
+
+func Test_ValidateWatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		watch       *Watch
+		expectError bool
+		expectedErr error
+	}{
+		{
+			name:        "nil watch is valid",
+			watch:       nil,
+			expectError: false,
+		},
+		{
+			name: "watch with paths is valid",
+			watch: &Watch{
+				Paths: []string{"**/*.go"},
+			},
+			expectError: false,
+		},
+		{
+			name: "watch with paths and ignore is valid",
+			watch: &Watch{
+				Paths:  []string{"**/*.go", "**/*.yaml"},
+				Ignore: []string{"*_test.go", "vendor/**"},
+			},
+			expectError: false,
+		},
+		{
+			name: "watch with empty paths",
+			watch: &Watch{
+				Paths: []string{},
+			},
+			expectError: true,
+			expectedErr: errors.ErrWatchPathsRequired,
+		},
+		{
+			name: "watch without paths field",
+			watch: &Watch{
+				Ignore: []string{"*_test.go"},
+			},
+			expectError: true,
+			expectedErr: errors.ErrWatchPathsRequired,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &Service{Watch: tt.watch}
+			err := service.validateWatch()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_LoadWatchConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		yaml          string
+		expectedWatch map[string]*Watch
+		expectError   bool
+	}{
+		{
+			name: "service with watch config",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    watch:
+      paths: ["**/*.go"]
+      ignore: ["*_test.go"]`,
+			expectedWatch: map[string]*Watch{
+				"api": {
+					Paths:  []string{"**/*.go"},
+					Ignore: []string{"*_test.go"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "service without watch config",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api`,
+			expectedWatch: map[string]*Watch{
+				"api": nil,
+			},
+			expectError: false,
+		},
+		{
+			name: "service with watch but empty paths",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    watch:
+      paths: []`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove("fuku.yaml")
+
+			cfg, _, err := Load()
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+
+				for name, expectedWatch := range tt.expectedWatch {
+					service, ok := cfg.Services[name]
+					assert.True(t, ok)
+					assert.Equal(t, expectedWatch, service.Watch)
+				}
+			}
+		})
+	}
+}

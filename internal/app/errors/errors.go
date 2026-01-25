@@ -28,6 +28,8 @@ var (
 	ErrProcessExited            = errors.New("process exited before readiness")
 	ErrInvalidRegexPattern      = errors.New("invalid regex pattern")
 
+	ErrWatchPathsRequired = errors.New("watch configuration requires paths field")
+
 	ErrFailedToGetWorkingDir = errors.New("failed to get working directory")
 	ErrFailedToCreatePipe    = errors.New("failed to create pipe")
 	ErrFailedToStartCommand  = errors.New("failed to start command")
