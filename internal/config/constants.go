@@ -39,8 +39,8 @@ const (
 
 // Retry settings
 const (
-	RetryAttempt = 3
-	RetryBackoff = 500 * time.Millisecond
+	RetryAttempts = 3
+	RetryBackoff  = 500 * time.Millisecond
 )
 
 // Socket configuration

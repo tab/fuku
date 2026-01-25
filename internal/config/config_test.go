@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -17,6 +18,8 @@ func Test_DefaultConfig(t *testing.T) {
 	assert.Equal(t, LogLevel, cfg.Logging.Level)
 	assert.Equal(t, LogFormat, cfg.Logging.Format)
 	assert.Equal(t, MaxWorkers, cfg.Concurrency.Workers)
+	assert.Equal(t, RetryAttempts, cfg.Retry.Attempts)
+	assert.Equal(t, RetryBackoff, cfg.Retry.Backoff)
 	assert.Equal(t, 1, cfg.Version)
 }
 
@@ -209,6 +212,55 @@ concurrency:
 	}
 }
 
+func Test_LoadRetryConfig(t *testing.T) {
+	tests := []struct {
+		name             string
+		yaml             string
+		expectedAttempts int
+		expectedBackoff  time.Duration
+	}{
+		{
+			name:             "default retry when not specified",
+			yaml:             `version: 1`,
+			expectedAttempts: RetryAttempts,
+			expectedBackoff:  RetryBackoff,
+		},
+		{
+			name: "custom retry values",
+			yaml: `version: 1
+retry:
+  attempts: 5
+  backoff: 1s`,
+			expectedAttempts: 5,
+			expectedBackoff:  time.Second,
+		},
+		{
+			name: "retry with zero backoff",
+			yaml: `version: 1
+retry:
+  attempts: 1
+  backoff: 0s`,
+			expectedAttempts: 1,
+			expectedBackoff:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove("fuku.yaml")
+
+			cfg, _, err := Load()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedAttempts, cfg.Retry.Attempts)
+			assert.Equal(t, tt.expectedBackoff, cfg.Retry.Backoff)
+		})
+	}
+}
+
 func Test_ApplyDefaults(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -302,6 +354,39 @@ func Test_Validate(t *testing.T) {
 			}(),
 			expectError: true,
 			errorMsg:    "concurrency workers must be greater than 0",
+		},
+		{
+			name: "invalid retry attempts zero",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Retry.Attempts = 0
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "retry attempts must be greater than 0",
+		},
+		{
+			name: "invalid retry attempts negative",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Retry.Attempts = -1
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "retry attempts must be greater than 0",
+		},
+		{
+			name: "invalid retry backoff negative",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Retry.Backoff = -1
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "retry backoff must not be negative",
 		},
 		{
 			name: "valid configuration with standard tiers",

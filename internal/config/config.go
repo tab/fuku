@@ -26,6 +26,10 @@ type Config struct {
 	Concurrency struct {
 		Workers int `yaml:"workers"`
 	}
+	Retry struct {
+		Attempts int           `yaml:"attempts"`
+		Backoff  time.Duration `yaml:"backoff"`
+	}
 	Version int
 }
 
@@ -67,12 +71,15 @@ func DefaultConfig() *Config {
 		Version:  1,
 	}
 
-	cfg.Profiles[Default] = "*"
-
 	cfg.Logging.Level = LogLevel
 	cfg.Logging.Format = LogFormat
 
 	cfg.Concurrency.Workers = MaxWorkers
+
+	cfg.Retry.Attempts = RetryAttempts
+	cfg.Retry.Backoff = RetryBackoff
+
+	cfg.Profiles[Default] = "*"
 
 	return cfg
 }
@@ -254,6 +261,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateRetry(); err != nil {
+		return err
+	}
+
 	for name, service := range c.Services {
 		if err := service.validateReadiness(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
@@ -267,6 +278,19 @@ func (c *Config) Validate() error {
 func (c *Config) validateConcurrency() error {
 	if c.Concurrency.Workers <= 0 {
 		return errors.ErrInvalidConcurrencyWorkers
+	}
+
+	return nil
+}
+
+// validateRetry validates retry settings
+func (c *Config) validateRetry() error {
+	if c.Retry.Attempts <= 0 {
+		return errors.ErrInvalidRetryAttempts
+	}
+
+	if c.Retry.Backoff < 0 {
+		return errors.ErrInvalidRetryBackoff
 	}
 
 	return nil
