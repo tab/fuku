@@ -22,6 +22,9 @@ func Test_NewServer(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVER").Return(componentLogger)
+
 	s := NewServer("test-profile", mockLogger)
 
 	assert.NotNil(t, s)
@@ -30,7 +33,7 @@ func Test_NewServer(t *testing.T) {
 	assert.Equal(t, "test-profile", impl.profile)
 	assert.Contains(t, impl.socketPath, config.SocketPrefix+"test-profile"+config.SocketSuffix)
 	assert.NotNil(t, impl.hub)
-	assert.NotNil(t, impl.log)
+	assert.Equal(t, componentLogger, impl.log)
 }
 
 func Test_Server_SocketPath(t *testing.T) {
@@ -38,6 +41,9 @@ func Test_Server_SocketPath(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVER").Return(componentLogger)
+
 	s := NewServer("my-profile", mockLogger)
 
 	expected := filepath.Join(config.SocketDir, config.SocketPrefix+"my-profile"+config.SocketSuffix)

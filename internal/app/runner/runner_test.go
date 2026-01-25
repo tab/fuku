@@ -26,6 +26,9 @@ func Test_NewRunner(t *testing.T) {
 	cfg := &config.Config{}
 
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
+
 	mockDiscovery := NewMockDiscovery(ctrl)
 	mockRegistry := NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
@@ -40,7 +43,7 @@ func Test_NewRunner(t *testing.T) {
 	instance, ok := r.(*runner)
 	assert.True(t, ok)
 	assert.Equal(t, cfg, instance.cfg)
-	assert.Equal(t, mockLogger, instance.log)
+	assert.Equal(t, componentLogger, instance.log)
 	assert.Equal(t, mockDiscovery, instance.discovery)
 	assert.Equal(t, mockService, instance.service)
 	assert.Equal(t, mockWorkerPool, instance.pool)
@@ -58,11 +61,20 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	serverLogger := logger.NewMockLogger(ctrl)
+
+	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
+	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
+
 	mockDiscovery.EXPECT().Resolve("nonexistent").Return(nil, errors.ErrProfileNotFound)
 
 	mockRegistry := NewMockRegistry(ctrl)
@@ -91,11 +103,20 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	serverLogger := logger.NewMockLogger(ctrl)
+
+	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
+	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
+
 	mockDiscovery.EXPECT().Resolve("test").Return(nil, errors.ErrServiceNotFound)
 
 	mockRegistry := NewMockRegistry(ctrl)
@@ -126,12 +147,21 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	serverLogger := logger.NewMockLogger(ctrl)
+
+	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
+	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
+
 	mockDiscovery.EXPECT().Resolve("test").Return([]Tier{{Name: "platform", Services: []string{"api"}}}, nil)
 
 	mockProcess := NewMockProcess(ctrl)
@@ -161,16 +191,10 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess}).AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
-	r := &runner{
-		cfg:       cfg,
-		discovery: mockDiscovery,
-		service:   mockService,
-		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
+	mockEvent := runtime.NewNoOpEventBus()
+	mockCommand := runtime.NewNoOpCommandBus()
+
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -188,11 +212,20 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	}
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	serverLogger := logger.NewMockLogger(ctrl)
+
+	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
+	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
+
 	mockDiscovery.EXPECT().Resolve("default").Return([]Tier{}, nil)
 
 	mockRegistry := NewMockRegistry(ctrl)
@@ -200,17 +233,10 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockEvent := runtime.NewNoOpEventBus()
+	mockCommand := runtime.NewNoOpCommandBus()
 
-	r := &runner{
-		cfg:       cfg,
-		discovery: mockDiscovery,
-		registry:  mockRegistry,
-		service:   mockService,
-		pool:      mockWorkerPool,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()

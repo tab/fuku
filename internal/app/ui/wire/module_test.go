@@ -45,13 +45,16 @@ func Test_UI_CreateProgram(t *testing.T) {
 	mockController := services.NewMockController(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
 
 	ctx := context.Background()
 	eventChan := make(chan runtime.Event)
 	close(eventChan)
 
 	mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
+	mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	params := UIParams{
 		EventBus:   mockEventBus,
@@ -70,15 +73,6 @@ func Test_UI_CreateProgram(t *testing.T) {
 }
 
 func Test_UI_MultipleProfiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockEventBus := runtime.NewMockEventBus(ctrl)
-	mockCommandBus := runtime.NewMockCommandBus(ctrl)
-	mockController := services.NewMockController(ctrl)
-	mockMonitor := monitor.NewMockMonitor(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
 	tests := []struct {
 		name    string
 		profile string
@@ -90,12 +84,24 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockEventBus := runtime.NewMockEventBus(ctrl)
+			mockCommandBus := runtime.NewMockCommandBus(ctrl)
+			mockController := services.NewMockController(ctrl)
+			mockMonitor := monitor.NewMockMonitor(ctrl)
+			mockLogger := logger.NewMockLogger(ctrl)
+			componentLogger := logger.NewMockLogger(ctrl)
+
 			ctx := context.Background()
 			eventChan := make(chan runtime.Event)
 			close(eventChan)
 
 			mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
+			mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
 			mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+			componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 			params := UIParams{
 				EventBus:   mockEventBus,

@@ -31,6 +31,8 @@ func Test_NewCLI(t *testing.T) {
 		return nil, nil
 	}
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("CLI").Return(componentLogger)
 
 	cliInstance := NewCLI(cmd, mockRunner, mockLogsRunner, mockUI, mockLogger)
 	assert.NotNil(t, cliInstance)
@@ -42,7 +44,7 @@ func Test_NewCLI(t *testing.T) {
 	assert.Equal(t, mockRunner, instance.runner)
 	assert.Equal(t, mockLogsRunner, instance.streamer)
 	assert.NotNil(t, instance.ui)
-	assert.Equal(t, mockLogger, instance.log)
+	assert.Equal(t, componentLogger, instance.log)
 }
 
 func Test_Execute(t *testing.T) {

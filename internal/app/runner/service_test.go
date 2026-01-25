@@ -27,6 +27,8 @@ func Test_NewService(t *testing.T) {
 	mockReadiness := NewMockReadiness(ctrl)
 	mockEventBus := runtime.NewNoOpEventBus()
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
@@ -46,6 +48,8 @@ func Test_Start_DirectoryNotExist(t *testing.T) {
 	mockReadiness := NewMockReadiness(ctrl)
 	mockEventBus := runtime.NewNoOpEventBus()
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
@@ -77,9 +81,11 @@ func Test_Start_EmptyDirectory_MakefileNotFound(t *testing.T) {
 	mockEventBus := runtime.NewNoOpEventBus()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
@@ -108,7 +114,9 @@ func Test_Start_EmptyDirectory_MakeNotFound(t *testing.T) {
 	mockEventBus := runtime.NewNoOpEventBus()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
@@ -130,6 +138,8 @@ func Test_Start_RelativePathConversion(t *testing.T) {
 	mockReadiness := NewMockReadiness(ctrl)
 	mockEventBus := runtime.NewNoOpEventBus()
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
@@ -157,6 +167,8 @@ func Test_Stop_NilProcess(t *testing.T) {
 	mockReadiness := NewMockReadiness(ctrl)
 	mockEventBus := runtime.NewNoOpEventBus()
 	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
@@ -181,9 +193,11 @@ func Test_Start_WithValidDirectory(t *testing.T) {
 	mockEventBus := runtime.NewNoOpEventBus()
 
 	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
 
