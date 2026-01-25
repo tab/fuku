@@ -135,7 +135,7 @@ func FindSocket(socketDir, profile string) (string, error) {
 			profiles[i] = strings.TrimSuffix(strings.TrimPrefix(base, config.SocketPrefix), config.SocketSuffix)
 		}
 
-		return "", fmt.Errorf("%w, specify with --profile: %v", errors.ErrMultipleInstancesRunning, profiles)
+		return "", fmt.Errorf("%w, use: fuku logs --profile <name>, available: %v", errors.ErrMultipleInstancesRunning, profiles)
 	}
 
 	return matches[0], nil
