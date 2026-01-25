@@ -44,7 +44,7 @@ func Test_CreateApp(t *testing.T) {
 			},
 			cmd: &cli.Options{
 				Type:    cli.CommandRun,
-				Profile: config.DefaultProfile,
+				Profile: config.Default,
 				NoUI:    false,
 			},
 		},
@@ -60,7 +60,7 @@ func Test_CreateApp(t *testing.T) {
 			},
 			cmd: &cli.Options{
 				Type:    cli.CommandRun,
-				Profile: config.DefaultProfile,
+				Profile: config.Default,
 				NoUI:    true,
 			},
 		},
@@ -76,7 +76,7 @@ func Test_CreateApp(t *testing.T) {
 			},
 			cmd: &cli.Options{
 				Type:    cli.CommandRun,
-				Profile: config.DefaultProfile,
+				Profile: config.Default,
 				NoUI:    false,
 			},
 		},

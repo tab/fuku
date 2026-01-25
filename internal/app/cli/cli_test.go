@@ -24,7 +24,7 @@ func Test_NewCLI(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cmd := &Options{Type: CommandRun, Profile: config.DefaultProfile, NoUI: true}
+	cmd := &Options{Type: CommandRun, Profile: config.Default, NoUI: true}
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogsRunner := logs.NewMockRunner(ctrl)
 	mockUI := func(ctx context.Context, profile string) (*tea.Program, error) {
@@ -68,12 +68,12 @@ func Test_Execute(t *testing.T) {
 			name: "Run command with default profile and --no-ui",
 			cmd: &Options{
 				Type:    CommandRun,
-				Profile: config.DefaultProfile,
+				Profile: config.Default,
 				NoUI:    true,
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.DefaultProfile).Return(nil)
+				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.Default).Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -82,7 +82,7 @@ func Test_Execute(t *testing.T) {
 			name: "Help command",
 			cmd: &Options{
 				Type:    CommandHelp,
-				Profile: config.DefaultProfile,
+				Profile: config.Default,
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
@@ -94,7 +94,7 @@ func Test_Execute(t *testing.T) {
 			name: "Version command",
 			cmd: &Options{
 				Type:    CommandVersion,
-				Profile: config.DefaultProfile,
+				Profile: config.Default,
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)

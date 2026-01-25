@@ -14,8 +14,8 @@ func Test_DefaultConfig(t *testing.T) {
 
 	assert.NotNil(t, cfg.Services)
 	assert.NotNil(t, cfg.Profiles)
-	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
-	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
+	assert.Equal(t, LogLevel, cfg.Logging.Level)
+	assert.Equal(t, LogFormat, cfg.Logging.Format)
 	assert.Equal(t, 1, cfg.Version)
 }
 
