@@ -107,11 +107,31 @@ func Test_GetStyledAndPaddedStatus(t *testing.T) {
 		status     Status
 		isSelected bool
 	}{
-		{name: "running status not selected", status: StatusRunning, isSelected: false},
-		{name: "starting status not selected", status: StatusStarting, isSelected: false},
-		{name: "failed status not selected", status: StatusFailed, isSelected: false},
-		{name: "stopped status not selected", status: StatusStopped, isSelected: false},
-		{name: "running status selected", status: StatusRunning, isSelected: true},
+		{
+			name:       "running status not selected",
+			status:     StatusRunning,
+			isSelected: false,
+		},
+		{
+			name:       "starting status not selected",
+			status:     StatusStarting,
+			isSelected: false,
+		},
+		{
+			name:       "failed status not selected",
+			status:     StatusFailed,
+			isSelected: false,
+		},
+		{
+			name:       "stopped status not selected",
+			status:     StatusStopped,
+			isSelected: false,
+		},
+		{
+			name:       "running status selected",
+			status:     StatusRunning,
+			isSelected: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -134,9 +154,30 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 		wantTruncated bool
 		wantNameInRow string
 	}{
-		{name: "short name no truncation", serviceName: "api", maxNameLen: 20, viewportWidth: 100, wantTruncated: false, wantNameInRow: "api"},
-		{name: "long name truncated", serviceName: "action-confirmation-management-service", maxNameLen: 38, viewportWidth: 60, wantTruncated: true, wantNameInRow: "action-confirmation…"},
-		{name: "name fits exactly", serviceName: "user-service", maxNameLen: 12, viewportWidth: 100, wantTruncated: false, wantNameInRow: "user-service"},
+		{
+			name:          "short name no truncation",
+			serviceName:   "api",
+			maxNameLen:    20,
+			viewportWidth: 100,
+			wantTruncated: false,
+			wantNameInRow: "api",
+		},
+		{
+			name:          "long name truncated",
+			serviceName:   "action-confirmation-management-service",
+			maxNameLen:    38,
+			viewportWidth: 60,
+			wantTruncated: true,
+			wantNameInRow: "action-confirmation…",
+		},
+		{
+			name:          "name fits exactly",
+			serviceName:   "user-service",
+			maxNameLen:    12,
+			viewportWidth: 100,
+			wantTruncated: false,
+			wantNameInRow: "user-service",
+		},
 	}
 
 	for _, tt := range tests {
@@ -253,8 +294,16 @@ func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
 		isSelected bool
 		want       string
 	}{
-		{name: "FSM nil not selected", isSelected: false, want: " "},
-		{name: "FSM nil selected", isSelected: true, want: components.IndicatorSelected},
+		{
+			name:       "FSM nil not selected",
+			isSelected: false,
+			want:       " ",
+		},
+		{
+			name:       "FSM nil selected",
+			isSelected: true,
+			want:       components.IndicatorSelected,
+		},
 	}
 
 	for _, tt := range tests {
@@ -276,10 +325,30 @@ func Test_GetServiceIndicator_GuardNonTransitionalState(t *testing.T) {
 		isSelected bool
 		want       string
 	}{
-		{name: "Running state not selected", state: Running, isSelected: false, want: " "},
-		{name: "Running state selected", state: Running, isSelected: true, want: components.IndicatorSelected},
-		{name: "Stopped state not selected", state: Stopped, isSelected: false, want: " "},
-		{name: "Failed state not selected", state: Failed, isSelected: false, want: " "},
+		{
+			name:       "Running state not selected",
+			state:      Running,
+			isSelected: false,
+			want:       " ",
+		},
+		{
+			name:       "Running state selected",
+			state:      Running,
+			isSelected: true,
+			want:       components.IndicatorSelected,
+		},
+		{
+			name:       "Stopped state not selected",
+			state:      Stopped,
+			isSelected: false,
+			want:       " ",
+		},
+		{
+			name:       "Failed state not selected",
+			state:      Failed,
+			isSelected: false,
+			want:       " ",
+		},
 	}
 
 	for _, tt := range tests {
@@ -303,9 +372,24 @@ func Test_GetServiceIndicator_GuardBlinkNil(t *testing.T) {
 		isSelected bool
 		want       string
 	}{
-		{name: "Starting state Blink nil not selected", state: Starting, isSelected: false, want: " "},
-		{name: "Stopping state Blink nil selected", state: Stopping, isSelected: true, want: components.IndicatorSelected},
-		{name: "Restarting state Blink nil not selected", state: Restarting, isSelected: false, want: " "},
+		{
+			name:       "Starting state Blink nil not selected",
+			state:      Starting,
+			isSelected: false,
+			want:       " ",
+		},
+		{
+			name:       "Stopping state Blink nil selected",
+			state:      Stopping,
+			isSelected: true,
+			want:       components.IndicatorSelected,
+		},
+		{
+			name:       "Restarting state Blink nil not selected",
+			state:      Restarting,
+			isSelected: false,
+			want:       " ",
+		},
 	}
 
 	for _, tt := range tests {
@@ -328,9 +412,18 @@ func Test_GetServiceIndicator_BlinkIndicatorNotSelected(t *testing.T) {
 		name  string
 		state string
 	}{
-		{name: "Starting state with blink", state: Starting},
-		{name: "Stopping state with blink", state: Stopping},
-		{name: "Restarting state with blink", state: Restarting},
+		{
+			name:  "Starting state with blink",
+			state: Starting,
+		},
+		{
+			name:  "Stopping state with blink",
+			state: Stopping,
+		},
+		{
+			name:  "Restarting state with blink",
+			state: Restarting,
+		},
 	}
 
 	for _, tt := range tests {
@@ -354,9 +447,18 @@ func Test_GetServiceIndicator_BlinkIndicatorSelected(t *testing.T) {
 		name  string
 		state string
 	}{
-		{name: "Starting state selected", state: Starting},
-		{name: "Stopping state selected", state: Stopping},
-		{name: "Restarting state selected", state: Restarting},
+		{
+			name:  "Starting state selected",
+			state: Starting,
+		},
+		{
+			name:  "Stopping state selected",
+			state: Stopping,
+		},
+		{
+			name:  "Restarting state selected",
+			state: Restarting,
+		},
 	}
 
 	for _, tt := range tests {
@@ -379,10 +481,30 @@ func Test_RenderTip_RotatesOverTime(t *testing.T) {
 		tickCounter int
 		wantIndex   int
 	}{
-		{name: "tick 0 with offset 0", tipOffset: 0, tickCounter: 0, wantIndex: 0},
-		{name: "tick 100 with offset 0", tipOffset: 0, tickCounter: 100, wantIndex: 1},
-		{name: "tick 0 with offset 3", tipOffset: 3, tickCounter: 0, wantIndex: 3},
-		{name: "wraps after all tips", tipOffset: 0, tickCounter: wrapTick, wantIndex: 0},
+		{
+			name:        "tick 0 with offset 0",
+			tipOffset:   0,
+			tickCounter: 0,
+			wantIndex:   0,
+		},
+		{
+			name:        "tick 100 with offset 0",
+			tipOffset:   0,
+			tickCounter: 100,
+			wantIndex:   1,
+		},
+		{
+			name:        "tick 0 with offset 3",
+			tipOffset:   3,
+			tickCounter: 0,
+			wantIndex:   3,
+		},
+		{
+			name:        "wraps after all tips",
+			tipOffset:   0,
+			tickCounter: wrapTick,
+			wantIndex:   0,
+		},
 	}
 
 	for _, tt := range tests {

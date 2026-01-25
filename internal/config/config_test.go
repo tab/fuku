@@ -187,8 +187,8 @@ func Test_Validate(t *testing.T) {
 			name: "valid configuration with standard tiers",
 			config: &Config{
 				Services: map[string]*Service{
-					"api": {Dir: "api", Tier: Foundation},
-					"web": {Dir: "web", Tier: Platform},
+					"api": {Dir: "api", Tier: "foundation"},
+					"web": {Dir: "web", Tier: "platform"},
 				},
 			},
 			expectError: false,
@@ -206,7 +206,7 @@ func Test_Validate(t *testing.T) {
 			name: "valid configuration with mixed tiers",
 			config: &Config{
 				Services: map[string]*Service{
-					"api":     {Dir: "api", Tier: Foundation},
+					"api":     {Dir: "api", Tier: "foundation"},
 					"custom":  {Dir: "custom", Tier: "middleware"},
 					"another": {Dir: "another", Tier: "services"},
 				},
@@ -274,8 +274,10 @@ func Test_ValidateReadiness(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name:      "nil readiness is valid",
-			readiness: nil, expectError: false},
+			name:        "nil readiness is valid",
+			readiness:   nil,
+			expectError: false,
+		},
 		{
 			name: "http type with url is valid",
 			readiness: &Readiness{

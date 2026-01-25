@@ -16,7 +16,7 @@
 - **Graceful Shutdown** - SIGTERM with timeout before force kill
 - **Profile Support** - Group services for batch operations
 - **Readiness Checks** - HTTP and log-pattern based detection
-- **Log Streaming** - Stream logs from running instances via `fuku --logs`
+- **Log Streaming** - Stream logs from running instances via `fuku logs`
 
 ## Installation
 
@@ -63,17 +63,23 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku
 fuku
 
 # Run with specified profile without TUI
-fuku --run=core --no-ui
+fuku run core --no-ui
+fuku --no-ui run core           # Flags work in any position
+
+# Use short aliases
+fuku r core                     # Same as 'fuku run core'
 
 # Stream logs from running instance (in separate terminal)
-fuku --logs                     # All services
-fuku --logs api auth            # Specific services
+fuku logs                       # All services
+fuku logs api auth              # Specific services
+fuku logs --profile core api    # Filter by profile
+fuku l api db                   # Short alias
 
 # Show help
-fuku help
+fuku help                       # or --help, -h
 
 # Show version
-fuku version
+fuku version                    # or --version, -v
 ```
 
 ### TUI Controls

@@ -90,19 +90,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(msg, m.ui.servicesKeys.ForceQuit) {
+		m.log.Warn().Msg("TUI: Force quit requested, exiting immediately")
+		m.loader.StopAll()
+
+		return m, tea.Quit
+	}
+
 	if m.state.shuttingDown {
 		return m, nil
 	}
 
 	switch {
 	case key.Matches(msg, m.ui.servicesKeys.Quit):
-		m.state.shuttingDown = true
-		m.loader.Start("_shutdown", "Shutting down all services…")
-		m.controller.StopAll()
-
-		return m, waitForEventCmd(m.eventChan)
-
-	case key.Matches(msg, m.ui.servicesKeys.ForceQuit):
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
 		m.controller.StopAll()

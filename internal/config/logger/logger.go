@@ -34,15 +34,6 @@ type Logger interface {
 	Error() *zerolog.Event
 }
 
-type Event interface {
-	Msg(msg string)
-	Msgf(format string, v ...interface{})
-	Str(key, value string) Event
-	Int(key string, value int) Event
-	Dur(key string, value time.Duration) Event
-	Err(err error) Event
-}
-
 // AppLogger represents a logger implementation using zerolog
 type AppLogger struct {
 	log zerolog.Logger

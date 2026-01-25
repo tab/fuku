@@ -39,17 +39,17 @@ func (m *MockCLI) EXPECT() *MockCLIMockRecorder {
 	return m.recorder
 }
 
-// Run mocks base method.
-func (m *MockCLI) Run(args []string) (int, error) {
+// Execute mocks base method.
+func (m *MockCLI) Execute() (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", args)
+	ret := m.ctrl.Call(m, "Execute")
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Run indicates an expected call of Run.
-func (mr *MockCLIMockRecorder) Run(args any) *gomock.Call {
+// Execute indicates an expected call of Execute.
+func (mr *MockCLIMockRecorder) Execute() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCLI)(nil).Run), args)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockCLI)(nil).Execute))
 }

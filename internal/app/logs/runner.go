@@ -2,70 +2,55 @@ package logs
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"fuku/internal/config"
+	"fuku/internal/config/logger"
 )
 
 // Runner handles logs mode operations
 type Runner interface {
-	Run(args []string) int
+	Run(profile string, services []string) int
 }
 
 type runner struct {
 	client Client
+	log    logger.Logger
 }
 
 // NewRunner creates a new logs runner
-func NewRunner(client Client) Runner {
-	return &runner{client: client}
+func NewRunner(client Client, log logger.Logger) Runner {
+	return &runner{
+		client: client,
+		log:    log,
+	}
 }
 
-// Run handles the --logs flag to stream logs from a running instance
-func (r *runner) Run(args []string) int {
-	profile, services := r.parseArgs(args)
-
+// Run handles the logs command to stream logs from a running instance
+func (r *runner) Run(profile string, services []string) int {
 	socketPath, err := FindSocket(config.SocketDir, profile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		r.log.Error().Err(err).Msg("Failed to find socket")
 		return 1
 	}
 
 	return r.streamLogs(socketPath, services, os.Stdout)
 }
 
-// parseArgs extracts profile and services from logs arguments
-func (r *runner) parseArgs(args []string) (profile string, services []string) {
-	for _, arg := range args {
-		switch {
-		case strings.HasPrefix(arg, "--profile="):
-			profile = strings.TrimPrefix(arg, "--profile=")
-		case strings.HasPrefix(arg, "-"):
-			// skip other flags
-		default:
-			services = append(services, arg)
-		}
-	}
-
-	return profile, services
-}
-
 // streamLogs connects to a running fuku instance and streams logs
 func (r *runner) streamLogs(socketPath string, services []string, output io.Writer) int {
 	if err := r.client.Connect(socketPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		r.log.Error().Err(err).Msg("Failed to connect to socket")
 		return 1
 	}
 
 	defer r.client.Close()
 
 	if err := r.client.Subscribe(services); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		r.log.Error().Err(err).Msg("Failed to subscribe to services")
 		return 1
 	}
 
@@ -73,7 +58,7 @@ func (r *runner) streamLogs(socketPath string, services []string, output io.Writ
 	defer cancel()
 
 	if err := r.client.Stream(ctx, output); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		r.log.Error().Err(err).Msg("Failed to stream logs")
 		return 1
 	}
 

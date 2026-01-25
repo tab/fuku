@@ -3,8 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 
 	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
@@ -16,103 +14,68 @@ import (
 const (
 	Usage = `Usage:
   fuku                            Run services with default profile (with TUI)
-  fuku --run=<PROFILE>            Run services with specified profile (with TUI)
-  fuku --run=<PROFILE> --no-ui    Run services without TUI
-  fuku --logs [service...]        Stream logs from running services
-  fuku help                       Show help
-  fuku version                    Show version
+  fuku run <profile>              Run services with specified profile
+  fuku --run <profile>            Same as above (--run, -r, run, r)
+  fuku run <profile> --no-ui      Run services without TUI
+
+  fuku logs [service...]          Stream logs from running services
+  fuku --logs                     Same as above (--logs, -l, logs, l)
+  fuku logs --profile <name> [service...] Stream logs from specific profile
+
+  fuku help                       Show help (--help, -h, help)
+  fuku version                    Show version (--version, -v, version)
 
 Examples:
   fuku                            Run default profile with TUI
-  fuku --run=core --no-ui         Run core services without TUI
-  fuku --logs                     Stream all logs from running fuku
-  fuku --logs api auth            Stream logs from api and auth services
-
-TUI Controls:
-  ↑/↓ or k/j                      Navigate services
-  pgup/pgdn/home/end              Scroll viewport
-  r                               Restart selected service
-  s                               Stop/start selected service
-  q                               Quit (stops all services)`
+  fuku run core --no-ui           Run core services without TUI
+  fuku -r core --no-ui            Same as above using flag
+  fuku logs                       Stream all logs from running fuku
+  fuku logs api auth              Stream logs from api and auth services
+  fuku -l                         Stream logs using flag`
 )
 
 // CLI defines the interface for cli operations
 type CLI interface {
-	Run(args []string) (exitCode int, err error)
+	Execute() (exitCode int, err error)
 }
 
 // cli represents the command-line interface for the application
 type cli struct {
-	cfg        *config.Config
-	options    config.Options
-	runner     runner.Runner
-	logsRunner logs.Runner
-	ui         wire.UI
-	log        logger.Logger
+	cmd      *Options
+	runner   runner.Runner
+	streamer logs.Runner
+	ui       wire.UI
+	log      logger.Logger
 }
 
 // NewCLI creates a new cli instance
 func NewCLI(
-	cfg *config.Config,
-	options config.Options,
+	cmd *Options,
 	runner runner.Runner,
-	logsRunner logs.Runner,
+	streamer logs.Runner,
 	ui wire.UI,
 	log logger.Logger,
 ) CLI {
 	return &cli{
-		cfg:        cfg,
-		options:    options,
-		runner:     runner,
-		logsRunner: logsRunner,
-		ui:         ui,
-		log:        log,
+		cmd:      cmd,
+		runner:   runner,
+		streamer: streamer,
+		ui:       ui,
+		log:      log,
 	}
 }
 
-// Run processes command-line arguments and executes commands
-func (c *cli) Run(args []string) (int, error) {
-	if c.options.Logs {
-		return c.handleLogs(args)
-	}
-
-	profile := config.DefaultProfile
-
-	var remainingArgs []string
-
-	for _, arg := range args {
-		switch {
-		case arg == "--no-ui":
-			// already handled via options
-		case strings.HasPrefix(arg, "--run="):
-			profile = strings.TrimPrefix(arg, "--run=")
-			if profile == "" {
-				profile = config.DefaultProfile
-			}
-		default:
-			remainingArgs = append(remainingArgs, arg)
-		}
-	}
-
-	if len(remainingArgs) == 0 {
-		return c.handleRun(profile)
-	}
-
-	cmd := remainingArgs[0]
-
-	switch cmd {
-	case "help", "--help", "-h":
+// Execute processes the parsed command and executes the appropriate handler
+func (c *cli) Execute() (int, error) {
+	switch c.cmd.Type {
+	case CommandHelp:
 		return c.handleHelp()
-	case "version", "--version", "-v":
+	case CommandVersion:
 		return c.handleVersion()
-	case "run", "-r":
-		if len(remainingArgs) > 1 {
-			profile = remainingArgs[1]
-		}
-
-		return c.handleRun(profile)
+	case CommandLogs:
+		return c.handleLogs()
 	default:
-		return c.handleUnknown()
+		return c.handleRun(c.cmd.Profile)
 	}
 }
 
@@ -122,11 +85,9 @@ func (c *cli) handleRun(profile string) (int, error) {
 
 	ctx := context.Background()
 
-	if c.options.NoUI {
+	if c.cmd.NoUI {
 		if err := c.runner.Run(ctx, profile); err != nil {
 			c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
-			fmt.Printf("Error: %v\n", err)
-
 			return 1, err
 		}
 
@@ -150,15 +111,11 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 	p, err := c.ui(ctx, profile)
 	if err != nil {
 		c.log.Error().Err(err).Msg("Failed to create UI")
-		fmt.Fprintf(os.Stderr, "Failed to create UI: %v\n", err)
-
 		return 1, err
 	}
 
 	if _, err := p.Run(); err != nil {
 		c.log.Error().Err(err).Msg("UI error")
-		fmt.Fprintf(os.Stderr, "UI error: %v\n", err)
-
 		return 1, err
 	}
 
@@ -166,8 +123,6 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 
 	if err := <-runnerErrChan; err != nil {
 		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
-		fmt.Printf("Error: %v\n", err)
-
 		return 1, err
 	}
 
@@ -175,10 +130,10 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 }
 
 // handleLogs streams logs from a running fuku instance
-func (c *cli) handleLogs(args []string) (int, error) {
+func (c *cli) handleLogs() (int, error) {
 	c.log.Debug().Msg("Running logs mode")
 
-	return c.logsRunner.Run(args), nil
+	return c.streamer.Run(c.cmd.Profile, c.cmd.Services), nil
 }
 
 // handleHelp displays help information
@@ -195,12 +150,4 @@ func (c *cli) handleVersion() (int, error) {
 	fmt.Printf("Version: %s\n", config.Version)
 
 	return 0, nil
-}
-
-// handleUnknown handles unknown commands
-func (c *cli) handleUnknown() (int, error) {
-	c.log.Debug().Msg("Unknown command")
-	fmt.Println("Unknown command. Use 'fuku help' for more information")
-
-	return 1, nil
 }

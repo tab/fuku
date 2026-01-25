@@ -173,9 +173,21 @@ func Test_truncateServiceName_DisplayWidth(t *testing.T) {
 		input    string
 		maxWidth int
 	}{
-		{name: "wide emoji", input: "🔥🔥🔥🔥🔥🔥🔥🔥", maxWidth: 10},
-		{name: "CJK double-width", input: "測試服務器名稱很長", maxWidth: 12},
-		{name: "mixed width", input: "test-測試-🔥-service", maxWidth: 15},
+		{
+			name:     "wide emoji",
+			input:    "🔥🔥🔥🔥🔥🔥🔥🔥",
+			maxWidth: 10,
+		},
+		{
+			name:     "CJK double-width",
+			input:    "測試服務器名稱很長",
+			maxWidth: 12,
+		},
+		{
+			name:     "mixed width",
+			input:    "test-測試-🔥-service",
+			maxWidth: 15,
+		},
 	}
 
 	for _, tt := range tests {
@@ -335,9 +347,21 @@ func Test_truncateErrorMessage_DisplayWidth(t *testing.T) {
 		errorText      string
 		availableWidth int
 	}{
-		{name: "wide emoji error", errorText: "🔥🔥🔥🔥🔥🔥", availableWidth: 15},
-		{name: "CJK double-width error", errorText: "測試錯誤訊息很長", availableWidth: 18},
-		{name: "mixed width error", errorText: "error-錯誤-🔥-failed", availableWidth: 20},
+		{
+			name:           "wide emoji error",
+			errorText:      "🔥🔥🔥🔥🔥🔥",
+			availableWidth: 15,
+		},
+		{
+			name:           "CJK double-width error",
+			errorText:      "測試錯誤訊息很長",
+			availableWidth: 18,
+		},
+		{
+			name:           "mixed width error",
+			errorText:      "error-錯誤-🔥-failed",
+			availableWidth: 20,
+		},
 	}
 
 	for _, tt := range tests {
@@ -451,18 +475,66 @@ func Test_simplifyErrorMessage(t *testing.T) {
 		err      error
 		expected string
 	}{
-		{name: "nil error", err: nil, expected: ""},
-		{name: "max retries exceeded", err: errors.ErrMaxRetriesExceeded, expected: "max retries exceeded"},
-		{name: "process exited", err: errors.ErrProcessExited, expected: "process exited"},
-		{name: "readiness timeout", err: errors.ErrReadinessTimeout, expected: "readiness timeout"},
-		{name: "failed to start command", err: errors.ErrFailedToStartCommand, expected: "failed to start"},
-		{name: "service not found", err: errors.ErrServiceNotFound, expected: "service not found"},
-		{name: "service directory not exist", err: errors.ErrServiceDirectoryNotExist, expected: "directory not found"},
-		{name: "unknown error returns message", err: fmt.Errorf("custom error"), expected: "custom error"},
-		{name: "wrapped max retries", err: fmt.Errorf("failed: %w", errors.ErrMaxRetriesExceeded), expected: "max retries exceeded"},
-		{name: "wrapped process exited", err: fmt.Errorf("service api: %w", errors.ErrProcessExited), expected: "process exited"},
-		{name: "wrapped readiness timeout", err: fmt.Errorf("check failed: %w", errors.ErrReadinessTimeout), expected: "readiness timeout"},
-		{name: "deeply wrapped error", err: fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", errors.ErrServiceNotFound)), expected: "service not found"},
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: "",
+		},
+		{
+			name:     "max retries exceeded",
+			err:      errors.ErrMaxRetriesExceeded,
+			expected: "max retries exceeded",
+		},
+		{
+			name:     "process exited",
+			err:      errors.ErrProcessExited,
+			expected: "process exited",
+		},
+		{
+			name:     "readiness timeout",
+			err:      errors.ErrReadinessTimeout,
+			expected: "readiness timeout",
+		},
+		{
+			name:     "failed to start command",
+			err:      errors.ErrFailedToStartCommand,
+			expected: "failed to start",
+		},
+		{
+			name:     "service not found",
+			err:      errors.ErrServiceNotFound,
+			expected: "service not found",
+		},
+		{
+			name:     "service directory not exist",
+			err:      errors.ErrServiceDirectoryNotExist,
+			expected: "directory not found",
+		},
+		{
+			name:     "unknown error returns message",
+			err:      fmt.Errorf("custom error"),
+			expected: "custom error",
+		},
+		{
+			name:     "wrapped max retries",
+			err:      fmt.Errorf("failed: %w", errors.ErrMaxRetriesExceeded),
+			expected: "max retries exceeded",
+		},
+		{
+			name:     "wrapped process exited",
+			err:      fmt.Errorf("service api: %w", errors.ErrProcessExited),
+			expected: "process exited",
+		},
+		{
+			name:     "wrapped readiness timeout",
+			err:      fmt.Errorf("check failed: %w", errors.ErrReadinessTimeout),
+			expected: "readiness timeout",
+		},
+		{
+			name:     "deeply wrapped error",
+			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", errors.ErrServiceNotFound)),
+			expected: "service not found",
+		},
 	}
 
 	for _, tt := range tests {

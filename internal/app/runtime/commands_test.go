@@ -176,3 +176,62 @@ func Test_NoOpCommandBus_Publish_Does_Not_Panic(t *testing.T) {
 		ncb.Publish(Command{Type: CommandStopService})
 	})
 }
+
+func Test_CommandBus_Close_Twice_Does_Not_Panic(t *testing.T) {
+	cb := NewCommandBus(10)
+
+	assert.NotPanics(t, func() {
+		cb.Close()
+		cb.Close()
+	})
+}
+
+func Test_CommandBus_AllCommandTypes(t *testing.T) {
+	cmdTypes := []CommandType{
+		CommandStopService,
+		CommandRestartService,
+		CommandStopAll,
+	}
+
+	for _, ct := range cmdTypes {
+		t.Run(string(ct), func(t *testing.T) {
+			cb := NewCommandBus(10)
+			defer cb.Close()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			sub := cb.Subscribe(ctx)
+
+			cb.Publish(Command{Type: ct})
+
+			select {
+			case received := <-sub:
+				assert.Equal(t, ct, received.Type)
+			case <-time.After(100 * time.Millisecond):
+				t.Fatalf("timeout waiting for command %s", ct)
+			}
+		})
+	}
+}
+
+func Test_CommandData_Types(t *testing.T) {
+	t.Run("StopServiceData", func(t *testing.T) {
+		data := StopServiceData{Service: "svc1"}
+		assert.Equal(t, "svc1", data.Service)
+	})
+
+	t.Run("RestartServiceData", func(t *testing.T) {
+		data := RestartServiceData{Service: "svc1"}
+		assert.Equal(t, "svc1", data.Service)
+	})
+}
+
+func Test_NoOpCommandBus_Close_Multiple_Times(t *testing.T) {
+	ncb := NewNoOpCommandBus()
+
+	assert.NotPanics(t, func() {
+		ncb.Close()
+		ncb.Close()
+	})
+}

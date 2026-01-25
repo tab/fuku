@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	"fuku/internal/config/logger"
 )
 
 func Test_NewRunner(t *testing.T) {
@@ -16,40 +18,15 @@ func Test_NewRunner(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient := NewMockClient(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
 
-	r := NewRunner(mockClient)
+	r := NewRunner(mockClient, mockLogger)
 	assert.NotNil(t, r)
 
 	impl, ok := r.(*runner)
 	assert.True(t, ok)
 	assert.Equal(t, mockClient, impl.client)
-}
-
-func Test_parseArgs(t *testing.T) {
-	r := &runner{}
-
-	tests := []struct {
-		name             string
-		args             []string
-		expectedProfile  string
-		expectedServices []string
-	}{
-		{name: "Empty args", args: []string{}, expectedProfile: "", expectedServices: nil},
-		{name: "Single service", args: []string{"api"}, expectedProfile: "", expectedServices: []string{"api"}},
-		{name: "Multiple services", args: []string{"api", "db", "cache"}, expectedProfile: "", expectedServices: []string{"api", "db", "cache"}},
-		{name: "Profile only", args: []string{"--profile=prod"}, expectedProfile: "prod", expectedServices: nil},
-		{name: "Profile with services", args: []string{"--profile=dev", "api", "db"}, expectedProfile: "dev", expectedServices: []string{"api", "db"}},
-		{name: "Skips unknown flags", args: []string{"--logs", "-v", "api"}, expectedProfile: "", expectedServices: []string{"api"}},
-		{name: "Mixed args order", args: []string{"api", "--profile=staging", "db"}, expectedProfile: "staging", expectedServices: []string{"api", "db"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			profile, services := r.parseArgs(tt.args)
-			assert.Equal(t, tt.expectedProfile, profile)
-			assert.Equal(t, tt.expectedServices, services)
-		})
-	}
+	assert.Equal(t, mockLogger, impl.log)
 }
 
 func Test_streamLogs(t *testing.T) {
@@ -57,6 +34,7 @@ func Test_streamLogs(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient := NewMockClient(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
 
 	tests := []struct {
 		name           string
@@ -81,6 +59,7 @@ func Test_streamLogs(t *testing.T) {
 			services: []string{"api"},
 			before: func() {
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(errors.New("connection failed"))
+				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -91,6 +70,7 @@ func Test_streamLogs(t *testing.T) {
 				mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
 				mockClient.EXPECT().Subscribe([]string{"api"}).Return(errors.New("subscribe failed"))
 				mockClient.EXPECT().Close().Return(nil)
+				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -102,6 +82,7 @@ func Test_streamLogs(t *testing.T) {
 				mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
 				mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(errors.New("stream failed"))
 				mockClient.EXPECT().Close().Return(nil)
+				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedResult: 1,
 		},
@@ -126,7 +107,7 @@ func Test_streamLogs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			r := NewRunner(mockClient).(*runner)
+			r := NewRunner(mockClient, mockLogger).(*runner)
 
 			var output bytes.Buffer
 

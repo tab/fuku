@@ -1,8 +1,21 @@
 .PHONY: run
 run:
-	sleep 10;
-	@echo "INFO: Starting api service..."
-	@counter=0; \
+	@echo "INFO: [API] Starting api service (PID: $$$$)..."
+	@sleep 2
+	@echo "INFO: [API] Service ready, accepting requests..."
+	@cleanup() { \
+		echo "INFO: [API] Received shutdown signal, starting graceful shutdown..."; \
+		echo "INFO: [API] Draining active connections..."; \
+		sleep 1; \
+		echo "INFO: [API] Closing database connections..."; \
+		sleep 1; \
+		echo "INFO: [API] Flushing caches..."; \
+		sleep 1; \
+		echo "INFO: [API] Shutdown complete, goodbye!"; \
+		exit 0; \
+	}; \
+	trap cleanup SIGTERM SIGINT; \
+	counter=0; \
 	while true; do \
 		case $$((counter % 8)) in \
 			0) echo "INFO: [API] Processing request at $$(date)" ;; \
@@ -15,5 +28,5 @@ run:
 			7) echo "DEBUG: Cache invalidation triggered for key=books:category:fiction X-Trace-ID=0d1e2f3a-4b5c-6d7e-8f9a-0b1c2d3e4f5g TTL=3600s Reason=manual_flush Timestamp=$$(date +%s)" ;; \
 		esac; \
 		counter=$$((counter + 1)); \
-		sleep 2; \
+		sleep 2 & wait; \
 	done

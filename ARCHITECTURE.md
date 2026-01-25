@@ -488,13 +488,13 @@ The logs package provides real-time log streaming from running fuku instances vi
 
 ```
 ┌─────────────────────────┐
-│  fuku --logs api auth   │ ◄─── Separate terminal
+│   fuku logs api auth    │ ◄─── Separate terminal
 └───────────┬─────────────┘
             │ Unix Socket
             │ /tmp/fuku-<profile>.sock
             ▼
 ┌──────────────────────────────────────────────┐
-│        fuku --run=profile (main process)      │
+│        fuku run profile (main process)        │
 │  Service → teeStream → Hub → SocketServer    │
 └──────────────────────────────────────────────┘
 ```

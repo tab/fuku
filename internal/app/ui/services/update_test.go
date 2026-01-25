@@ -432,7 +432,29 @@ func Test_HandleEvent_SignalCaught(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func Test_HandleKeyPress_IgnoresKeysWhileShuttingDown(t *testing.T) {
+func Test_HandleKeyPress_ForceQuitWithCtrlC(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Warn().Return(nil)
+
+	mockController := NewMockController(ctrl)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController, log: mockLogger}
+	m.state.shuttingDown = false
+	m.ui.servicesKeys = DefaultKeyMap()
+
+	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	teaModel, cmd := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.False(t, result.loader.Active)
+	assert.NotNil(t, cmd)
+}
+
+func Test_HandleKeyPress_IgnoresQuitWhileShuttingDown(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -444,6 +466,25 @@ func Test_HandleKeyPress_IgnoresKeysWhileShuttingDown(t *testing.T) {
 	m.ui.servicesKeys = DefaultKeyMap()
 
 	msg := toKeyMsg("q")
+	teaModel, cmd := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.shuttingDown)
+	assert.Nil(t, cmd)
+}
+
+func Test_HandleKeyPress_IgnoresOtherKeysWhileShuttingDown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController}
+	m.state.shuttingDown = true
+	m.ui.servicesKeys = DefaultKeyMap()
+
+	msg := toKeyMsg("j")
 	teaModel, cmd := m.handleKeyPress(msg)
 	result := teaModel.(Model)
 
@@ -475,30 +516,47 @@ func Test_HandleKeyPress_QuitStartsGracefulShutdown(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func Test_HandleKeyPress_ForceQuitStartsGracefulShutdown(t *testing.T) {
+func Test_HandleKeyPress_CtrlCForcesImmediateQuit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockController := NewMockController(ctrl)
-	mockController.EXPECT().StopAll()
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Warn().Return(nil)
 
-	eventChan := make(chan runtime.Event, 1)
+	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 
-	m := Model{loader: loader, controller: mockController, eventChan: eventChan}
+	m := Model{loader: loader, controller: mockController, log: mockLogger}
 	m.state.shuttingDown = false
 	m.ui.servicesKeys = DefaultKeyMap()
 
 	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
-	teaModel, cmd := m.handleKeyPress(msg)
-	result := teaModel.(Model)
+	_, cmd := m.handleKeyPress(msg)
 
-	assert.True(t, result.state.shuttingDown)
-	assert.True(t, result.loader.Active)
 	assert.NotNil(t, cmd)
 }
 
-func Test_Update_KeyMsg(t *testing.T) {
+func Test_Update_KeyMsg_CtrlCForceQuitsDuringShutdown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Warn().Return(nil)
+
+	mockController := NewMockController(ctrl)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController, log: mockLogger}
+	m.state.shuttingDown = true
+	m.ui.servicesKeys = DefaultKeyMap()
+
+	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	_, cmd := m.Update(msg)
+
+	assert.NotNil(t, cmd)
+}
+
+func Test_Update_KeyMsg_IgnoreQuitDuringShutdown(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

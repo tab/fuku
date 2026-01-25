@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,4 +57,30 @@ func TestGetStats_NonExistentProcess(t *testing.T) {
 	_, err := m.GetStats(ctx, 999999999)
 
 	assert.Error(t, err)
+}
+
+func TestGetStats_MaxInt32PID(t *testing.T) {
+	m := NewMonitor()
+	ctx := context.Background()
+
+	stats, err := m.GetStats(ctx, 2147483648)
+
+	assert.NoError(t, err)
+	assert.Equal(t, Stats{}, stats)
+}
+
+func TestGetStats_ContextTimeout(t *testing.T) {
+	m := NewMonitor()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+
+	time.Sleep(1 * time.Millisecond)
+
+	stats, err := m.GetStats(ctx, os.Getpid())
+	if err != nil {
+		assert.Error(t, err)
+	} else {
+		assert.NotNil(t, stats)
+	}
 }

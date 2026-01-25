@@ -19,7 +19,7 @@ import (
 const (
 	// scannerBufferSize is the initial buffer size for reading service output (64KB)
 	scannerBufferSize = 64 * 1024
-	// scannerBufferSize is the maximum buffer size for reading service output (4MB)
+	// scannerMaxBufferSize is the maximum buffer size for reading service output (4MB)
 	scannerMaxBufferSize = 4 * 1024 * 1024
 )
 
@@ -70,7 +70,7 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 		s.log.Warn().Msgf("Environment file not found for service '%s': %s", name, envFile)
 	}
 
-	cmd := exec.CommandContext(ctx, "make", "run")
+	cmd := exec.Command("make", "run")
 	cmd.Dir = serviceDir
 
 	cmd.Env = append(os.Environ(), fmt.Sprintf("ENV_FILE=%s", envFile))

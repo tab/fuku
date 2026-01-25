@@ -197,12 +197,30 @@ func Test_Pad(t *testing.T) {
 		input int
 		want  string
 	}{
-		{0, "00"},
-		{1, "01"},
-		{9, "09"},
-		{10, "10"},
-		{59, "59"},
-		{100, "100"},
+		{
+			input: 0,
+			want:  "00",
+		},
+		{
+			input: 1,
+			want:  "01",
+		},
+		{
+			input: 9,
+			want:  "09",
+		},
+		{
+			input: 10,
+			want:  "10",
+		},
+		{
+			input: 59,
+			want:  "59",
+		},
+		{
+			input: 100,
+			want:  "100",
+		},
 	}
 
 	for _, tt := range tests {
