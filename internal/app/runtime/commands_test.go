@@ -16,7 +16,6 @@ func Test_CommandBus_Publish_And_Subscribe(t *testing.T) {
 	defer cancel()
 
 	sub := cb.Subscribe(ctx)
-
 	cmd := Command{
 		Type: CommandStopService,
 		Data: StopServiceData{Service: "test-service"},
@@ -44,7 +43,6 @@ func Test_CommandBus_Multiple_Subscribers(t *testing.T) {
 
 	sub1 := cb.Subscribe(ctx)
 	sub2 := cb.Subscribe(ctx)
-
 	cmd := Command{Type: CommandStopAll}
 
 	cb.Publish(cmd)
@@ -113,9 +111,8 @@ func Test_CommandBus_No_Commands_After_Context_Cancel(t *testing.T) {
 }
 
 func Test_CommandBus_Close_Closes_All_Subscribers(t *testing.T) {
-	cb := NewCommandBus(10)
-
 	ctx := context.Background()
+	cb := NewCommandBus(10)
 	sub1 := cb.Subscribe(ctx)
 	sub2 := cb.Subscribe(ctx)
 
@@ -138,22 +135,27 @@ func Test_CommandBus_Publish_After_Close_Does_Not_Panic(t *testing.T) {
 }
 
 func Test_CommandBus_Buffer_Full_Does_Not_Block(t *testing.T) {
+	ctx := context.Background()
 	cb := NewCommandBus(1)
+
 	defer cb.Close()
 
-	ctx := context.Background()
 	cb.Subscribe(ctx)
 
 	for i := 0; i < 10; i++ {
 		cb.Publish(Command{Type: CommandStopService})
 	}
+
+	// Test passes if no deadlock occurs
 }
 
 func Test_NoOpCommandBus_Returns_Closed_Channel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	ncb := NewNoOpCommandBus()
+
 	defer ncb.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
 	sub := ncb.Subscribe(ctx)
 
 	cancel()

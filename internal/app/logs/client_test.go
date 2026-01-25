@@ -26,6 +26,7 @@ func createTestFormatter() *LogFormatter {
 
 func Test_NewClient(t *testing.T) {
 	formatter := createTestFormatter()
+
 	c := NewClient(formatter)
 	assert.NotNil(t, c)
 
@@ -36,256 +37,272 @@ func Test_NewClient(t *testing.T) {
 }
 
 func Test_Connect(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
-		socketPath := filepath.Join(t.TempDir(), "test.sock")
+	socketPath := filepath.Join("/tmp", "fuku-test-connect.sock")
 
-		listener, err := net.Listen("unix", socketPath)
-		assert.NoError(t, err)
+	listener, err := net.Listen("unix", socketPath)
+	assert.NoError(t, err)
 
-		defer listener.Close()
+	defer listener.Close()
+	defer os.Remove(socketPath)
 
-		c := NewClient(createTestFormatter())
-		err = c.Connect(socketPath)
-		assert.NoError(t, err)
+	c := NewClient(createTestFormatter())
 
-		defer c.Close()
+	err = c.Connect(socketPath)
+	assert.NoError(t, err)
 
-		impl := c.(*client)
-		assert.NotNil(t, impl.conn)
-	})
+	defer c.Close()
 
-	t.Run("Failure - socket not found", func(t *testing.T) {
-		c := NewClient(createTestFormatter())
-		err := c.Connect("/nonexistent/path/test.sock")
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, errors.ErrFailedToConnectSocket)
-	})
+	impl := c.(*client)
+	assert.NotNil(t, impl.conn)
+}
+
+func Test_Connect_SocketNotFound(t *testing.T) {
+	c := NewClient(createTestFormatter())
+
+	err := c.Connect("/nonexistent/path/test.sock")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errors.ErrFailedToConnectSocket)
 }
 
 func Test_Subscribe(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer serverConn.Close()
-		defer clientConn.Close()
+	tests := []struct {
+		name          string
+		services      []string
+		closeServer   bool
+		expectedError error
+		checkRequest  func(t *testing.T, data []byte)
+	}{
+		{
+			name:     "Sends subscribe request with services",
+			services: []string{"api", "db"},
+			checkRequest: func(t *testing.T, data []byte) {
+				var req SubscribeRequest
 
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
+				err := json.Unmarshal(bytes.TrimSuffix(data, []byte("\n")), &req)
+				assert.NoError(t, err)
+				assert.Equal(t, MessageSubscribe, req.Type)
+				assert.Equal(t, []string{"api", "db"}, req.Services)
+			},
+		},
+		{
+			name:     "Sends subscribe request with empty services",
+			services: nil,
+			checkRequest: func(t *testing.T, data []byte) {
+				var req SubscribeRequest
 
-		done := make(chan struct{})
+				err := json.Unmarshal(bytes.TrimSuffix(data, []byte("\n")), &req)
+				assert.NoError(t, err)
+				assert.Equal(t, MessageSubscribe, req.Type)
+				assert.Nil(t, req.Services)
+			},
+		},
+		{
+			name:          "Fails when connection closed",
+			services:      []string{"api"},
+			closeServer:   true,
+			expectedError: errors.ErrFailedToWriteSocket,
+		},
+	}
 
-		var receivedData []byte
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serverConn, clientConn := net.Pipe()
 
-		go func() {
-			buf := make([]byte, 1024)
-			n, _ := serverConn.Read(buf)
-			receivedData = buf[:n]
+			if tt.closeServer {
+				serverConn.Close()
+			} else {
+				defer serverConn.Close()
+			}
 
-			close(done)
-		}()
+			defer clientConn.Close()
 
-		err := c.Subscribe([]string{"api", "db"})
-		assert.NoError(t, err)
+			c := NewClient(createTestFormatter()).(*client)
+			c.conn = clientConn
 
-		<-done
+			var receivedData []byte
 
-		var req SubscribeRequest
+			done := make(chan struct{})
 
-		err = json.Unmarshal(bytes.TrimSuffix(receivedData, []byte("\n")), &req)
-		assert.NoError(t, err)
-		assert.Equal(t, MessageSubscribe, req.Type)
-		assert.Equal(t, []string{"api", "db"}, req.Services)
-	})
+			if !tt.closeServer {
+				go func() {
+					buf := make([]byte, 1024)
+					n, _ := serverConn.Read(buf)
+					receivedData = buf[:n]
 
-	t.Run("Success - empty services", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer serverConn.Close()
-		defer clientConn.Close()
+					close(done)
+				}()
+			}
 
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
-
-		done := make(chan struct{})
-
-		var receivedData []byte
-
-		go func() {
-			buf := make([]byte, 1024)
-			n, _ := serverConn.Read(buf)
-			receivedData = buf[:n]
-
-			close(done)
-		}()
-
-		err := c.Subscribe(nil)
-		assert.NoError(t, err)
-
-		<-done
-
-		var req SubscribeRequest
-
-		err = json.Unmarshal(bytes.TrimSuffix(receivedData, []byte("\n")), &req)
-		assert.NoError(t, err)
-		assert.Equal(t, MessageSubscribe, req.Type)
-		assert.Nil(t, req.Services)
-	})
-
-	t.Run("Failure - connection closed", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		serverConn.Close()
-
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
-
-		err := c.Subscribe([]string{"api"})
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, errors.ErrFailedToWriteSocket)
-
-		clientConn.Close()
-	})
+			err := c.Subscribe(tt.services)
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				<-done
+				tt.checkRequest(t, receivedData)
+			}
+		})
+	}
 }
 
-func Test_Stream(t *testing.T) {
-	t.Run("Receives log messages", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer serverConn.Close()
-		defer clientConn.Close()
+func Test_Stream_ReceivesLogMessages(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
 
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
+	defer serverConn.Close()
+	defer clientConn.Close()
 
-		msg := LogMessage{Type: MessageLog, Service: "api", Message: "Hello World"}
+	c := NewClient(createTestFormatter()).(*client)
+	c.conn = clientConn
+
+	msg := LogMessage{Type: MessageLog, Service: "api", Message: "Hello World"}
+	data, _ := json.Marshal(msg)
+	data = append(data, '\n')
+
+	go func() {
+		serverConn.Write(data)
+		time.Sleep(50 * time.Millisecond)
+		serverConn.Close()
+	}()
+
+	var output bytes.Buffer
+
+	err := c.Stream(context.Background(), &output)
+	assert.NoError(t, err)
+	assert.Contains(t, output.String(), "Hello World")
+}
+
+func Test_Stream_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	serverConn, clientConn := net.Pipe()
+
+	defer clientConn.Close()
+
+	c := NewClient(createTestFormatter()).(*client)
+	c.conn = clientConn
+
+	done := make(chan error)
+
+	go func() {
+		var output bytes.Buffer
+		done <- c.Stream(ctx, &output)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+	serverConn.Close()
+
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("Stream did not exit after context cancellation")
+	}
+}
+
+func Test_Stream_EOFReturnsNil(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+
+	c := NewClient(createTestFormatter()).(*client)
+	c.conn = clientConn
+
+	serverConn.Close()
+
+	var output bytes.Buffer
+
+	err := c.Stream(context.Background(), &output)
+	assert.NoError(t, err)
+
+	clientConn.Close()
+}
+
+func Test_Stream_SkipsInvalidJSON(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+
+	defer clientConn.Close()
+
+	c := NewClient(createTestFormatter()).(*client)
+	c.conn = clientConn
+
+	go func() {
+		serverConn.Write([]byte("invalid json\n"))
+
+		msg := LogMessage{Type: MessageLog, Service: "api", Message: "Valid"}
 		data, _ := json.Marshal(msg)
 		data = append(data, '\n')
-
-		go func() {
-			serverConn.Write(data)
-			time.Sleep(50 * time.Millisecond)
-			serverConn.Close()
-		}()
-
-		var output bytes.Buffer
-
-		err := c.Stream(context.Background(), &output)
-		assert.NoError(t, err)
-		assert.Contains(t, output.String(), "Hello World")
-	})
-
-	t.Run("Context cancellation", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer clientConn.Close()
-
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		done := make(chan error)
-
-		go func() {
-			var output bytes.Buffer
-			done <- c.Stream(ctx, &output)
-		}()
-
-		time.Sleep(10 * time.Millisecond)
-		cancel()
+		serverConn.Write(data)
+		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
+	}()
 
-		select {
-		case err := <-done:
-			assert.NoError(t, err)
-		case <-time.After(time.Second):
-			t.Fatal("Stream did not exit after context cancellation")
-		}
-	})
+	var output bytes.Buffer
 
-	t.Run("EOF returns nil", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
+	err := c.Stream(context.Background(), &output)
+	assert.NoError(t, err)
+	assert.Contains(t, output.String(), "Valid")
+}
 
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
+func Test_Stream_SkipsNonLogMessages(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
 
+	defer clientConn.Close()
+
+	c := NewClient(createTestFormatter()).(*client)
+	c.conn = clientConn
+
+	go func() {
+		msg := LogMessage{Type: MessageSubscribe, Service: "api", Message: "Subscribe"}
+		data, _ := json.Marshal(msg)
+		data = append(data, '\n')
+		serverConn.Write(data)
+
+		msg = LogMessage{Type: MessageLog, Service: "api", Message: "Log"}
+		data, _ = json.Marshal(msg)
+		data = append(data, '\n')
+		serverConn.Write(data)
+		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
+	}()
 
-		var output bytes.Buffer
+	var output bytes.Buffer
 
-		err := c.Stream(context.Background(), &output)
-		assert.NoError(t, err)
-
-		clientConn.Close()
-	})
-
-	t.Run("Skips invalid JSON", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer clientConn.Close()
-
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
-
-		go func() {
-			serverConn.Write([]byte("invalid json\n"))
-
-			msg := LogMessage{Type: MessageLog, Service: "api", Message: "Valid"}
-			data, _ := json.Marshal(msg)
-			data = append(data, '\n')
-			serverConn.Write(data)
-			time.Sleep(50 * time.Millisecond)
-			serverConn.Close()
-		}()
-
-		var output bytes.Buffer
-
-		err := c.Stream(context.Background(), &output)
-		assert.NoError(t, err)
-		assert.Contains(t, output.String(), "Valid")
-	})
-
-	t.Run("Skips non-log messages", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer clientConn.Close()
-
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
-
-		go func() {
-			msg := LogMessage{Type: MessageSubscribe, Service: "api", Message: "Subscribe"}
-			data, _ := json.Marshal(msg)
-			data = append(data, '\n')
-			serverConn.Write(data)
-
-			msg = LogMessage{Type: MessageLog, Service: "api", Message: "Log"}
-			data, _ = json.Marshal(msg)
-			data = append(data, '\n')
-			serverConn.Write(data)
-			time.Sleep(50 * time.Millisecond)
-			serverConn.Close()
-		}()
-
-		var output bytes.Buffer
-
-		err := c.Stream(context.Background(), &output)
-		assert.NoError(t, err)
-		assert.Contains(t, output.String(), "Log")
-		assert.NotContains(t, output.String(), "Subscribe")
-	})
+	err := c.Stream(context.Background(), &output)
+	assert.NoError(t, err)
+	assert.Contains(t, output.String(), "Log")
+	assert.NotContains(t, output.String(), "Subscribe")
 }
 
 func Test_Close(t *testing.T) {
-	t.Run("Closes connection", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer serverConn.Close()
+	tests := []struct {
+		name      string
+		setupConn bool
+	}{
+		{
+			name:      "Closes connection",
+			setupConn: true,
+		},
+		{
+			name:      "Nil connection",
+			setupConn: false,
+		},
+	}
 
-		c := NewClient(createTestFormatter()).(*client)
-		c.conn = clientConn
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewClient(createTestFormatter()).(*client)
 
-		err := c.Close()
-		assert.NoError(t, err)
-	})
+			if tt.setupConn {
+				serverConn, clientConn := net.Pipe()
 
-	t.Run("Nil connection", func(t *testing.T) {
-		c := NewClient(createTestFormatter())
-		err := c.Close()
-		assert.NoError(t, err)
-	})
+				defer serverConn.Close()
+
+				c.conn = clientConn
+			}
+
+			err := c.Close()
+			assert.NoError(t, err)
+		})
+	}
 }
 
 func Test_FindSocket(t *testing.T) {

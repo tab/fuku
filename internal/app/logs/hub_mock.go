@@ -52,20 +52,6 @@ func (mr *MockHubMockRecorder) Broadcast(service, message any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Broadcast", reflect.TypeOf((*MockHub)(nil).Broadcast), service, message)
 }
 
-// NewClientConn mocks base method.
-func (m *MockHub) NewClientConn(id string) *ClientConn {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewClientConn", id)
-	ret0, _ := ret[0].(*ClientConn)
-	return ret0
-}
-
-// NewClientConn indicates an expected call of NewClientConn.
-func (mr *MockHubMockRecorder) NewClientConn(id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewClientConn", reflect.TypeOf((*MockHub)(nil).NewClientConn), id)
-}
-
 // Register mocks base method.
 func (m *MockHub) Register(conn *ClientConn) {
 	m.ctrl.T.Helper()

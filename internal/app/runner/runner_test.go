@@ -24,7 +24,6 @@ func Test_NewRunner(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
@@ -33,13 +32,12 @@ func Test_NewRunner(t *testing.T) {
 	mockRegistry := NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
-	assert.NotNil(t, r)
 
+	assert.NotNil(t, r)
 	instance, ok := r.(*runner)
 	assert.True(t, ok)
 	assert.Equal(t, cfg, instance.cfg)
@@ -57,7 +55,6 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	serverLogger := logger.NewMockLogger(ctrl)
@@ -72,7 +69,6 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
-
 	mockDiscovery.EXPECT().Resolve("nonexistent").Return(nil, errors.ErrProfileNotFound)
 
 	mockRegistry := NewMockRegistry(ctrl)
@@ -82,10 +78,9 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
-
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
-
 	ctx := context.Background()
+
 	err := r.Run(ctx, "nonexistent")
 
 	assert.Error(t, err)
@@ -97,7 +92,6 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	serverLogger := logger.NewMockLogger(ctrl)
@@ -112,7 +106,6 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := NewMockDiscovery(ctrl)
-
 	mockDiscovery.EXPECT().Resolve("test").Return(nil, errors.ErrServiceNotFound)
 
 	mockRegistry := NewMockRegistry(ctrl)
@@ -122,10 +115,9 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockEvent := runtime.NewNoOpEventBus()
 	mockCommand := runtime.NewNoOpCommandBus()
-
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
-
 	ctx := context.Background()
+
 	err := r.Run(ctx, "test")
 
 	assert.Error(t, err)
@@ -242,7 +234,6 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -271,8 +262,8 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx := context.Background()
+
 	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
 
 	require.NoError(t, err)
@@ -292,12 +283,13 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 			Timeout: 30 * time.Second,
 		},
 	}
-
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockProcess := NewMockProcess(ctrl)
+
 	readyChan := make(chan error)
+
 	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
 
 	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
@@ -310,7 +302,6 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 	mockDiscovery := NewMockDiscovery(ctrl)
 	mockRegistry := NewMockRegistry(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,
@@ -321,7 +312,6 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -382,7 +372,6 @@ func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	mockProcess1 := NewMockProcess(ctrl)
@@ -458,9 +447,7 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-
 	mockLogger := logger.NewMockLogger(ctrl)
-
 	mockService := NewMockService(ctrl)
 	mockDiscovery := NewMockDiscovery(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
@@ -508,9 +495,9 @@ func Test_HandleCommand_StopService(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx := context.Background()
 	cmd := runtime.Command{Type: runtime.CommandStopService, Data: runtime.StopServiceData{Service: "api"}}
+
 	result := r.handleCommand(ctx, cmd, mockRegistry)
 
 	assert.False(t, result)
@@ -588,9 +575,9 @@ func Test_HandleCommand_StopAll(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx := context.Background()
 	cmd := runtime.Command{Type: runtime.CommandStopAll}
+
 	result := r.handleCommand(ctx, cmd, NewMockRegistry(ctrl))
 
 	assert.True(t, result)
@@ -614,9 +601,9 @@ func Test_HandleCommand_InvalidStopServiceData(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx := context.Background()
 	cmd := runtime.Command{Type: runtime.CommandStopService, Data: "invalid"}
+
 	result := r.handleCommand(ctx, cmd, NewMockRegistry(ctrl))
 
 	assert.False(t, result)
@@ -640,9 +627,9 @@ func Test_HandleCommand_InvalidRestartServiceData(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx := context.Background()
 	cmd := runtime.Command{Type: runtime.CommandRestartService, Data: "invalid"}
+
 	result := r.handleCommand(ctx, cmd, NewMockRegistry(ctrl))
 
 	assert.False(t, result)
@@ -970,7 +957,6 @@ func Test_StartTier_Success(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
@@ -1006,8 +992,8 @@ func Test_StartTier_Success(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx := context.Background()
+
 	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
 
 	assert.Empty(t, failedServices)
@@ -1019,14 +1005,14 @@ func Test_StartTier_AcquireError(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
-
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(context.Canceled)
+
+	mockRegistry := NewMockRegistry(ctrl)
 
 	r := &runner{
 		cfg:       cfg,
@@ -1038,9 +1024,8 @@ func Test_StartTier_AcquireError(t *testing.T) {
 		command:   runtime.NewNoOpCommandBus(),
 		log:       mockLogger,
 	}
-
 	ctx := context.Background()
-	mockRegistry := NewMockRegistry(ctrl)
+
 	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
 
 	assert.Len(t, failedServices, 1)

@@ -11,13 +11,14 @@ import (
 )
 
 func Test_NewHub(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
+	bufferSize := 100
+
+	h := NewHub(bufferSize)
 	assert.NotNil(t, h)
 
 	impl, ok := h.(*hub)
 	assert.True(t, ok)
-	assert.NotNil(t, impl.cfg)
+	assert.Equal(t, bufferSize, impl.bufferSize)
 	assert.NotNil(t, impl.clients)
 	assert.NotNil(t, impl.register)
 	assert.NotNil(t, impl.unregister)
@@ -26,17 +27,15 @@ func Test_NewHub(t *testing.T) {
 }
 
 func Test_NewClientConn(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
+	bufferSize := 100
 
-	c := h.NewClientConn("test-client")
-
+	c := NewClientConn("test-client", bufferSize)
 	assert.NotNil(t, c)
 	assert.Equal(t, "test-client", c.ID)
 	assert.NotNil(t, c.Services)
 	assert.Empty(t, c.Services)
 	assert.NotNil(t, c.SendChan)
-	assert.Equal(t, cfg.Logs.Buffer, cap(c.SendChan))
+	assert.Equal(t, bufferSize, cap(c.SendChan))
 }
 
 func Test_SetSubscription(t *testing.T) {
@@ -49,20 +48,36 @@ func Test_SetSubscription(t *testing.T) {
 		expectedLen     int
 		checkServices   map[string]bool
 	}{
-		{name: "Sets services", input: []string{"api", "db"}, expectedLen: 2, checkServices: map[string]bool{"api": true, "db": true}},
-		{name: "Empty services", existingService: "old", input: nil, expectedLen: 0, checkServices: map[string]bool{}},
-		{name: "Replaces existing", existingService: "old", input: []string{"new"}, expectedLen: 1, checkServices: map[string]bool{"new": true, "old": false}},
+		{
+			name:          "Sets services",
+			input:         []string{"api", "db"},
+			expectedLen:   2,
+			checkServices: map[string]bool{"api": true, "db": true},
+		},
+		{
+			name:            "Empty services",
+			existingService: "old",
+			input:           nil,
+			expectedLen:     0,
+			checkServices:   map[string]bool{},
+		},
+		{
+			name:            "Replaces existing",
+			existingService: "old",
+			input:           []string{"new"},
+			expectedLen:     1,
+			checkServices:   map[string]bool{"new": true, "old": false},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newClientConn("test", cfg.Logs.Buffer)
+			c := NewClientConn("test", cfg.Logs.Buffer)
 			if tt.existingService != "" {
 				c.Services[tt.existingService] = true
 			}
 
 			c.SetSubscription(tt.input)
-
 			assert.Len(t, c.Services, tt.expectedLen)
 
 			for svc, expected := range tt.checkServices {
@@ -81,16 +96,41 @@ func Test_ShouldReceive(t *testing.T) {
 		service      string
 		expected     bool
 	}{
-		{name: "Empty subscription receives all", subscription: nil, service: "api", expected: true},
-		{name: "Empty subscription receives any", subscription: nil, service: "anything", expected: true},
-		{name: "Subscribed service", subscription: []string{"api", "db"}, service: "api", expected: true},
-		{name: "Another subscribed service", subscription: []string{"api", "db"}, service: "db", expected: true},
-		{name: "Not subscribed service", subscription: []string{"api", "db"}, service: "cache", expected: false},
+		{
+			name:         "Empty subscription receives all",
+			subscription: nil,
+			service:      "api",
+			expected:     true,
+		},
+		{
+			name:         "Empty subscription receives any",
+			subscription: nil,
+			service:      "anything",
+			expected:     true,
+		},
+		{
+			name:         "Subscribed service",
+			subscription: []string{"api", "db"},
+			service:      "api",
+			expected:     true,
+		},
+		{
+			name:         "Another subscribed service",
+			subscription: []string{"api", "db"},
+			service:      "db",
+			expected:     true,
+		},
+		{
+			name:         "Not subscribed service",
+			subscription: []string{"api", "db"},
+			service:      "cache",
+			expected:     false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newClientConn("test", cfg.Logs.Buffer)
+			c := NewClientConn("test", cfg.Logs.Buffer)
 			if tt.subscription != nil {
 				c.SetSubscription(tt.subscription)
 			}
@@ -102,114 +142,118 @@ func Test_ShouldReceive(t *testing.T) {
 }
 
 func Test_Register(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
 
 	go h.Run(ctx)
 
-	client := newClientConn("test", cfg.Logs.Buffer)
-	h.Register(client)
+	client := NewClientConn("test", cfg.Logs.Buffer)
 
+	h.Register(client)
 	time.Sleep(10 * time.Millisecond)
 
 	impl := h.(*hub)
 	impl.mu.RLock()
 	assert.True(t, impl.clients[client])
 	impl.mu.RUnlock()
-
-	cancel()
 }
 
 func Test_Register_AfterDone(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
 
 	go h.Run(ctx)
 
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
-	client := newClientConn("test", cfg.Logs.Buffer)
+	client := NewClientConn("test", cfg.Logs.Buffer)
+
 	h.Register(client)
 }
 
 func Test_Unregister(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
 
 	go h.Run(ctx)
 
-	client := newClientConn("test", cfg.Logs.Buffer)
+	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
-
 	time.Sleep(10 * time.Millisecond)
 
 	h.Unregister(client)
-
 	time.Sleep(10 * time.Millisecond)
 
 	impl := h.(*hub)
 	impl.mu.RLock()
 	assert.False(t, impl.clients[client])
 	impl.mu.RUnlock()
-
-	cancel()
 }
 
 func Test_Unregister_NonExistent(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
 
 	go h.Run(ctx)
 
-	client := newClientConn("test", cfg.Logs.Buffer)
+	client := NewClientConn("test", cfg.Logs.Buffer)
+
 	h.Unregister(client)
-
 	time.Sleep(10 * time.Millisecond)
-
-	cancel()
 }
 
 func Test_Unregister_AfterDone(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
 
 	go h.Run(ctx)
 
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
-	client := newClientConn("test", cfg.Logs.Buffer)
+	client := NewClientConn("test", cfg.Logs.Buffer)
+
 	h.Unregister(client)
 }
 
 func Test_Broadcast_ToSubscribedClients(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
-
 	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
 
 	go h.Run(ctx)
 
-	client1 := h.NewClientConn("client1")
+	client1 := NewClientConn("client1", cfg.Logs.Buffer)
 	client1.SetSubscription([]string{"api"})
 
-	client2 := h.NewClientConn("client2")
+	client2 := NewClientConn("client2", cfg.Logs.Buffer)
 	client2.SetSubscription([]string{"db"})
 
 	h.Register(client1)
 	h.Register(client2)
-
 	time.Sleep(10 * time.Millisecond)
 
 	h.Broadcast("api", "test message")
-
 	time.Sleep(10 * time.Millisecond)
 
 	select {
@@ -229,21 +273,20 @@ func Test_Broadcast_ToSubscribedClients(t *testing.T) {
 }
 
 func Test_Broadcast_ToAllWhenNoFilter(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
-
 	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
 
 	go h.Run(ctx)
 
-	client := h.NewClientConn("client")
+	client := NewClientConn("client", cfg.Logs.Buffer)
 	h.Register(client)
-
 	time.Sleep(10 * time.Millisecond)
 
 	h.Broadcast("any-service", "test message")
-
 	time.Sleep(10 * time.Millisecond)
 
 	select {
@@ -256,7 +299,7 @@ func Test_Broadcast_ToAllWhenNoFilter(t *testing.T) {
 
 func Test_Broadcast_DropsWhenBufferFull(t *testing.T) {
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg).(*hub)
+	h := NewHub(cfg.Logs.Buffer).(*hub)
 
 	for i := 0; i < cfg.Logs.Buffer+10; i++ {
 		h.Broadcast("api", "message")
@@ -264,9 +307,11 @@ func Test_Broadcast_DropsWhenBufferFull(t *testing.T) {
 }
 
 func Test_Run_ContextCancellation(t *testing.T) {
-	cfg := config.DefaultConfig()
-	h := NewHub(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	cfg := config.DefaultConfig()
+	h := NewHub(cfg.Logs.Buffer)
+
 	done := make(chan struct{})
 
 	go func() {
@@ -274,9 +319,8 @@ func Test_Run_ContextCancellation(t *testing.T) {
 		close(done)
 	}()
 
-	client := newClientConn("test", cfg.Logs.Buffer)
+	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
-
 	time.Sleep(10 * time.Millisecond)
 
 	cancel()

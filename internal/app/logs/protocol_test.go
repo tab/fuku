@@ -18,8 +18,16 @@ func Test_SubscribeRequest_Marshal(t *testing.T) {
 		request  SubscribeRequest
 		contains []string
 	}{
-		{name: "With services", request: SubscribeRequest{Type: MessageSubscribe, Services: []string{"api", "db"}}, contains: []string{`"type":"subscribe"`, `"services":["api","db"]`}},
-		{name: "Empty services", request: SubscribeRequest{Type: MessageSubscribe, Services: nil}, contains: []string{`"type":"subscribe"`, `"services":null`}},
+		{
+			name:     "With services",
+			request:  SubscribeRequest{Type: MessageSubscribe, Services: []string{"api", "db"}},
+			contains: []string{`"type":"subscribe"`, `"services":["api","db"]`},
+		},
+		{
+			name:     "Empty services",
+			request:  SubscribeRequest{Type: MessageSubscribe, Services: nil},
+			contains: []string{`"type":"subscribe"`, `"services":null`},
+		},
 	}
 
 	for _, tt := range tests {

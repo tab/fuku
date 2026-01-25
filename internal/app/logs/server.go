@@ -28,6 +28,7 @@ type Server interface {
 type server struct {
 	profile    string
 	socketPath string
+	bufferSize int
 	listener   net.Listener
 	hub        Hub
 	log        logger.Logger
@@ -37,14 +38,15 @@ type server struct {
 	cancel     context.CancelFunc
 }
 
-// NewServer creates a new tail server
+// NewServer creates a new log streaming server
 func NewServer(cfg *config.Config, profile string, log logger.Logger) Server {
 	socketPath := filepath.Join(config.SocketDir, config.SocketPrefix+profile+config.SocketSuffix)
 
 	return &server{
 		profile:    profile,
 		socketPath: socketPath,
-		hub:        NewHub(cfg),
+		bufferSize: cfg.Logs.Buffer,
+		hub:        NewHub(cfg.Logs.Buffer),
 		log:        log.WithComponent("SERVER"),
 	}
 }
@@ -171,7 +173,7 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 	connID := s.connID.Add(1)
 	clientID := fmt.Sprintf("client-%d", connID)
-	client := s.hub.NewClientConn(clientID)
+	client := NewClientConn(clientID, s.bufferSize)
 
 	s.log.Debug().Msgf("Client connected: %s", clientID)
 
