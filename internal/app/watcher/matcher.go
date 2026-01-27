@@ -10,6 +10,7 @@ import (
 // Matcher checks if file paths match configured patterns
 type Matcher interface {
 	Match(path string) bool
+	MatchDir(dirPath string) bool
 }
 
 // matcher implements the Matcher interface
@@ -18,14 +19,14 @@ type matcher struct {
 	ignores  []glob.Glob
 }
 
-// NewMatcher creates a new Matcher from path and ignore patterns
-func NewMatcher(paths, ignores []string) (Matcher, error) {
+// NewMatcher creates a new Matcher from include and ignore patterns
+func NewMatcher(includes, ignores []string) (Matcher, error) {
 	m := &matcher{
-		patterns: make([]glob.Glob, 0, len(paths)),
+		patterns: make([]glob.Glob, 0, len(includes)),
 		ignores:  make([]glob.Glob, 0, len(ignores)),
 	}
 
-	for _, p := range paths {
+	for _, p := range includes {
 		g, err := glob.Compile(p, '/')
 		if err != nil {
 			return nil, err
@@ -58,6 +59,19 @@ func (m *matcher) Match(path string) bool {
 
 	for _, pattern := range m.patterns {
 		if pattern.Match(path) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// MatchDir returns true if a directory should be skipped based on ignore patterns
+func (m *matcher) MatchDir(dirPath string) bool {
+	probe := normalizePath(dirPath + "/_probe")
+
+	for _, ignore := range m.ignores {
+		if ignore.Match(probe) {
 			return true
 		}
 	}

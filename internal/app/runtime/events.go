@@ -2,8 +2,12 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
+
+	"fuku/internal/app/logs"
+	"fuku/internal/config/logger"
 )
 
 // EventType represents the type of event
@@ -11,18 +15,20 @@ type EventType string
 
 // Event types for runtime notifications
 const (
-	EventProfileResolved EventType = "profile_resolved"
-	EventPhaseChanged    EventType = "phase_changed"
-	EventTierStarting    EventType = "tier_starting"
-	EventTierReady       EventType = "tier_ready"
-	EventTierFailed      EventType = "tier_failed"
-	EventServiceStarting EventType = "service_starting"
-	EventServiceReady    EventType = "service_ready"
-	EventServiceFailed   EventType = "service_failed"
-	EventServiceStopped  EventType = "service_stopped"
-	EventRetryScheduled  EventType = "retry_scheduled"
-	EventSignalCaught    EventType = "signal_caught"
-	EventWatchTriggered  EventType = "watch_triggered"
+	EventProfileResolved   EventType = "profile_resolved"
+	EventPhaseChanged      EventType = "phase_changed"
+	EventTierStarting      EventType = "tier_starting"
+	EventTierReady         EventType = "tier_ready"
+	EventServiceStarting   EventType = "service_starting"
+	EventServiceReady      EventType = "service_ready"
+	EventServiceFailed     EventType = "service_failed"
+	EventServiceStopping   EventType = "service_stopping"
+	EventServiceStopped    EventType = "service_stopped"
+	EventServiceRestarting EventType = "service_restarting"
+	EventSignalCaught      EventType = "signal_caught"
+	EventWatchTriggered    EventType = "watch_triggered"
+	EventWatchStarted      EventType = "watch_started"
+	EventWatchStopped      EventType = "watch_stopped"
 )
 
 // Phase represents the application phase
@@ -73,13 +79,6 @@ type TierReadyData struct {
 	Name string
 }
 
-// TierFailedData contains tier failure details
-type TierFailedData struct {
-	Name           string
-	FailedServices []string
-	TotalServices  int
-}
-
 // ServiceStartingData contains service startup details
 type ServiceStartingData struct {
 	Service string
@@ -102,17 +101,22 @@ type ServiceFailedData struct {
 	Error   error
 }
 
+// ServiceStoppingData contains service stopping details
+type ServiceStoppingData struct {
+	Service string
+	Tier    string
+}
+
 // ServiceStoppedData contains service stop details
 type ServiceStoppedData struct {
 	Service string
 	Tier    string
 }
 
-// RetryScheduledData contains retry details
-type RetryScheduledData struct {
-	Service     string
-	Attempt     int
-	MaxAttempts int
+// ServiceRestartingData contains service restart details
+type ServiceRestartingData struct {
+	Service string
+	Tier    string
 }
 
 // SignalCaughtData contains signal details
@@ -126,10 +130,21 @@ type WatchTriggeredData struct {
 	ChangedFiles []string
 }
 
+// WatchStartedData contains watch started details
+type WatchStartedData struct {
+	Service string
+}
+
+// WatchStoppedData contains watch stopped details
+type WatchStoppedData struct {
+	Service string
+}
+
 // EventBus defines the interface for event publishing and subscription
 type EventBus interface {
 	Subscribe(ctx context.Context) <-chan Event
 	Publish(event Event)
+	SetBroadcaster(broadcaster logs.Broadcaster)
 	Close()
 }
 
@@ -139,13 +154,21 @@ type eventBus struct {
 	mu          sync.RWMutex
 	bufferSize  int
 	closed      bool
+	log         logger.Logger
+	broadcaster logs.Broadcaster
 }
 
 // NewEventBus creates a new event bus with the specified buffer size
 func NewEventBus(bufferSize int) EventBus {
+	return NewEventBusWithLogger(bufferSize, nil)
+}
+
+// NewEventBusWithLogger creates a new event bus with logging support
+func NewEventBusWithLogger(bufferSize int, log logger.Logger) EventBus {
 	return &eventBus{
 		subscribers: make([]chan Event, 0),
 		bufferSize:  bufferSize,
+		log:         log,
 	}
 }
 
@@ -175,6 +198,15 @@ func (eb *eventBus) Publish(event Event) {
 	}
 
 	event.Timestamp = time.Now()
+
+	if eb.log != nil {
+		msg := fmt.Sprintf("EVENT %s %s", event.Type, formatEventData(event.Data))
+		eb.log.Debug().Msg(msg)
+
+		if eb.broadcaster != nil {
+			eb.broadcaster.Broadcast("fuku", msg)
+		}
+	}
 
 	for _, ch := range eb.subscribers {
 		select {
@@ -211,6 +243,14 @@ func (eb *eventBus) Close() {
 	eb.subscribers = nil
 }
 
+// SetBroadcaster sets the broadcaster for streaming internal logs
+func (eb *eventBus) SetBroadcaster(broadcaster logs.Broadcaster) {
+	eb.mu.Lock()
+	defer eb.mu.Unlock()
+
+	eb.broadcaster = broadcaster
+}
+
 // unsubscribe removes a channel from subscribers and closes it
 func (eb *eventBus) unsubscribe(ch chan Event) {
 	eb.mu.Lock()
@@ -224,6 +264,42 @@ func (eb *eventBus) unsubscribe(ch chan Event) {
 
 			break
 		}
+	}
+}
+
+// formatEventData formats event data for debug logging
+func formatEventData(data interface{}) string {
+	switch d := data.(type) {
+	case ProfileResolvedData:
+		return fmt.Sprintf("{profile: %s}", d.Profile)
+	case PhaseChangedData:
+		return fmt.Sprintf("{phase: %s}", d.Phase)
+	case TierStartingData:
+		return fmt.Sprintf("{tier: %s, %d/%d}", d.Name, d.Index, d.Total)
+	case TierReadyData:
+		return fmt.Sprintf("{tier: %s}", d.Name)
+	case ServiceStartingData:
+		return fmt.Sprintf("{service: %s, tier: %s, pid: %d}", d.Service, d.Tier, d.PID)
+	case ServiceReadyData:
+		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+	case ServiceFailedData:
+		return fmt.Sprintf("{service: %s, tier: %s, error: %v}", d.Service, d.Tier, d.Error)
+	case ServiceStoppingData:
+		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+	case ServiceStoppedData:
+		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+	case ServiceRestartingData:
+		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+	case SignalCaughtData:
+		return fmt.Sprintf("{signal: %s}", d.Signal)
+	case WatchTriggeredData:
+		return fmt.Sprintf("{service: %s, files: %v}", d.Service, d.ChangedFiles)
+	case WatchStartedData:
+		return fmt.Sprintf("{service: %s}", d.Service)
+	case WatchStoppedData:
+		return fmt.Sprintf("{service: %s}", d.Service)
+	default:
+		return fmt.Sprintf("%+v", data)
 	}
 }
 
@@ -245,6 +321,9 @@ func (neb *noOpEventBus) Subscribe(ctx context.Context) <-chan Event {
 
 // Publish is a no-op
 func (neb *noOpEventBus) Publish(event Event) {}
+
+// SetBroadcaster is a no-op
+func (neb *noOpEventBus) SetBroadcaster(broadcaster logs.Broadcaster) {}
 
 // Close is a no-op
 func (neb *noOpEventBus) Close() {}

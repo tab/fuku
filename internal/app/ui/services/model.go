@@ -47,18 +47,20 @@ type ServiceMonitor struct {
 
 // ServiceState represents the state of a service
 type ServiceState struct {
-	Name    string
-	Tier    string
-	Status  Status
-	Error   error
-	FSM     *fsm.FSM
-	Monitor ServiceMonitor
-	Blink   *components.Blink
+	Name     string
+	Tier     string
+	Status   Status
+	Watching bool
+	Error    error
+	FSM      *fsm.FSM
+	Monitor  ServiceMonitor
+	Blink    *components.Blink
 }
 
-// MarkStarting sets the service status to starting
+// MarkStarting sets the service status to starting and clears any previous error
 func (s *ServiceState) MarkStarting() {
 	s.Status = StatusStarting
+	s.Error = nil
 }
 
 // MarkRunning sets the service status to ready (running)
@@ -105,6 +107,8 @@ type Model struct {
 		selected     int
 		ready        bool
 		shuttingDown bool
+		appCPU       float64
+		appMEM       float64
 	}
 
 	ui struct {

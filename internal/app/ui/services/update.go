@@ -215,8 +215,16 @@ func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
 		m = m.handleServiceReady(event)
 	case runtime.EventServiceFailed:
 		m = m.handleServiceFailed(event)
+	case runtime.EventServiceStopping:
+		m = m.handleServiceStopping(event)
 	case runtime.EventServiceStopped:
 		m = m.handleServiceStopped(event)
+	case runtime.EventServiceRestarting:
+		m = m.handleServiceRestarting(event)
+	case runtime.EventWatchStarted:
+		m = m.handleWatchStarted(event)
+	case runtime.EventWatchStopped:
+		m = m.handleWatchStopped(event)
 	case runtime.EventSignalCaught:
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
@@ -251,7 +259,7 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 				Status: StatusStarting,
 				Blink:  components.NewBlink(),
 			}
-			service.FSM = newServiceFSM(service, m.loader)
+			service.FSM = newServiceFSM(service, m.loader, m.log)
 			m.state.services[serviceName] = service
 		}
 	}
@@ -361,6 +369,34 @@ func (m Model) handleServiceFailed(event runtime.Event) Model {
 	return m
 }
 
+// handleServiceStopping updates a service when it begins stopping
+func (m Model) handleServiceStopping(event runtime.Event) Model {
+	data, ok := event.Data.(runtime.ServiceStoppingData)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Service]; exists {
+		m.controller.HandleStopping(m.ctx, service)
+	}
+
+	return m
+}
+
+// handleServiceRestarting updates a service when it begins restarting
+func (m Model) handleServiceRestarting(event runtime.Event) Model {
+	data, ok := event.Data.(runtime.ServiceRestartingData)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Service]; exists {
+		m.controller.HandleRestarting(m.ctx, service)
+	}
+
+	return m
+}
+
 // handleServiceStopped updates a service when it stops
 func (m Model) handleServiceStopped(event runtime.Event) Model {
 	data, ok := event.Data.(runtime.ServiceStoppedData)
@@ -373,6 +409,34 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 		if !wasRestarting {
 			m.loader.Stop(data.Service)
 		}
+	}
+
+	return m
+}
+
+// handleWatchStarted updates a service when file watching starts
+func (m Model) handleWatchStarted(event runtime.Event) Model {
+	data, ok := event.Data.(runtime.WatchStartedData)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Service]; exists {
+		service.Watching = true
+	}
+
+	return m
+}
+
+// handleWatchStopped updates a service when file watching stops
+func (m Model) handleWatchStopped(event runtime.Event) Model {
+	data, ok := event.Data.(runtime.WatchStoppedData)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Service]; exists {
+		service.Watching = false
 	}
 
 	return m

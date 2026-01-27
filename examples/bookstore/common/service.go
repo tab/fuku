@@ -1,4 +1,4 @@
-package shared
+package common
 
 import (
 	"fmt"
@@ -14,6 +14,8 @@ type Config struct {
 }
 
 func Run(cfg Config) {
+	fmt.Printf("INFO: [%s] run at %s\n", cfg.Name, time.Now().Format(time.RFC3339))
+
 	fmt.Printf("INFO: [%s] Starting %s service...\n", cfg.Name, cfg.Name)
 	time.Sleep(2 * time.Second)
 	fmt.Printf("INFO: [%s] Service ready\n", cfg.Name)

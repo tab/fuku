@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+
+	"fuku/internal/config/logger"
 )
 
 func Test_ServiceState_MarkStarting(t *testing.T) {
@@ -38,6 +41,12 @@ func Test_ServiceState_MarkFailed(t *testing.T) {
 }
 
 func Test_ServiceState_IsNil(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+
 	tests := []struct {
 		name    string
 		service *ServiceState
@@ -55,7 +64,7 @@ func Test_ServiceState_IsNil(t *testing.T) {
 		},
 		{
 			name:    "valid service",
-			service: &ServiceState{Name: "test", FSM: newServiceFSM(&ServiceState{}, nil)},
+			service: &ServiceState{Name: "test", FSM: newServiceFSM(&ServiceState{}, nil, mockLogger)},
 			want:    false,
 		},
 	}

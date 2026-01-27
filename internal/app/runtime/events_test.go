@@ -201,12 +201,10 @@ func Test_EventBus_AllEventTypes(t *testing.T) {
 		EventPhaseChanged,
 		EventTierStarting,
 		EventTierReady,
-		EventTierFailed,
 		EventServiceStarting,
 		EventServiceReady,
 		EventServiceFailed,
 		EventServiceStopped,
-		EventRetryScheduled,
 		EventSignalCaught,
 	}
 
@@ -276,13 +274,6 @@ func Test_EventData_Types(t *testing.T) {
 		assert.Equal(t, "tier1", data.Name)
 	})
 
-	t.Run("TierFailedData", func(t *testing.T) {
-		data := TierFailedData{Name: "tier1", FailedServices: []string{"svc1"}, TotalServices: 2}
-		assert.Equal(t, "tier1", data.Name)
-		assert.Len(t, data.FailedServices, 1)
-		assert.Equal(t, 2, data.TotalServices)
-	})
-
 	t.Run("ServiceStartingData", func(t *testing.T) {
 		data := ServiceStartingData{Service: "svc1", Tier: "tier1", Attempt: 1, PID: 1234}
 		assert.Equal(t, "svc1", data.Service)
@@ -306,13 +297,6 @@ func Test_EventData_Types(t *testing.T) {
 	t.Run("ServiceStoppedData", func(t *testing.T) {
 		data := ServiceStoppedData{Service: "svc1", Tier: "tier1"}
 		assert.Equal(t, "svc1", data.Service)
-	})
-
-	t.Run("RetryScheduledData", func(t *testing.T) {
-		data := RetryScheduledData{Service: "svc1", Attempt: 2, MaxAttempts: 3}
-		assert.Equal(t, "svc1", data.Service)
-		assert.Equal(t, 2, data.Attempt)
-		assert.Equal(t, 3, data.MaxAttempts)
 	})
 
 	t.Run("SignalCaughtData", func(t *testing.T) {

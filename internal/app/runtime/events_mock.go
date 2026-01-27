@@ -11,6 +11,7 @@ package runtime
 
 import (
 	context "context"
+	logs "fuku/internal/app/logs"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -62,6 +63,18 @@ func (m *MockEventBus) Publish(event Event) {
 func (mr *MockEventBusMockRecorder) Publish(event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Publish", reflect.TypeOf((*MockEventBus)(nil).Publish), event)
+}
+
+// SetBroadcaster mocks base method.
+func (m *MockEventBus) SetBroadcaster(broadcaster logs.Broadcaster) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetBroadcaster", broadcaster)
+}
+
+// SetBroadcaster indicates an expected call of SetBroadcaster.
+func (mr *MockEventBusMockRecorder) SetBroadcaster(broadcaster any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBroadcaster", reflect.TypeOf((*MockEventBus)(nil).SetBroadcaster), broadcaster)
 }
 
 // Subscribe mocks base method.

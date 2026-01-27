@@ -25,9 +25,6 @@ func Test_Registry_Add(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockProc := NewMockProcess(ctrl)
-	doneChan := make(chan struct{})
-
-	mockProc.EXPECT().Done().Return(doneChan).AnyTimes()
 
 	reg := NewRegistry()
 	reg.Add("test-service", mockProc, "default")
@@ -36,12 +33,7 @@ func Test_Registry_Add(t *testing.T) {
 	assert.True(t, lookup.Exists)
 	assert.False(t, lookup.Detached)
 	assert.Equal(t, mockProc, lookup.Proc)
-
-	close(doneChan)
-
-	assert.Eventually(t, func() bool {
-		return !reg.Get("test-service").Exists
-	}, 100*time.Millisecond, 5*time.Millisecond)
+	assert.Equal(t, "default", lookup.Tier)
 }
 
 func Test_Registry_Get_NotFound(t *testing.T) {
@@ -49,6 +41,7 @@ func Test_Registry_Get_NotFound(t *testing.T) {
 
 	lookup := reg.Get("nonexistent")
 	assert.False(t, lookup.Exists)
+	assert.Equal(t, "", lookup.Tier)
 }
 
 func Test_Registry_Snapshot(t *testing.T) {
@@ -57,11 +50,6 @@ func Test_Registry_Snapshot(t *testing.T) {
 
 	mockProc1 := NewMockProcess(ctrl)
 	mockProc2 := NewMockProcess(ctrl)
-	doneChan1 := make(chan struct{})
-	doneChan2 := make(chan struct{})
-
-	mockProc1.EXPECT().Done().Return(doneChan1).AnyTimes()
-	mockProc2.EXPECT().Done().Return(doneChan2).AnyTimes()
 
 	reg := NewRegistry()
 	reg.Add("service1", mockProc1, "default")
@@ -69,36 +57,71 @@ func Test_Registry_Snapshot(t *testing.T) {
 
 	snapshot := reg.SnapshotReverse()
 	assert.Len(t, snapshot, 2)
-
-	close(doneChan1)
-	close(doneChan2)
 }
 
-func Test_Registry_Remove(t *testing.T) {
+func Test_Registry_Remove_FromProcesses(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockProc := NewMockProcess(ctrl)
-	doneChan := make(chan struct{})
-
-	mockProc.EXPECT().Done().Return(doneChan).AnyTimes()
 
 	reg := NewRegistry()
-	reg.Add("test-service", mockProc, "default")
+	reg.Add("test-service", mockProc, "platform")
 
 	lookup := reg.Get("test-service")
 	assert.True(t, lookup.Exists)
 
-	close(doneChan)
+	result := reg.Remove("test-service", mockProc)
+	assert.True(t, result.Removed)
+	assert.True(t, result.UnexpectedExit)
+	assert.Equal(t, "platform", result.Tier)
 
-	assert.Eventually(t, func() bool {
-		return !reg.Get("test-service").Exists
-	}, 100*time.Millisecond, 5*time.Millisecond)
+	lookup = reg.Get("test-service")
+	assert.False(t, lookup.Exists)
+}
+
+func Test_Registry_Remove_FromDetached(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProc := NewMockProcess(ctrl)
+
+	reg := NewRegistry()
+	reg.Add("test-service", mockProc, "platform")
+	reg.Detach("test-service")
+
+	result := reg.Remove("test-service", mockProc)
+	assert.True(t, result.Removed)
+	assert.False(t, result.UnexpectedExit)
+	assert.Equal(t, "platform", result.Tier)
+
+	lookup := reg.Get("test-service")
+	assert.False(t, lookup.Exists)
 }
 
 func Test_Registry_Remove_Nonexistent(t *testing.T) {
 	reg := NewRegistry()
-	reg.Detach("nonexistent")
+
+	result := reg.Remove("nonexistent", nil)
+	assert.False(t, result.Removed)
+	assert.False(t, result.UnexpectedExit)
+}
+
+func Test_Registry_Remove_WrongProcess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProc1 := NewMockProcess(ctrl)
+	mockProc2 := NewMockProcess(ctrl)
+
+	reg := NewRegistry()
+	reg.Add("test-service", mockProc1, "default")
+
+	result := reg.Remove("test-service", mockProc2)
+	assert.False(t, result.Removed)
+
+	lookup := reg.Get("test-service")
+	assert.True(t, lookup.Exists)
 }
 
 func Test_Registry_Wait(t *testing.T) {
@@ -107,11 +130,6 @@ func Test_Registry_Wait(t *testing.T) {
 
 	mockProc1 := NewMockProcess(ctrl)
 	mockProc2 := NewMockProcess(ctrl)
-	doneChan1 := make(chan struct{})
-	doneChan2 := make(chan struct{})
-
-	mockProc1.EXPECT().Done().Return(doneChan1).AnyTimes()
-	mockProc2.EXPECT().Done().Return(doneChan2).AnyTimes()
 
 	reg := NewRegistry()
 	reg.Add("service1", mockProc1, "default")
@@ -130,8 +148,8 @@ func Test_Registry_Wait(t *testing.T) {
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	close(doneChan1)
-	close(doneChan2)
+	reg.Remove("service1", mockProc1)
+	reg.Remove("service2", mockProc2)
 
 	select {
 	case <-waitDone:
@@ -146,16 +164,13 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 
 	reg := NewRegistry()
 	numServices := 10
-	doneChans := make([]chan struct{}, numServices)
+	procs := make([]Process, numServices)
 
 	var addWg sync.WaitGroup
 
 	for i := 0; i < numServices; i++ {
 		mockProc := NewMockProcess(ctrl)
-		doneChan := make(chan struct{})
-		doneChans[i] = doneChan
-
-		mockProc.EXPECT().Done().Return(doneChan).AnyTimes()
+		procs[i] = mockProc
 
 		serviceName := fmt.Sprintf("service-%d", i)
 
@@ -190,8 +205,9 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 
 	accessWg.Wait()
 
-	for _, ch := range doneChans {
-		close(ch)
+	for i := 0; i < numServices; i++ {
+		serviceName := fmt.Sprintf("service-%d", i)
+		reg.Remove(serviceName, procs[i])
 	}
 
 	waitDone := make(chan struct{})
@@ -213,8 +229,6 @@ func Test_Registry_Detach_RemovesFromMap(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockProc := NewMockProcess(ctrl)
-	doneChan := make(chan struct{})
-	mockProc.EXPECT().Done().Return(doneChan).AnyTimes()
 
 	reg := NewRegistry()
 	reg.Add("test-service", mockProc, "default")
@@ -224,21 +238,19 @@ func Test_Registry_Detach_RemovesFromMap(t *testing.T) {
 	lookup := reg.Get("test-service")
 	assert.True(t, lookup.Exists)
 	assert.True(t, lookup.Detached)
-
-	close(doneChan)
 }
 
-func Test_Registry_RemoveAndDone_ChecksPointerIdentity(t *testing.T) {
+func Test_Registry_Detach_Nonexistent(t *testing.T) {
+	reg := NewRegistry()
+	reg.Detach("nonexistent")
+}
+
+func Test_Registry_Remove_ChecksPointerIdentity(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockProc1 := NewMockProcess(ctrl)
-	doneChan1 := make(chan struct{})
-	mockProc1.EXPECT().Done().Return(doneChan1).AnyTimes()
-
 	mockProc2 := NewMockProcess(ctrl)
-	doneChan2 := make(chan struct{})
-	mockProc2.EXPECT().Done().Return(doneChan2).AnyTimes()
 
 	reg := NewRegistry()
 	reg.Add("test-service", mockProc1, "default")
@@ -246,15 +258,12 @@ func Test_Registry_RemoveAndDone_ChecksPointerIdentity(t *testing.T) {
 	reg.Detach("test-service")
 	reg.Add("test-service", mockProc2, "default")
 
-	close(doneChan1)
+	result := reg.Remove("test-service", mockProc1)
+	assert.False(t, result.Removed, "Should not remove old process")
 
-	assert.Eventually(t, func() bool {
-		lookup := reg.Get("test-service")
-
-		return lookup.Exists && !lookup.Detached && lookup.Proc == mockProc2
-	}, 100*time.Millisecond, 5*time.Millisecond, "New process should still be in registry after old process exits")
-
-	close(doneChan2)
+	lookup := reg.Get("test-service")
+	assert.True(t, lookup.Exists)
+	assert.Equal(t, mockProc2, lookup.Proc)
 }
 
 func Test_Registry_RestartRaceCondition(t *testing.T) {
@@ -262,27 +271,70 @@ func Test_Registry_RestartRaceCondition(t *testing.T) {
 	defer ctrl.Finish()
 
 	oldProc := NewMockProcess(ctrl)
-	oldDone := make(chan struct{})
-	oldProc.EXPECT().Done().Return(oldDone).AnyTimes()
-
 	newProc := NewMockProcess(ctrl)
-	newDone := make(chan struct{})
-	newProc.EXPECT().Done().Return(newDone).AnyTimes()
 
 	reg := NewRegistry()
 	reg.Add("test-service", oldProc, "default")
 
 	reg.Detach("test-service")
-
 	reg.Add("test-service", newProc, "default")
 
-	close(oldDone)
+	result := reg.Remove("test-service", oldProc)
+	assert.False(t, result.Removed, "Old process should not be removed from active processes")
 
-	assert.Eventually(t, func() bool {
-		lookup := reg.Get("test-service")
+	lookup := reg.Get("test-service")
+	assert.True(t, lookup.Exists)
+	assert.False(t, lookup.Detached)
+	assert.Equal(t, newProc, lookup.Proc)
+}
 
-		return lookup.Exists && !lookup.Detached && lookup.Proc == newProc
-	}, 100*time.Millisecond, 5*time.Millisecond, "New process should still be in registry after old process exits")
+func Test_Registry_MarkRestarting(t *testing.T) {
+	reg := NewRegistry()
 
-	close(newDone)
+	assert.False(t, reg.IsRestarting("test-service"))
+
+	reg.MarkRestarting("test-service")
+
+	assert.True(t, reg.IsRestarting("test-service"))
+}
+
+func Test_Registry_ClearRestarting(t *testing.T) {
+	reg := NewRegistry()
+
+	reg.MarkRestarting("test-service")
+	assert.True(t, reg.IsRestarting("test-service"))
+
+	reg.ClearRestarting("test-service")
+	assert.False(t, reg.IsRestarting("test-service"))
+}
+
+func Test_Registry_Add_KeepsRestarting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProc := NewMockProcess(ctrl)
+
+	reg := NewRegistry()
+
+	reg.MarkRestarting("test-service")
+	assert.True(t, reg.IsRestarting("test-service"))
+
+	reg.Add("test-service", mockProc, "default")
+	assert.True(t, reg.IsRestarting("test-service"), "Add should not clear restarting flag")
+}
+
+func Test_Registry_RestartingIndependent(t *testing.T) {
+	reg := NewRegistry()
+
+	reg.MarkRestarting("service-a")
+	reg.MarkRestarting("service-b")
+
+	assert.True(t, reg.IsRestarting("service-a"))
+	assert.True(t, reg.IsRestarting("service-b"))
+	assert.False(t, reg.IsRestarting("service-c"))
+
+	reg.ClearRestarting("service-a")
+
+	assert.False(t, reg.IsRestarting("service-a"))
+	assert.True(t, reg.IsRestarting("service-b"))
 }

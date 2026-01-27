@@ -51,6 +51,18 @@ func (mr *MockRegistryMockRecorder) Add(name, proc, tier any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockRegistry)(nil).Add), name, proc, tier)
 }
 
+// ClearRestarting mocks base method.
+func (m *MockRegistry) ClearRestarting(name string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ClearRestarting", name)
+}
+
+// ClearRestarting indicates an expected call of ClearRestarting.
+func (mr *MockRegistryMockRecorder) ClearRestarting(name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearRestarting", reflect.TypeOf((*MockRegistry)(nil).ClearRestarting), name)
+}
+
 // Detach mocks base method.
 func (m *MockRegistry) Detach(name string) {
 	m.ctrl.T.Helper()
@@ -75,6 +87,46 @@ func (m *MockRegistry) Get(name string) Lookup {
 func (mr *MockRegistryMockRecorder) Get(name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRegistry)(nil).Get), name)
+}
+
+// IsRestarting mocks base method.
+func (m *MockRegistry) IsRestarting(name string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsRestarting", name)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsRestarting indicates an expected call of IsRestarting.
+func (mr *MockRegistryMockRecorder) IsRestarting(name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsRestarting", reflect.TypeOf((*MockRegistry)(nil).IsRestarting), name)
+}
+
+// MarkRestarting mocks base method.
+func (m *MockRegistry) MarkRestarting(name string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MarkRestarting", name)
+}
+
+// MarkRestarting indicates an expected call of MarkRestarting.
+func (mr *MockRegistryMockRecorder) MarkRestarting(name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkRestarting", reflect.TypeOf((*MockRegistry)(nil).MarkRestarting), name)
+}
+
+// Remove mocks base method.
+func (m *MockRegistry) Remove(name string, proc Process) RemoveResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Remove", name, proc)
+	ret0, _ := ret[0].(RemoveResult)
+	return ret0
+}
+
+// Remove indicates an expected call of Remove.
+func (mr *MockRegistryMockRecorder) Remove(name, proc any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockRegistry)(nil).Remove), name, proc)
 }
 
 // SnapshotReverse mocks base method.

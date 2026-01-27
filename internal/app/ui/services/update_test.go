@@ -238,6 +238,7 @@ func Test_HandleServiceStarting(t *testing.T) {
 
 	mockCmd := runtime.NewMockCommandBus(ctrl)
 	mockController := NewMockController(ctrl)
+	mockLog := newTestLogger(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	service := &ServiceState{Name: "api", Status: StatusStopped}
 	m := Model{
@@ -245,9 +246,10 @@ func Test_HandleServiceStarting(t *testing.T) {
 		loader:     loader,
 		command:    mockCmd,
 		controller: mockController,
+		log:        mockLog,
 	}
 	m.state.services = map[string]*ServiceState{"api": service}
-	service.FSM = newServiceFSM(service, loader)
+	service.FSM = newServiceFSM(service, loader, mockLog)
 
 	mockController.EXPECT().HandleStarting(gomock.Any(), service, 1234).Do(
 		func(_ context.Context, s *ServiceState, pid int) {
@@ -385,6 +387,86 @@ func Test_HandleServiceStopped_InvalidData(t *testing.T) {
 	m.state.services = make(map[string]*ServiceState)
 	event := runtime.Event{Type: runtime.EventServiceStopped, Data: "invalid"}
 	result := m.handleServiceStopped(event)
+	assert.Len(t, result.state.services, 0)
+}
+
+func Test_HandleWatchStarted(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: false}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := runtime.Event{
+		Type: runtime.EventWatchStarted,
+		Data: runtime.WatchStartedData{Service: "api"},
+	}
+
+	result := m.handleWatchStarted(event)
+
+	assert.True(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStarted_InvalidData(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: false}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := runtime.Event{Type: runtime.EventWatchStarted, Data: "invalid"}
+	result := m.handleWatchStarted(event)
+
+	assert.False(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStarted_UnknownService(t *testing.T) {
+	m := Model{}
+	m.state.services = make(map[string]*ServiceState)
+
+	event := runtime.Event{
+		Type: runtime.EventWatchStarted,
+		Data: runtime.WatchStartedData{Service: "unknown"},
+	}
+
+	result := m.handleWatchStarted(event)
+
+	assert.Len(t, result.state.services, 0)
+}
+
+func Test_HandleWatchStopped(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusStopped, Watching: true}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := runtime.Event{
+		Type: runtime.EventWatchStopped,
+		Data: runtime.WatchStoppedData{Service: "api"},
+	}
+
+	result := m.handleWatchStopped(event)
+
+	assert.False(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStopped_InvalidData(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusStopped, Watching: true}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := runtime.Event{Type: runtime.EventWatchStopped, Data: "invalid"}
+	result := m.handleWatchStopped(event)
+
+	assert.True(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStopped_UnknownService(t *testing.T) {
+	m := Model{}
+	m.state.services = make(map[string]*ServiceState)
+
+	event := runtime.Event{
+		Type: runtime.EventWatchStopped,
+		Data: runtime.WatchStoppedData{Service: "unknown"},
+	}
+
+	result := m.handleWatchStopped(event)
+
 	assert.Len(t, result.state.services, 0)
 }
 

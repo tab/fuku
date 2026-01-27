@@ -50,5 +50,6 @@ var (
 	EmptyStateStyle      = lipgloss.NewStyle().Foreground(FgMuted).Padding(0, 1)
 	SpinnerStyle         = lipgloss.NewStyle().Foreground(FgPrimary)
 	IndicatorActiveStyle = lipgloss.NewStyle().Foreground(FgStatusWarning)
+	IndicatorWatchStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning)
 	LoaderSpacerStyle    = lipgloss.NewStyle().PaddingLeft(1)
 )

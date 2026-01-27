@@ -175,6 +175,8 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 
 	mockRegistry := NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockRegistry.EXPECT().Remove(gomock.Any(), gomock.Any()).Return(RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: true}).AnyTimes()
+	mockRegistry.EXPECT().Detach(gomock.Any()).AnyTimes()
 	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess}).AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
@@ -391,6 +393,8 @@ func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockRegistry := NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess1, mockProcess2})
+	mockRegistry.EXPECT().Detach("service1")
+	mockRegistry.EXPECT().Detach("service2")
 	mockRegistry.EXPECT().Wait()
 
 	r := &runner{
@@ -429,6 +433,8 @@ func Test_Shutdown_StopsProcessesOnce(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockRegistry := NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess1, mockProcess2})
+	mockRegistry.EXPECT().Detach("service1")
+	mockRegistry.EXPECT().Detach("service2")
 	mockRegistry.EXPECT().Wait()
 
 	r := &runner{
@@ -480,13 +486,19 @@ func Test_HandleCommand_StopService(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
+	doneChan := make(chan struct{})
+	close(doneChan)
+
 	mockProcess := NewMockProcess(ctrl)
+	mockProcess.EXPECT().Done().Return(doneChan)
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Stop(mockProcess).Return(nil)
 
 	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockProcess, Exists: true, Detached: false})
+	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockProcess, Tier: "platform", Exists: true, Detached: false})
 	mockRegistry.EXPECT().Detach("api")
+	mockRegistry.EXPECT().Remove("api", mockProcess).Return(RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: false})
 
 	r := &runner{
 		cfg:       cfg,
@@ -515,15 +527,20 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+
+	oldDoneChan := make(chan struct{})
+	close(oldDoneChan)
 
 	mockOldProcess := NewMockProcess(ctrl)
 	mockOldProcess.EXPECT().Name().Return("api").AnyTimes()
+	mockOldProcess.EXPECT().Done().Return(oldDoneChan)
 
-	doneChan := make(chan struct{})
-	close(doneChan)
+	newDoneChan := make(chan struct{})
+	close(newDoneChan)
 
 	mockNewProcess := NewMockProcess(ctrl)
-	mockNewProcess.EXPECT().Done().Return(doneChan).AnyTimes()
+	mockNewProcess.EXPECT().Done().Return(newDoneChan).AnyTimes()
 	mockNewProcess.EXPECT().Name().Return("api").AnyTimes()
 
 	readyChan := make(chan error, 1)
@@ -538,9 +555,11 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockNewProcess, nil)
 
 	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockOldProcess, Exists: true, Detached: false})
+	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockOldProcess, Tier: "platform", Exists: true, Detached: false})
 	mockRegistry.EXPECT().Detach("api")
+	mockRegistry.EXPECT().Remove("api", mockOldProcess).Return(RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: false})
 	mockRegistry.EXPECT().Add("api", mockNewProcess, "platform")
+	mockRegistry.EXPECT().Remove("api", mockNewProcess).Return(RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: true}).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
@@ -646,13 +665,19 @@ func Test_StopService_ServiceExists(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
+	doneChan := make(chan struct{})
+	close(doneChan)
+
 	mockProcess := NewMockProcess(ctrl)
+	mockProcess.EXPECT().Done().Return(doneChan)
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Stop(mockProcess).Return(nil)
 
 	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockProcess, Exists: true, Detached: false})
+	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockProcess, Tier: "platform", Exists: true, Detached: false})
 	mockRegistry.EXPECT().Detach("api")
+	mockRegistry.EXPECT().Remove("api", mockProcess).Return(RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: false})
 
 	r := &runner{
 		cfg:       cfg,
@@ -702,15 +727,20 @@ func Test_RestartService_ExistingService(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+
+	oldDoneChan := make(chan struct{})
+	close(oldDoneChan)
 
 	mockOldProcess := NewMockProcess(ctrl)
 	mockOldProcess.EXPECT().Name().Return("api").AnyTimes()
+	mockOldProcess.EXPECT().Done().Return(oldDoneChan)
 
-	doneChan := make(chan struct{})
-	close(doneChan)
+	newDoneChan := make(chan struct{})
+	close(newDoneChan)
 
 	mockNewProcess := NewMockProcess(ctrl)
-	mockNewProcess.EXPECT().Done().Return(doneChan).AnyTimes()
+	mockNewProcess.EXPECT().Done().Return(newDoneChan).AnyTimes()
 	mockNewProcess.EXPECT().Name().Return("api").AnyTimes()
 
 	readyChan := make(chan error, 1)
@@ -725,9 +755,11 @@ func Test_RestartService_ExistingService(t *testing.T) {
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockNewProcess, nil)
 
 	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockOldProcess, Exists: true, Detached: false})
+	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockOldProcess, Tier: "platform", Exists: true, Detached: false})
 	mockRegistry.EXPECT().Detach("api")
+	mockRegistry.EXPECT().Remove("api", mockOldProcess).Return(RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: false})
 	mockRegistry.EXPECT().Add("api", mockNewProcess, "platform")
+	mockRegistry.EXPECT().Remove("api", mockNewProcess).Return(RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: true}).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
@@ -753,9 +785,9 @@ func Test_RestartService_StoppedService(t *testing.T) {
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	doneChan := make(chan struct{})
-	close(doneChan)
 
 	mockNewProcess := NewMockProcess(ctrl)
 	mockNewProcess.EXPECT().Done().Return(doneChan).AnyTimes()
@@ -771,9 +803,14 @@ func Test_RestartService_StoppedService(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockNewProcess, nil)
 
+	removeCalled := make(chan struct{})
 	mockRegistry := NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: nil, Exists: false, Detached: false})
 	mockRegistry.EXPECT().Add("api", mockNewProcess, config.Default)
+	mockRegistry.EXPECT().Remove("api", mockNewProcess).DoAndReturn(func(name string, proc Process) RemoveResult {
+		close(removeCalled)
+		return RemoveResult{Removed: true, Tier: config.Default, UnexpectedExit: true}
+	})
 
 	r := &runner{
 		cfg:       cfg,
@@ -788,6 +825,14 @@ func Test_RestartService_StoppedService(t *testing.T) {
 
 	ctx := context.Background()
 	r.restartService(ctx, "api", mockRegistry)
+
+	close(doneChan)
+
+	select {
+	case <-removeCalled:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watchProcess goroutine did not call Remove")
+	}
 }
 
 func Test_RestartService_ConfigNotFound(t *testing.T) {
@@ -799,9 +844,9 @@ func Test_RestartService_ConfigNotFound(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: nil, Exists: false, Detached: false})
 
 	r := &runner{
 		cfg:       cfg,
@@ -828,6 +873,7 @@ func Test_RestartService_StartFailed(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
@@ -1152,6 +1198,7 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 
 	mockRegistry := NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockRegistry.EXPECT().Detach(gomock.Any()).AnyTimes()
 	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess}).AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
@@ -1366,7 +1413,6 @@ func Test_RunStartupPhase_OtherCommandDuringStartup(t *testing.T) {
 
 	mockProcess := NewMockProcess(ctrl)
 	doneChan := make(chan struct{})
-	close(doneChan)
 	mockProcess.EXPECT().Done().Return(doneChan).AnyTimes()
 	mockProcess.EXPECT().Name().Return("api").AnyTimes()
 
@@ -1384,9 +1430,14 @@ func Test_RunStartupPhase_OtherCommandDuringStartup(t *testing.T) {
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
 	mockWorkerPool.EXPECT().Release()
 
+	removeCalled := make(chan struct{})
 	mockRegistry := NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	mockRegistry.EXPECT().Get("other").Return(Lookup{Exists: false}).AnyTimes()
+	mockRegistry.EXPECT().Remove("api", mockProcess).DoAndReturn(func(name string, proc Process) RemoveResult {
+		close(removeCalled)
+		return RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: true}
+	})
 
 	r := &runner{
 		cfg:       cfg,
@@ -1411,6 +1462,14 @@ func Test_RunStartupPhase_OtherCommandDuringStartup(t *testing.T) {
 	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
 
 	assert.NoError(t, err)
+
+	close(doneChan)
+
+	select {
+	case <-removeCalled:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watchProcess goroutine did not call Remove")
+	}
 }
 
 func Test_RunServicePhase_SignalReceived(t *testing.T) {
@@ -1546,4 +1605,19 @@ func Test_StartServiceWithRetry_ReadinessCheckFailed(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, proc)
+}
+
+func Test_IsWatchedService(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Services["watched"] = &config.Service{
+		Dir:   "watched",
+		Watch: &config.Watch{Include: []string{"*.go"}},
+	}
+	cfg.Services["unwatched"] = &config.Service{Dir: "unwatched"}
+
+	r := &runner{cfg: cfg}
+
+	assert.True(t, r.isWatchedService("watched"))
+	assert.False(t, r.isWatchedService("unwatched"))
+	assert.False(t, r.isWatchedService("nonexistent"))
 }

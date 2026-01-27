@@ -38,6 +38,7 @@ const (
 const (
 	IndicatorSelected = "›"
 	IndicatorEmpty    = " "
+	IndicatorWatch    = "◉"
 )
 
 // Services view constants

@@ -7,10 +7,22 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui/components"
+	"fuku/internal/config/logger"
 )
+
+func setupViewTestLogger(ctrl *gomock.Controller) logger.Logger {
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
+	return mockLogger
+}
 
 func Test_View_NotReady(t *testing.T) {
 	m := Model{}
@@ -141,6 +153,45 @@ func Test_GetStyledAndPaddedStatus(t *testing.T) {
 
 			result := m.getStyledAndPaddedStatus(service, tt.isSelected)
 			assert.Contains(t, result, string(tt.status))
+		})
+	}
+}
+
+func Test_GetStyledAndPaddedStatus_NoWatchIndicator(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     Status
+		watching   bool
+		isSelected bool
+	}{
+		{
+			name:       "running with watching - indicator in indicator column not status",
+			status:     StatusRunning,
+			watching:   true,
+			isSelected: false,
+		},
+		{
+			name:       "running without watching",
+			status:     StatusRunning,
+			watching:   false,
+			isSelected: false,
+		},
+		{
+			name:       "running with watching selected",
+			status:     StatusRunning,
+			watching:   true,
+			isSelected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			service := &ServiceState{Status: tt.status, Watching: tt.watching}
+
+			result := m.getStyledAndPaddedStatus(service, tt.isSelected)
+			assert.Contains(t, result, string(tt.status))
+			assert.NotContains(t, result, components.IndicatorWatch)
 		})
 	}
 }
@@ -287,27 +338,55 @@ func Test_GetServiceIndicator_DefaultSelected(t *testing.T) {
 
 func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
 	m := Model{}
-	service := &ServiceState{Name: "api", Status: StatusRunning, FSM: nil}
 
 	tests := []struct {
 		name       string
+		status     Status
+		watching   bool
 		isSelected bool
 		want       string
 	}{
 		{
 			name:       "FSM nil not selected",
+			status:     StatusRunning,
+			watching:   false,
 			isSelected: false,
 			want:       " ",
 		},
 		{
 			name:       "FSM nil selected",
+			status:     StatusRunning,
+			watching:   false,
 			isSelected: true,
 			want:       components.IndicatorSelected,
+		},
+		{
+			name:       "FSM nil watching running not selected shows watch indicator",
+			status:     StatusRunning,
+			watching:   true,
+			isSelected: false,
+			want:       components.IndicatorWatchStyle.Render(components.IndicatorWatch),
+		},
+		{
+			name:       "FSM nil watching running selected shows watch indicator unstyled",
+			status:     StatusRunning,
+			watching:   true,
+			isSelected: true,
+			want:       components.IndicatorWatch,
+		},
+		{
+			name:       "FSM nil watching stopped does not show watch indicator",
+			status:     StatusStopped,
+			watching:   true,
+			isSelected: false,
+			want:       " ",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			service := &ServiceState{Name: "api", Status: tt.status, Watching: tt.watching, FSM: nil}
+
 			result := m.getServiceIndicator(service, tt.isSelected)
 			assert.Equal(t, tt.want, result)
 		})
@@ -315,9 +394,12 @@ func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
 }
 
 func Test_GetServiceIndicator_GuardNonTransitionalState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	m := Model{}
 	service := &ServiceState{Name: "api", Status: StatusRunning}
-	service.FSM = newServiceFSM(service, newTestLoader())
+	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name       string
@@ -361,10 +443,79 @@ func Test_GetServiceIndicator_GuardNonTransitionalState(t *testing.T) {
 	}
 }
 
+func Test_GetServiceIndicator_WatchingWithFSM(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	m := Model{}
+	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: true}
+	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
+
+	tests := []struct {
+		name       string
+		state      string
+		isSelected bool
+		want       string
+	}{
+		{
+			name:       "Running state watching not selected shows watch indicator",
+			state:      Running,
+			isSelected: false,
+			want:       components.IndicatorWatchStyle.Render(components.IndicatorWatch),
+		},
+		{
+			name:       "Running state watching selected shows unstyled watch indicator",
+			state:      Running,
+			isSelected: true,
+			want:       components.IndicatorWatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service.FSM.SetState(tt.state)
+
+			result := m.getServiceIndicator(service, tt.isSelected)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func Test_GetWatchIndicator(t *testing.T) {
+	m := Model{}
+
+	tests := []struct {
+		name       string
+		isSelected bool
+		want       string
+	}{
+		{
+			name:       "not selected returns styled indicator",
+			isSelected: false,
+			want:       components.IndicatorWatchStyle.Render(components.IndicatorWatch),
+		},
+		{
+			name:       "selected returns unstyled indicator",
+			isSelected: true,
+			want:       components.IndicatorWatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := m.getWatchIndicator(tt.isSelected)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func Test_GetServiceIndicator_GuardBlinkNil(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	m := Model{}
 	service := &ServiceState{Name: "api", Status: StatusRunning, Blink: nil}
-	service.FSM = newServiceFSM(service, newTestLoader())
+	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name       string
@@ -403,10 +554,13 @@ func Test_GetServiceIndicator_GuardBlinkNil(t *testing.T) {
 }
 
 func Test_GetServiceIndicator_BlinkIndicatorNotSelected(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	m := Model{}
 	blink := components.NewBlink()
 	service := &ServiceState{Name: "api", Status: StatusRunning, Blink: blink}
-	service.FSM = newServiceFSM(service, newTestLoader())
+	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name  string
@@ -438,10 +592,13 @@ func Test_GetServiceIndicator_BlinkIndicatorNotSelected(t *testing.T) {
 }
 
 func Test_GetServiceIndicator_BlinkIndicatorSelected(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	m := Model{}
 	blink := components.NewBlink()
 	service := &ServiceState{Name: "api", Status: StatusRunning, Blink: blink}
-	service.FSM = newServiceFSM(service, newTestLoader())
+	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name  string

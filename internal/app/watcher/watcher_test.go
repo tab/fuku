@@ -57,7 +57,7 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 			"test-service": {
 				Dir: tmpDir,
 				Watch: &config.Watch{
-					Paths: []string{"*.go", "**/*.go"},
+					Include: []string{"*.go", "**/*.go"},
 				},
 			},
 		},
@@ -103,7 +103,7 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 			"test-service": {
 				Dir: tmpDir,
 				Watch: &config.Watch{
-					Paths: []string{"*.go"},
+					Include: []string{"*.go"},
 				},
 			},
 		},
@@ -160,7 +160,7 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 			"test-service": {
 				Dir: tmpDir,
 				Watch: &config.Watch{
-					Paths: []string{"*.go", "**/*.go"},
+					Include: []string{"*.go", "**/*.go"},
 				},
 			},
 		},
@@ -228,8 +228,8 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 			"test-service": {
 				Dir: tmpDir,
 				Watch: &config.Watch{
-					Paths:  []string{"*.go", "**/*.go"},
-					Ignore: []string{"*_test.go"},
+					Include: []string{"*.go", "**/*.go"},
+					Ignore:  []string{"*_test.go"},
 				},
 			},
 		},
@@ -335,53 +335,243 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 	assert.False(t, exists, "watcher should not be registered for service without watch config")
 }
 
-func Test_shouldSkipDir(t *testing.T) {
-	tests := []struct {
-		name   string
-		dir    string
-		expect bool
-	}{
-		{
-			name:   "git directory",
-			dir:    ".git",
-			expect: true,
-		},
-		{
-			name:   "node_modules",
-			dir:    "node_modules",
-			expect: true,
-		},
-		{
-			name:   "vendor",
-			dir:    "vendor",
-			expect: true,
-		},
-		{
-			name:   "idea",
-			dir:    ".idea",
-			expect: true,
-		},
-		{
-			name:   "vscode",
-			dir:    ".vscode",
-			expect: true,
-		},
-		{
-			name:   "src directory",
-			dir:    "src",
-			expect: false,
-		},
-		{
-			name:   "internal directory",
-			dir:    "internal",
-			expect: false,
+func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	log := setupMockLogger(ctrl)
+	tmpDir := t.TempDir()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"test-service": {
+				Dir: tmpDir,
+				Watch: &config.Watch{
+					Include: []string{"*.go"},
+				},
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := shouldSkipDir(tt.dir)
-			assert.Equal(t, tt.expect, result)
-		})
+	eventBus := runtime.NewEventBus(10)
+	defer eventBus.Close()
+
+	w, err := NewWatcher(cfg, eventBus, log)
+	require.NoError(t, err)
+
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eventCh := eventBus.Subscribe(ctx)
+
+	w.Start(ctx)
+
+	eventBus.Publish(runtime.Event{
+		Type: runtime.EventServiceReady,
+		Data: runtime.ServiceReadyData{Service: "test-service", Tier: "default"},
+	})
+
+	var watchStarted bool
+
+	timeout := time.After(1 * time.Second)
+
+	for !watchStarted {
+		select {
+		case event := <-eventCh:
+			if event.Type == runtime.EventWatchStarted {
+				data, ok := event.Data.(runtime.WatchStartedData)
+				assert.True(t, ok)
+				assert.Equal(t, "test-service", data.Service)
+
+				watchStarted = true
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for watch started event")
+		}
 	}
+}
+
+func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	log := setupMockLogger(ctrl)
+	tmpDir := t.TempDir()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"test-service": {
+				Dir: tmpDir,
+				Watch: &config.Watch{
+					Include: []string{"*.go"},
+				},
+			},
+		},
+	}
+
+	eventBus := runtime.NewEventBus(10)
+	defer eventBus.Close()
+
+	w, err := NewWatcher(cfg, eventBus, log)
+	require.NoError(t, err)
+
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eventCh := eventBus.Subscribe(ctx)
+
+	w.Start(ctx)
+
+	eventBus.Publish(runtime.Event{
+		Type: runtime.EventServiceReady,
+		Data: runtime.ServiceReadyData{Service: "test-service", Tier: "default"},
+	})
+
+	time.Sleep(100 * time.Millisecond)
+
+	eventBus.Publish(runtime.Event{
+		Type: runtime.EventServiceStopped,
+		Data: runtime.ServiceStoppedData{Service: "test-service", Tier: "default"},
+	})
+
+	var watchStopped bool
+
+	timeout := time.After(1 * time.Second)
+
+	for !watchStopped {
+		select {
+		case event := <-eventCh:
+			if event.Type == runtime.EventWatchStopped {
+				data, ok := event.Data.(runtime.WatchStoppedData)
+				assert.True(t, ok)
+				assert.Equal(t, "test-service", data.Service)
+
+				watchStopped = true
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for watch stopped event")
+		}
+	}
+}
+
+func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	log := setupMockLogger(ctrl)
+	tmpDir := t.TempDir()
+
+	skippedDir := filepath.Join(tmpDir, ".git")
+	require.NoError(t, os.Mkdir(skippedDir, 0755))
+
+	watchedDir := filepath.Join(tmpDir, "src")
+	require.NoError(t, os.Mkdir(watchedDir, 0755))
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"test-service": {
+				Dir: tmpDir,
+				Watch: &config.Watch{
+					Include: []string{"**/*.go"},
+					Ignore:  []string{".git/**"},
+				},
+			},
+		},
+	}
+
+	eventBus := runtime.NewEventBus(10)
+	defer eventBus.Close()
+
+	w, err := NewWatcher(cfg, eventBus, log)
+	require.NoError(t, err)
+
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	w.Start(ctx)
+
+	eventBus.Publish(runtime.Event{
+		Type: runtime.EventServiceReady,
+		Data: runtime.ServiceReadyData{Service: "test-service", Tier: "default"},
+	})
+
+	time.Sleep(100 * time.Millisecond)
+
+	m := w.(*manager)
+	m.mu.RLock()
+	watcher, exists := m.watchers["test-service"]
+	m.mu.RUnlock()
+
+	require.True(t, exists)
+
+	for _, dir := range watcher.dirs {
+		assert.NotContains(t, dir, ".git", "should not watch .git directory")
+	}
+
+	assert.Contains(t, watcher.dirs, watchedDir, "should watch src directory")
+}
+
+func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	log := setupMockLogger(ctrl)
+	tmpDir := t.TempDir()
+
+	customDir := filepath.Join(tmpDir, "build")
+	require.NoError(t, os.Mkdir(customDir, 0755))
+
+	srcDir := filepath.Join(tmpDir, "src")
+	require.NoError(t, os.Mkdir(srcDir, 0755))
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"test-service": {
+				Dir: tmpDir,
+				Watch: &config.Watch{
+					Include: []string{"**/*.go"},
+					Ignore:  []string{"build/**"},
+				},
+			},
+		},
+	}
+
+	eventBus := runtime.NewEventBus(10)
+	defer eventBus.Close()
+
+	w, err := NewWatcher(cfg, eventBus, log)
+	require.NoError(t, err)
+
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	w.Start(ctx)
+
+	eventBus.Publish(runtime.Event{
+		Type: runtime.EventServiceReady,
+		Data: runtime.ServiceReadyData{Service: "test-service", Tier: "default"},
+	})
+
+	time.Sleep(100 * time.Millisecond)
+
+	m := w.(*manager)
+	m.mu.RLock()
+	watcher, exists := m.watchers["test-service"]
+	m.mu.RUnlock()
+
+	require.True(t, exists)
+
+	for _, dir := range watcher.dirs {
+		assert.NotContains(t, dir, "build", "should not watch build directory")
+	}
+
+	assert.Contains(t, watcher.dirs, srcDir, "should watch src directory")
 }

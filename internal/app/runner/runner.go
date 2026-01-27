@@ -63,9 +63,11 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
 	} else {
 		r.service.SetBroadcaster(logsServer)
+		r.event.SetBroadcaster(logsServer)
 
 		defer func() {
 			r.service.SetBroadcaster(nil)
+			r.event.SetBroadcaster(nil)
 			logsServer.Stop()
 		}()
 	}
@@ -293,7 +295,55 @@ func (r *runner) handleCommand(ctx context.Context, cmd runtime.Command, registr
 // handleWatchEvent processes a file watch event and triggers service restart
 func (r *runner) handleWatchEvent(ctx context.Context, service string, changedFiles []string, registry Registry) {
 	r.log.Info().Msgf("File change detected for service '%s': %v", service, changedFiles)
+
+	if registry.IsRestarting(service) {
+		r.log.Info().Msgf("Service '%s' restart already in progress, skipping", service)
+		return
+	}
+
 	r.restartService(ctx, service, registry)
+}
+
+// isWatchedService returns true if the service has watch configuration
+func (r *runner) isWatchedService(service string) bool {
+	serviceCfg, exists := r.cfg.Services[service]
+	if !exists {
+		return false
+	}
+
+	return serviceCfg.Watch != nil
+}
+
+// watchProcess creates a goroutine that monitors process lifecycle and publishes events
+func (r *runner) watchProcess(proc Process, registry Registry) {
+	go func() {
+		<-proc.Done()
+
+		result := registry.Remove(proc.Name(), proc)
+		if !result.Removed {
+			return
+		}
+
+		if result.UnexpectedExit {
+			r.log.Info().Msgf("Service '%s' exited unexpectedly", proc.Name())
+
+			if r.isWatchedService(proc.Name()) {
+				registry.ClearRestarting(proc.Name())
+
+				r.event.Publish(runtime.Event{
+					Type:     runtime.EventServiceFailed,
+					Data:     runtime.ServiceFailedData{Service: proc.Name(), Tier: result.Tier, Error: errors.ErrUnexpectedExit},
+					Critical: true,
+				})
+			} else {
+				r.event.Publish(runtime.Event{
+					Type:     runtime.EventServiceStopped,
+					Data:     runtime.ServiceStoppedData{Service: proc.Name(), Tier: result.Tier},
+					Critical: true,
+				})
+			}
+		}
+	}()
 }
 
 // stopService stops a single service by name
@@ -310,23 +360,33 @@ func (r *runner) stopService(serviceName string, registry Registry) {
 		return
 	}
 
+	tier := lookup.Tier
+
+	r.event.Publish(runtime.Event{
+		Type:     runtime.EventServiceStopping,
+		Data:     runtime.ServiceStoppingData{Service: serviceName, Tier: tier},
+		Critical: true,
+	})
+
 	registry.Detach(serviceName)
 
 	r.log.Info().Msgf("Stopping service '%s' by command", serviceName)
 	r.service.Stop(lookup.Proc)
+	<-lookup.Proc.Done()
+
+	registry.Remove(serviceName, lookup.Proc)
+
+	r.log.Info().Msgf("Service '%s' stopped", serviceName)
+	r.event.Publish(runtime.Event{
+		Type:     runtime.EventServiceStopped,
+		Data:     runtime.ServiceStoppedData{Service: serviceName, Tier: tier},
+		Critical: true,
+	})
 }
 
 // restartService stops and starts a service, or just starts if not running
 func (r *runner) restartService(ctx context.Context, serviceName string, registry Registry) {
-	lookup := registry.Get(serviceName)
-
-	if lookup.Exists {
-		r.log.Info().Msgf("Stopping service '%s' before restart", serviceName)
-		registry.Detach(serviceName)
-		r.service.Stop(lookup.Proc)
-	} else {
-		r.log.Info().Msgf("Starting stopped service '%s'", serviceName)
-	}
+	r.log.Debug().Msgf("restartService called for '%s'", serviceName)
 
 	serviceCfg, exists := r.cfg.Services[serviceName]
 	if !exists {
@@ -345,9 +405,47 @@ func (r *runner) restartService(ctx context.Context, serviceName string, registr
 		tier = config.Default
 	}
 
-	newProc, err := r.startServiceWithRetry(ctx, serviceName, tier, serviceCfg)
+	if r.isWatchedService(serviceName) {
+		registry.MarkRestarting(serviceName)
+	}
+
+	r.event.Publish(runtime.Event{
+		Type:     runtime.EventServiceRestarting,
+		Data:     runtime.ServiceRestartingData{Service: serviceName, Tier: tier},
+		Critical: true,
+	})
+
+	lookup := registry.Get(serviceName)
+
+	if lookup.Exists {
+		r.log.Info().Msgf("Stopping service '%s' before restart", serviceName)
+		registry.Detach(serviceName)
+		r.service.Stop(lookup.Proc)
+		<-lookup.Proc.Done()
+		registry.Remove(serviceName, lookup.Proc)
+		r.log.Info().Msgf("Service '%s' stopped, starting new instance", serviceName)
+	} else {
+		r.log.Info().Msgf("Starting stopped service '%s'", serviceName)
+	}
+
+	var newProc Process
+
+	var err error
+
+	if r.isWatchedService(serviceName) {
+		// For watched services, try once - file watcher handles retries on next change
+		newProc, err = r.startServiceOnce(ctx, serviceName, tier, serviceCfg)
+	} else {
+		newProc, err = r.startServiceWithRetry(ctx, serviceName, tier, serviceCfg)
+	}
+
 	if err != nil {
 		r.log.Error().Err(err).Msgf("Failed to restart service '%s'", serviceName)
+
+		if r.isWatchedService(serviceName) {
+			registry.ClearRestarting(serviceName)
+		}
+
 		r.event.Publish(runtime.Event{
 			Type:     runtime.EventServiceFailed,
 			Data:     runtime.ServiceFailedData{Service: serviceName, Tier: tier, Error: err},
@@ -359,15 +457,13 @@ func (r *runner) restartService(ctx context.Context, serviceName string, registr
 
 	registry.Add(serviceName, newProc, tier)
 
-	go func() {
-		<-newProc.Done()
-		r.log.Info().Msgf("Service '%s' stopped", newProc.Name())
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventServiceStopped,
-			Data:     runtime.ServiceStoppedData{Service: newProc.Name(), Tier: tier},
-			Critical: true,
-		})
-	}()
+	if r.isWatchedService(serviceName) && serviceCfg.Readiness != nil {
+		// For services with readiness checks, restart is confirmed successful
+		registry.ClearRestarting(serviceName)
+	}
+	// For services without readiness, watchProcess clears flag when process exits
+
+	r.watchProcess(newProc, registry)
 }
 
 // startTier starts all services in a tier concurrently and returns failed service names
@@ -423,16 +519,7 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 
 	for proc := range procChan {
 		registry.Add(proc.Name(), proc, tierName)
-
-		go func(p Process, tier string) {
-			<-p.Done()
-			r.log.Info().Msgf("Service '%s' stopped", p.Name())
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventServiceStopped,
-				Data:     runtime.ServiceStoppedData{Service: p.Name(), Tier: tier},
-				Critical: true,
-			})
-		}(proc, tierName)
+		r.watchProcess(proc, registry)
 	}
 
 	failedServices := make([]string, 0, len(tierServices))
@@ -443,17 +530,62 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 	return failedServices
 }
 
+// startServiceOnce attempts to start a service once without retries (used for watched service restarts)
+func (r *runner) startServiceOnce(ctx context.Context, name string, tierName string, service *config.Service) (Process, error) {
+	startTime := time.Now()
+
+	proc, err := r.service.Start(ctx, name, service)
+	if err != nil {
+		return nil, err
+	}
+
+	pid := 0
+	if proc.Cmd() != nil && proc.Cmd().Process != nil {
+		pid = proc.Cmd().Process.Pid
+	}
+
+	r.event.Publish(runtime.Event{
+		Type:     runtime.EventServiceStarting,
+		Data:     runtime.ServiceStartingData{Service: name, Tier: tierName, Attempt: 1, PID: pid},
+		Critical: true,
+	})
+
+	if service.Readiness != nil {
+		select {
+		case err := <-proc.Ready():
+			if err != nil {
+				r.service.Stop(proc)
+				return nil, fmt.Errorf("readiness check failed: %w", err)
+			}
+
+			r.event.Publish(runtime.Event{
+				Type:     runtime.EventServiceReady,
+				Data:     runtime.ServiceReadyData{Service: name, Tier: tierName, Duration: time.Since(startTime)},
+				Critical: true,
+			})
+
+			return proc, nil
+		case <-ctx.Done():
+			r.service.Stop(proc)
+			return nil, ctx.Err()
+		}
+	}
+
+	r.event.Publish(runtime.Event{
+		Type:     runtime.EventServiceReady,
+		Data:     runtime.ServiceReadyData{Service: name, Tier: tierName, Duration: time.Since(startTime)},
+		Critical: true,
+	})
+
+	return proc, nil
+}
+
 // startServiceWithRetry attempts to start a service with configurable retries
 func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierName string, service *config.Service) (Process, error) {
 	var lastErr error
 
 	for attempt := 0; attempt < r.cfg.Retry.Attempts; attempt++ {
 		if attempt > 0 {
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventRetryScheduled,
-				Data:     runtime.RetryScheduledData{Service: name, Attempt: attempt + 1, MaxAttempts: r.cfg.Retry.Attempts},
-				Critical: true,
-			})
 			r.log.Info().Msgf("Retrying service '%s' (attempt %d/%d)", name, attempt+1, r.cfg.Retry.Attempts)
 
 			select {
@@ -534,11 +666,6 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Regis
 		failedServices := r.startTier(ctx, tier.Name, tier.Services, registry)
 
 		if len(failedServices) > 0 {
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventTierFailed,
-				Data:     runtime.TierFailedData{Name: tier.Name, FailedServices: failedServices, TotalServices: len(tier.Services)},
-				Critical: true,
-			})
 			r.log.Warn().Msgf("Tier '%s' partially failed: %d/%d services failed: %v", tier.Name, len(failedServices), len(tier.Services), failedServices)
 		} else if len(tier.Services) > 0 {
 			r.event.Publish(runtime.Event{
@@ -554,6 +681,10 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Regis
 // shutdown stops all services in reverse order and waits for completion
 func (r *runner) shutdown(registry Registry) {
 	processes := registry.SnapshotReverse()
+
+	for _, proc := range processes {
+		registry.Detach(proc.Name())
+	}
 
 	for _, proc := range processes {
 		r.service.Stop(proc)
