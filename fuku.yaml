@@ -7,7 +7,7 @@ x-readiness: &readiness
 x-watch: &watch
   include: ["**/*.go", "**/*.yaml"]
   ignore: [".git/**", ".idea/**", ".vscode/**", "node_modules/**", "vendor/**", "**/*_test.go", "**/mock_*.go", "**/*_mock.go"]
-  shared: ["examples/bookstore/common"]
+  shared: ["examples/bookstore/pkg/common"]
 
 services:
   # Foundation tier: Base infrastructure services
