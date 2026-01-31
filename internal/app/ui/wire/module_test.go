@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
-	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config/logger"
 )
@@ -17,15 +17,13 @@ func Test_NewUI(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockEventBus := runtime.NewMockEventBus(ctrl)
-	mockCommandBus := runtime.NewMockCommandBus(ctrl)
+	mockBus := bus.NewMockBus(ctrl)
 	mockController := services.NewMockController(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	params := UIParams{
-		EventBus:   mockEventBus,
-		CommandBus: mockCommandBus,
+		Bus:        mockBus,
 		Controller: mockController,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
@@ -40,25 +38,23 @@ func Test_UI_CreateProgram(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockEventBus := runtime.NewMockEventBus(ctrl)
-	mockCommandBus := runtime.NewMockCommandBus(ctrl)
+	mockBus := bus.NewMockBus(ctrl)
 	mockController := services.NewMockController(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 
 	ctx := context.Background()
-	eventChan := make(chan runtime.Event)
-	close(eventChan)
+	msgChan := make(chan bus.Message)
+	close(msgChan)
 
-	mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
+	mockBus.EXPECT().Subscribe(ctx).Return(msgChan)
 	mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	params := UIParams{
-		EventBus:   mockEventBus,
-		CommandBus: mockCommandBus,
+		Bus:        mockBus,
 		Controller: mockController,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
@@ -87,25 +83,23 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockEventBus := runtime.NewMockEventBus(ctrl)
-			mockCommandBus := runtime.NewMockCommandBus(ctrl)
+			mockBus := bus.NewMockBus(ctrl)
 			mockController := services.NewMockController(ctrl)
 			mockMonitor := monitor.NewMockMonitor(ctrl)
 			mockLogger := logger.NewMockLogger(ctrl)
 			componentLogger := logger.NewMockLogger(ctrl)
 
 			ctx := context.Background()
-			eventChan := make(chan runtime.Event)
-			close(eventChan)
+			msgChan := make(chan bus.Message)
+			close(msgChan)
 
-			mockEventBus.EXPECT().Subscribe(ctx).Return(eventChan)
+			mockBus.EXPECT().Subscribe(ctx).Return(msgChan)
 			mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
 			mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 			componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 			params := UIParams{
-				EventBus:   mockEventBus,
-				CommandBus: mockCommandBus,
+				Bus:        mockBus,
 				Controller: mockController,
 				Monitor:    mockMonitor,
 				Loader:     services.NewLoader(),

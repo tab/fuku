@@ -12,6 +12,7 @@ package runner
 import (
 	context "context"
 	logs "fuku/internal/app/logs"
+	process "fuku/internal/app/process"
 	config "fuku/internal/config"
 	reflect "reflect"
 
@@ -55,10 +56,10 @@ func (mr *MockServiceMockRecorder) SetBroadcaster(broadcaster any) *gomock.Call 
 }
 
 // Start mocks base method.
-func (m *MockService) Start(ctx context.Context, name string, service *config.Service) (Process, error) {
+func (m *MockService) Start(ctx context.Context, name string, service *config.Service) (process.Process, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start", ctx, name, service)
-	ret0, _ := ret[0].(Process)
+	ret0, _ := ret[0].(process.Process)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -70,7 +71,7 @@ func (mr *MockServiceMockRecorder) Start(ctx, name, service any) *gomock.Call {
 }
 
 // Stop mocks base method.
-func (m *MockService) Stop(proc Process) error {
+func (m *MockService) Stop(proc process.Process) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stop", proc)
 	ret0, _ := ret[0].(error)

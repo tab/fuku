@@ -4,11 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
 
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/bus"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -21,26 +22,28 @@ type Watcher interface {
 
 // watcher holds state for a single watched service
 type watcher struct {
-	name      string
-	dir       string
-	matcher   Matcher
-	debouncer Debouncer
-	cancel    context.CancelFunc
+	name       string
+	dir        string
+	sharedDirs []string
+	dirs       []string
+	matcher    Matcher
+	debouncer  Debouncer
+	cancel     context.CancelFunc
 }
 
 // manager implements the Watcher interface
 type manager struct {
 	cfg       *config.Config
-	eventBus  runtime.EventBus
+	bus       bus.Bus
 	fsWatcher *fsnotify.Watcher
 	watchers  map[string]*watcher
-	log       logger.Logger
 	mu        sync.RWMutex
 	closed    bool
+	log       logger.Logger
 }
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, eventBus runtime.EventBus, log logger.Logger) (Watcher, error) {
+func NewWatcher(cfg *config.Config, b bus.Bus, log logger.Logger) (Watcher, error) {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -48,7 +51,7 @@ func NewWatcher(cfg *config.Config, eventBus runtime.EventBus, log logger.Logger
 
 	m := &manager{
 		cfg:       cfg,
-		eventBus:  eventBus,
+		bus:       b,
 		fsWatcher: fsw,
 		watchers:  make(map[string]*watcher),
 		log:       log.WithComponent("WATCHER"),
@@ -61,30 +64,28 @@ func NewWatcher(cfg *config.Config, eventBus runtime.EventBus, log logger.Logger
 
 // Start subscribes to service events and manages file watching
 func (m *manager) Start(ctx context.Context) {
-	eventCh := m.eventBus.Subscribe(ctx)
+	msgCh := m.bus.Subscribe(ctx)
 
 	go func() {
-		for event := range eventCh {
-			m.handleServiceEvent(ctx, event)
+		for msg := range msgCh {
+			m.handleServiceEvent(ctx, msg)
 		}
 	}()
 }
 
-// handleServiceEvent processes runtime events to start/stop watching
-func (m *manager) handleServiceEvent(ctx context.Context, event runtime.Event) {
-	switch event.Type {
-	case runtime.EventServiceReady:
-		if data, ok := event.Data.(runtime.ServiceReadyData); ok {
+// handleServiceEvent processes bus messages to start/stop watching
+func (m *manager) handleServiceEvent(ctx context.Context, msg bus.Message) {
+	switch msg.Type {
+	case bus.EventServiceReady:
+		if data, ok := msg.Data.(bus.ServiceReady); ok {
 			m.startWatching(ctx, data.Service)
 		}
-	case runtime.EventServiceStopped:
-		if data, ok := event.Data.(runtime.ServiceStoppedData); ok {
+	case bus.EventServiceStopped:
+		if data, ok := msg.Data.(bus.ServiceStopped); ok {
 			m.stopWatching(data.Service)
 		}
-	case runtime.EventServiceFailed:
-		if data, ok := event.Data.(runtime.ServiceFailedData); ok {
-			m.stopWatching(data.Service)
-		}
+		// Note: We intentionally don't stop watching on EventServiceFailed.
+		// This allows the next file change to trigger a restart attempt.
 	}
 }
 
@@ -106,7 +107,7 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 		return
 	}
 
-	matcher, err := NewMatcher(serviceCfg.Watch.Paths, serviceCfg.Watch.Ignore)
+	matcher, err := NewMatcher(serviceCfg.Watch.Include, serviceCfg.Watch.Ignore)
 	if err != nil {
 		m.log.Warn().Err(err).Msgf("Failed to create matcher for service '%s'", serviceName)
 		return
@@ -131,15 +132,43 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 		m.emitEvent(serviceName, files)
 	})
 
-	if err := m.addDirRecursive(absDir); err != nil {
+	dirs, err := m.addDirRecursive(absDir, matcher)
+	if err != nil {
 		cancel()
 		m.log.Warn().Err(err).Msgf("Failed to add directories for service '%s'", serviceName)
 
 		return
 	}
 
+	w.dirs = dirs
+
+	for _, shared := range serviceCfg.Watch.Shared {
+		shared = normalizeSharedPath(shared)
+
+		absShared, err := filepath.Abs(shared)
+		if err != nil {
+			m.log.Warn().Err(err).Msgf("Failed to resolve shared path '%s' for service '%s'", shared, serviceName)
+			continue
+		}
+
+		w.sharedDirs = append(w.sharedDirs, absShared)
+
+		sharedDirs, err := m.addDirRecursive(absShared, matcher)
+		if err != nil {
+			m.log.Warn().Err(err).Msgf("Failed to add shared directory '%s' for service '%s'", absShared, serviceName)
+			continue
+		}
+
+		w.dirs = append(w.dirs, sharedDirs...)
+	}
+
 	m.watchers[serviceName] = w
 	m.log.Info().Msgf("Started watching service '%s' in %s", serviceName, absDir)
+
+	m.bus.Publish(bus.Message{
+		Type: bus.EventWatchStarted,
+		Data: bus.Payload{Name: serviceName},
+	})
 
 	go func() {
 		<-ctx.Done()
@@ -158,8 +187,14 @@ func (m *manager) stopWatching(serviceName string) {
 	}
 
 	w.cancel()
+	m.removeDirs(w)
 	delete(m.watchers, serviceName)
 	m.log.Info().Msgf("Stopped watching service '%s'", serviceName)
+
+	m.bus.Publish(bus.Message{
+		Type: bus.EventWatchStopped,
+		Data: bus.Payload{Name: serviceName},
+	})
 }
 
 // Close stops the watcher and releases resources
@@ -207,16 +242,16 @@ func (m *manager) handleEvent(event fsnotify.Event) {
 		return
 	}
 
+	var (
+		newDirPath        string
+		targetWatcherName string
+	)
+
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 
 	for _, w := range m.watchers {
-		relPath, err := filepath.Rel(w.dir, event.Name)
-		if err != nil {
-			continue
-		}
-
-		if len(relPath) > 2 && relPath[:2] == ".." {
+		relPath, ok := relativeToAnyBaseDir(w, event.Name)
+		if !ok {
 			continue
 		}
 
@@ -226,25 +261,78 @@ func (m *manager) handleEvent(event fsnotify.Event) {
 	}
 
 	if event.Has(fsnotify.Create) {
-		m.handleCreate(event.Name)
+		newDirPath, targetWatcherName = m.findNewDirTarget(event.Name)
+	}
+
+	m.mu.RUnlock()
+
+	if targetWatcherName != "" {
+		m.addNewDir(newDirPath, targetWatcherName)
 	}
 }
 
-// handleCreate adds newly created directories to the watch list
-func (m *manager) handleCreate(path string) {
+// findNewDirTarget checks if path is a new directory to watch (called under RLock)
+func (m *manager) findNewDirTarget(path string) (string, string) {
 	info, err := os.Stat(path)
-	if err != nil {
+	if err != nil || !info.IsDir() {
+		return "", ""
+	}
+
+	for _, w := range m.watchers {
+		relPath, ok := relativeToAnyBaseDir(w, path)
+		if !ok {
+			continue
+		}
+
+		if w.matcher.MatchDir(relPath) {
+			continue
+		}
+
+		return path, w.name
+	}
+
+	return "", ""
+}
+
+// addNewDir adds a directory to the watch list (acquires write lock)
+func (m *manager) addNewDir(path, watcherName string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	w, exists := m.watchers[watcherName]
+	if !exists {
 		return
 	}
 
-	if info.IsDir() {
-		if err := m.fsWatcher.Add(path); err != nil {
-			m.log.Warn().Err(err).Msgf("Failed to watch new directory: %s", path)
-		}
+	if err := m.fsWatcher.Add(path); err != nil {
+		m.log.Warn().Err(err).Msgf("Failed to watch new directory: %s", path)
+		return
 	}
+
+	w.dirs = append(w.dirs, path)
 }
 
-// emitEvent publishes a watch triggered event to the event bus
+// relativeToAnyBaseDir returns a relative path from the first matching base dir (service dir or shared dirs)
+func relativeToAnyBaseDir(w *watcher, path string) (string, bool) {
+	if relPath, err := filepath.Rel(w.dir, path); err == nil && !strings.HasPrefix(relPath, "..") {
+		return relPath, true
+	}
+
+	for _, baseDir := range w.sharedDirs {
+		relPath, err := filepath.Rel(baseDir, path)
+		if err != nil {
+			continue
+		}
+
+		if !strings.HasPrefix(relPath, "..") {
+			return relPath, true
+		}
+	}
+
+	return "", false
+}
+
+// emitEvent publishes a watch triggered event to the bus
 func (m *manager) emitEvent(serviceName string, files []string) {
 	m.mu.RLock()
 	closed := m.closed
@@ -254,32 +342,47 @@ func (m *manager) emitEvent(serviceName string, files []string) {
 		return
 	}
 
-	m.eventBus.Publish(runtime.Event{
-		Type:     runtime.EventWatchTriggered,
-		Data:     runtime.WatchTriggeredData{Service: serviceName, ChangedFiles: files},
+	m.bus.Publish(bus.Message{
+		Type:     bus.EventWatchTriggered,
+		Data:     bus.WatchTriggered{Service: serviceName, ChangedFiles: files},
 		Critical: true,
 	})
 }
 
-// addDirRecursive adds a directory and all subdirectories to the watch list
-func (m *manager) addDirRecursive(dir string) error {
-	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+// addDirRecursive adds a directory and all subdirectories to the watch list and returns the added paths
+func (m *manager) addDirRecursive(dir string, matcher Matcher) ([]string, error) {
+	var dirs []string
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() {
-			if shouldSkipDir(info.Name()) {
-				return filepath.SkipDir
+		if !info.IsDir() {
+			return nil
+		}
+
+		if path != dir {
+			relPath, relErr := filepath.Rel(dir, path)
+			if relErr != nil {
+				return nil
 			}
 
-			if err := m.fsWatcher.Add(path); err != nil {
-				m.log.Warn().Err(err).Msgf("Failed to watch directory: %s", path)
+			if matcher.MatchDir(relPath) {
+				return filepath.SkipDir
 			}
+		}
+
+		if err := m.fsWatcher.Add(path); err != nil {
+			m.log.Warn().Err(err).Msgf("Failed to watch directory: %s", path)
+		} else {
+			dirs = append(dirs, path)
 		}
 
 		return nil
 	})
+
+	return dirs, err
 }
 
 // isRelevantEvent returns true if the event should trigger a reload
@@ -290,15 +393,18 @@ func isRelevantEvent(event fsnotify.Event) bool {
 		event.Has(fsnotify.Rename)
 }
 
-// shouldSkipDir returns true if the directory should not be watched
-func shouldSkipDir(name string) bool {
-	skip := []string{".git", "node_modules", "vendor", ".idea", ".vscode"}
-
-	for _, s := range skip {
-		if name == s {
-			return true
-		}
+// removeDirs removes all tracked directories for a watcher from fsnotify
+func (m *manager) removeDirs(w *watcher) {
+	for _, dir := range w.dirs {
+		_ = m.fsWatcher.Remove(dir)
 	}
+}
 
-	return false
+// normalizeSharedPath strips trailing glob suffixes from shared directory paths
+func normalizeSharedPath(path string) string {
+	path = strings.TrimSuffix(path, "/**")
+	path = strings.TrimSuffix(path, "**")
+	path = strings.TrimSuffix(path, "/")
+
+	return path
 }

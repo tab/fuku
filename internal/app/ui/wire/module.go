@@ -6,8 +6,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"go.uber.org/fx"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
-	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config/logger"
 )
@@ -25,8 +25,7 @@ var Module = fx.Options(
 type UIParams struct {
 	fx.In
 
-	EventBus   runtime.EventBus
-	CommandBus runtime.CommandBus
+	Bus        bus.Bus
 	Controller services.Controller
 	Monitor    monitor.Monitor
 	Loader     *services.Loader
@@ -39,8 +38,7 @@ func NewUI(params UIParams) UI {
 		model := services.NewModel(
 			ctx,
 			profile,
-			params.EventBus,
-			params.CommandBus,
+			params.Bus,
 			params.Controller,
 			params.Monitor,
 			params.Loader,

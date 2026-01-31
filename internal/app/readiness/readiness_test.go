@@ -1,4 +1,4 @@
-package runner
+package readiness
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/process"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -25,7 +26,7 @@ func Test_CheckHTTP_Success(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -45,7 +46,7 @@ func Test_CheckHTTP_Timeout(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -66,7 +67,7 @@ func Test_CheckHTTP_ContextCanceled(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -89,7 +90,7 @@ func Test_CheckHTTP_InvalidURL(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	done := make(chan struct{})
 	ctx := context.Background()
@@ -105,7 +106,7 @@ func Test_CheckLog_Success(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -137,7 +138,7 @@ func Test_CheckLog_Timeout(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -169,7 +170,7 @@ func Test_CheckLog_InvalidPattern(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, _ := io.Pipe()
 	stderrReader, _ := io.Pipe()
@@ -191,7 +192,7 @@ func Test_CheckLog_MatchInStderr(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -221,7 +222,7 @@ func Test_CheckLog_ContextCanceled(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -259,7 +260,7 @@ func Test_CheckLog_NegativeDuration(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -288,7 +289,7 @@ func Test_Check_HTTP(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -304,17 +305,13 @@ func Test_Check_HTTP(t *testing.T) {
 		},
 	}
 
-	proc := &process{
-		name:  "test-service",
-		ready: make(chan error, 1),
-		done:  make(chan struct{}),
-	}
+	proc := process.New(process.Params{Name: "test-service"})
 
 	ctx := context.Background()
 	checker.Check(ctx, "test-service", srv, proc)
 
 	select {
-	case err := <-proc.ready:
+	case err := <-proc.Ready():
 		assert.NoError(t, err)
 	case <-time.After(2 * time.Second):
 		t.Fatal("readiness check didn't complete")
@@ -330,7 +327,7 @@ func Test_Check_Log(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -343,13 +340,11 @@ func Test_Check_Log(t *testing.T) {
 		},
 	}
 
-	proc := &process{
-		name:         "test-service",
-		ready:        make(chan error, 1),
-		done:         make(chan struct{}),
-		stdoutReader: stdoutReader,
-		stderrReader: stderrReader,
-	}
+	proc := process.New(process.Params{
+		Name:         "test-service",
+		StdoutReader: stdoutReader,
+		StderrReader: stderrReader,
+	})
 
 	go func() {
 		defer stdoutWriter.Close()
@@ -363,7 +358,7 @@ func Test_Check_Log(t *testing.T) {
 	checker.Check(ctx, "test-service", srv, proc)
 
 	select {
-	case err := <-proc.ready:
+	case err := <-proc.Ready():
 		assert.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("readiness check didn't complete")
@@ -380,7 +375,7 @@ func Test_Check_InvalidType(t *testing.T) {
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	srv := &config.Service{
 		Readiness: &config.Readiness{
@@ -389,17 +384,13 @@ func Test_Check_InvalidType(t *testing.T) {
 		},
 	}
 
-	proc := &process{
-		name:  "test-service",
-		ready: make(chan error, 1),
-		done:  make(chan struct{}),
-	}
+	proc := process.New(process.Params{Name: "test-service"})
 
 	ctx := context.Background()
 	checker.Check(ctx, "test-service", srv, proc)
 
 	select {
-	case err := <-proc.ready:
+	case err := <-proc.Ready():
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid readiness type")
 	case <-time.After(2 * time.Second):
@@ -414,7 +405,7 @@ func Test_CheckHTTP_ProcessExited(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -437,7 +428,7 @@ func Test_CheckLog_ProcessExited(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := New(mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()

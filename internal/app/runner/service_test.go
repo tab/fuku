@@ -14,7 +14,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/errors"
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/lifecycle"
+	"fuku/internal/app/process"
+	"fuku/internal/app/readiness"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -23,35 +25,56 @@ func Test_NewService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLifecycle := NewMockLifecycle(ctrl)
-	mockReadiness := NewMockReadiness(ctrl)
-	mockEventBus := runtime.NewNoOpEventBus()
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
-	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
 
 	assert.NotNil(t, s)
 	instance, ok := s.(*service)
 	assert.True(t, ok)
 	assert.Equal(t, mockReadiness, instance.readiness)
 	assert.Equal(t, mockLifecycle, instance.lifecycle)
-	assert.Equal(t, mockLogger, instance.log)
+	assert.Equal(t, componentLogger, instance.log)
+}
+
+type mockBroadcaster struct{}
+
+func (m *mockBroadcaster) Broadcast(service, message string) {}
+
+func Test_SetBroadcaster(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
+
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
+
+	broadcaster := &mockBroadcaster{}
+	s.SetBroadcaster(broadcaster)
+
+	instance := s.(*service)
+	assert.Equal(t, broadcaster, instance.broadcaster)
 }
 
 func Test_Start_DirectoryNotExist(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLifecycle := NewMockLifecycle(ctrl)
-	mockReadiness := NewMockReadiness(ctrl)
-	mockEventBus := runtime.NewNoOpEventBus()
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
-	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
 
 	ctx := context.Background()
 	svc := &config.Service{
@@ -73,12 +96,11 @@ func Test_Start_EmptyDirectory_MakefileNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLifecycle := NewMockLifecycle(ctrl)
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 	mockLifecycle.EXPECT().Configure(gomock.Any())
 	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil)
 
-	mockReadiness := NewMockReadiness(ctrl)
-	mockEventBus := runtime.NewNoOpEventBus()
+	mockReadiness := readiness.NewMockReadiness(ctrl)
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -87,7 +109,7 @@ func Test_Start_EmptyDirectory_MakefileNotFound(t *testing.T) {
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
-	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
 
 	ctx := context.Background()
 	svc := &config.Service{Dir: t.TempDir()}
@@ -109,16 +131,15 @@ func Test_Start_EmptyDirectory_MakeNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLifecycle := NewMockLifecycle(ctrl)
-	mockReadiness := NewMockReadiness(ctrl)
-	mockEventBus := runtime.NewNoOpEventBus()
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
-	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
 
 	ctx := context.Background()
 	svc := &config.Service{Dir: t.TempDir()}
@@ -134,14 +155,13 @@ func Test_Start_RelativePathConversion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLifecycle := NewMockLifecycle(ctrl)
-	mockReadiness := NewMockReadiness(ctrl)
-	mockEventBus := runtime.NewNoOpEventBus()
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
-	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
 
 	ctx := context.Background()
 	svc := &config.Service{
@@ -159,18 +179,17 @@ func Test_Stop_NilProcess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockProcess := NewMockProcess(ctrl)
+	mockProcess := process.NewMockProcess(ctrl)
 
-	mockLifecycle := NewMockLifecycle(ctrl)
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 	mockLifecycle.EXPECT().Terminate(mockProcess, config.ShutdownTimeout).Return(nil)
 
-	mockReadiness := NewMockReadiness(ctrl)
-	mockEventBus := runtime.NewNoOpEventBus()
+	mockReadiness := readiness.NewMockReadiness(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("SERVICE").Return(componentLogger)
 
-	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
 
 	err := s.Stop(mockProcess)
 	assert.NoError(t, err)
@@ -185,12 +204,11 @@ func Test_Start_WithValidDirectory(t *testing.T) {
 	err := os.WriteFile(makefilePath, []byte("run:\n\techo 'test'\n"), 0644)
 	require.NoError(t, err)
 
-	mockLifecycle := NewMockLifecycle(ctrl)
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 	mockLifecycle.EXPECT().Configure(gomock.Any()).AnyTimes()
 	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-	mockReadiness := NewMockReadiness(ctrl)
-	mockEventBus := runtime.NewNoOpEventBus()
+	mockReadiness := readiness.NewMockReadiness(ctrl)
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -199,7 +217,7 @@ func Test_Start_WithValidDirectory(t *testing.T) {
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
-	s := NewService(mockLifecycle, mockReadiness, mockEventBus, mockLogger)
+	s := NewService(mockLifecycle, mockReadiness, mockLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -227,8 +245,8 @@ func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
 
 	ctx := context.Background()
 
-	mockReadiness := NewMockReadiness(ctrl)
-	mockLifecycle := NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
@@ -239,10 +257,6 @@ func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
 		log:       mockLogger,
 	}
 
-	proc := &process{
-		ready: make(chan error, 1),
-	}
-
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
 
@@ -250,6 +264,12 @@ func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
 	defer stdoutWriter.Close()
 	defer stderr.Close()
 	defer stderrWriter.Close()
+
+	proc := process.New(process.Params{
+		Name:         "test-service",
+		StdoutReader: stdout,
+		StderrReader: stderr,
+	})
 
 	serviceCfg := &config.Service{
 		Dir:       "/tmp/test",
@@ -259,7 +279,7 @@ func Test_HandleReadinessCheck_NoReadiness(t *testing.T) {
 	svc.handleReadinessCheck(ctx, "test-service", serviceCfg, proc, stdout, stderr)
 
 	select {
-	case err := <-proc.ready:
+	case err := <-proc.Ready():
 		assert.NoError(t, err, "Process should be signaled as ready immediately when no readiness check is configured")
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected ready signal to be sent immediately")
@@ -272,8 +292,8 @@ func Test_HandleReadinessCheck_HTTPReadiness(t *testing.T) {
 
 	ctx := context.Background()
 
-	mockReadiness := NewMockReadiness(ctrl)
-	mockLifecycle := NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
@@ -292,10 +312,6 @@ func Test_HandleReadinessCheck_HTTPReadiness(t *testing.T) {
 		log:       mockLogger,
 	}
 
-	proc := &process{
-		ready: make(chan error, 1),
-	}
-
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
 
@@ -303,6 +319,12 @@ func Test_HandleReadinessCheck_HTTPReadiness(t *testing.T) {
 	defer stdoutWriter.Close()
 	defer stderr.Close()
 	defer stderrWriter.Close()
+
+	proc := process.New(process.Params{
+		Name:         "test-service",
+		StdoutReader: stdout,
+		StderrReader: stderr,
+	})
 
 	serviceCfg := &config.Service{
 		Dir: "/tmp/test",
@@ -327,8 +349,8 @@ func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
 
 	ctx := context.Background()
 
-	mockReadiness := NewMockReadiness(ctrl)
-	mockLifecycle := NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
@@ -347,10 +369,6 @@ func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
 		log:       mockLogger,
 	}
 
-	proc := &process{
-		ready: make(chan error, 1),
-	}
-
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
 
@@ -358,6 +376,12 @@ func Test_HandleReadinessCheck_LogReadiness(t *testing.T) {
 	defer stdoutWriter.Close()
 	defer stderr.Close()
 	defer stderrWriter.Close()
+
+	proc := process.New(process.Params{
+		Name:         "test-service",
+		StdoutReader: stdout,
+		StderrReader: stderr,
+	})
 
 	serviceCfg := &config.Service{
 		Dir: "/tmp/test",
@@ -382,8 +406,8 @@ func Test_HandleReadinessCheck_UnknownType(t *testing.T) {
 
 	ctx := context.Background()
 
-	mockReadiness := NewMockReadiness(ctrl)
-	mockLifecycle := NewMockLifecycle(ctrl)
+	mockReadiness := readiness.NewMockReadiness(ctrl)
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
@@ -394,10 +418,6 @@ func Test_HandleReadinessCheck_UnknownType(t *testing.T) {
 		log:       mockLogger,
 	}
 
-	proc := &process{
-		ready: make(chan error, 1),
-	}
-
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
 
@@ -405,6 +425,12 @@ func Test_HandleReadinessCheck_UnknownType(t *testing.T) {
 	defer stdoutWriter.Close()
 	defer stderr.Close()
 	defer stderrWriter.Close()
+
+	proc := process.New(process.Params{
+		Name:         "test-service",
+		StdoutReader: stdout,
+		StderrReader: stderr,
+	})
 
 	serviceCfg := &config.Service{
 		Dir: "/tmp/test",
@@ -416,7 +442,7 @@ func Test_HandleReadinessCheck_UnknownType(t *testing.T) {
 	svc.handleReadinessCheck(ctx, "test-service", serviceCfg, proc, stdout, stderr)
 
 	select {
-	case err := <-proc.ready:
+	case err := <-proc.Ready():
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown readiness type")
 	case <-time.After(100 * time.Millisecond):
@@ -431,11 +457,8 @@ func Test_TeeStream_WithOutput(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
-	eventBus := runtime.NewNoOpEventBus()
-
 	svc := &service{
-		event: eventBus,
-		log:   mockLogger,
+		log: mockLogger,
 	}
 
 	reader, writer := io.Pipe()
@@ -472,11 +495,8 @@ func Test_TeeStream_EmptyTier(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
-	eventBus := runtime.NewNoOpEventBus()
-
 	svc := &service{
-		event: eventBus,
-		log:   mockLogger,
+		log: mockLogger,
 	}
 
 	reader, writer := io.Pipe()

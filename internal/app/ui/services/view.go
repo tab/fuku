@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/bus"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config"
 )
@@ -24,6 +24,7 @@ func (m Model) View() string {
 		Title:   m.renderTitle(),
 		Content: m.renderServices(),
 		Status:  m.renderStatus(),
+		Stats:   m.renderAppStats(),
 		Version: m.renderVersion(),
 		Help:    m.renderHelp(),
 		Tips:    m.renderTip(),
@@ -43,13 +44,13 @@ func (m Model) renderStatus() string {
 	phaseStyle := components.PhaseMutedStyle
 
 	switch m.state.phase {
-	case runtime.PhaseStartup:
+	case bus.PhaseStartup:
 		phaseStr = "Starting…"
 		phaseStyle = components.PhaseStartingStyle
-	case runtime.PhaseRunning:
+	case bus.PhaseRunning:
 		phaseStr = "Running"
 		phaseStyle = components.PhaseRunningStyle
-	case runtime.PhaseStopping:
+	case bus.PhaseStopping:
 		phaseStr = "Stopping"
 		phaseStyle = components.PhaseStoppingStyle
 	}
@@ -64,6 +65,15 @@ func (m Model) renderStatus() string {
 // renderVersion renders the version string
 func (m Model) renderVersion() string {
 	return fmt.Sprintf("v%s", config.Version)
+}
+
+// renderAppStats renders fuku's own CPU and memory usage
+func (m Model) renderAppStats() string {
+	if m.state.appCPU == 0 && m.state.appMEM == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("cpu %s • mem %s", formatCPU(m.state.appCPU), formatMEM(m.state.appMEM))
 }
 
 // renderHelp renders the help text with keybindings
@@ -180,10 +190,19 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 	}
 
 	if service.FSM == nil {
+		if service.Watching && service.Status == StatusRunning {
+			return m.getWatchIndicator(isSelected)
+		}
+
 		return defaultIndicator
 	}
 
 	state := service.FSM.Current()
+
+	if state == Running && service.Watching {
+		return m.getWatchIndicator(isSelected)
+	}
+
 	if state != Starting && state != Stopping && state != Restarting {
 		return defaultIndicator
 	}
@@ -197,6 +216,15 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 	}
 
 	return service.Blink.Render(components.IndicatorActiveStyle)
+}
+
+// getWatchIndicator returns the styled watch indicator
+func (m Model) getWatchIndicator(isSelected bool) string {
+	if isSelected {
+		return components.IndicatorWatch
+	}
+
+	return components.IndicatorWatchStyle.Render(components.IndicatorWatch)
 }
 
 // renderServiceRow renders a single service row with all columns
@@ -242,7 +270,13 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 // getStyledAndPaddedStatus returns the styled status string with padding
 func (m Model) getStyledAndPaddedStatus(service *ServiceState, isSelected bool) string {
 	statusStr := string(service.Status)
-	padding := strings.Repeat(components.IndicatorEmpty, components.ColWidthStatus-len(statusStr))
+
+	paddingLen := components.ColWidthStatus - len(statusStr)
+	if paddingLen < 0 {
+		paddingLen = 0
+	}
+
+	padding := strings.Repeat(components.IndicatorEmpty, paddingLen)
 
 	if isSelected {
 		return statusStr + padding

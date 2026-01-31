@@ -230,6 +230,81 @@ func Test_Pad(t *testing.T) {
 	}
 }
 
+func Test_FormatCPU(t *testing.T) {
+	tests := []struct {
+		name  string
+		input float64
+		want  string
+	}{
+		{
+			name:  "zero",
+			input: 0,
+			want:  "0.0%",
+		},
+		{
+			name:  "fractional",
+			input: 5.3,
+			want:  "5.3%",
+		},
+		{
+			name:  "high usage",
+			input: 99.9,
+			want:  "99.9%",
+		},
+		{
+			name:  "over 100",
+			input: 150.5,
+			want:  "150.5%",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, formatCPU(tt.input))
+		})
+	}
+}
+
+func Test_FormatMEM(t *testing.T) {
+	tests := []struct {
+		name  string
+		input float64
+		want  string
+	}{
+		{
+			name:  "zero",
+			input: 0,
+			want:  "0MB",
+		},
+		{
+			name:  "small MB",
+			input: 50,
+			want:  "50MB",
+		},
+		{
+			name:  "just below 1GB",
+			input: 1023,
+			want:  "1023MB",
+		},
+		{
+			name:  "exactly 1GB",
+			input: 1024,
+			want:  "1.0GB",
+		},
+		{
+			name:  "above 1GB",
+			input: 2560,
+			want:  "2.5GB",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, formatMEM(tt.input))
+		})
+	}
+}
+
 func Test_GetStatsWithContext_Timeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -545,7 +620,7 @@ func Test_StatsWorkerCmd_ReturnsCmd(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockMonitor := monitor.NewMockMonitor(ctrl)
-	mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).Return(monitor.Stats{CPU: 25.5, MEM: 512.0}, nil).AnyTimes()
+	mockMonitor.EXPECT().GetStats(gomock.Any(), gomock.Any()).Return(monitor.Stats{CPU: 25.5, MEM: 512.0}, nil).AnyTimes()
 
 	m := &Model{monitor: mockMonitor}
 	m.state.services = map[string]*ServiceState{

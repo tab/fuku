@@ -337,6 +337,19 @@ func Test_ApplyDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "service without watch config not affected",
+			config: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api"},
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api"},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -886,35 +899,44 @@ func Test_ValidateWatch(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "watch with paths is valid",
+			name: "watch with include is valid",
 			watch: &Watch{
-				Paths: []string{"**/*.go"},
+				Include: []string{"**/*.go"},
 			},
 			expectError: false,
 		},
 		{
-			name: "watch with paths and ignore is valid",
+			name: "watch with include and ignore is valid",
 			watch: &Watch{
-				Paths:  []string{"**/*.go", "**/*.yaml"},
-				Ignore: []string{"*_test.go", "vendor/**"},
+				Include: []string{"**/*.go", "**/*.yaml"},
+				Ignore:  []string{"*_test.go", "vendor/**"},
 			},
 			expectError: false,
 		},
 		{
-			name: "watch with empty paths",
+			name: "watch with include ignore and shared is valid",
 			watch: &Watch{
-				Paths: []string{},
+				Include: []string{"**/*.go"},
+				Ignore:  []string{"*_test.go"},
+				Shared:  []string{"pkg/common", "pkg/models"},
+			},
+			expectError: false,
+		},
+		{
+			name: "watch with empty include",
+			watch: &Watch{
+				Include: []string{},
 			},
 			expectError: true,
-			expectedErr: errors.ErrWatchPathsRequired,
+			expectedErr: errors.ErrWatchIncludeRequired,
 		},
 		{
-			name: "watch without paths field",
+			name: "watch without include field",
 			watch: &Watch{
 				Ignore: []string{"*_test.go"},
 			},
 			expectError: true,
-			expectedErr: errors.ErrWatchPathsRequired,
+			expectedErr: errors.ErrWatchIncludeRequired,
 		},
 	}
 
@@ -947,12 +969,31 @@ services:
   api:
     dir: ./api
     watch:
-      paths: ["**/*.go"]
+      include: ["**/*.go"]
       ignore: ["*_test.go"]`,
 			expectedWatch: map[string]*Watch{
 				"api": {
-					Paths:  []string{"**/*.go"},
-					Ignore: []string{"*_test.go"},
+					Include: []string{"**/*.go"},
+					Ignore:  []string{"*_test.go"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "service with watch config and shared dirs",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    watch:
+      include: ["**/*.go"]
+      ignore: ["*_test.go"]
+      shared: ["pkg/common", "pkg/models"]`,
+			expectedWatch: map[string]*Watch{
+				"api": {
+					Include: []string{"**/*.go"},
+					Ignore:  []string{"*_test.go"},
+					Shared:  []string{"pkg/common", "pkg/models"},
 				},
 			},
 			expectError: false,
@@ -969,13 +1010,13 @@ services:
 			expectError: false,
 		},
 		{
-			name: "service with watch but empty paths",
+			name: "service with watch but empty include",
 			yaml: `version: 1
 services:
   api:
     dir: ./api
     watch:
-      paths: []`,
+      include: []`,
 			expectError: true,
 		},
 	}

@@ -31,11 +31,11 @@ type server struct {
 	bufferSize int
 	listener   net.Listener
 	hub        Hub
-	log        logger.Logger
 	running    atomic.Bool
 	wg         sync.WaitGroup
 	connID     atomic.Int64
 	cancel     context.CancelFunc
+	log        logger.Logger
 }
 
 // NewServer creates a new log streaming server

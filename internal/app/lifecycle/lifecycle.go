@@ -1,4 +1,4 @@
-package runner
+package lifecycle
 
 import (
 	"fmt"
@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/process"
 	"fuku/internal/config/logger"
 )
 
 // Lifecycle handles process group configuration and termination
 type Lifecycle interface {
 	Configure(cmd *exec.Cmd)
-	Terminate(proc Process, timeout time.Duration) error
+	Terminate(proc process.Process, timeout time.Duration) error
 }
 
 // lifecycle implements the Lifecycle interface
@@ -21,8 +22,8 @@ type lifecycle struct {
 	log logger.Logger
 }
 
-// NewLifecycle creates a new Lifecycle instance
-func NewLifecycle(log logger.Logger) Lifecycle {
+// New creates a new Lifecycle instance
+func New(log logger.Logger) Lifecycle {
 	return &lifecycle{log: log.WithComponent("LIFECYCLE")}
 }
 
@@ -32,7 +33,7 @@ func (l *lifecycle) Configure(cmd *exec.Cmd) {
 }
 
 // Terminate gracefully stops a process and its group
-func (l *lifecycle) Terminate(proc Process, timeout time.Duration) error {
+func (l *lifecycle) Terminate(proc process.Process, timeout time.Duration) error {
 	cmd := proc.Cmd()
 	if cmd.Process == nil {
 		return nil
@@ -66,7 +67,7 @@ func (l *lifecycle) signalGroup(pid int, sig syscall.Signal) error {
 }
 
 // forceKill sends SIGKILL to the process group
-func (l *lifecycle) forceKill(proc Process, pid int) error {
+func (l *lifecycle) forceKill(proc process.Process, pid int) error {
 	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
 		l.log.Warn().Err(err).Msgf("Failed to SIGKILL process group, trying direct kill")
 

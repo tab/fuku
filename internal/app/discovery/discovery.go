@@ -1,4 +1,4 @@
-package runner
+package discovery
 
 import (
 	"fmt"
@@ -25,8 +25,8 @@ type discovery struct {
 	topology *config.Topology
 }
 
-// NewDiscovery creates a new service discovery instance
-func NewDiscovery(cfg *config.Config, topology *config.Topology) Discovery {
+// New creates a new service discovery instance
+func New(cfg *config.Config, topology *config.Topology) Discovery {
 	return &discovery{
 		cfg:      cfg,
 		topology: topology,

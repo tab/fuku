@@ -63,8 +63,9 @@ type Readiness struct {
 
 // Watch represents file watch configuration for hot-reload
 type Watch struct {
-	Paths  []string `yaml:"paths"`
-	Ignore []string `yaml:"ignore"`
+	Include []string `yaml:"include"`
+	Ignore  []string `yaml:"ignore"`
+	Shared  []string `yaml:"shared"`
 }
 
 // ServiceDefaults represents default configuration for services
@@ -365,8 +366,8 @@ func (s *Service) validateWatch() error {
 		return nil
 	}
 
-	if len(s.Watch.Paths) == 0 {
-		return errors.ErrWatchPathsRequired
+	if len(s.Watch.Include) == 0 {
+		return errors.ErrWatchIncludeRequired
 	}
 
 	return nil

@@ -118,9 +118,15 @@ func Test_Debouncer_MultipleCallbacks(t *testing.T) {
 }
 
 func Test_Debouncer_UniqueFiles(t *testing.T) {
-	var receivedFiles []string
+	var (
+		mu            sync.Mutex
+		receivedFiles []string
+	)
 
 	d := NewDebouncer(50*time.Millisecond, func(files []string) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		receivedFiles = files
 	})
 	defer d.Stop()
@@ -131,6 +137,8 @@ func Test_Debouncer_UniqueFiles(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
+	mu.Lock()
 	assert.Len(t, receivedFiles, 1)
 	assert.Equal(t, "file.go", receivedFiles[0])
+	mu.Unlock()
 }

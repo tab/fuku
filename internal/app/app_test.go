@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -88,6 +89,28 @@ func Test_Register(t *testing.T) {
 	assert.True(t, registered)
 	assert.NotNil(t, capturedHook.OnStart)
 	assert.NotNil(t, capturedHook.OnStop)
+}
+
+func Test_Register_OnStop_ReturnsNil(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCLI := cli.NewMockCLI(ctrl)
+	app := NewApp(mockCLI)
+
+	var capturedHook fx.Hook
+
+	testLifecycle := &testLifecycleImpl{
+		onAppend: func(hook fx.Hook) {
+			capturedHook = hook
+		},
+	}
+
+	Register(testLifecycle, app)
+
+	ctx := context.Background()
+	err := capturedHook.OnStop(ctx)
+	assert.NoError(t, err)
 }
 
 // testLifecycleImpl implements fx.Lifecycle for testing

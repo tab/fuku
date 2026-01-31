@@ -1,4 +1,4 @@
-package runner
+package readiness
 
 import (
 	"bufio"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/process"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -18,7 +19,7 @@ import (
 type Readiness interface {
 	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error
 	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error
-	Check(ctx context.Context, name string, service *config.Service, process Process)
+	Check(ctx context.Context, name string, service *config.Service, proc process.Process)
 }
 
 // readiness implements the Readiness interface
@@ -26,8 +27,8 @@ type readiness struct {
 	log logger.Logger
 }
 
-// NewReadiness creates a new readiness checker instance
-func NewReadiness(log logger.Logger) Readiness {
+// New creates a new readiness checker instance
+func New(log logger.Logger) Readiness {
 	return &readiness{
 		log: log.WithComponent("READINESS"),
 	}
@@ -123,19 +124,19 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 }
 
 // Check performs the appropriate readiness check for a service
-func (r *readiness) Check(ctx context.Context, name string, service *config.Service, process Process) {
+func (r *readiness) Check(ctx context.Context, name string, service *config.Service, proc process.Process) {
 	options := service.Readiness
 	r.log.Info().Msgf("Starting %s readiness check for service '%s'", options.Type, name)
 
 	var err error
 
-	done := process.Done()
+	done := proc.Done()
 
 	switch options.Type {
 	case config.TypeHTTP:
 		err = r.CheckHTTP(ctx, options.URL, options.Timeout, options.Interval, done)
 	case config.TypeLog:
-		err = r.CheckLog(ctx, options.Pattern, process.StdoutReader(), process.StderrReader(), options.Timeout, done)
+		err = r.CheckLog(ctx, options.Pattern, proc.StdoutReader(), proc.StderrReader(), options.Timeout, done)
 	default:
 		err = fmt.Errorf("%w: %s", errors.ErrInvalidReadinessType, options.Type)
 	}
@@ -146,7 +147,7 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 		r.log.Info().Msgf("Service '%s' is ready", name)
 	}
 
-	process.SignalReady(err)
+	proc.SignalReady(err)
 }
 
 // contextWithDone creates a context that cancels when either ctx is cancelled or done is closed

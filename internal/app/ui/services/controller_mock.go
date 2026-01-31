@@ -64,6 +64,18 @@ func (mr *MockControllerMockRecorder) HandleReady(ctx, service any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleReady", reflect.TypeOf((*MockController)(nil).HandleReady), ctx, service)
 }
 
+// HandleRestarting mocks base method.
+func (m *MockController) HandleRestarting(ctx context.Context, service *ServiceState) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "HandleRestarting", ctx, service)
+}
+
+// HandleRestarting indicates an expected call of HandleRestarting.
+func (mr *MockControllerMockRecorder) HandleRestarting(ctx, service any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleRestarting", reflect.TypeOf((*MockController)(nil).HandleRestarting), ctx, service)
+}
+
 // HandleStarting mocks base method.
 func (m *MockController) HandleStarting(ctx context.Context, service *ServiceState, pid int) {
 	m.ctrl.T.Helper()
@@ -88,6 +100,18 @@ func (m *MockController) HandleStopped(ctx context.Context, service *ServiceStat
 func (mr *MockControllerMockRecorder) HandleStopped(ctx, service any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleStopped", reflect.TypeOf((*MockController)(nil).HandleStopped), ctx, service)
+}
+
+// HandleStopping mocks base method.
+func (m *MockController) HandleStopping(ctx context.Context, service *ServiceState) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "HandleStopping", ctx, service)
+}
+
+// HandleStopping indicates an expected call of HandleStopping.
+func (mr *MockControllerMockRecorder) HandleStopping(ctx, service any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleStopping", reflect.TypeOf((*MockController)(nil).HandleStopping), ctx, service)
 }
 
 // Restart mocks base method.

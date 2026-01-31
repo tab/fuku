@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/lifecycle"
 	"fuku/internal/app/logs"
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/process"
+	"fuku/internal/app/readiness"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -26,32 +28,30 @@ const (
 
 // Service handles starting and stopping individual services
 type Service interface {
-	Start(ctx context.Context, name string, service *config.Service) (Process, error)
-	Stop(proc Process) error
+	Start(ctx context.Context, name string, service *config.Service) (process.Process, error)
+	Stop(proc process.Process) error
 	SetBroadcaster(broadcaster logs.Broadcaster)
 }
 
 // service implements the Service interface
 type service struct {
-	lifecycle   Lifecycle
-	readiness   Readiness
-	event       runtime.EventBus
-	log         logger.Logger
+	lifecycle   lifecycle.Lifecycle
+	readiness   readiness.Readiness
 	broadcaster logs.Broadcaster
+	log         logger.Logger
 }
 
 // NewService creates a new service instance
-func NewService(lifecycle Lifecycle, readiness Readiness, event runtime.EventBus, log logger.Logger) Service {
+func NewService(lc lifecycle.Lifecycle, rd readiness.Readiness, log logger.Logger) Service {
 	return &service{
-		lifecycle: lifecycle,
-		readiness: readiness,
-		event:     event,
+		lifecycle: lc,
+		readiness: rd,
 		log:       log.WithComponent("SERVICE"),
 	}
 }
 
 // Start starts a service and returns a Process instance
-func (s *service) Start(ctx context.Context, name string, svc *config.Service) (Process, error) {
+func (s *service) Start(ctx context.Context, name string, svc *config.Service) (process.Process, error) {
 	serviceDir := svc.Dir
 
 	if !filepath.IsAbs(serviceDir) {
@@ -98,20 +98,18 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
 
-	proc := &process{
-		name:         name,
-		cmd:          cmd,
-		done:         make(chan struct{}),
-		ready:        make(chan error, 1),
-		stdoutReader: stdoutReader,
-		stderrReader: stderrReader,
-	}
+	handle := process.New(process.Params{
+		Name:         name,
+		Cmd:          cmd,
+		StdoutReader: stdoutReader,
+		StderrReader: stderrReader,
+	})
 
 	go s.teeStream(stdoutPipe, stdoutWriter, name, "STDOUT")
 	go s.teeStream(stderrPipe, stderrWriter, name, "STDERR")
 
 	go func() {
-		defer close(proc.done)
+		defer handle.Close()
 
 		if err := cmd.Wait(); err != nil {
 			s.log.Error().Err(err).Msgf("Service '%s' exited with error", name)
@@ -121,13 +119,13 @@ func (s *service) Start(ctx context.Context, name string, svc *config.Service) (
 		stderrWriter.Close()
 	}()
 
-	s.handleReadinessCheck(ctx, name, svc, proc, stdoutReader, stderrReader)
+	s.handleReadinessCheck(ctx, name, svc, handle, stdoutReader, stderrReader)
 
-	return proc, nil
+	return handle, nil
 }
 
 // Stop stops a running service process
-func (s *service) Stop(proc Process) error {
+func (s *service) Stop(proc process.Process) error {
 	return s.lifecycle.Terminate(proc, config.ShutdownTimeout)
 }
 
@@ -179,7 +177,7 @@ func (s *service) drainPipe(reader *io.PipeReader) {
 }
 
 // handleReadinessCheck sets up the appropriate readiness check based on service config
-func (s *service) handleReadinessCheck(ctx context.Context, name string, svc *config.Service, proc *process, stdout, stderr *io.PipeReader) {
+func (s *service) handleReadinessCheck(ctx context.Context, name string, svc *config.Service, proc process.Process, stdout, stderr *io.PipeReader) {
 	if svc.Readiness == nil {
 		proc.SignalReady(nil)
 		s.startDraining(stdout, stderr)

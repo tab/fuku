@@ -1,4 +1,4 @@
-package runner
+package discovery
 
 import (
 	"testing"
@@ -297,7 +297,7 @@ func Test_Resolve(t *testing.T) {
 			topology := &config.Topology{
 				Order: extractTierOrderFromExpected(tt.expected.tiers),
 			}
-			instance := NewDiscovery(cfg, topology)
+			instance := New(cfg, topology)
 
 			tiers, err := instance.Resolve(tt.profile)
 
