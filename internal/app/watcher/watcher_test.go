@@ -12,40 +12,32 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/logs"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
-
-func testBusConfig() *config.Config {
-	cfg := &config.Config{}
-	cfg.Logs.Buffer = 10
-
-	return cfg
-}
-
-func setupMockLogger(ctrl *gomock.Controller) *logger.MockLogger {
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-
-	mockLogger.EXPECT().WithComponent(gomock.Any()).Return(componentLogger).AnyTimes()
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
-
-	return mockLogger
-}
 
 func Test_NewWatcher(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
-	cfg := config.DefaultConfig()
-	b := bus.New(testBusConfig(), nil)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
 
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(config.DefaultConfig(), b, mockLog)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 
@@ -56,7 +48,16 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	cfg := &config.Config{
@@ -69,11 +70,12 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -102,7 +104,16 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	cfg := &config.Config{
@@ -115,11 +126,12 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -155,7 +167,16 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	testFile := filepath.Join(tmpDir, "main.go")
@@ -172,11 +193,12 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -223,7 +245,16 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	testFile := filepath.Join(tmpDir, "main_test.go")
@@ -241,11 +272,12 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -285,13 +317,23 @@ func Test_Watcher_Close(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
-	cfg := config.DefaultConfig()
-	b := bus.New(testBusConfig(), nil)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
 
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(config.DefaultConfig(), b, mockLog)
 	require.NoError(t, err)
 
 	w.Close()
@@ -302,7 +344,16 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	cfg := &config.Config{
@@ -313,11 +364,12 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -346,7 +398,16 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	cfg := &config.Config{
@@ -359,11 +420,12 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -404,7 +466,16 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	cfg := &config.Config{
@@ -417,11 +488,12 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -469,7 +541,16 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	skippedDir := filepath.Join(tmpDir, ".git")
@@ -489,11 +570,12 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -528,7 +610,15 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
 	serviceDir := t.TempDir()
 	sharedDir := t.TempDir()
@@ -548,11 +638,12 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()
@@ -599,7 +690,16 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	log := setupMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
 	tmpDir := t.TempDir()
 
 	customDir := filepath.Join(tmpDir, "build")
@@ -619,11 +719,12 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 			},
 		},
 	}
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(testBusConfig(), nil)
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
-	w, err := NewWatcher(cfg, b, log)
+	w, err := NewWatcher(cfg, b, mockLog)
 	require.NoError(t, err)
 
 	defer w.Close()

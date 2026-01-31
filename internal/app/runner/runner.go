@@ -33,6 +33,7 @@ type runner struct {
 	guard     Guard
 	pool      WorkerPool
 	bus       bus.Bus
+	server    logs.Server
 	log       logger.Logger
 }
 
@@ -45,6 +46,7 @@ func NewRunner(
 	guard Guard,
 	pool WorkerPool,
 	bus bus.Bus,
+	server logs.Server,
 	log logger.Logger,
 ) Runner {
 	return &runner{
@@ -55,24 +57,17 @@ func NewRunner(
 		guard:     guard,
 		pool:      pool,
 		bus:       bus,
+		server:    server,
 		log:       log.WithComponent("RUNNER"),
 	}
 }
 
 // Run executes the specified profile by starting all services in dependency and tier order
 func (r *runner) Run(ctx context.Context, profile string) error {
-	logsServer := logs.NewServer(r.cfg, profile, r.log)
-	if err := logsServer.Start(ctx); err != nil {
+	if err := r.server.Start(ctx, profile); err != nil {
 		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
 	} else {
-		r.service.SetBroadcaster(logsServer)
-		r.bus.SetBroadcaster(logsServer)
-
-		defer func() {
-			r.service.SetBroadcaster(nil)
-			r.bus.SetBroadcaster(nil)
-			logsServer.Stop()
-		}()
+		defer r.server.Stop()
 	}
 
 	r.bus.Publish(bus.Message{

@@ -64,7 +64,6 @@ The bus package provides a unified pub/sub messaging system for events and comma
 type Bus interface {
     Subscribe(ctx context.Context) <-chan Message
     Publish(msg Message)
-    SetBroadcaster(broadcaster logs.Broadcaster)
     Close()
 }
 ```
@@ -75,7 +74,7 @@ The Bus implements a unified pub/sub pattern for both events and commands:
 - **Critical messages**: Important messages (phase changes) block until delivered
 - **Context-aware cleanup**: Subscribers auto-unsubscribe when context cancels
 - **Buffered channels**: Prevents slow subscribers from blocking publishers
-- **Log broadcasting**: Integrates with log streaming via SetBroadcaster
+- **Log broadcasting**: Server is injected at construction time via FX dependency injection
 
 ### Message Types
 

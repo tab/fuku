@@ -30,22 +30,22 @@ const (
 type Service interface {
 	Start(ctx context.Context, name string, service *config.Service) (process.Process, error)
 	Stop(proc process.Process) error
-	SetBroadcaster(broadcaster logs.Broadcaster)
 }
 
 // service implements the Service interface
 type service struct {
-	lifecycle   lifecycle.Lifecycle
-	readiness   readiness.Readiness
-	broadcaster logs.Broadcaster
-	log         logger.Logger
+	lifecycle lifecycle.Lifecycle
+	readiness readiness.Readiness
+	server    logs.Server
+	log       logger.Logger
 }
 
 // NewService creates a new service instance
-func NewService(lc lifecycle.Lifecycle, rd readiness.Readiness, log logger.Logger) Service {
+func NewService(lc lifecycle.Lifecycle, rd readiness.Readiness, server logs.Server, log logger.Logger) Service {
 	return &service{
 		lifecycle: lc,
 		readiness: rd,
+		server:    server,
 		log:       log.WithComponent("SERVICE"),
 	}
 }
@@ -129,11 +129,6 @@ func (s *service) Stop(proc process.Process) error {
 	return s.lifecycle.Terminate(proc, config.ShutdownTimeout)
 }
 
-// SetBroadcaster sets the broadcaster for streaming logs to clients
-func (s *service) SetBroadcaster(broadcaster logs.Broadcaster) {
-	s.broadcaster = broadcaster
-}
-
 // teeStream reads from source and writes to destination while logging output
 func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, streamType string) {
 	scanner := bufio.NewScanner(src)
@@ -147,8 +142,8 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 			Msg(line)
 		fmt.Fprintln(dst, line)
 
-		if s.broadcaster != nil {
-			s.broadcaster.Broadcast(serviceName, line)
+		if s.server != nil {
+			s.server.Broadcast(serviceName, line)
 		}
 	}
 

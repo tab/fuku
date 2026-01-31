@@ -11,7 +11,6 @@ package runner
 
 import (
 	context "context"
-	logs "fuku/internal/app/logs"
 	process "fuku/internal/app/process"
 	config "fuku/internal/config"
 	reflect "reflect"
@@ -41,18 +40,6 @@ func NewMockService(ctrl *gomock.Controller) *MockService {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
-}
-
-// SetBroadcaster mocks base method.
-func (m *MockService) SetBroadcaster(broadcaster logs.Broadcaster) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetBroadcaster", broadcaster)
-}
-
-// SetBroadcaster indicates an expected call of SetBroadcaster.
-func (mr *MockServiceMockRecorder) SetBroadcaster(broadcaster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBroadcaster", reflect.TypeOf((*MockService)(nil).SetBroadcaster), broadcaster)
 }
 
 // Start mocks base method.

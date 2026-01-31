@@ -58,7 +58,6 @@
    type Bus interface {
        Subscribe(ctx context.Context) <-chan Message
        Publish(msg Message)
-       SetBroadcaster(broadcaster logs.Broadcaster)
        Close()
    }
    ```

@@ -16,6 +16,7 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
+	"fuku/internal/app/logs"
 	"fuku/internal/app/process"
 	"fuku/internal/app/registry"
 	"fuku/internal/config"
@@ -27,9 +28,9 @@ func Test_NewRunner(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
 
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockGuard := NewMockGuard(ctrl)
@@ -37,14 +38,15 @@ func Test_NewRunner(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	assert.NotNil(t, r)
 	instance, ok := r.(*runner)
 	assert.True(t, ok)
 	assert.Equal(t, cfg, instance.cfg)
-	assert.Equal(t, componentLogger, instance.log)
+	assert.Equal(t, componentLog, instance.log)
 	assert.Equal(t, mockDiscovery, instance.discovery)
 	assert.Equal(t, mockGuard, instance.guard)
 	assert.Equal(t, mockService, instance.service)
@@ -58,18 +60,13 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
 
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("nonexistent").Return(nil, errors.ErrProfileNotFound)
@@ -77,12 +74,14 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockGuard := NewMockGuard(ctrl)
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "nonexistent").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
 
 	err := r.Run(ctx, "nonexistent")
@@ -96,18 +95,13 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
-
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+	componentLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("test").Return(nil, errors.ErrServiceNotFound)
@@ -115,12 +109,14 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockGuard := NewMockGuard(ctrl)
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "test").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
 
 	err := r.Run(ctx, "test")
@@ -136,19 +132,14 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
 
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+	componentLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("test").Return([]discovery.Tier{{Name: "platform", Services: []string{"api"}}}, nil)
@@ -170,7 +161,6 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
 	mockService.EXPECT().Stop(mockProcess).Return(nil).AnyTimes()
 
@@ -186,8 +176,11 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
 	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "test").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -202,18 +195,13 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
 
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("default").Return([]discovery.Tier{}, nil)
@@ -221,12 +209,14 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	mockGuard := NewMockGuard(ctrl)
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "default").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockGuard, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -241,8 +231,8 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 	readyChan := make(chan error, 1)
@@ -266,7 +256,7 @@ func Test_StartServiceWithRetry_Success(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx := context.Background()
 
@@ -289,8 +279,8 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 			Timeout: 30 * time.Second,
 		},
 	}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 
@@ -316,7 +306,7 @@ func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -335,8 +325,8 @@ func Test_StartServiceWithRetry_CancellationDuringBackoff(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed"))
@@ -352,7 +342,7 @@ func Test_StartServiceWithRetry_CancellationDuringBackoff(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -377,7 +367,7 @@ func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
 
 	mockProcess1 := process.NewMockProcess(ctrl)
 	mockProcess1.EXPECT().Name().Return("service1").AnyTimes()
@@ -404,7 +394,7 @@ func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	r.shutdown(mockRegistry)
@@ -416,7 +406,7 @@ func Test_Shutdown_StopsProcessesOnce(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 
-	mockLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
 
 	mockProcess1 := process.NewMockProcess(ctrl)
 	mockProcess1.EXPECT().Name().Return("service1").AnyTimes()
@@ -443,7 +433,7 @@ func Test_Shutdown_StopsProcessesOnce(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	r.shutdown(mockRegistry)
@@ -454,7 +444,7 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
 	mockService := NewMockService(ctrl)
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
@@ -469,7 +459,7 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	r.shutdown(mockRegistry)
@@ -480,8 +470,8 @@ func Test_HandleCommand_StopService(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	doneChan := make(chan struct{})
 	close(doneChan)
@@ -504,7 +494,7 @@ func Test_HandleCommand_StopService(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx := context.Background()
 	cmd := bus.Message{Type: bus.CommandStopService, Data: bus.Payload{Name: "api"}}
@@ -521,9 +511,9 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	oldDoneChan := make(chan struct{})
 	close(oldDoneChan)
@@ -565,7 +555,7 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -586,8 +576,8 @@ func Test_HandleCommand_StopAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
@@ -596,7 +586,7 @@ func Test_HandleCommand_StopAll(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx := context.Background()
 	cmd := bus.Message{Type: bus.CommandStopAll}
@@ -611,8 +601,8 @@ func Test_HandleCommand_InvalidStopServiceData(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
@@ -621,7 +611,7 @@ func Test_HandleCommand_InvalidStopServiceData(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx := context.Background()
 	cmd := bus.Message{Type: bus.CommandStopService, Data: "invalid"}
@@ -636,8 +626,8 @@ func Test_HandleCommand_InvalidRestartServiceData(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
@@ -646,7 +636,7 @@ func Test_HandleCommand_InvalidRestartServiceData(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx := context.Background()
 	cmd := bus.Message{Type: bus.CommandRestartService, Data: "invalid"}
@@ -661,8 +651,8 @@ func Test_StopService_ServiceExists(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	doneChan := make(chan struct{})
 	close(doneChan)
@@ -685,7 +675,7 @@ func Test_StopService_ServiceExists(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	r.stopService("api", mockRegistry)
@@ -696,8 +686,8 @@ func Test_StopService_ServiceNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Get("api").Return(registry.Lookup{Proc: nil, Exists: false, Detached: false})
@@ -709,7 +699,7 @@ func Test_StopService_ServiceNotFound(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	r.stopService("api", mockRegistry)
@@ -722,9 +712,9 @@ func Test_RestartService_ExistingService(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	oldDoneChan := make(chan struct{})
 	close(oldDoneChan)
@@ -765,7 +755,7 @@ func Test_RestartService_ExistingService(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -779,9 +769,9 @@ func Test_RestartService_StoppedService(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	doneChan := make(chan struct{})
 
@@ -815,7 +805,7 @@ func Test_RestartService_StoppedService(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -836,10 +826,10 @@ func Test_RestartService_ConfigNotFound(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
 
@@ -850,7 +840,7 @@ func Test_RestartService_ConfigNotFound(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -864,10 +854,10 @@ func Test_RestartService_StartFailed(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
@@ -882,7 +872,7 @@ func Test_RestartService_StartFailed(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -894,10 +884,15 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, nil)
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	b := bus.New(cfg, mockServer, nil)
 	defer b.Close()
 
 	r := &runner{
@@ -907,7 +902,8 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       b,
-		log:       mockLogger,
+		server:    mockServer,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -930,8 +926,8 @@ func Test_RunServicePhase_ContextCancelled(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
@@ -940,7 +936,7 @@ func Test_RunServicePhase_ContextCancelled(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -963,7 +959,7 @@ func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
 
 	r := &runner{
 		cfg:       cfg,
@@ -972,7 +968,7 @@ func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -996,8 +992,8 @@ func Test_StartTier_Success(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 	doneChan := make(chan struct{})
@@ -1028,7 +1024,7 @@ func Test_StartTier_Success(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx := context.Background()
 
@@ -1043,8 +1039,8 @@ func Test_StartTier_AcquireError(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Error().Return(nil)
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
@@ -1059,7 +1055,7 @@ func Test_StartTier_AcquireError(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 	ctx := context.Background()
 
@@ -1076,10 +1072,10 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil)
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
@@ -1095,7 +1091,7 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -1113,10 +1109,10 @@ func Test_RunStartupPhase_TierWithFailures(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil)
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
@@ -1134,7 +1130,7 @@ func Test_RunStartupPhase_TierWithFailures(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1156,8 +1152,8 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 	doneChan := make(chan struct{})
@@ -1195,7 +1191,7 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1224,10 +1220,10 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
@@ -1251,7 +1247,7 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1277,10 +1273,10 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
@@ -1304,7 +1300,7 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1332,10 +1328,10 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
@@ -1359,7 +1355,7 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1388,10 +1384,10 @@ func Test_RunStartupPhase_OtherCommandDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 	doneChan := make(chan struct{})
@@ -1428,7 +1424,7 @@ func Test_RunStartupPhase_OtherCommandDuringStartup(t *testing.T) {
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1458,8 +1454,8 @@ func Test_RunServicePhase_SignalReceived(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
@@ -1468,7 +1464,7 @@ func Test_RunServicePhase_SignalReceived(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1501,8 +1497,8 @@ func Test_StartServiceWithRetry_ReadinessCheckSuccess(t *testing.T) {
 		},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 
@@ -1524,7 +1520,7 @@ func Test_StartServiceWithRetry_ReadinessCheckSuccess(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -1548,8 +1544,8 @@ func Test_StartServiceWithRetry_ReadinessCheckFailed(t *testing.T) {
 		},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 	mockProcess.EXPECT().Ready().DoAndReturn(func() <-chan error {
@@ -1573,7 +1569,7 @@ func Test_StartServiceWithRetry_ReadinessCheckFailed(t *testing.T) {
 		pool:      NewMockWorkerPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
@@ -1610,8 +1606,8 @@ func Test_HandleWatchEvent_RestartInProgress(t *testing.T) {
 		Watch: &config.Watch{Include: []string{"*.go"}},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
 
@@ -1626,7 +1622,7 @@ func Test_HandleWatchEvent_RestartInProgress(t *testing.T) {
 		registry:  mockRegistry,
 		guard:     g,
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -1643,9 +1639,9 @@ func Test_HandleWatchEvent_SuccessfulRestart(t *testing.T) {
 		Watch: &config.Watch{Include: []string{"*.go"}},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	doneChan := make(chan struct{})
 
@@ -1680,7 +1676,7 @@ func Test_HandleWatchEvent_SuccessfulRestart(t *testing.T) {
 		registry:  mockRegistry,
 		guard:     NewGuard(),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -1701,9 +1697,9 @@ func Test_RestartWatchedService_ConfigNotFound(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
 
@@ -1715,7 +1711,7 @@ func Test_RestartWatchedService_ConfigNotFound(t *testing.T) {
 		registry:  mockRegistry,
 		guard:     NewGuard(),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -1732,10 +1728,10 @@ func Test_RestartWatchedService_StartFailed(t *testing.T) {
 		Watch: &config.Watch{Include: []string{"*.go"}},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed"))
@@ -1751,7 +1747,7 @@ func Test_RestartWatchedService_StartFailed(t *testing.T) {
 		registry:  mockRegistry,
 		guard:     NewGuard(),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
@@ -1769,9 +1765,9 @@ func Test_RestartWatchedService_ExistingProcess(t *testing.T) {
 		Watch: &config.Watch{Include: []string{"*.go"}},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
 
 	oldDoneChan := make(chan struct{})
 	close(oldDoneChan)
@@ -1815,7 +1811,7 @@ func Test_RestartWatchedService_ExistingProcess(t *testing.T) {
 		registry:  mockRegistry,
 		guard:     NewGuard(),
 		bus:       bus.NoOp(),
-		log:       mockLogger,
+		log:       mockLog,
 	}
 
 	ctx := context.Background()

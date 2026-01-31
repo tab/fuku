@@ -1,10 +1,5 @@
 package logs
 
-// Broadcaster defines the interface for broadcasting log messages
-type Broadcaster interface {
-	Broadcast(service, message string)
-}
-
 // MessageType represents the type of message in the wire protocol
 type MessageType string
 

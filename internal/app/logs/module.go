@@ -8,4 +8,5 @@ import (
 var Module = fx.Options(
 	fx.Provide(NewClient),
 	fx.Provide(NewRunner),
+	fx.Provide(NewServer),
 )

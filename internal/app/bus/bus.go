@@ -141,7 +141,6 @@ type WatchTriggered struct {
 type Bus interface {
 	Subscribe(ctx context.Context) <-chan Message
 	Publish(msg Message)
-	SetBroadcaster(broadcaster logs.Broadcaster)
 	Close()
 }
 
@@ -151,15 +150,16 @@ type bus struct {
 	subscribers []chan Message
 	mu          sync.RWMutex
 	closed      bool
-	broadcaster logs.Broadcaster
+	server      logs.Server
 	log         logger.Logger
 }
 
 // New creates a new Bus
-func New(cfg *config.Config, log logger.Logger) Bus {
+func New(cfg *config.Config, server logs.Server, log logger.Logger) Bus {
 	return &bus{
 		cfg:         cfg,
 		subscribers: make([]chan Message, 0),
+		server:      server,
 		log:         log,
 	}
 }
@@ -191,13 +191,14 @@ func (b *bus) Publish(msg Message) {
 
 	msg.Timestamp = time.Now()
 
-	if b.log != nil {
-		text := fmt.Sprintf("%s %s", msg.Type, formatData(msg.Data))
-		b.log.Debug().Msg(text)
+	text := fmt.Sprintf("%s %s", msg.Type, formatData(msg.Data))
 
-		if b.broadcaster != nil {
-			b.broadcaster.Broadcast("fuku", text)
-		}
+	if b.log != nil {
+		b.log.Debug().Msg(text)
+	}
+
+	if b.server != nil {
+		b.server.Broadcast("fuku", text)
 	}
 
 	for _, ch := range b.subscribers {
@@ -213,14 +214,6 @@ func (b *bus) Publish(msg Message) {
 			}
 		}
 	}
-}
-
-// SetBroadcaster sets the broadcaster for streaming logs
-func (b *bus) SetBroadcaster(broadcaster logs.Broadcaster) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b.broadcaster = broadcaster
 }
 
 // Close closes all subscriber channels
@@ -306,6 +299,5 @@ func (n *noOpBus) Subscribe(ctx context.Context) <-chan Message {
 	return ch
 }
 
-func (n *noOpBus) Publish(msg Message)                         {}
-func (n *noOpBus) SetBroadcaster(broadcaster logs.Broadcaster) {}
-func (n *noOpBus) Close()                                      {}
+func (n *noOpBus) Publish(msg Message) {}
+func (n *noOpBus) Close()              {}

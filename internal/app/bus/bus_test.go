@@ -7,26 +7,41 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/logs"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
-func testConfig() *config.Config {
+func Test_New(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	cfg := &config.Config{}
 	cfg.Logs.Buffer = 10
 
-	return cfg
-}
+	mockServer := logs.NewMockServer(ctrl)
 
-func Test_New(t *testing.T) {
-	b := New(testConfig(), nil)
+	b := New(cfg, mockServer, nil)
 
 	assert.NotNil(t, b)
 }
 
 func Test_Bus_PublishSubscribe(t *testing.T) {
-	b := New(testConfig(), nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+
+	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -51,7 +66,19 @@ func Test_Bus_PublishSubscribe(t *testing.T) {
 }
 
 func Test_Bus_MultipleSubscribers(t *testing.T) {
-	b := New(testConfig(), nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+
+	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -73,7 +100,15 @@ func Test_Bus_MultipleSubscribers(t *testing.T) {
 }
 
 func Test_Bus_Unsubscribe_OnContextCancel(t *testing.T) {
-	b := New(testConfig(), nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	mockServer := logs.NewMockServer(ctrl)
+
+	b := New(cfg, mockServer, nil)
 	defer b.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -87,7 +122,15 @@ func Test_Bus_Unsubscribe_OnContextCancel(t *testing.T) {
 }
 
 func Test_Bus_Close(t *testing.T) {
-	b := New(testConfig(), nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	mockServer := logs.NewMockServer(ctrl)
+
+	b := New(cfg, mockServer, nil)
 
 	ctx := context.Background()
 	ch := b.Subscribe(ctx)
@@ -101,10 +144,19 @@ func Test_Bus_Close(t *testing.T) {
 }
 
 func Test_Bus_CriticalMessage_BlockingSubscriber(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+
 	cfg := &config.Config{}
 	cfg.Logs.Buffer = 1
 
-	b := New(cfg, nil)
+	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -136,7 +188,19 @@ loop:
 }
 
 func Test_Bus_Command(t *testing.T) {
-	b := New(testConfig(), nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Debug().Return(nil).AnyTimes()
+
+	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -185,29 +249,13 @@ func Test_NoOp(t *testing.T) {
 	b.Close()
 }
 
-func Test_Bus_SetBroadcaster(t *testing.T) {
-	b := New(testConfig(), nil)
-	defer b.Close()
-
-	b.SetBroadcaster(nil)
-}
-
-type mockBroadcaster struct {
-	broadcasts []struct {
-		service string
-		message string
-	}
-}
-
-func (m *mockBroadcaster) Broadcast(service, message string) {
-	m.broadcasts = append(m.broadcasts, struct {
-		service string
-		message string
-	}{service, message})
-}
-
 func Test_Bus_Publish_WithLoggerAndBroadcaster(t *testing.T) {
-	cfg := testConfig()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
 	log := logger.NewLoggerWithOutput(&config.Config{
 		Logging: struct {
 			Level  string `yaml:"level"`
@@ -215,11 +263,11 @@ func Test_Bus_Publish_WithLoggerAndBroadcaster(t *testing.T) {
 		}{Level: "debug"},
 	}, io.Discard)
 
-	b := New(cfg, log)
-	defer b.Close()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast("fuku", gomock.Any()).Times(1)
 
-	broadcaster := &mockBroadcaster{}
-	b.SetBroadcaster(broadcaster)
+	b := New(cfg, mockServer, log)
+	defer b.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -230,16 +278,21 @@ func Test_Bus_Publish_WithLoggerAndBroadcaster(t *testing.T) {
 		Type: EventServiceReady,
 		Data: ServiceReady{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
 	})
-
-	assert.Len(t, broadcaster.broadcasts, 1)
-	assert.Equal(t, "fuku", broadcaster.broadcasts[0].service)
 }
 
 func Test_Bus_Close_AlreadyClosed(t *testing.T) {
-	b := New(testConfig(), nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := &config.Config{}
+	cfg.Logs.Buffer = 10
+
+	mockServer := logs.NewMockServer(ctrl)
+
+	b := New(cfg, mockServer, nil)
 
 	b.Close()
-	b.Close() // Should not panic
+	b.Close()
 }
 
 func Test_NoOp_Methods(t *testing.T) {
@@ -247,7 +300,6 @@ func Test_NoOp_Methods(t *testing.T) {
 
 	// These should not panic
 	b.Publish(Message{Type: EventPhaseChanged})
-	b.SetBroadcaster(nil)
 	b.Close()
 }
 
