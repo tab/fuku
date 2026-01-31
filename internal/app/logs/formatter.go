@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -125,11 +124,9 @@ func (f *LogFormatter) formatLine(service, message string) string {
 
 	padding := f.maxServiceLen - len(service)
 	paddedName := service + strings.Repeat(" ", padding)
-	timestamp := time.Now().Format("15:04:05")
 
 	return style.Render(paddedName) + " " +
 		f.separatorStyle.Render("|") + " " +
-		f.separatorStyle.Render(timestamp) + " " +
 		f.messageStyle.Render(message) + "\n"
 }
 
