@@ -63,9 +63,10 @@ type Readiness struct {
 
 // Watch represents file watch configuration for hot-reload
 type Watch struct {
-	Include []string `yaml:"include"`
-	Ignore  []string `yaml:"ignore"`
-	Shared  []string `yaml:"shared"`
+	Include  []string      `yaml:"include"`
+	Ignore   []string      `yaml:"ignore"`
+	Shared   []string      `yaml:"shared"`
+	Debounce time.Duration `yaml:"debounce"`
 }
 
 // ServiceDefaults represents default configuration for services

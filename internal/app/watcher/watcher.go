@@ -128,7 +128,12 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 		cancel:  cancel,
 	}
 
-	w.debouncer = NewDebouncer(config.WatchDebounce, func(files []string) {
+	debounce := serviceCfg.Watch.Debounce
+	if debounce == 0 {
+		debounce = config.WatchDebounce
+	}
+
+	w.debouncer = NewDebouncer(debounce, func(files []string) {
 		m.emitEvent(serviceName, files)
 	})
 
