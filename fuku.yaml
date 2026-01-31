@@ -5,8 +5,9 @@ x-readiness: &readiness
   timeout: 30s
 
 x-watch: &watch
-  paths: ["**/*.go", "**/*.yaml"]
-  ignore: ["*_test.go", "vendor/**", "mock_*.go", "**/*_mock.go"]
+  include: ["**/*.go", "**/*.yaml"]
+  ignore: [".git/**", ".idea/**", ".vscode/**", "node_modules/**", "vendor/**", "**/*_test.go", "**/mock_*.go", "**/*_mock.go"]
+  shared: ["examples/bookstore/common"]
 
 services:
   # Foundation tier: Base infrastructure services
@@ -16,12 +17,16 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
   storage:
     dir: examples/bookstore/storage
     tier: foundation
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
 
   # Platform tier: Business logic services that depend on foundation
   user:
@@ -30,6 +35,8 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
 
   api:
     dir: examples/bookstore/api
@@ -39,7 +46,6 @@ services:
       pattern: "Service ready"
     watch:
       <<: *watch
-      paths: ["**/*.go"]
 
   # Edge tier: Client-facing services
   frontend-api:
@@ -49,6 +55,8 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
 
 defaults:
   profiles: [default]

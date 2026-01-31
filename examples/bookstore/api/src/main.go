@@ -1,8 +1,10 @@
 package main
 
-import "examples/bookstore/shared"
+import (
+	"examples/bookstore/pkg/common"
+)
 
-var config = shared.Config{
+var config = common.Config{
 	Name: "API",
 	Messages: []string{
 		"INFO: [API] Processing request GET /api/v1/books",
@@ -13,5 +15,5 @@ var config = shared.Config{
 }
 
 func main() {
-	shared.Run(config)
+	common.Run(config)
 }
