@@ -22,27 +22,30 @@ Fuku uses a layered architecture with three distinct patterns:
 │                   (internal/app - Uber FX)                  │
 └─────────────────────────────────────────────────────────────┘
                               │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-┌──────────────────┐ ┌──────────────┐ ┌──────────────────┐
-│  Runner Package  │ │ Logs Package │ │   UI Package     │
-│  (Event-Driven)  │ │ (Streaming)  │ │  (FSM-Based)     │
-│  ├─ discovery    │ │ ├─ server    │ │  ├─ services/    │
-│  ├─ readiness    │ │ ├─ hub       │ │  ├─ components/  │
-│  ├─ service      │ │ ├─ client    │ │  └─ wire/        │
-│  ├─ registry     │ │ └─ formatter │ └──────────────────┘
-│  └─ workerpool   │ └──────────────┘          │
-└──────────────────┘        │                  │
-         │                  │                  │
-         └──────────────────┼──────────────────┘
-                            ▼
-              ┌──────────────────────┐
-              │   Runtime Package    │
-              │ (Data/Communication) │
-              │   events + commands  │
-              └──────────────────────┘
-                            │
-                            ▼
+       ┌──────────────────────┼──────────────────────┐
+       ▼                      ▼                      ▼
+┌─────────────────┐    ┌──────────────┐    ┌──────────────────┐
+│ Runner Package  │    │ Logs Package │    │   UI Package     │
+│ (Orchestration) │    │ (Streaming)  │    │  (FSM-Based)     │
+│ ├─ runner       │    │ ├─ server    │    │  ├─ services/    │
+│ ├─ service      │    │ ├─ hub       │    │  ├─ components/  │
+│ ├─ guard        │    │ ├─ client    │    │  └─ wire/        │
+│ └─ worker       │    │ └─ formatter │    └──────────────────┘
+└────────┬────────┘    └──────────────┘             │
+         │                    │                     │
+         └────────────────────┼─────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Shared Packages                         │
+├──────────────┬──────────────┬──────────────┬────────────────┤
+│ bus          │ discovery    │ registry     │ watcher        │
+│ (messaging)  │ (profiles)   │ (processes)  │ (hot-reload)   │
+├──────────────┼──────────────┼──────────────┼────────────────┤
+│ process      │ lifecycle    │ readiness    │ monitor        │
+│ (handles)    │ (signals)    │ (checks)     │ (stats)        │
+└──────────────┴──────────────┴──────────────┴────────────────┘
+                              │
+                              ▼
               ┌──────────────────────┐
               │   Config Package     │
               │  (internal/config)   │
@@ -51,57 +54,52 @@ Fuku uses a layered architecture with three distinct patterns:
 
 ## 1. Data/Communication Layer
 
-**Package**: `internal/app/runtime`
+**Package**: `internal/app/bus`
 
-The runtime package provides pure data structures and communication primitives. It has no business logic and serves as the foundation for inter-component messaging.
+The bus package provides a unified pub/sub messaging system for events and commands. It has no business logic and serves as the foundation for inter-component messaging.
 
-### Event Bus
+### Bus Interface
 
 ```go
-type EventBus interface {
-    Subscribe(ctx context.Context) <-chan Event
-    Publish(event Event)
+type Bus interface {
+    Subscribe(ctx context.Context) <-chan Message
+    Publish(msg Message)
+    SetBroadcaster(broadcaster logs.Broadcaster)
     Close()
 }
 ```
 
-The EventBus implements a pub/sub pattern for broadcasting runtime events:
+The Bus implements a unified pub/sub pattern for both events and commands:
 
-- **Non-blocking publish**: Events are sent to subscriber channels without blocking
-- **Critical events**: Important events (phase changes) block until delivered
+- **Non-blocking publish**: Messages are sent to subscriber channels without blocking
+- **Critical messages**: Important messages (phase changes) block until delivered
 - **Context-aware cleanup**: Subscribers auto-unsubscribe when context cancels
 - **Buffered channels**: Prevents slow subscribers from blocking publishers
+- **Log broadcasting**: Integrates with log streaming via SetBroadcaster
 
-### Command Bus
+### Message Types
 
-```go
-type CommandBus interface {
-    Subscribe(ctx context.Context) <-chan Command
-    Publish(cmd Command)
-    Close()
-}
+Events:
+```
+EventProfileResolved   → Profile and tier structure resolved
+EventPhaseChanged      → Application phase transition
+EventTierStarting      → Tier startup begins
+EventTierReady         → All services in tier are ready
+EventServiceStarting   → Service process started
+EventServiceReady      → Service passed readiness check
+EventServiceFailed     → Service failed to start/run
+EventServiceStopping   → Service shutdown initiated
+EventServiceStopped    → Service process terminated
+EventServiceRestarting → Service restart initiated
+EventSignal            → OS signal received (SIGINT/SIGTERM)
+EventWatchTriggered    → File change detected for hot-reload
 ```
 
-The CommandBus handles user-initiated control commands:
-
-- **Stop/Restart Service**: Individual service control
-- **Stop All**: Graceful shutdown trigger
-- **Decoupled control**: UI publishes commands without knowing runner internals
-
-### Event Types
-
+Commands:
 ```
-EventProfileResolved  → Profile and tier structure resolved
-EventPhaseChanged     → Application phase transition
-EventTierStarting     → Tier startup begins
-EventTierReady        → All services in tier are ready
-EventServiceStarting  → Service process started
-EventServiceReady     → Service passed readiness check
-EventServiceFailed    → Service failed to start/run
-EventServiceStopped   → Service process terminated
-EventRetryScheduled   → Service retry scheduled
-EventLogLine          → Service stdout/stderr output
-EventSignalCaught     → OS signal received (SIGINT/SIGTERM)
+CommandStopService    → Stop individual service
+CommandRestartService → Restart individual service
+CommandStopAll        → Graceful shutdown trigger
 ```
 
 ### Phases
@@ -164,15 +162,15 @@ The runner package manages actual OS processes using event-driven patterns rathe
                       │
                       ▼
                  ┌─────────┐
-                 │  Wait   │◄──────┐
-                 │ Signals │       │
-                 └────┬────┘       │
-                      │            │
-                 ┌────┴────┐       │
-                 ▼         ▼       │
-            ┌─────────┐ ┌─────────┐│
-            │ Signal  │ │ Command ││
-            │Received │ │Received │┘
+                 │  Wait   │◄───────┐
+                 │ Signals │        │
+                 └────┬────┘        │
+                      │             │
+                 ┌────┴────┐        │
+                 ▼         ▼        │
+            ┌─────────┐ ┌─────────┐ │
+            │ Signal  │ │ Command │ │
+            │Received │ │Received │─┘
             └────┬────┘ └─────────┘
                  │
                  ▼
@@ -186,50 +184,177 @@ The runner package manages actual OS processes using event-driven patterns rathe
 ```go
 func (r *runner) Run(ctx context.Context, profile string) error {
     // 1. Publish startup phase
-    r.event.Publish(Event{Type: EventPhaseChanged, Data: PhaseStartup})
+    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStartup}})
 
     // 2. Resolve profile into tier structure
     tiers, _ := r.discovery.Resolve(profile)
-    r.event.Publish(Event{Type: EventProfileResolved, Data: tiers})
+    r.bus.Publish(Message{Type: EventProfileResolved, Data: ProfileResolved{Tiers: tiers}})
 
     // 3. Start tiers sequentially
     for _, tier := range tiers {
-        r.event.Publish(Event{Type: EventTierStarting})
+        r.bus.Publish(Message{Type: EventTierStarting})
         // Start services concurrently within tier
         r.startTier(ctx, tier)
-        r.event.Publish(Event{Type: EventTierReady})
+        r.bus.Publish(Message{Type: EventTierReady})
     }
 
     // 4. Transition to running phase
-    r.event.Publish(Event{Type: EventPhaseChanged, Data: PhaseRunning})
+    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseRunning}})
 
-    // 5. Wait for signals or commands
+    // 5. Wait for signals or commands (including watch events for hot-reload)
     for {
         select {
         case sig := <-sigChan:
             // Handle OS signal
-        case cmd := <-commandChan:
-            // Handle user command
+        case msg := <-msgChan:
+            // Handle command or watch event
         }
     }
 
     // 6. Graceful shutdown
-    r.event.Publish(Event{Type: EventPhaseChanged, Data: PhaseStopping})
-    r.shutdown(processes)
-    r.event.Publish(Event{Type: EventPhaseChanged, Data: PhaseStopped})
+    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStopping}})
+    r.shutdown()
+    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStopped}})
 }
 ```
 
 ### Key Patterns
 
-1. **Registry**: Single source of truth for tracking running processes
+1. **Registry** (`internal/app/registry`): Single source of truth for tracking running processes
    - Maintains process lifecycle with WaitGroup synchronization
    - Tracks insertion order for deterministic reverse-order shutdown
    - Supports process detachment for restart scenarios
    - Ensures WaitGroup only decrements when processes actually exit
-2. **Worker Pool**: Limit concurrent service starts
-3. **Retry with Backoff**: Automatic retry on transient failures
-4. **Graceful Shutdown**: SIGTERM → wait → SIGKILL
+2. **Guard** (`internal/app/runner/guard`): Prevents concurrent restarts of the same service
+   - Essential for hot-reload correctness when multiple file changes occur rapidly
+3. **Worker Pool**: Limit concurrent service starts
+4. **Retry with Backoff**: Automatic retry on transient failures
+5. **Graceful Shutdown**: SIGTERM → wait → SIGKILL
+
+### Hot-Reload Lifecycle
+
+**Package**: `internal/app/watcher`
+
+The watcher package monitors file changes and triggers service restarts with debouncing to prevent restart storms.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                       File System                        │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             │ fsnotify
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│                         Watcher                          │
+│                                                          │
+│   ┌───────────┐     ┌───────────┐     ┌───────────┐      │
+│   │  Matcher  │────▶│ Debouncer │────▶│  Publish  │      │
+│   │ (patterns)│     │  (300ms)  │     │   (bus)   │      │
+│   └───────────┘     └───────────┘     └───────────┘      │
+│                                                          │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             │ EventWatchTriggered
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│                         Runner                           │
+│                                                          │
+│   ┌───────────┐     ┌───────────┐     ┌───────────┐      │
+│   │   Guard   │────▶│  Detach   │────▶│  Restart  │      │
+│   │   (lock)  │     │ (registry)│     │ (service) │      │
+│   └───────────┘     └───────────┘     └───────────┘      │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Watcher State Flow
+
+```
+                     ┌─────────────────┐
+                     │  Service Ready  │
+                     │ (watching: off) │
+                     └────────┬────────┘
+                              │
+                              │ Start watching
+                              ▼
+                     ┌─────────────────┐
+        ┌───────────▶│    Watching     │◀───────────────────┐
+        │            │  (idle state)   │                    │
+        │            └────────┬────────┘                    │
+        │                     │                             │
+        │                     │ File change                 │
+        │                     ▼                             │
+        │            ┌─────────────────┐                    │
+        │            │   Debouncing    │                    │
+        │            │ (300ms window)  │                    │
+        │            └────────┬────────┘                    │
+        │                     │                             │
+        │          ┌──────────┴──────────┐                  │
+        │          ▼                     ▼                  │
+   ┌────┴────────────┐           ┌─────────────┐            │
+   │  More changes   │           │   Timeout   │            │
+   │     (reset)     │           │   (fire)    │            │
+   └─────────────────┘           └──────┬──────┘            │
+                                        │                   │
+                                        ▼                   │
+                                ┌─────────────┐             │
+                                │ Guard.Lock  │             │
+                                └──────┬──────┘             │
+                                       │                    │
+                            ┌──────────┴──────────┐         │
+                            ▼                     ▼         │
+                     ┌────────────┐        ┌────────────┐   │
+                     │    true    │        │   false    │   │
+                     │ (proceed)  │        │   (skip)   │───┘
+                     └─────┬──────┘        └────────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Restart Service │
+                  │  (stop + start) │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │  Guard.Unlock   │
+                  └────────┬────────┘
+                           │
+                           ▼
+```
+
+### Debouncer Pattern
+
+The debouncer prevents restart storms when editors save multiple files or trigger multiple write events:
+
+```go
+type Debouncer interface {
+    Trigger(service string, files []string)
+    Stop()
+}
+```
+
+**Key behaviors**:
+- Collects file changes within a 300ms window
+- Resets timer on each new change (sliding window)
+- Fires once with accumulated file list
+- Per-service debouncing (service A changes don't affect service B timer)
+
+### Guard Pattern
+
+The guard prevents concurrent restarts of the same service:
+
+```go
+type Guard interface {
+    Lock(name string) bool   // Returns true if lock acquired
+    Unlock(name string)
+    IsLocked(name string) bool
+}
+```
+
+**Why needed**:
+- Multiple file changes can trigger multiple watch events
+- Without guard: goroutine 1 stops service-a, goroutine 2 stops service-a → race condition
+- With guard: goroutine 1 acquires lock, goroutine 2 skips (service already restarting)
 
 ### Registry Pattern
 
@@ -423,11 +548,11 @@ fsm.Callbacks{
     OnStopping: func(ctx, e) {
         service.MarkStopping()
         loader.Start("Stopping...")
-        commandBus.Publish(CommandStopService)
+        bus.Publish(Message{Type: CommandStopService, Data: Payload{Name: service}})
     },
     OnRestarting: func(ctx, e) {
         loader.Start("Restarting...")
-        commandBus.Publish(CommandRestartService)
+        bus.Publish(Message{Type: CommandRestartService, Data: Payload{Name: service}})
     },
     OnRunning: func(ctx, e) {
         service.MarkRunning()
@@ -443,7 +568,7 @@ fsm.Callbacks{
 
 ### Event → FSM Synchronization
 
-The UI subscribes to EventBus and updates FSM accordingly:
+The UI subscribes to the Bus and updates FSM accordingly:
 
 ```go
 func (m Model) handleServiceReady(event Event) Model {
@@ -494,7 +619,7 @@ The logs package provides real-time log streaming from running fuku instances vi
             │ /tmp/fuku-<profile>.sock
             ▼
 ┌──────────────────────────────────────────────┐
-│        fuku run profile (main process)        │
+│        fuku run profile (main process)       │
 │  Service → teeStream → Hub → SocketServer    │
 └──────────────────────────────────────────────┘
 ```
@@ -540,9 +665,10 @@ The key insight is **source of truth separation**:
 | Aspect | Package | Pattern | Why |
 |--------|---------|---------|-----|
 | Process lifecycle | Runner | Event-driven | OS manages reality |
-| User actions | Runtime | Command bus | Decoupled control |
-| System events | Runtime | Event bus | Observable history |
+| User actions | Bus | Command messages | Decoupled control |
+| System events | Bus | Event messages | Observable history |
 | Visual state | UI | FSM | Consistent UX |
+| File changes | Watcher | Debounced events | Hot-reload |
 
 ### Data Flow Example: Restart Service
 
@@ -553,7 +679,7 @@ The key insight is **source of truth separation**:
 
 2. **FSM callback publishes command**
    ```
-   UI: OnRestarting → CommandBus.Publish(RestartService)
+   UI: OnRestarting → Bus.Publish(CommandRestartService)
    ```
 
 3. **Runner receives command**
@@ -571,4 +697,32 @@ The key insight is **source of truth separation**:
    UI: handleServiceStopped → loader.Stop()
    UI: handleServiceStarting → loader.Start()
    UI: handleServiceReady → FSM.Event(Started) → loader.Stop()
+   ```
+
+### Data Flow Example: Hot-Reload
+
+1. **File change detected**
+   ```
+   Watcher: fsnotify event → debouncer.Trigger(service)
+   ```
+
+2. **Debouncer fires after delay**
+   ```
+   Watcher: Bus.Publish(EventWatchTriggered{Service, ChangedFiles})
+   ```
+
+3. **Runner receives watch event (concurrent)**
+   ```
+   Runner: go handleWatchEvent → guard.Lock(service) → restartWatchedService
+   ```
+
+4. **Guard prevents concurrent restarts**
+   ```
+   Runner: guard.Lock("api") → true (proceed)
+   Runner: guard.Lock("api") → false (skip, already restarting)
+   ```
+
+5. **Restart completes**
+   ```
+   Runner: guard.Unlock("api") → next restart can proceed
    ```
