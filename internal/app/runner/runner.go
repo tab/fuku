@@ -259,7 +259,15 @@ func (r *runner) handleMessage(ctx context.Context, msg bus.Message, registry re
 	switch msg.Type {
 	case bus.EventWatchTriggered:
 		if data, ok := msg.Data.(bus.WatchTriggered); ok {
-			go r.handleWatchEvent(ctx, data.Service, data.ChangedFiles, registry)
+			go func(service string, files []string) {
+				if err := r.pool.Acquire(ctx); err != nil {
+					r.log.Warn().Err(err).Msgf("Failed to acquire worker for watch restart of '%s'", service)
+					return
+				}
+				defer r.pool.Release()
+
+				r.handleWatchEvent(ctx, service, files, registry)
+			}(data.Service, data.ChangedFiles)
 		}
 	default:
 		return r.handleCommand(ctx, msg, registry)
