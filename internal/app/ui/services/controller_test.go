@@ -307,7 +307,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 					Data: bus.Payload{Name: "api"},
 				})
 			},
-			expectedState: Running,
+			expectedState: Restarting,
 		},
 		{
 			name: "failed service",
@@ -325,7 +325,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 					Data: bus.Payload{Name: "api"},
 				})
 			},
-			expectedState: Failed,
+			expectedState: Restarting,
 		},
 		{
 			name: "stopped service",
@@ -341,7 +341,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 					Data: bus.Payload{Name: "api"},
 				})
 			},
-			expectedState: Stopped,
+			expectedState: Restarting,
 		},
 	}
 

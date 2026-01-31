@@ -75,6 +75,9 @@ func (c *controller) Restart(ctx context.Context, service *ServiceState) {
 		return
 	}
 
+	// Optimistic UI update - immediately transition to Restarting for instant feedback
+	_ = service.FSM.Event(ctx, Restart)
+
 	c.bus.Publish(bus.Message{
 		Type: bus.CommandRestartService,
 		Data: bus.Payload{Name: service.Name},
@@ -137,7 +140,8 @@ func (c *controller) HandleRestarting(ctx context.Context, service *ServiceState
 		return
 	}
 
-	if service.FSM != nil {
+	// Skip if already in Restarting state (optimistic update already applied)
+	if service.FSM != nil && service.FSM.Current() != Restarting {
 		_ = service.FSM.Event(ctx, Restart)
 	}
 }

@@ -287,7 +287,7 @@ func (r *runner) handleCommand(ctx context.Context, msg bus.Message, registry re
 			return false
 		}
 
-		r.restartService(ctx, data.Name, registry)
+		go r.restartService(ctx, data.Name, registry)
 
 	case bus.CommandStopAll:
 		r.log.Info().Msg("Received StopAll command, shutting down all services...")

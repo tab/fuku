@@ -550,11 +550,12 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	mockService.EXPECT().Stop(mockOldProcess).Return(nil)
 	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockNewProcess, nil)
 
+	done := make(chan struct{})
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Get("api").Return(registry.Lookup{Proc: mockOldProcess, Tier: "platform", Exists: true, Detached: false})
 	mockRegistry.EXPECT().Detach("api")
 	mockRegistry.EXPECT().Remove("api", mockOldProcess).Return(registry.RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: false})
-	mockRegistry.EXPECT().Add("api", mockNewProcess, "platform")
+	mockRegistry.EXPECT().Add("api", mockNewProcess, "platform").Do(func(_, _, _ any) { close(done) })
 	mockRegistry.EXPECT().Remove("api", mockNewProcess).Return(registry.RemoveResult{Removed: true, Tier: "platform", UnexpectedExit: true}).AnyTimes()
 
 	r := &runner{
@@ -572,6 +573,12 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	result := r.handleCommand(ctx, cmd, mockRegistry)
 
 	assert.False(t, result)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("restart did not complete in time")
+	}
 }
 
 func Test_HandleCommand_StopAll(t *testing.T) {
