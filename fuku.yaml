@@ -5,9 +5,28 @@ x-readiness: &readiness
   timeout: 30s
 
 x-watch: &watch
-  include: ["**/*.go", "**/*.yaml"]
-  ignore: [".git/**", ".idea/**", ".vscode/**", "node_modules/**", "vendor/**", "**/*_test.go", "**/mock_*.go", "**/*_mock.go"]
-  shared: ["examples/bookstore/pkg/common"]
+  include:
+    - "**/*.go"
+    - "**/*.yml"
+    - "**/*.yaml"
+  ignore:
+    - ".git/**"
+    - ".idea/**"
+    - ".vscode/**"
+    - "**/*.swp"
+    - "**/*~"
+    - "**/.DS_Store"
+    - "node_modules/**"
+    - "vendor/**"
+    - "**/*_test.go"
+    - "**/testdata/**"
+    - "**/mock_*.go"
+    - "**/*_mock.go"
+    - "**/bin/**"
+    - "**/*.out"
+  shared:
+    - "examples/bookstore/pkg/common"
+  debounce: 1s
 
 services:
   # Foundation tier: Base infrastructure services
