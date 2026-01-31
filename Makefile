@@ -18,6 +18,11 @@ test:
 	@echo "Running tests..."
 	go test -cover ./...
 
+.PHONY: test\:race
+test\:race:
+	@echo "Running tests with race detector..."
+	go test -race -cover ./...
+
 .PHONY: coverage
 coverage:
 	@echo "Generating test coverage report..."
