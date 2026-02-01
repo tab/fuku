@@ -51,9 +51,14 @@ func (s *server) SocketPath() string {
 	return s.socketPath
 }
 
+// SocketPathForProfile constructs the socket path for a given profile
+func SocketPathForProfile(socketDir, profile string) string {
+	return filepath.Join(socketDir, config.SocketPrefix+profile+config.SocketSuffix)
+}
+
 // Start starts the Unix socket server
 func (s *server) Start(ctx context.Context, profile string) error {
-	s.socketPath = filepath.Join(config.SocketDir, config.SocketPrefix+profile+config.SocketSuffix)
+	s.socketPath = SocketPathForProfile(config.SocketDir, profile)
 
 	if err := s.cleanupStaleSocket(); err != nil {
 		return fmt.Errorf("%w: %w", errors.ErrFailedToCleanupSocket, err)

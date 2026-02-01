@@ -55,7 +55,7 @@ func Test_Server_SocketPath(t *testing.T) {
 
 	defer s.Stop()
 
-	expected := filepath.Join(config.SocketDir, config.SocketPrefix+"my-profile"+config.SocketSuffix)
+	expected := SocketPathForProfile(config.SocketDir, "my-profile")
 	assert.Equal(t, expected, s.SocketPath())
 }
 

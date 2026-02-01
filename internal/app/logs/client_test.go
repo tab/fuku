@@ -312,7 +312,7 @@ func Test_FindSocket(t *testing.T) {
 			name:    "Finds socket by profile",
 			profile: "test",
 			before: func(tmpDir string) string {
-				socketPath := filepath.Join(tmpDir, config.SocketPrefix+"test"+config.SocketSuffix)
+				socketPath := SocketPathForProfile(tmpDir, "test")
 				f, _ := os.Create(socketPath)
 				f.Close()
 
@@ -329,7 +329,7 @@ func Test_FindSocket(t *testing.T) {
 			name:    "No profile - finds single socket",
 			profile: "",
 			before: func(tmpDir string) string {
-				socketPath := filepath.Join(tmpDir, config.SocketPrefix+"default"+config.SocketSuffix)
+				socketPath := SocketPathForProfile(tmpDir, "default")
 				f, _ := os.Create(socketPath)
 				f.Close()
 
@@ -347,7 +347,7 @@ func Test_FindSocket(t *testing.T) {
 			profile: "",
 			before: func(tmpDir string) string {
 				for _, profile := range []string{"default", "dev"} {
-					socketPath := filepath.Join(tmpDir, config.SocketPrefix+profile+config.SocketSuffix)
+					socketPath := SocketPathForProfile(tmpDir, profile)
 					f, _ := os.Create(socketPath)
 					f.Close()
 				}
