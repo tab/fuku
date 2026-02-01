@@ -249,12 +249,12 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 // getServiceDetails returns either error message or metrics columns
 func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string {
 	if service.Error != nil {
-		errorMsg := renderError(service.Error)
+		errorMsg := fmt.Sprintf("%s%s", components.ErrorPadding, renderError(service.Error))
 		if !isSelected {
-			return components.ErrorStyle.Render("  " + errorMsg)
+			return components.ErrorStyle.Render(errorMsg)
 		}
 
-		return "  " + errorMsg
+		return errorMsg
 	}
 
 	return fmt.Sprintf("%*s  %*s  %*s  %*s",
