@@ -7,16 +7,17 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
+	"fuku/internal/app/bus"
+	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/logs"
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/registry"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
-// Runner defines the interface for service orchestration and execution
+// Runner defines the interface for service orchestration
 type Runner interface {
 	Run(ctx context.Context, profile string) error
 }
@@ -24,55 +25,49 @@ type Runner interface {
 // runner implements the Runner interface
 type runner struct {
 	cfg       *config.Config
-	discovery Discovery
+	discovery discovery.Discovery
+	registry  registry.Registry
 	service   Service
 	pool      WorkerPool
-	registry  Registry
+	bus       bus.Bus
+	server    logs.Server
 	log       logger.Logger
-	event     runtime.EventBus
-	command   runtime.CommandBus
 }
 
-// NewRunner creates a new runner instance with the provided configuration and logger
+// NewRunner creates a new runner instance
 func NewRunner(
 	cfg *config.Config,
-	discovery Discovery,
-	registry Registry,
+	disc discovery.Discovery,
+	reg registry.Registry,
 	service Service,
 	pool WorkerPool,
-	event runtime.EventBus,
-	command runtime.CommandBus,
+	bus bus.Bus,
+	server logs.Server,
 	log logger.Logger,
 ) Runner {
 	return &runner{
 		cfg:       cfg,
-		discovery: discovery,
-		registry:  registry,
+		discovery: disc,
+		registry:  reg,
 		service:   service,
 		pool:      pool,
-		event:     event,
-		command:   command,
+		bus:       bus,
+		server:    server,
 		log:       log.WithComponent("RUNNER"),
 	}
 }
 
-// Run executes the specified profile by starting all services in dependency and tier order
+// Run executes the specified profile
 func (r *runner) Run(ctx context.Context, profile string) error {
-	logsServer := logs.NewServer(r.cfg, profile, r.log)
-	if err := logsServer.Start(ctx); err != nil {
+	if err := r.server.Start(ctx, profile); err != nil {
 		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
 	} else {
-		r.service.SetBroadcaster(logsServer)
-
-		defer func() {
-			r.service.SetBroadcaster(nil)
-			logsServer.Stop()
-		}()
+		defer r.server.Stop()
 	}
 
-	r.event.Publish(runtime.Event{
-		Type:     runtime.EventPhaseChanged,
-		Data:     runtime.PhaseChangedData{Phase: runtime.PhaseStartup},
+	r.bus.Publish(bus.Message{
+		Type:     bus.EventPhaseChanged,
+		Data:     bus.PhaseChanged{Phase: bus.PhaseStartup},
 		Critical: true,
 	})
 
@@ -81,31 +76,28 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		return fmt.Errorf("failed to resolve profile: %w", err)
 	}
 
-	tierData := make([]runtime.TierData, len(tiers))
+	tierData := make([]bus.Tier, len(tiers))
 	for i, tier := range tiers {
-		tierData[i] = runtime.TierData{Name: tier.Name, Services: tier.Services}
+		tierData[i] = bus.Tier{Name: tier.Name, Services: tier.Services}
 	}
 
-	r.log.Debug().Msgf("Publishing EventProfileResolved: profile=%s, tiers=%d", profile, len(tierData))
-	r.event.Publish(runtime.Event{
-		Type:     runtime.EventProfileResolved,
-		Data:     runtime.ProfileResolvedData{Profile: profile, Tiers: tierData},
+	r.bus.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: profile,
+			Tiers:   tierData,
+		},
 		Critical: true,
 	})
-	r.log.Debug().Msg("EventProfileResolved published")
 
-	var services []string
-	for _, tier := range tiers {
-		services = append(services, tier.Services...)
-	}
-
+	services := r.collectServices(tiers)
 	if len(services) == 0 {
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventPhaseChanged,
-			Data:     runtime.PhaseChangedData{Phase: runtime.PhaseStopped},
+		r.log.Warn().Msgf("No services found for profile '%s'. Nothing to run.", profile)
+		r.bus.Publish(bus.Message{
+			Type:     bus.EventPhaseChanged,
+			Data:     bus.PhaseChanged{Phase: bus.PhaseStopped},
 			Critical: true,
 		})
-		r.log.Warn().Msgf("No services found for profile '%s'. Nothing to run.", profile)
 
 		return nil
 	}
@@ -115,56 +107,52 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	commandChan := r.command.Subscribe(ctx)
-
+	msgChan := r.bus.Subscribe(ctx)
 	sigChan := make(chan os.Signal, 1)
 
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
 
-	startupErr := r.runStartupPhase(ctx, cancel, tiers, r.registry, sigChan, commandChan)
-	if startupErr != nil {
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventPhaseChanged,
-			Data:     runtime.PhaseChangedData{Phase: runtime.PhaseStopped},
+	if err := r.runStartupPhase(ctx, cancel, tiers, sigChan, msgChan); err != nil {
+		r.bus.Publish(bus.Message{
+			Type:     bus.EventPhaseChanged,
+			Data:     bus.PhaseChanged{Phase: bus.PhaseStopped},
 			Critical: true,
 		})
 
-		return startupErr
+		return err
 	}
 
-	r.event.Publish(runtime.Event{
-		Type:     runtime.EventPhaseChanged,
-		Data:     runtime.PhaseChangedData{Phase: runtime.PhaseRunning},
+	r.bus.Publish(bus.Message{
+		Type:     bus.EventPhaseChanged,
+		Data:     bus.PhaseChanged{Phase: bus.PhaseRunning},
+		Critical: true,
+	})
+	r.runServicePhase(ctx, cancel, sigChan, msgChan)
+	r.bus.Publish(bus.Message{
+		Type:     bus.EventPhaseChanged,
+		Data:     bus.PhaseChanged{Phase: bus.PhaseStopping},
 		Critical: true,
 	})
 
-	r.runServicePhase(ctx, cancel, sigChan, r.registry, commandChan)
-
-	r.event.Publish(runtime.Event{
-		Type:     runtime.EventPhaseChanged,
-		Data:     runtime.PhaseChangedData{Phase: runtime.PhaseStopping},
-		Critical: true,
-	})
-
-	r.shutdown(r.registry)
+	r.shutdown()
 	r.log.Info().Msg("All services stopped")
 
-	r.event.Publish(runtime.Event{
-		Type:     runtime.EventPhaseChanged,
-		Data:     runtime.PhaseChangedData{Phase: runtime.PhaseStopped},
+	r.bus.Publish(bus.Message{
+		Type:     bus.EventPhaseChanged,
+		Data:     bus.PhaseChanged{Phase: bus.PhaseStopped},
 		Critical: true,
 	})
 
 	return nil
 }
 
-// runStartupPhase handles the service startup phase and waits for completion or interruption
-func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []Tier, registry Registry, sigChan chan os.Signal, commandChan <-chan runtime.Command) error {
+// runStartupPhase handles the service startup phase
+func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []discovery.Tier, sigChan chan os.Signal, msgChan <-chan bus.Message) error {
 	startupDone := make(chan struct{}, 1)
 
 	go func() {
-		r.startAllTiers(ctx, tiers, registry)
+		r.startAllTiers(ctx, tiers)
 
 		startupDone <- struct{}{}
 	}()
@@ -176,200 +164,174 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 
 			return nil
 		case sig := <-sigChan:
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventSignalCaught,
-				Data:     runtime.SignalCaughtData{Signal: sig.String()},
+			r.log.Info().Msgf("Received signal %s during startup, shutting down services...", sig)
+			r.bus.Publish(bus.Message{
+				Type:     bus.EventSignal,
+				Data:     bus.Signal{Name: sig.String()},
 				Critical: true,
 			})
-			r.log.Info().Msgf("Received signal %s during startup, shutting down services...", sig)
 			cancel()
 			<-startupDone
-			r.shutdown(registry)
+			r.shutdown()
 
 			return fmt.Errorf("%w: signal %s", errors.ErrStartupInterrupted, sig)
 		case <-ctx.Done():
 			r.log.Info().Msg("Context cancelled during startup, shutting down services...")
 			cancel()
 			<-startupDone
-			r.shutdown(registry)
+			r.shutdown()
 
 			return ctx.Err()
-		case cmd, ok := <-commandChan:
+		case msg, ok := <-msgChan:
 			if !ok {
-				r.log.Info().Msg("Command channel closed during startup, shutting down services...")
+				r.log.Info().Msg("Message channel closed during startup, shutting down services...")
 				cancel()
 				<-startupDone
-				r.shutdown(registry)
+				r.shutdown()
 
 				return errors.ErrCommandChannelClosed
 			}
 
-			if cmd.Type == runtime.CommandStopAll {
+			if msg.Type == bus.CommandStopAll {
 				r.log.Info().Msg("Received StopAll command during startup, shutting down services...")
 				cancel()
 				<-startupDone
-				r.shutdown(registry)
+				r.shutdown()
 
 				return fmt.Errorf("%w: StopAll command", errors.ErrStartupInterrupted)
 			}
 
-			r.log.Debug().Msgf("Handling command during startup: %v", cmd.Type)
-			_ = r.handleCommand(ctx, cmd, registry)
+			r.log.Debug().Msgf("Handling message during startup: %v", msg.Type)
+			r.handleCommand(ctx, msg)
 		}
 	}
 }
 
-// runServicePhase runs the main event loop handling signals and commands
-func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc, sigChan chan os.Signal, registry Registry, commandChan <-chan runtime.Command) {
+// runServicePhase runs the main event loop
+func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc, sigChan chan os.Signal, msgChan <-chan bus.Message) {
 	for {
 		select {
 		case sig := <-sigChan:
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventSignalCaught,
-				Data:     runtime.SignalCaughtData{Signal: sig.String()},
+			r.log.Info().Msgf("Received signal %s, shutting down services...", sig)
+			r.bus.Publish(bus.Message{
+				Type:     bus.EventSignal,
+				Data:     bus.Signal{Name: sig.String()},
 				Critical: true,
 			})
-			r.log.Info().Msgf("Received signal %s, shutting down services...", sig)
 			cancel()
 
 			return
 		case <-ctx.Done():
 			r.log.Info().Msg("Context cancelled, shutting down services...")
+
 			return
-		case cmd, ok := <-commandChan:
+		case msg, ok := <-msgChan:
 			if !ok {
 				return
 			}
 
-			if r.handleCommand(ctx, cmd, registry) {
+			if r.handleMessage(ctx, msg) {
 				cancel()
+
 				return
 			}
 		}
 	}
 }
 
-// handleCommand processes a command and returns true if shutdown is requested
-func (r *runner) handleCommand(ctx context.Context, cmd runtime.Command, registry Registry) bool {
-	switch cmd.Type {
-	case runtime.CommandStopService:
-		data, ok := cmd.Data.(runtime.StopServiceData)
-		if !ok {
-			r.log.Error().Msg("Invalid StopService command data")
-			return false
+// handleMessage processes a message and returns true if shutdown requested
+func (r *runner) handleMessage(ctx context.Context, msg bus.Message) bool {
+	switch msg.Type {
+	case bus.EventWatchTriggered:
+		if data, ok := msg.Data.(bus.WatchTriggered); ok {
+			go func(service string, files []string) {
+				if err := r.pool.Acquire(ctx); err != nil {
+					r.log.Warn().Err(err).Msgf("Failed to acquire worker for watch restart of '%s'", service)
+
+					return
+				}
+				defer r.pool.Release()
+
+				r.log.Info().Msgf("File change detected for service '%s': %v", service, files)
+				r.service.Restart(ctx, service)
+			}(data.Service, data.ChangedFiles)
 		}
 
-		r.stopService(data.Service, registry)
+		return false
+	default:
+		return r.handleCommand(ctx, msg)
+	}
+}
 
-	case runtime.CommandRestartService:
-		data, ok := cmd.Data.(runtime.RestartServiceData)
-		if !ok {
-			r.log.Error().Msg("Invalid RestartService command data")
-			return false
-		}
-
-		r.restartService(ctx, data.Service, registry)
-
-	case runtime.CommandStopAll:
+// handleCommand processes a command and returns true if shutdown requested
+func (r *runner) handleCommand(ctx context.Context, msg bus.Message) bool {
+	if msg.Type == bus.CommandStopAll {
 		r.log.Info().Msg("Received StopAll command, shutting down all services...")
+
 		return true
+	}
+
+	data, ok := msg.Data.(bus.Payload)
+	if !ok {
+		return false
+	}
+
+	switch msg.Type {
+	case bus.CommandStopService:
+		r.service.Stop(data.Name)
+	case bus.CommandRestartService:
+		go r.service.Restart(ctx, data.Name)
 	}
 
 	return false
 }
 
-// stopService stops a single service by name
-func (r *runner) stopService(serviceName string, registry Registry) {
-	lookup := registry.Get(serviceName)
-	if !lookup.Exists {
-		r.log.Warn().Msgf("Service '%s' not found in registry", serviceName)
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventServiceFailed,
-			Data:     runtime.ServiceFailedData{Service: serviceName, Tier: "", Error: errors.ErrServiceNotInRegistry},
+// startAllTiers starts services tier by tier
+func (r *runner) startAllTiers(ctx context.Context, tiers []discovery.Tier) {
+	for tierIdx, tier := range tiers {
+		if len(tier.Services) == 0 {
+			continue
+		}
+
+		r.log.Info().Msgf("Starting tier '%s' (%d/%d) with services: %v", tier.Name, tierIdx+1, len(tiers), tier.Services)
+		r.bus.Publish(bus.Message{
+			Type:     bus.EventTierStarting,
+			Data:     bus.TierStarting{Name: tier.Name, Index: tierIdx + 1, Total: len(tiers)},
 			Critical: true,
 		})
 
-		return
+		failed := r.startTier(ctx, tier.Name, tier.Services)
+
+		if len(failed) > 0 {
+			r.log.Warn().Msgf("Tier '%s' partially failed: %d/%d services failed: %v", tier.Name, len(failed), len(tier.Services), failed)
+		} else {
+			r.log.Info().Msgf("Tier '%s' started successfully, all services ready", tier.Name)
+			r.bus.Publish(bus.Message{
+				Type:     bus.EventTierReady,
+				Data:     bus.Payload{Name: tier.Name},
+				Critical: true,
+			})
+		}
 	}
-
-	registry.Detach(serviceName)
-
-	r.log.Info().Msgf("Stopping service '%s' by command", serviceName)
-	r.service.Stop(lookup.Proc)
 }
 
-// restartService stops and starts a service, or just starts if not running
-func (r *runner) restartService(ctx context.Context, serviceName string, registry Registry) {
-	lookup := registry.Get(serviceName)
+// startTier starts all services in a tier concurrently
+func (r *runner) startTier(ctx context.Context, tier string, services []string) []string {
+	failedChan := make(chan string, len(services))
 
-	if lookup.Exists {
-		r.log.Info().Msgf("Stopping service '%s' before restart", serviceName)
-		registry.Detach(serviceName)
-		r.service.Stop(lookup.Proc)
-	} else {
-		r.log.Info().Msgf("Starting stopped service '%s'", serviceName)
-	}
+	var wg sync.WaitGroup
 
-	serviceCfg, exists := r.cfg.Services[serviceName]
-	if !exists {
-		r.log.Error().Msgf("Service configuration for '%s' not found", serviceName)
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventServiceFailed,
-			Data:     runtime.ServiceFailedData{Service: serviceName, Tier: "", Error: errors.ErrServiceNotFound},
-			Critical: true,
-		})
-
-		return
-	}
-
-	tier := serviceCfg.Tier
-	if tier == "" {
-		tier = config.Default
-	}
-
-	newProc, err := r.startServiceWithRetry(ctx, serviceName, tier, serviceCfg)
-	if err != nil {
-		r.log.Error().Err(err).Msgf("Failed to restart service '%s'", serviceName)
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventServiceFailed,
-			Data:     runtime.ServiceFailedData{Service: serviceName, Tier: tier, Error: err},
-			Critical: true,
-		})
-
-		return
-	}
-
-	registry.Add(serviceName, newProc, tier)
-
-	go func() {
-		<-newProc.Done()
-		r.log.Info().Msgf("Service '%s' stopped", newProc.Name())
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventServiceStopped,
-			Data:     runtime.ServiceStoppedData{Service: newProc.Name(), Tier: tier},
-			Critical: true,
-		})
-	}()
-}
-
-// startTier starts all services in a tier concurrently and returns failed service names
-func (r *runner) startTier(ctx context.Context, tierName string, tierServices []string, registry Registry) []string {
-	failedChan := make(chan string, len(tierServices))
-	procChan := make(chan Process, len(tierServices))
-
-	var tierWg sync.WaitGroup
-
-	for _, serviceName := range tierServices {
-		tierWg.Add(1)
+	for _, name := range services {
+		wg.Add(1)
 
 		go func(name string) {
-			defer tierWg.Done()
+			defer wg.Done()
 
 			if err := r.pool.Acquire(ctx); err != nil {
 				r.log.Error().Err(err).Msgf("Failed to acquire worker for service '%s'", name)
-				r.event.Publish(runtime.Event{
-					Type:     runtime.EventServiceFailed,
-					Data:     runtime.ServiceFailedData{Service: name, Tier: tierName, Error: fmt.Errorf("%w: %w", errors.ErrFailedToAcquireWorker, err)},
+				r.bus.Publish(bus.Message{
+					Type:     bus.EventServiceFailed,
+					Data:     bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: name, Tier: tier}, Error: fmt.Errorf("%w: %w", errors.ErrFailedToAcquireWorker, err)},
 					Critical: true,
 				})
 
@@ -379,167 +341,43 @@ func (r *runner) startTier(ctx context.Context, tierName string, tierServices []
 			}
 			defer r.pool.Release()
 
-			srv := r.cfg.Services[name]
-
-			proc, err := r.startServiceWithRetry(ctx, name, tierName, srv)
-			if err != nil {
-				r.log.Error().Err(err).Msgf("Failed to start service '%s'", name)
-				r.event.Publish(runtime.Event{
-					Type:     runtime.EventServiceFailed,
-					Data:     runtime.ServiceFailedData{Service: name, Tier: tierName, Error: err},
-					Critical: true,
-				})
-
+			if err := r.service.Start(ctx, name, tier); err != nil {
 				failedChan <- name
-
-				return
 			}
-
-			procChan <- proc
-		}(serviceName)
+		}(name)
 	}
 
-	tierWg.Wait()
+	wg.Wait()
 	close(failedChan)
-	close(procChan)
 
-	for proc := range procChan {
-		registry.Add(proc.Name(), proc, tierName)
-
-		go func(p Process, tier string) {
-			<-p.Done()
-			r.log.Info().Msgf("Service '%s' stopped", p.Name())
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventServiceStopped,
-				Data:     runtime.ServiceStoppedData{Service: p.Name(), Tier: tier},
-				Critical: true,
-			})
-		}(proc, tierName)
-	}
-
-	failedServices := make([]string, 0, len(tierServices))
+	failed := make([]string, 0, len(services))
 	for name := range failedChan {
-		failedServices = append(failedServices, name)
+		failed = append(failed, name)
 	}
 
-	return failedServices
+	return failed
 }
 
-// startServiceWithRetry attempts to start a service with configurable retries
-func (r *runner) startServiceWithRetry(ctx context.Context, name string, tierName string, service *config.Service) (Process, error) {
-	var lastErr error
-
-	for attempt := 0; attempt < r.cfg.Retry.Attempts; attempt++ {
-		if attempt > 0 {
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventRetryScheduled,
-				Data:     runtime.RetryScheduledData{Service: name, Attempt: attempt + 1, MaxAttempts: r.cfg.Retry.Attempts},
-				Critical: true,
-			})
-			r.log.Info().Msgf("Retrying service '%s' (attempt %d/%d)", name, attempt+1, r.cfg.Retry.Attempts)
-
-			select {
-			case <-time.After(r.cfg.Retry.Backoff):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-
-		startTime := time.Now()
-
-		proc, err := r.service.Start(ctx, name, service)
-		if err != nil {
-			lastErr = err
-
-			continue
-		}
-
-		pid := 0
-		if proc.Cmd() != nil && proc.Cmd().Process != nil {
-			pid = proc.Cmd().Process.Pid
-		}
-
-		r.event.Publish(runtime.Event{
-			Type:     runtime.EventServiceStarting,
-			Data:     runtime.ServiceStartingData{Service: name, Tier: tierName, Attempt: attempt + 1, PID: pid},
-			Critical: true,
-		})
-
-		if service.Readiness != nil {
-			select {
-			case err := <-proc.Ready():
-				if err != nil {
-					lastErr = fmt.Errorf("readiness check failed: %w", err)
-
-					r.service.Stop(proc)
-
-					continue
-				}
-
-				r.event.Publish(runtime.Event{
-					Type:     runtime.EventServiceReady,
-					Data:     runtime.ServiceReadyData{Service: name, Tier: tierName, Duration: time.Since(startTime)},
-					Critical: true,
-				})
-
-				return proc, nil
-			case <-ctx.Done():
-				r.service.Stop(proc)
-				return nil, ctx.Err()
-			}
-		} else {
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventServiceReady,
-				Data:     runtime.ServiceReadyData{Service: name, Tier: tierName, Duration: time.Since(startTime)},
-				Critical: true,
-			})
-
-			return proc, nil
-		}
-	}
-
-	return nil, fmt.Errorf("%w after %d attempts: %w", errors.ErrMaxRetriesExceeded, r.cfg.Retry.Attempts, lastErr)
-}
-
-// startAllTiers starts services tier by tier in order
-func (r *runner) startAllTiers(ctx context.Context, tiers []Tier, registry Registry) {
-	for tierIdx, tier := range tiers {
-		if len(tier.Services) > 0 {
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventTierStarting,
-				Data:     runtime.TierStartingData{Name: tier.Name, Index: tierIdx + 1, Total: len(tiers)},
-				Critical: true,
-			})
-			r.log.Info().Msgf("Starting tier '%s' (%d/%d) with services: %v", tier.Name, tierIdx+1, len(tiers), tier.Services)
-		}
-
-		failedServices := r.startTier(ctx, tier.Name, tier.Services, registry)
-
-		if len(failedServices) > 0 {
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventTierFailed,
-				Data:     runtime.TierFailedData{Name: tier.Name, FailedServices: failedServices, TotalServices: len(tier.Services)},
-				Critical: true,
-			})
-			r.log.Warn().Msgf("Tier '%s' partially failed: %d/%d services failed: %v", tier.Name, len(failedServices), len(tier.Services), failedServices)
-		} else if len(tier.Services) > 0 {
-			r.event.Publish(runtime.Event{
-				Type:     runtime.EventTierReady,
-				Data:     runtime.TierReadyData{Name: tier.Name},
-				Critical: true,
-			})
-			r.log.Info().Msgf("Tier '%s' started successfully, all services ready", tier.Name)
-		}
-	}
-}
-
-// shutdown stops all services in reverse order and waits for completion
-func (r *runner) shutdown(registry Registry) {
-	processes := registry.SnapshotReverse()
+// shutdown stops all services in reverse order
+func (r *runner) shutdown() {
+	processes := r.registry.SnapshotReverse()
 
 	for _, proc := range processes {
-		r.service.Stop(proc)
+		r.registry.Detach(proc.Name())
 	}
 
-	registry.Wait()
+	for _, proc := range processes {
+		r.service.Stop(proc.Name())
+	}
+
+	r.registry.Wait()
+}
+
+func (r *runner) collectServices(tiers []discovery.Tier) []string {
+	var services []string
+	for _, tier := range tiers {
+		services = append(services, tier.Services...)
+	}
+
+	return services
 }

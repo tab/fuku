@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/looplab/fsm"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
-	"fuku/internal/app/runtime"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config/logger"
 )
@@ -47,18 +47,20 @@ type ServiceMonitor struct {
 
 // ServiceState represents the state of a service
 type ServiceState struct {
-	Name    string
-	Tier    string
-	Status  Status
-	Error   error
-	FSM     *fsm.FSM
-	Monitor ServiceMonitor
-	Blink   *components.Blink
+	Name     string
+	Tier     string
+	Status   Status
+	Watching bool
+	Error    error
+	FSM      *fsm.FSM
+	Monitor  ServiceMonitor
+	Blink    *components.Blink
 }
 
-// MarkStarting sets the service status to starting
+// MarkStarting sets the service status to starting and clears any previous error
 func (s *ServiceState) MarkStarting() {
 	s.Status = StatusStarting
+	s.Error = nil
 }
 
 // MarkRunning sets the service status to ready (running)
@@ -90,21 +92,22 @@ func (s *ServiceState) IsNil() bool {
 // Model represents the Bubble Tea model for the services UI
 type Model struct {
 	ctx        context.Context
-	event      runtime.EventBus
-	command    runtime.CommandBus
+	bus        bus.Bus
 	controller Controller
 	monitor    monitor.Monitor
 	loader     *Loader
-	eventChan  <-chan runtime.Event
+	msgChan    <-chan bus.Message
 
 	state struct {
 		profile      string
-		phase        runtime.Phase
+		phase        bus.Phase
 		tiers        []Tier
 		services     map[string]*ServiceState
 		selected     int
 		ready        bool
 		shuttingDown bool
+		appCPU       float64
+		appMEM       float64
 	}
 
 	ui struct {
@@ -125,31 +128,29 @@ type Model struct {
 func NewModel(
 	ctx context.Context,
 	profile string,
-	event runtime.EventBus,
-	command runtime.CommandBus,
+	b bus.Bus,
 	controller Controller,
 	monitor monitor.Monitor,
 	loader *Loader,
 	log logger.Logger,
 ) Model {
 	log = log.WithComponent("UI")
-	eventChan := event.Subscribe(ctx)
+	msgChan := b.Subscribe(ctx)
 
 	log.Debug().Msg("Created model and subscribed to events")
 
 	m := Model{
 		ctx:        ctx,
-		event:      event,
-		command:    command,
+		bus:        b,
 		controller: controller,
 		monitor:    monitor,
 		loader:     loader,
-		eventChan:  eventChan,
+		msgChan:    msgChan,
 		log:        log,
 	}
 
 	m.state.profile = profile
-	m.state.phase = runtime.PhaseStartup
+	m.state.phase = bus.PhaseStartup
 	m.state.tiers = make([]Tier, 0)
 	m.state.services = make(map[string]*ServiceState)
 	m.state.selected = 0
@@ -171,7 +172,7 @@ func NewModel(
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loader.Model.Tick,
-		waitForEventCmd(m.eventChan),
+		waitForMsgCmd(m.msgChan),
 		tickCmd(),
 		statsWorkerCmd(m.ctx, &m),
 	)

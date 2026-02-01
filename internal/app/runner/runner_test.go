@@ -2,9 +2,7 @@ package runner
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"os/exec"
 	"syscall"
 	"testing"
 	"time"
@@ -13,8 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/bus"
+	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/logs"
+	"fuku/internal/app/process"
+	"fuku/internal/app/registry"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -24,30 +26,29 @@ func Test_NewRunner(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
 
-	mockDiscovery := NewMockDiscovery(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
+	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockEvent := runtime.NewNoOpEventBus()
-	mockCommand := runtime.NewNoOpCommandBus()
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	assert.NotNil(t, r)
 	instance, ok := r.(*runner)
 	assert.True(t, ok)
 	assert.Equal(t, cfg, instance.cfg)
-	assert.Equal(t, componentLogger, instance.log)
+	assert.Equal(t, componentLog, instance.log)
 	assert.Equal(t, mockDiscovery, instance.discovery)
 	assert.Equal(t, mockService, instance.service)
 	assert.Equal(t, mockWorkerPool, instance.pool)
 	assert.Equal(t, mockRegistry, instance.registry)
-	assert.Equal(t, mockEvent, instance.event)
-	assert.Equal(t, mockCommand, instance.command)
+	assert.Equal(t, mockBus, instance.bus)
 }
 
 func Test_Run_ProfileNotFound(t *testing.T) {
@@ -55,30 +56,26 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
 
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
 
-	mockDiscovery := NewMockDiscovery(ctrl)
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("nonexistent").Return(nil, errors.ErrProfileNotFound)
 
-	mockRegistry := NewMockRegistry(ctrl)
+	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
-
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockEvent := runtime.NewNoOpEventBus()
-	mockCommand := runtime.NewNoOpCommandBus()
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "nonexistent").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
+
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
 
 	err := r.Run(ctx, "nonexistent")
@@ -92,30 +89,26 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+	componentLog.EXPECT().Debug().Return(nil).AnyTimes()
 
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
-
-	mockDiscovery := NewMockDiscovery(ctrl)
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("test").Return(nil, errors.ErrServiceNotFound)
 
-	mockRegistry := NewMockRegistry(ctrl)
+	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
-
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockEvent := runtime.NewNoOpEventBus()
-	mockCommand := runtime.NewNoOpCommandBus()
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "test").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
+
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
 
 	err := r.Run(ctx, "test")
@@ -131,55 +124,40 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
 
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+	componentLog.EXPECT().Debug().Return(nil).AnyTimes()
 
-	mockDiscovery := NewMockDiscovery(ctrl)
-
-	mockDiscovery.EXPECT().Resolve("test").Return([]Tier{{Name: "platform", Services: []string{"api"}}}, nil)
-
-	mockProcess := NewMockProcess(ctrl)
-	doneChan := make(chan struct{})
-	close(doneChan)
-	mockProcess.EXPECT().Done().Return(doneChan).AnyTimes()
-	mockProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	readyChan := make(chan error, 1)
-	close(readyChan)
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
+	mockDiscovery.EXPECT().Resolve("test").Return([]discovery.Tier{{Name: "platform", Services: []string{"api"}}}, nil)
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
-	mockService.EXPECT().Stop(mockProcess).Return(nil).AnyTimes()
+	mockService.EXPECT().Start(gomock.Any(), "api", "platform").Return(nil)
+	mockService.EXPECT().Stop("api").AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess}).AnyTimes()
+	mockProcess := process.NewMockProcess(ctrl)
+	mockProcess.EXPECT().Name().Return("api").AnyTimes()
+
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{mockProcess}).AnyTimes()
+	mockRegistry.EXPECT().Detach("api").AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
-	mockEvent := runtime.NewNoOpEventBus()
-	mockCommand := runtime.NewNoOpCommandBus()
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "test").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -194,32 +172,26 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	componentLogger := logger.NewMockLogger(ctrl)
-	serverLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
 
-	mockLogger.EXPECT().WithComponent("RUNNER").Return(componentLogger)
-	componentLogger.EXPECT().WithComponent("SERVER").Return(serverLogger)
-	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Info().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	serverLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Debug().Return(nil).AnyTimes()
 
-	mockDiscovery := NewMockDiscovery(ctrl)
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
+	mockDiscovery.EXPECT().Resolve("default").Return([]discovery.Tier{}, nil)
 
-	mockDiscovery.EXPECT().Resolve("default").Return([]Tier{}, nil)
-
-	mockRegistry := NewMockRegistry(ctrl)
+	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().SetBroadcaster(gomock.Any()).AnyTimes()
-
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockEvent := runtime.NewNoOpEventBus()
-	mockCommand := runtime.NewNoOpCommandBus()
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Start(gomock.Any(), "default").Return(nil)
+	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockEvent, mockCommand, mockLogger)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -228,166 +200,29 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func Test_StartServiceWithRetry_Success(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockProcess := NewMockProcess(ctrl)
-	readyChan := make(chan error, 1)
-	close(readyChan)
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
-
-	mockDiscovery := NewMockDiscovery(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: mockDiscovery,
-		service:   mockService,
-		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-	ctx := context.Background()
-
-	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
-
-	require.NoError(t, err)
-	assert.NotNil(t, proc)
-}
-
-func Test_StartServiceWithRetry_ContextCancelled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{
-		Dir: "api",
-		Readiness: &config.Readiness{
-			Type:    config.TypeHTTP,
-			URL:     "http://localhost:8080",
-			Timeout: 30 * time.Second,
-		},
-	}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockProcess := NewMockProcess(ctrl)
-
-	readyChan := make(chan error)
-
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
-	mockService.EXPECT().Stop(mockProcess).Return(nil)
-
-	mockDiscovery := NewMockDiscovery(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
-	r := &runner{
-		cfg:       cfg,
-		discovery: mockDiscovery,
-		service:   mockService,
-		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
-
-	assert.Error(t, err)
-	assert.Nil(t, proc)
-	assert.Equal(t, context.Canceled, err)
-}
-
-func Test_StartServiceWithRetry_CancellationDuringBackoff(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed"))
-
-	mockDiscovery := NewMockDiscovery(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: mockDiscovery,
-		service:   mockService,
-		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
-
-	start := time.Now()
-	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
-	elapsed := time.Since(start)
-
-	assert.Error(t, err)
-	assert.Nil(t, proc)
-	assert.Equal(t, context.Canceled, err)
-	assert.Less(t, elapsed, cfg.Retry.Backoff, "Should cancel immediately without waiting full backoff")
-}
-
 func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
 
-	mockProcess1 := NewMockProcess(ctrl)
+	mockProcess1 := process.NewMockProcess(ctrl)
 	mockProcess1.EXPECT().Name().Return("service1").AnyTimes()
 
-	mockProcess2 := NewMockProcess(ctrl)
+	mockProcess2 := process.NewMockProcess(ctrl)
 	mockProcess2.EXPECT().Name().Return("service2").AnyTimes()
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Stop(mockProcess1).Return(nil)
-	mockService.EXPECT().Stop(mockProcess2).Return(nil)
+	mockService.EXPECT().Stop("service1")
+	mockService.EXPECT().Stop("service2")
 
-	mockDiscovery := NewMockDiscovery(ctrl)
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess1, mockProcess2})
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{mockProcess1, mockProcess2})
+	mockRegistry.EXPECT().Detach("service1")
+	mockRegistry.EXPECT().Detach("service2")
 	mockRegistry.EXPECT().Wait()
 
 	r := &runner{
@@ -396,50 +231,11 @@ func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 		service:   mockService,
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
-	r.shutdown(mockRegistry)
-}
-
-func Test_Shutdown_StopsProcessesOnce(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	mockProcess1 := NewMockProcess(ctrl)
-	mockProcess1.EXPECT().Name().Return("service1").AnyTimes()
-
-	mockProcess2 := NewMockProcess(ctrl)
-	mockProcess2.EXPECT().Name().Return("service2").AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Stop(mockProcess1).Return(nil).Times(1)
-	mockService.EXPECT().Stop(mockProcess2).Return(nil).Times(1)
-
-	mockDiscovery := NewMockDiscovery(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess1, mockProcess2})
-	mockRegistry.EXPECT().Wait()
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: mockDiscovery,
-		service:   mockService,
-		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	r.shutdown(mockRegistry)
+	r.shutdown()
 }
 
 func Test_Shutdown_EmptyRegistry(t *testing.T) {
@@ -447,12 +243,12 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
 	mockService := NewMockService(ctrl)
-	mockDiscovery := NewMockDiscovery(ctrl)
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{})
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{})
 	mockRegistry.EXPECT().Wait()
 
 	r := &runner{
@@ -461,12 +257,11 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 		service:   mockService,
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
-	r.shutdown(mockRegistry)
+	r.shutdown()
 }
 
 func Test_HandleCommand_StopService(t *testing.T) {
@@ -474,31 +269,25 @@ func Test_HandleCommand_StopService(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
 
-	mockProcess := NewMockProcess(ctrl)
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Stop(mockProcess).Return(nil)
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockProcess, Exists: true, Detached: false})
-	mockRegistry.EXPECT().Detach("api")
+	mockService.EXPECT().Stop("api")
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
-	ctx := context.Background()
-	cmd := runtime.Command{Type: runtime.CommandStopService, Data: runtime.StopServiceData{Service: "api"}}
 
-	result := r.handleCommand(ctx, cmd, mockRegistry)
+	ctx := context.Background()
+	cmd := bus.Message{Type: bus.CommandStopService, Data: bus.Payload{Name: "api"}}
+
+	result := r.handleCommand(ctx, cmd)
 
 	assert.False(t, result)
 }
@@ -510,51 +299,35 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
 
-	mockOldProcess := NewMockProcess(ctrl)
-	mockOldProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	doneChan := make(chan struct{})
-	close(doneChan)
-
-	mockNewProcess := NewMockProcess(ctrl)
-	mockNewProcess.EXPECT().Done().Return(doneChan).AnyTimes()
-	mockNewProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	readyChan := make(chan error, 1)
-	close(readyChan)
-	mockNewProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockNewProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
-
+	done := make(chan struct{})
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Stop(mockOldProcess).Return(nil)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockNewProcess, nil)
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockOldProcess, Exists: true, Detached: false})
-	mockRegistry.EXPECT().Detach("api")
-	mockRegistry.EXPECT().Add("api", mockNewProcess, "platform")
+	mockService.EXPECT().Restart(gomock.Any(), "api").Do(func(_ context.Context, _ string) {
+		close(done)
+	})
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
-	cmd := runtime.Command{Type: runtime.CommandRestartService, Data: runtime.RestartServiceData{Service: "api"}}
-	result := r.handleCommand(ctx, cmd, mockRegistry)
+	cmd := bus.Message{Type: bus.CommandRestartService, Data: bus.Payload{Name: "api"}}
+	result := r.handleCommand(ctx, cmd)
 
 	assert.False(t, result)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("restart was not called")
+	}
 }
 
 func Test_HandleCommand_StopAll(t *testing.T) {
@@ -562,289 +335,50 @@ func Test_HandleCommand_StopAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   NewMockService(ctrl),
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
-	ctx := context.Background()
-	cmd := runtime.Command{Type: runtime.CommandStopAll}
 
-	result := r.handleCommand(ctx, cmd, NewMockRegistry(ctrl))
+	ctx := context.Background()
+	cmd := bus.Message{Type: bus.CommandStopAll}
+
+	result := r.handleCommand(ctx, cmd)
 
 	assert.True(t, result)
 }
 
-func Test_HandleCommand_InvalidStopServiceData(t *testing.T) {
+func Test_HandleCommand_InvalidData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   NewMockService(ctrl),
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
-	ctx := context.Background()
-	cmd := runtime.Command{Type: runtime.CommandStopService, Data: "invalid"}
 
-	result := r.handleCommand(ctx, cmd, NewMockRegistry(ctrl))
+	ctx := context.Background()
+	cmd := bus.Message{Type: bus.CommandStopService, Data: "invalid"}
+
+	result := r.handleCommand(ctx, cmd)
 
 	assert.False(t, result)
-}
-
-func Test_HandleCommand_InvalidRestartServiceData(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-	ctx := context.Background()
-	cmd := runtime.Command{Type: runtime.CommandRestartService, Data: "invalid"}
-
-	result := r.handleCommand(ctx, cmd, NewMockRegistry(ctrl))
-
-	assert.False(t, result)
-}
-
-func Test_StopService_ServiceExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockProcess := NewMockProcess(ctrl)
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Stop(mockProcess).Return(nil)
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockProcess, Exists: true, Detached: false})
-	mockRegistry.EXPECT().Detach("api")
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	r.stopService("api", mockRegistry)
-}
-
-func Test_StopService_ServiceNotFound(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: nil, Exists: false, Detached: false})
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	r.stopService("api", mockRegistry)
-}
-
-func Test_RestartService_ExistingService(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockOldProcess := NewMockProcess(ctrl)
-	mockOldProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	doneChan := make(chan struct{})
-	close(doneChan)
-
-	mockNewProcess := NewMockProcess(ctrl)
-	mockNewProcess.EXPECT().Done().Return(doneChan).AnyTimes()
-	mockNewProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	readyChan := make(chan error, 1)
-	close(readyChan)
-	mockNewProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockNewProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Stop(mockOldProcess).Return(nil)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockNewProcess, nil)
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: mockOldProcess, Exists: true, Detached: false})
-	mockRegistry.EXPECT().Detach("api")
-	mockRegistry.EXPECT().Add("api", mockNewProcess, "platform")
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	ctx := context.Background()
-	r.restartService(ctx, "api", mockRegistry)
-}
-
-func Test_RestartService_StoppedService(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	doneChan := make(chan struct{})
-	close(doneChan)
-
-	mockNewProcess := NewMockProcess(ctrl)
-	mockNewProcess.EXPECT().Done().Return(doneChan).AnyTimes()
-	mockNewProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	readyChan := make(chan error, 1)
-	close(readyChan)
-	mockNewProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockNewProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockNewProcess, nil)
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: nil, Exists: false, Detached: false})
-	mockRegistry.EXPECT().Add("api", mockNewProcess, config.Default)
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	ctx := context.Background()
-	r.restartService(ctx, "api", mockRegistry)
-}
-
-func Test_RestartService_ConfigNotFound(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: nil, Exists: false, Detached: false})
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	ctx := context.Background()
-	r.restartService(ctx, "api", mockRegistry)
-}
-
-func Test_RestartService_StartFailed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(Lookup{Proc: nil, Exists: false, Detached: false})
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	ctx := context.Background()
-	r.restartService(ctx, "api", mockRegistry)
 }
 
 func Test_RunServicePhase_CommandStopAll(t *testing.T) {
@@ -852,36 +386,39 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	cfg.Logs.Buffer = 10
 
-	commandBus := runtime.NewCommandBus(10)
-	defer commandBus.Close()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	b := bus.New(cfg, mockServer, nil)
+	defer b.Close()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   NewMockService(ctrl),
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   commandBus,
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       b,
+		server:    mockServer,
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	commandChan := commandBus.Subscribe(ctx)
+	msgChan := b.Subscribe(ctx)
 	sigChan := make(chan os.Signal, 1)
-	mockRegistry := NewMockRegistry(ctrl)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
-		commandBus.Publish(runtime.Command{Type: runtime.CommandStopAll})
+		b.Publish(bus.Message{Type: bus.CommandStopAll})
 	}()
 
-	r.runServicePhase(ctx, cancel, sigChan, mockRegistry, commandChan)
+	r.runServicePhase(ctx, cancel, sigChan, msgChan)
 }
 
 func Test_RunServicePhase_ContextCancelled(t *testing.T) {
@@ -889,33 +426,29 @@ func Test_RunServicePhase_ContextCancelled(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   NewMockService(ctrl),
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	commandChan := make(chan runtime.Command)
+	commandChan := make(chan bus.Message)
 	sigChan := make(chan os.Signal, 1)
-	mockRegistry := NewMockRegistry(ctrl)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
 		cancel()
 	}()
 
-	r.runServicePhase(ctx, cancel, sigChan, mockRegistry, commandChan)
+	r.runServicePhase(ctx, cancel, sigChan, commandChan)
 }
 
 func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
@@ -923,32 +456,29 @@ func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   NewMockService(ctrl),
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	commandChan := make(chan runtime.Command)
+	commandChan := make(chan bus.Message)
 	sigChan := make(chan os.Signal, 1)
-	mockRegistry := NewMockRegistry(ctrl)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
 		close(commandChan)
 	}()
 
-	r.runServicePhase(ctx, cancel, sigChan, mockRegistry, commandChan)
+	r.runServicePhase(ctx, cancel, sigChan, commandChan)
 }
 
 func Test_StartTier_Success(t *testing.T) {
@@ -957,44 +487,28 @@ func Test_StartTier_Success(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockProcess := NewMockProcess(ctrl)
-	doneChan := make(chan struct{})
-	mockProcess.EXPECT().Done().Return(doneChan).AnyTimes()
-	mockProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	readyChan := make(chan error, 1)
-	close(readyChan)
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
+	mockService.EXPECT().Start(gomock.Any(), "api", "platform").Return(nil)
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
 	mockWorkerPool.EXPECT().Release()
 
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Add("api", mockProcess, "platform")
-
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
+
 	ctx := context.Background()
 
-	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
+	failedServices := r.startTier(ctx, "platform", []string{"api"})
 
 	assert.Empty(t, failedServices)
 }
@@ -1005,28 +519,26 @@ func Test_StartTier_AcquireError(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Error().Return(nil)
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(context.Canceled)
 
-	mockRegistry := NewMockRegistry(ctrl)
-
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      mockWorkerPool,
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
+
 	ctx := context.Background()
 
-	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
+	failedServices := r.startTier(ctx, "platform", []string{"api"})
 
 	assert.Len(t, failedServices, 1)
 	assert.Contains(t, failedServices, "api")
@@ -1039,13 +551,10 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil)
+	mockLog := logger.NewMockLogger(ctrl)
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
+	mockService.EXPECT().Start(gomock.Any(), "api", "platform").Return(errors.ErrServiceNotFound)
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
@@ -1053,65 +562,19 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      mockWorkerPool,
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
-	mockRegistry := NewMockRegistry(ctrl)
-	failedServices := r.startTier(ctx, "platform", []string{"api"}, mockRegistry)
+	failedServices := r.startTier(ctx, "platform", []string{"api"})
 
 	assert.Len(t, failedServices, 1)
 	assert.Contains(t, failedServices, "api")
-}
-
-func Test_RunStartupPhase_TierWithFailures(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil)
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(nil, fmt.Errorf("start failed")).Times(cfg.Retry.Attempts)
-
-	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
-	mockWorkerPool.EXPECT().Release()
-
-	mockRegistry := NewMockRegistry(ctrl)
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   mockService,
-		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	commandChan := make(chan runtime.Command)
-
-	tiers := []Tier{{Name: "platform", Services: []string{"api"}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
-
-	assert.NoError(t, err)
 }
 
 func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
@@ -1121,62 +584,60 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	mockProcess := NewMockProcess(ctrl)
-	doneChan := make(chan struct{})
-	mockProcess.EXPECT().Done().Return(doneChan).AnyTimes()
+	mockProcess := process.NewMockProcess(ctrl)
 	mockProcess.EXPECT().Name().Return("api").AnyTimes()
 
-	readyChan := make(chan error, 1)
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
-		func(ctx context.Context, name string, srv *config.Service) (Process, error) {
-			time.Sleep(50 * time.Millisecond)
-			return mockProcess, nil
+	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
+		func(ctx context.Context, name, tier string) error {
+			close(startCalled)
+			<-startCanProceed
+
+			return nil
 		})
-	mockService.EXPECT().Stop(mockProcess).Return(nil).AnyTimes()
+	mockService.EXPECT().Stop("api").AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
 	mockWorkerPool.EXPECT().Release()
 
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{mockProcess}).AnyTimes()
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{mockProcess}).AnyTimes()
+	mockRegistry.EXPECT().Detach("api").AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
-	commandChan := make(chan runtime.Command)
+	commandChan := make(chan bus.Message)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 
 		sigChan <- syscall.SIGTERM
+
+		close(startCanProceed)
 	}()
 
-	tiers := []Tier{{Name: "platform", Services: []string{"api"}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
+	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
+	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "startup interrupted")
@@ -1189,49 +650,54 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
-		func(ctx context.Context, name string, srv *config.Service) (Process, error) {
-			time.Sleep(100 * time.Millisecond)
-			return nil, ctx.Err()
+	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
+		func(ctx context.Context, name, tier string) error {
+			close(startCalled)
+			<-startCanProceed
+
+			return ctx.Err()
 		}).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{}).AnyTimes()
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{}).AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sigChan := make(chan os.Signal, 1)
-	commandChan := make(chan runtime.Command)
+	commandChan := make(chan bus.Message)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 		cancel()
+		close(startCanProceed)
 	}()
 
-	tiers := []Tier{{Name: "platform", Services: []string{"api"}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
+	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
+	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
 	assert.Error(t, err)
 }
@@ -1243,50 +709,55 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
-		func(ctx context.Context, name string, srv *config.Service) (Process, error) {
-			time.Sleep(100 * time.Millisecond)
-			return nil, ctx.Err()
+	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
+		func(ctx context.Context, name, tier string) error {
+			close(startCalled)
+			<-startCanProceed
+
+			return ctx.Err()
 		}).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{}).AnyTimes()
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{}).AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
-	commandChan := make(chan runtime.Command)
+	commandChan := make(chan bus.Message)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 		close(commandChan)
+		close(startCanProceed)
 	}()
 
-	tiers := []Tier{{Name: "platform", Services: []string{"api"}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
+	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
+	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errors.ErrCommandChannelClosed)
@@ -1299,115 +770,60 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{Dir: "api"}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).DoAndReturn(
-		func(ctx context.Context, name string, srv *config.Service) (Process, error) {
-			time.Sleep(100 * time.Millisecond)
-			return nil, ctx.Err()
+	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
+		func(ctx context.Context, name, tier string) error {
+			close(startCalled)
+			<-startCanProceed
+
+			return ctx.Err()
 		}).AnyTimes()
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]Process{}).AnyTimes()
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{}).AnyTimes()
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
 		pool:      mockWorkerPool,
 		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
-	commandChan := make(chan runtime.Command, 1)
+	commandChan := make(chan bus.Message, 1)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 
-		commandChan <- runtime.Command{Type: runtime.CommandStopAll}
+		commandChan <- bus.Message{Type: bus.CommandStopAll}
+
+		close(startCanProceed)
 	}()
 
-	tiers := []Tier{{Name: "platform", Services: []string{"api"}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
+	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
+	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "startup interrupted")
-}
-
-func Test_RunStartupPhase_OtherCommandDuringStartup(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-
-	mockProcess := NewMockProcess(ctrl)
-	doneChan := make(chan struct{})
-	close(doneChan)
-	mockProcess.EXPECT().Done().Return(doneChan).AnyTimes()
-	mockProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	readyChan := make(chan error, 1)
-	close(readyChan)
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
-
-	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
-	mockWorkerPool.EXPECT().Release()
-
-	mockRegistry := NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockRegistry.EXPECT().Get("other").Return(Lookup{Exists: false}).AnyTimes()
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   mockService,
-		pool:      mockWorkerPool,
-		registry:  mockRegistry,
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	commandChan := make(chan runtime.Command, 1)
-
-	commandChan <- runtime.Command{Type: runtime.CommandStopService, Data: runtime.StopServiceData{Service: "other"}}
-
-	tiers := []Tier{{Name: "platform", Services: []string{"api"}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, mockRegistry, sigChan, commandChan)
-
-	assert.NoError(t, err)
 }
 
 func Test_RunServicePhase_SignalReceived(t *testing.T) {
@@ -1415,132 +831,88 @@ func Test_RunServicePhase_SignalReceived(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   NewMockService(ctrl),
 		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	commandChan := make(chan runtime.Command)
+	commandChan := make(chan bus.Message)
 	sigChan := make(chan os.Signal, 1)
-	mockRegistry := NewMockRegistry(ctrl)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
-
 		sigChan <- syscall.SIGTERM
 	}()
 
-	r.runServicePhase(ctx, cancel, sigChan, mockRegistry, commandChan)
+	r.runServicePhase(ctx, cancel, sigChan, commandChan)
 }
 
-func Test_StartServiceWithRetry_ReadinessCheckSuccess(t *testing.T) {
+func Test_HandleMessage_WatchTriggered(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
 	cfg.Services["api"] = &config.Service{
-		Dir: "api",
-		Readiness: &config.Readiness{
-			Type:    config.TypeHTTP,
-			URL:     "http://localhost:8080",
-			Timeout: 100 * time.Millisecond,
-		},
+		Dir:   "api",
+		Watch: &config.Watch{Include: []string{"*.go"}},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	mockProcess := NewMockProcess(ctrl)
-
-	readyChan := make(chan error, 1)
-	readyChan <- nil
-
-	mockProcess.EXPECT().Ready().Return(readyChan).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
+	restartCalled := make(chan struct{})
+	releaseCalled := make(chan struct{})
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil)
+	mockService.EXPECT().Restart(gomock.Any(), "api").Do(func(_ context.Context, _ string) {
+		close(restartCalled)
+	})
+
+	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
+	mockWorkerPool.EXPECT().Release().Do(func() {
+		close(releaseCalled)
+	})
 
 	r := &runner{
 		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
+		discovery: discovery.NewMockDiscovery(ctrl),
 		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+		pool:      mockWorkerPool,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
 	}
 
 	ctx := context.Background()
-	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
-
-	require.NoError(t, err)
-	assert.NotNil(t, proc)
-}
-
-func Test_StartServiceWithRetry_ReadinessCheckFailed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{
-		Dir: "api",
-		Readiness: &config.Readiness{
-			Type:    config.TypeHTTP,
-			URL:     "http://localhost:8080",
-			Timeout: 100 * time.Millisecond,
-		},
+	msg := bus.Message{
+		Type: bus.EventWatchTriggered,
+		Data: bus.WatchTriggered{Service: "api", ChangedFiles: []string{"main.go"}},
 	}
 
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	result := r.handleMessage(ctx, msg)
 
-	mockProcess := NewMockProcess(ctrl)
-	mockProcess.EXPECT().Ready().DoAndReturn(func() <-chan error {
-		ch := make(chan error, 1)
-		ch <- fmt.Errorf("readiness check failed")
+	assert.False(t, result)
 
-		return ch
-	}).AnyTimes()
-
-	mockCmd := &exec.Cmd{Process: &os.Process{Pid: 12345}}
-	mockProcess.EXPECT().Cmd().Return(mockCmd).AnyTimes()
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "api", gomock.Any()).Return(mockProcess, nil).AnyTimes()
-	mockService.EXPECT().Stop(mockProcess).Return(nil).AnyTimes()
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: NewMockDiscovery(ctrl),
-		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
-		registry:  NewMockRegistry(ctrl),
-		event:     runtime.NewNoOpEventBus(),
-		command:   runtime.NewNoOpCommandBus(),
-		log:       mockLogger,
+	select {
+	case <-restartCalled:
+	case <-time.After(time.Second):
+		t.Fatal("Restart was not called")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-
-	proc, err := r.startServiceWithRetry(ctx, "api", "default", cfg.Services["api"])
-
-	assert.Error(t, err)
-	assert.Nil(t, proc)
+	select {
+	case <-releaseCalled:
+	case <-time.After(time.Second):
+		t.Fatal("Release was not called")
+	}
 }

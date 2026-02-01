@@ -18,7 +18,7 @@ import (
 
 // Server manages the Unix socket server for log streaming
 type Server interface {
-	Start(ctx context.Context) error
+	Start(ctx context.Context, profile string) error
 	Stop() error
 	Broadcast(service, message string)
 	SocketPath() string
@@ -26,25 +26,20 @@ type Server interface {
 
 // server implements the Server interface
 type server struct {
-	profile    string
 	socketPath string
 	bufferSize int
 	listener   net.Listener
 	hub        Hub
-	log        logger.Logger
 	running    atomic.Bool
 	wg         sync.WaitGroup
 	connID     atomic.Int64
 	cancel     context.CancelFunc
+	log        logger.Logger
 }
 
 // NewServer creates a new log streaming server
-func NewServer(cfg *config.Config, profile string, log logger.Logger) Server {
-	socketPath := filepath.Join(config.SocketDir, config.SocketPrefix+profile+config.SocketSuffix)
-
+func NewServer(cfg *config.Config, log logger.Logger) Server {
 	return &server{
-		profile:    profile,
-		socketPath: socketPath,
 		bufferSize: cfg.Logs.Buffer,
 		hub:        NewHub(cfg.Logs.Buffer),
 		log:        log.WithComponent("SERVER"),
@@ -56,8 +51,15 @@ func (s *server) SocketPath() string {
 	return s.socketPath
 }
 
+// SocketPathForProfile constructs the socket path for a given profile
+func SocketPathForProfile(socketDir, profile string) string {
+	return filepath.Join(socketDir, config.SocketPrefix+profile+config.SocketSuffix)
+}
+
 // Start starts the Unix socket server
-func (s *server) Start(ctx context.Context) error {
+func (s *server) Start(ctx context.Context, profile string) error {
+	s.socketPath = SocketPathForProfile(config.SocketDir, profile)
+
 	if err := s.cleanupStaleSocket(); err != nil {
 		return fmt.Errorf("%w: %w", errors.ErrFailedToCleanupSocket, err)
 	}

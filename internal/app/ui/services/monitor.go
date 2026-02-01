@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,7 +19,9 @@ type ServiceStats struct {
 
 // statsUpdateMsg is sent by the background worker with batched stats
 type statsUpdateMsg struct {
-	Stats map[string]ServiceStats
+	Stats  map[string]ServiceStats
+	AppCPU float64
+	AppMEM float64
 }
 
 // applyStatsUpdate applies batched stats to service monitors
@@ -29,6 +32,9 @@ func (m *Model) applyStatsUpdate(msg statsUpdateMsg) {
 			service.Monitor.MEM = stats.MEM
 		}
 	}
+
+	m.state.appCPU = msg.AppCPU
+	m.state.appMEM = msg.AppMEM
 }
 
 // updateBlinkAnimations updates blink state for services in transition states
@@ -77,13 +83,27 @@ func (m *Model) getUptime(service *ServiceState) string {
 	return pad(minutes) + ":" + pad(seconds)
 }
 
+// formatCPU formats a CPU percentage value
+func formatCPU(cpu float64) string {
+	return fmt.Sprintf("%.1f%%", cpu)
+}
+
+// formatMEM formats a memory value in MB or GB
+func formatMEM(mem float64) string {
+	if mem < components.MBToGB {
+		return fmt.Sprintf("%.0fMB", mem)
+	}
+
+	return fmt.Sprintf("%.1fGB", mem/components.MBToGB)
+}
+
 // getCPU returns formatted CPU usage for a service
 func (m *Model) getCPU(service *ServiceState) string {
 	if !m.isServiceMonitored(service) {
 		return ""
 	}
 
-	return fmt.Sprintf("%.1f%%", service.Monitor.CPU)
+	return formatCPU(service.Monitor.CPU)
 }
 
 // getMem returns formatted memory usage for a service
@@ -92,11 +112,7 @@ func (m *Model) getMem(service *ServiceState) string {
 		return ""
 	}
 
-	if service.Monitor.MEM < components.MBToGB {
-		return fmt.Sprintf("%.0fMB", service.Monitor.MEM)
-	}
-
-	return fmt.Sprintf("%.1fGB", service.Monitor.MEM/components.MBToGB)
+	return formatMEM(service.Monitor.MEM)
 }
 
 // getPID returns the process ID string for a running service
@@ -125,8 +141,9 @@ func statsWorkerCmd(ctx context.Context, m *Model) tea.Cmd {
 		defer cancel()
 
 		stats := m.collectStats(batchCtx)
+		appCPU, appMEM := m.collectAppStats(batchCtx)
 
-		return statsUpdateMsg{Stats: stats}
+		return statsUpdateMsg{Stats: stats, AppCPU: appCPU, AppMEM: appMEM}
 	})
 }
 
@@ -217,4 +234,14 @@ func (m *Model) getStatsWithContext(ctx context.Context, pid int) (ServiceStats,
 	}
 
 	return ServiceStats{CPU: stats.CPU, MEM: stats.MEM}, nil
+}
+
+// collectAppStats collects CPU and memory stats for the fuku process itself
+func (m *Model) collectAppStats(ctx context.Context) (cpu float64, mem float64) {
+	stats, err := m.monitor.GetStats(ctx, os.Getpid())
+	if err != nil {
+		return 0, 0
+	}
+
+	return stats.CPU, stats.MEM
 }

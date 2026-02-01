@@ -4,6 +4,30 @@ x-readiness: &readiness
   type: log
   timeout: 30s
 
+x-watch: &watch
+  include:
+    - "**/*.go"
+    - "**/*.yml"
+    - "**/*.yaml"
+  ignore:
+    - ".git/**"
+    - ".idea/**"
+    - ".vscode/**"
+    - "**/*.swp"
+    - "**/*~"
+    - "**/.DS_Store"
+    - "node_modules/**"
+    - "vendor/**"
+    - "**/*_test.go"
+    - "**/testdata/**"
+    - "**/mock_*.go"
+    - "**/*_mock.go"
+    - "**/bin/**"
+    - "**/*.out"
+  shared:
+    - "examples/bookstore/pkg/common"
+  debounce: 1s
+
 services:
   # Foundation tier: Base infrastructure services
   auth:
@@ -12,12 +36,16 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
   storage:
     dir: examples/bookstore/storage
     tier: foundation
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
 
   # Platform tier: Business logic services that depend on foundation
   user:
@@ -26,6 +54,8 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
 
   api:
     dir: examples/bookstore/api
@@ -33,6 +63,8 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
 
   # Edge tier: Client-facing services
   frontend-api:
@@ -42,6 +74,8 @@ services:
     readiness:
       <<: *readiness
       pattern: "Service ready"
+    watch:
+      <<: *watch
 
 defaults:
   profiles: [default]

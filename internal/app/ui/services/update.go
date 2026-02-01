@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/bus"
 	"fuku/internal/app/ui/components"
 )
 
@@ -17,8 +17,8 @@ const (
 	tickCounterMaximum = 1000000
 )
 
-// eventMsg wraps a runtime event for tea messaging
-type eventMsg runtime.Event
+// msgMsg wraps a bus message for tea messaging
+type msgMsg bus.Message
 
 // tickMsg signals a UI tick for animations
 type tickMsg time.Time
@@ -80,8 +80,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, statsWorkerCmd(m.ctx, &m)
 
-	case eventMsg:
-		return m.handleEvent(runtime.Event(msg))
+	case msgMsg:
+		return m.handleMessage(bus.Message(msg))
 
 	case channelClosedMsg:
 		m.log.Warn().Msg("TUI: Event channel closed, quitting")
@@ -112,7 +112,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loader.Start("_shutdown", "Shutting down all services…")
 		m.controller.StopAll()
 
-		return m, waitForEventCmd(m.eventChan)
+		return m, waitForMsgCmd(m.msgChan)
 
 	case key.Matches(msg, m.ui.servicesKeys.Up):
 		return m.handleUpKey()
@@ -198,36 +198,44 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 	return m, m.loader.Model.Tick
 }
 
-// handleEvent dispatches runtime events to specific handlers
-func (m Model) handleEvent(event runtime.Event) (tea.Model, tea.Cmd) {
-	switch event.Type {
-	case runtime.EventProfileResolved:
-		m = m.handleProfileResolved(event)
-	case runtime.EventPhaseChanged:
-		return m.handlePhaseChanged(event)
-	case runtime.EventTierStarting:
-		m = m.handleTierStarting(event)
-	case runtime.EventTierReady:
-		m = m.handleTierReady(event)
-	case runtime.EventServiceStarting:
-		m = m.handleServiceStarting(event)
-	case runtime.EventServiceReady:
-		m = m.handleServiceReady(event)
-	case runtime.EventServiceFailed:
-		m = m.handleServiceFailed(event)
-	case runtime.EventServiceStopped:
-		m = m.handleServiceStopped(event)
-	case runtime.EventSignalCaught:
+// handleMessage dispatches bus messages to specific handlers
+func (m Model) handleMessage(msg bus.Message) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case bus.EventProfileResolved:
+		m = m.handleProfileResolved(msg)
+	case bus.EventPhaseChanged:
+		return m.handlePhaseChanged(msg)
+	case bus.EventTierStarting:
+		m = m.handleTierStarting(msg)
+	case bus.EventTierReady:
+		m = m.handleTierReady(msg)
+	case bus.EventServiceStarting:
+		m = m.handleServiceStarting(msg)
+	case bus.EventServiceReady:
+		m = m.handleServiceReady(msg)
+	case bus.EventServiceFailed:
+		m = m.handleServiceFailed(msg)
+	case bus.EventServiceStopping:
+		m = m.handleServiceStopping(msg)
+	case bus.EventServiceStopped:
+		m = m.handleServiceStopped(msg)
+	case bus.EventServiceRestarting:
+		m = m.handleServiceRestarting(msg)
+	case bus.EventWatchStarted:
+		m = m.handleWatchStarted(msg)
+	case bus.EventWatchStopped:
+		m = m.handleWatchStopped(msg)
+	case bus.EventSignal:
 		m.state.shuttingDown = true
 		m.loader.Start("_shutdown", "Shutting down all services…")
 	}
 
-	return m, waitForEventCmd(m.eventChan)
+	return m, waitForMsgCmd(m.msgChan)
 }
 
 // handleProfileResolved initializes services from profile data
-func (m Model) handleProfileResolved(event runtime.Event) Model {
-	data, ok := event.Data.(runtime.ProfileResolvedData)
+func (m Model) handleProfileResolved(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.ProfileResolved)
 	if !ok {
 		m.log.Error().Msg("TUI: Failed to cast ProfileResolvedData")
 		return m
@@ -251,7 +259,7 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 				Status: StatusStarting,
 				Blink:  components.NewBlink(),
 			}
-			service.FSM = newServiceFSM(service, m.loader)
+			service.FSM = newServiceFSM(service, m.loader, m.log)
 			m.state.services[serviceName] = service
 		}
 	}
@@ -262,25 +270,25 @@ func (m Model) handleProfileResolved(event runtime.Event) Model {
 }
 
 // handlePhaseChanged updates the application phase state
-func (m Model) handlePhaseChanged(event runtime.Event) (Model, tea.Cmd) {
-	data, ok := event.Data.(runtime.PhaseChangedData)
+func (m Model) handlePhaseChanged(msg bus.Message) (Model, tea.Cmd) {
+	data, ok := msg.Data.(bus.PhaseChanged)
 	if !ok {
-		return m, waitForEventCmd(m.eventChan)
+		return m, waitForMsgCmd(m.msgChan)
 	}
 
 	m.state.phase = data.Phase
-	if m.state.phase == runtime.PhaseStopped {
+	if m.state.phase == bus.PhaseStopped {
 		m.loader.StopAll()
 
 		return m, tea.Quit
 	}
 
-	return m, waitForEventCmd(m.eventChan)
+	return m, waitForMsgCmd(m.msgChan)
 }
 
 // handleTierStarting marks a tier as not ready when starting
-func (m Model) handleTierStarting(event runtime.Event) Model {
-	data, ok := event.Data.(runtime.TierStartingData)
+func (m Model) handleTierStarting(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.TierStarting)
 	if !ok {
 		return m
 	}
@@ -296,8 +304,8 @@ func (m Model) handleTierStarting(event runtime.Event) Model {
 }
 
 // handleTierReady marks a tier as ready
-func (m Model) handleTierReady(event runtime.Event) Model {
-	data, ok := event.Data.(runtime.TierReadyData)
+func (m Model) handleTierReady(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.Payload)
 	if !ok {
 		return m
 	}
@@ -313,14 +321,14 @@ func (m Model) handleTierReady(event runtime.Event) Model {
 }
 
 // handleServiceStarting updates a service when it begins starting
-func (m Model) handleServiceStarting(event runtime.Event) Model {
-	data, ok := event.Data.(runtime.ServiceStartingData)
+func (m Model) handleServiceStarting(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.ServiceStarting)
 	if !ok {
 		return m
 	}
 
 	if service, exists := m.state.services[data.Service]; exists {
-		service.Monitor.StartTime = event.Timestamp
+		service.Monitor.StartTime = msg.Timestamp
 		service.Tier = data.Tier
 		m.controller.HandleStarting(m.ctx, service, data.PID)
 	}
@@ -329,14 +337,14 @@ func (m Model) handleServiceStarting(event runtime.Event) Model {
 }
 
 // handleServiceReady updates a service when it becomes ready
-func (m Model) handleServiceReady(event runtime.Event) Model {
-	data, ok := event.Data.(runtime.ServiceReadyData)
+func (m Model) handleServiceReady(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.ServiceReady)
 	if !ok {
 		return m
 	}
 
 	if service, exists := m.state.services[data.Service]; exists {
-		service.Monitor.ReadyTime = event.Timestamp
+		service.Monitor.ReadyTime = msg.Timestamp
 
 		m.loader.Stop(data.Service)
 		m.controller.HandleReady(m.ctx, service)
@@ -346,8 +354,8 @@ func (m Model) handleServiceReady(event runtime.Event) Model {
 }
 
 // handleServiceFailed updates a service when it fails
-func (m Model) handleServiceFailed(event runtime.Event) Model {
-	data, ok := event.Data.(runtime.ServiceFailedData)
+func (m Model) handleServiceFailed(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.ServiceFailed)
 	if !ok {
 		return m
 	}
@@ -361,9 +369,37 @@ func (m Model) handleServiceFailed(event runtime.Event) Model {
 	return m
 }
 
+// handleServiceStopping updates a service when it begins stopping
+func (m Model) handleServiceStopping(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.ServiceStopping)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Service]; exists {
+		m.controller.HandleStopping(m.ctx, service)
+	}
+
+	return m
+}
+
+// handleServiceRestarting updates a service when it begins restarting
+func (m Model) handleServiceRestarting(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.ServiceRestarting)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Service]; exists {
+		m.controller.HandleRestarting(m.ctx, service)
+	}
+
+	return m
+}
+
 // handleServiceStopped updates a service when it stops
-func (m Model) handleServiceStopped(event runtime.Event) Model {
-	data, ok := event.Data.(runtime.ServiceStoppedData)
+func (m Model) handleServiceStopped(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.ServiceStopped)
 	if !ok {
 		return m
 	}
@@ -378,15 +414,47 @@ func (m Model) handleServiceStopped(event runtime.Event) Model {
 	return m
 }
 
-// waitForEventCmd returns a command that waits for the next event
-func waitForEventCmd(eventChan <-chan runtime.Event) tea.Cmd {
+// handleWatchStarted updates a service when file watching starts
+func (m Model) handleWatchStarted(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.Payload)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Name]; exists {
+		service.Watching = true
+	}
+
+	m.updateServicesContent()
+
+	return m
+}
+
+// handleWatchStopped updates a service when file watching stops
+func (m Model) handleWatchStopped(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.Payload)
+	if !ok {
+		return m
+	}
+
+	if service, exists := m.state.services[data.Name]; exists {
+		service.Watching = false
+	}
+
+	m.updateServicesContent()
+
+	return m
+}
+
+// waitForMsgCmd returns a command that waits for the next message
+func waitForMsgCmd(msgChan <-chan bus.Message) tea.Cmd {
 	return func() tea.Msg {
-		event, ok := <-eventChan
+		msg, ok := <-msgChan
 		if !ok {
 			return channelClosedMsg{}
 		}
 
-		return eventMsg(event)
+		return msgMsg(msg)
 	}
 }
 

@@ -161,7 +161,6 @@ func Test_Stream_ReceivesLogMessages(t *testing.T) {
 
 	go func() {
 		serverConn.Write(data)
-		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
 	}()
 
@@ -188,7 +187,6 @@ func Test_Stream_ContextCancellation(t *testing.T) {
 		done <- c.Stream(ctx, &output)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
 	cancel()
 	serverConn.Close()
 
@@ -231,7 +229,6 @@ func Test_Stream_SkipsInvalidJSON(t *testing.T) {
 		data, _ := json.Marshal(msg)
 		data = append(data, '\n')
 		serverConn.Write(data)
-		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
 	}()
 
@@ -260,7 +257,6 @@ func Test_Stream_SkipsNonLogMessages(t *testing.T) {
 		data, _ = json.Marshal(msg)
 		data = append(data, '\n')
 		serverConn.Write(data)
-		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
 	}()
 
@@ -316,7 +312,7 @@ func Test_FindSocket(t *testing.T) {
 			name:    "Finds socket by profile",
 			profile: "test",
 			before: func(tmpDir string) string {
-				socketPath := filepath.Join(tmpDir, config.SocketPrefix+"test"+config.SocketSuffix)
+				socketPath := SocketPathForProfile(tmpDir, "test")
 				f, _ := os.Create(socketPath)
 				f.Close()
 
@@ -333,7 +329,7 @@ func Test_FindSocket(t *testing.T) {
 			name:    "No profile - finds single socket",
 			profile: "",
 			before: func(tmpDir string) string {
-				socketPath := filepath.Join(tmpDir, config.SocketPrefix+"default"+config.SocketSuffix)
+				socketPath := SocketPathForProfile(tmpDir, "default")
 				f, _ := os.Create(socketPath)
 				f.Close()
 
@@ -351,7 +347,7 @@ func Test_FindSocket(t *testing.T) {
 			profile: "",
 			before: func(tmpDir string) string {
 				for _, profile := range []string{"default", "dev"} {
-					socketPath := filepath.Join(tmpDir, config.SocketPrefix+profile+config.SocketSuffix)
+					socketPath := SocketPathForProfile(tmpDir, profile)
 					f, _ := os.Create(socketPath)
 					f.Close()
 				}

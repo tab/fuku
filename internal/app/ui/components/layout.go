@@ -11,6 +11,7 @@ type PanelOptions struct {
 	Title   string
 	Content string
 	Status  string
+	Stats   string
 	Version string
 	Help    string
 	Tips    string
@@ -34,7 +35,7 @@ func RenderPanel(opts PanelOptions) string {
 	border := func(s string) string { return PanelBorderStyle.Render(s) }
 
 	topBorder := buildTopBorder(border, titleText, opts.Status, middleLineWidth)
-	bottomBorder := buildBottomBorder(border, opts.Version, innerWidth)
+	bottomBorder := buildBottomBorder(border, opts.Stats, opts.Version, innerWidth)
 
 	contentHeight := opts.Height - PanelBorderHeight
 	if contentHeight < 1 {
@@ -97,32 +98,6 @@ func TruncateAndPad(s string, width int) string {
 	return ellipsis + strings.Repeat(IndicatorEmpty, width-ellipsisWidth)
 }
 
-// Truncate truncates text to fit within maxWidth display columns
-func Truncate(s string, maxWidth int) string {
-	currentWidth := lipgloss.Width(s)
-	if currentWidth <= maxWidth {
-		return s
-	}
-
-	ellipsis := "…"
-	ellipsisWidth := lipgloss.Width(ellipsis)
-	targetWidth := maxWidth - ellipsisWidth
-
-	if targetWidth <= 0 {
-		return ellipsis
-	}
-
-	runes := []rune(s)
-	for i := len(runes); i > 0; i-- {
-		candidate := string(runes[:i])
-		if lipgloss.Width(candidate) <= targetWidth {
-			return candidate + ellipsis
-		}
-	}
-
-	return ellipsis
-}
-
 // buildTopBorder builds the top border with title and status
 func buildTopBorder(border func(string) string, titleText, topRightText string, middleWidth int) string {
 	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
@@ -139,23 +114,40 @@ func buildTopBorder(border func(string) string, titleText, topRightText string, 
 	return result
 }
 
-// buildBottomBorder builds the bottom border with version
-func buildBottomBorder(border func(string) string, bottomRightText string, innerWidth int) string {
+// buildBottomBorder builds the bottom border with optional info (left) and version (right)
+func buildBottomBorder(border func(string) string, bottomLeftText, bottomRightText string, innerWidth int) string {
 	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
-
-	bottomText := PanelMutedStyle.Render(bottomRightText)
-	bottomLen := lipgloss.Width(bottomText) + SpacerWidth + BorderEdgeWidth
-
-	lineWidth := innerWidth - bottomLen
-	if lineWidth < 1 {
-		lineWidth = 1
-	}
 
 	spacer := PanelTitleSpacer.Render("")
 	leftSpacer, rightSpacer := splitAtDisplayWidth(spacer)
 
-	result := border(BorderBottomLeft + hLine(lineWidth))
-	result += leftSpacer + bottomText + rightSpacer
+	rightText := PanelMutedStyle.Render(bottomRightText)
+	rightLen := lipgloss.Width(rightText) + SpacerWidth + BorderEdgeWidth
+
+	leftLen := 0
+	leftText := ""
+
+	if bottomLeftText != "" {
+		leftText = PanelMutedStyle.Render(bottomLeftText)
+		leftLen = lipgloss.Width(leftText) + SpacerWidth + BorderEdgeWidth
+	}
+
+	middleWidth := innerWidth - leftLen - rightLen
+	if middleWidth < 1 {
+		middleWidth = 1
+	}
+
+	var result string
+
+	if leftText != "" {
+		result = border(BorderBottomLeft + hLine(BorderEdgeWidth))
+		result += leftSpacer + leftText + rightSpacer
+		result += border(hLine(middleWidth))
+	} else {
+		result = border(BorderBottomLeft + hLine(middleWidth+leftLen))
+	}
+
+	result += leftSpacer + rightText + rightSpacer
 	result += border(hLine(BorderEdgeWidth))
 	result += border(BorderBottomRight)
 

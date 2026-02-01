@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/bus"
 	"fuku/internal/config/logger"
 )
 
@@ -36,11 +36,11 @@ func Test_HandleProfileResolved(t *testing.T) {
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
-	event := runtime.Event{
-		Type: runtime.EventProfileResolved,
-		Data: runtime.ProfileResolvedData{
+	event := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
 			Profile: "dev",
-			Tiers: []runtime.TierData{
+			Tiers: []bus.Tier{
 				{Name: "tier1", Services: []string{"db"}},
 				{Name: "tier2", Services: []string{"api", "web"}},
 			},
@@ -68,7 +68,7 @@ func Test_HandleProfileResolved_InvalidData(t *testing.T) {
 	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
-	event := runtime.Event{Type: runtime.EventProfileResolved, Data: "invalid"}
+	event := bus.Message{Type: bus.EventProfileResolved, Data: "invalid"}
 	result := m.handleProfileResolved(event)
 	assert.Len(t, result.state.tiers, 0)
 }
@@ -81,11 +81,11 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
-	event1 := runtime.Event{
-		Type: runtime.EventProfileResolved,
-		Data: runtime.ProfileResolvedData{
+	event1 := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
 			Profile: "profile1",
-			Tiers: []runtime.TierData{
+			Tiers: []bus.Tier{
 				{Name: "tier1", Services: []string{"db", "api", "web"}},
 			},
 		},
@@ -97,11 +97,11 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 	assert.NotNil(t, result.state.services["api"])
 	assert.NotNil(t, result.state.services["web"])
 
-	event2 := runtime.Event{
-		Type: runtime.EventProfileResolved,
-		Data: runtime.ProfileResolvedData{
+	event2 := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
 			Profile: "profile2",
-			Tiers: []runtime.TierData{
+			Tiers: []bus.Tier{
 				{Name: "tier1", Services: []string{"storage", "cache"}},
 			},
 		},
@@ -125,11 +125,11 @@ func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
 	m.state.tiers = make([]Tier, 0)
 	m.state.selected = 5
 
-	event := runtime.Event{
-		Type: runtime.EventProfileResolved,
-		Data: runtime.ProfileResolvedData{
+	event := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
 			Profile: "dev",
-			Tiers:   []runtime.TierData{{Name: "tier1", Services: []string{"db"}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []string{"db"}}},
 		},
 	}
 
@@ -146,11 +146,11 @@ func Test_HandleProfileResolved_PreservesReadyState(t *testing.T) {
 	m.state.tiers = make([]Tier, 0)
 	m.state.ready = true
 
-	event := runtime.Event{
-		Type: runtime.EventProfileResolved,
-		Data: runtime.ProfileResolvedData{
+	event := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
 			Profile: "dev",
-			Tiers:   []runtime.TierData{{Name: "tier1", Services: []string{"db"}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []string{"db"}}},
 		},
 	}
 
@@ -174,11 +174,11 @@ func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
 	assert.True(t, loader.Has("old-service-1"), "Loader should have old-service-1")
 	assert.True(t, loader.Has("old-service-2"), "Loader should have old-service-2")
 
-	event := runtime.Event{
-		Type: runtime.EventProfileResolved,
-		Data: runtime.ProfileResolvedData{
+	event := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
 			Profile: "new-profile",
-			Tiers:   []runtime.TierData{{Name: "tier1", Services: []string{"new-service"}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []string{"new-service"}}},
 		},
 	}
 
@@ -195,7 +195,7 @@ func Test_HandleTierStarting(t *testing.T) {
 		{Name: "tier2", Ready: true},
 	}
 
-	event := runtime.Event{Type: runtime.EventTierStarting, Data: runtime.TierStartingData{Name: "tier1"}}
+	event := bus.Message{Type: bus.EventTierStarting, Data: bus.TierStarting{Name: "tier1"}}
 	result := m.handleTierStarting(event)
 
 	assert.False(t, result.state.tiers[0].Ready)
@@ -205,7 +205,7 @@ func Test_HandleTierStarting(t *testing.T) {
 func Test_HandleTierStarting_InvalidData(t *testing.T) {
 	m := Model{}
 	m.state.tiers = []Tier{{Name: "tier1", Ready: true}}
-	event := runtime.Event{Type: runtime.EventTierStarting, Data: "invalid"}
+	event := bus.Message{Type: bus.EventTierStarting, Data: "invalid"}
 	result := m.handleTierStarting(event)
 	assert.True(t, result.state.tiers[0].Ready)
 }
@@ -217,7 +217,7 @@ func Test_HandleTierReady(t *testing.T) {
 		{Name: "tier2", Ready: false},
 	}
 
-	event := runtime.Event{Type: runtime.EventTierReady, Data: runtime.TierReadyData{Name: "tier2"}}
+	event := bus.Message{Type: bus.EventTierReady, Data: bus.Payload{Name: "tier2"}}
 	result := m.handleTierReady(event)
 
 	assert.False(t, result.state.tiers[0].Ready)
@@ -227,7 +227,7 @@ func Test_HandleTierReady(t *testing.T) {
 func Test_HandleTierReady_InvalidData(t *testing.T) {
 	m := Model{}
 	m.state.tiers = []Tier{{Name: "tier1", Ready: false}}
-	event := runtime.Event{Type: runtime.EventTierReady, Data: "invalid"}
+	event := bus.Message{Type: bus.EventTierReady, Data: "invalid"}
 	result := m.handleTierReady(event)
 	assert.False(t, result.state.tiers[0].Ready)
 }
@@ -236,18 +236,20 @@ func Test_HandleServiceStarting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	mockController := NewMockController(ctrl)
+	mockLog := newTestLogger(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	service := &ServiceState{Name: "api", Status: StatusStopped}
 	m := Model{
 		ctx:        context.Background(),
 		loader:     loader,
-		command:    mockCmd,
+		bus:        mockCmd,
 		controller: mockController,
+		log:        mockLog,
 	}
 	m.state.services = map[string]*ServiceState{"api": service}
-	service.FSM = newServiceFSM(service, loader)
+	service.FSM = newServiceFSM(service, loader, mockLog)
 
 	mockController.EXPECT().HandleStarting(gomock.Any(), service, 1234).Do(
 		func(_ context.Context, s *ServiceState, pid int) {
@@ -255,10 +257,10 @@ func Test_HandleServiceStarting(t *testing.T) {
 		},
 	)
 
-	event := runtime.Event{
+	event := bus.Message{
 		Timestamp: time.Now(),
-		Type:      runtime.EventServiceStarting,
-		Data:      runtime.ServiceStartingData{Service: "api", Tier: "tier1", PID: 1234},
+		Type:      bus.EventServiceStarting,
+		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "tier1"}, PID: 1234},
 	}
 
 	result := m.handleServiceStarting(event)
@@ -271,7 +273,7 @@ func Test_HandleServiceStarting_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
-	event := runtime.Event{Type: runtime.EventServiceStarting, Data: "invalid"}
+	event := bus.Message{Type: bus.EventServiceStarting, Data: "invalid"}
 	result := m.handleServiceStarting(event)
 	assert.False(t, result.loader.Active)
 }
@@ -294,10 +296,10 @@ func Test_HandleServiceReady(t *testing.T) {
 
 	mockController.EXPECT().HandleReady(gomock.Any(), service)
 
-	event := runtime.Event{
+	event := bus.Message{
 		Timestamp: time.Now(),
-		Type:      runtime.EventServiceReady,
-		Data:      runtime.ServiceReadyData{Service: "api"},
+		Type:      bus.EventServiceReady,
+		Data:      bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "api"}},
 	}
 
 	result := m.handleServiceReady(event)
@@ -311,7 +313,7 @@ func Test_HandleServiceReady_InvalidData(t *testing.T) {
 	loader.Start("api", "Starting api…")
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
-	event := runtime.Event{Type: runtime.EventServiceReady, Data: "invalid"}
+	event := bus.Message{Type: bus.EventServiceReady, Data: "invalid"}
 	result := m.handleServiceReady(event)
 	assert.True(t, result.loader.Active)
 }
@@ -335,9 +337,9 @@ func Test_HandleServiceFailed(t *testing.T) {
 	mockController.EXPECT().HandleFailed(gomock.Any(), service)
 
 	testErr := assert.AnError
-	event := runtime.Event{
-		Type: runtime.EventServiceFailed,
-		Data: runtime.ServiceFailedData{Service: "api", Error: testErr},
+	event := bus.Message{
+		Type: bus.EventServiceFailed,
+		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: "api"}, Error: testErr},
 	}
 
 	result := m.handleServiceFailed(event)
@@ -350,7 +352,7 @@ func Test_HandleServiceFailed_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
-	event := runtime.Event{Type: runtime.EventServiceFailed, Data: "invalid"}
+	event := bus.Message{Type: bus.EventServiceFailed, Data: "invalid"}
 	result := m.handleServiceFailed(event)
 	assert.Len(t, result.state.services, 0)
 }
@@ -373,7 +375,7 @@ func Test_HandleServiceStopped(t *testing.T) {
 
 	mockController.EXPECT().HandleStopped(gomock.Any(), service).Return(false)
 
-	event := runtime.Event{Type: runtime.EventServiceStopped, Data: runtime.ServiceStoppedData{Service: "api"}}
+	event := bus.Message{Type: bus.EventServiceStopped, Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: "api"}}}
 	result := m.handleServiceStopped(event)
 
 	assert.False(t, result.loader.Active)
@@ -383,8 +385,88 @@ func Test_HandleServiceStopped_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
-	event := runtime.Event{Type: runtime.EventServiceStopped, Data: "invalid"}
+	event := bus.Message{Type: bus.EventServiceStopped, Data: "invalid"}
 	result := m.handleServiceStopped(event)
+	assert.Len(t, result.state.services, 0)
+}
+
+func Test_HandleWatchStarted(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: false}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := bus.Message{
+		Type: bus.EventWatchStarted,
+		Data: bus.Payload{Name: "api"},
+	}
+
+	result := m.handleWatchStarted(event)
+
+	assert.True(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStarted_InvalidData(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: false}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := bus.Message{Type: bus.EventWatchStarted, Data: "invalid"}
+	result := m.handleWatchStarted(event)
+
+	assert.False(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStarted_UnknownService(t *testing.T) {
+	m := Model{}
+	m.state.services = make(map[string]*ServiceState)
+
+	event := bus.Message{
+		Type: bus.EventWatchStarted,
+		Data: bus.Payload{Name: "unknown"},
+	}
+
+	result := m.handleWatchStarted(event)
+
+	assert.Len(t, result.state.services, 0)
+}
+
+func Test_HandleWatchStopped(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusStopped, Watching: true}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := bus.Message{
+		Type: bus.EventWatchStopped,
+		Data: bus.Payload{Name: "api"},
+	}
+
+	result := m.handleWatchStopped(event)
+
+	assert.False(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStopped_InvalidData(t *testing.T) {
+	service := &ServiceState{Name: "api", Status: StatusStopped, Watching: true}
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": service}
+
+	event := bus.Message{Type: bus.EventWatchStopped, Data: "invalid"}
+	result := m.handleWatchStopped(event)
+
+	assert.True(t, result.state.services["api"].Watching)
+}
+
+func Test_HandleWatchStopped_UnknownService(t *testing.T) {
+	m := Model{}
+	m.state.services = make(map[string]*ServiceState)
+
+	event := bus.Message{
+		Type: bus.EventWatchStopped,
+		Data: bus.Payload{Name: "unknown"},
+	}
+
+	result := m.handleWatchStopped(event)
+
 	assert.Len(t, result.state.services, 0)
 }
 
@@ -395,7 +477,7 @@ func Test_HandlePhaseChanged_PhaseStopped(t *testing.T) {
 	m := Model{loader: loader}
 	m.state.shuttingDown = true
 
-	event := runtime.Event{Type: runtime.EventPhaseChanged, Data: runtime.PhaseChangedData{Phase: runtime.PhaseStopped}}
+	event := bus.Message{Type: bus.EventPhaseChanged, Data: bus.PhaseChanged{Phase: bus.PhaseStopped}}
 	result, cmd := m.handlePhaseChanged(event)
 
 	assert.False(t, result.loader.Active)
@@ -404,26 +486,26 @@ func Test_HandlePhaseChanged_PhaseStopped(t *testing.T) {
 
 func Test_HandlePhaseChanged_OtherPhase(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	eventChan := make(chan runtime.Event, 1)
+	msgChan := make(chan bus.Message, 1)
 
-	m := Model{loader: loader, eventChan: eventChan}
+	m := Model{loader: loader, msgChan: msgChan}
 
-	event := runtime.Event{Type: runtime.EventPhaseChanged, Data: runtime.PhaseChangedData{Phase: runtime.PhaseRunning}}
+	event := bus.Message{Type: bus.EventPhaseChanged, Data: bus.PhaseChanged{Phase: bus.PhaseRunning}}
 	result, cmd := m.handlePhaseChanged(event)
 
-	assert.Equal(t, runtime.PhaseRunning, result.state.phase)
+	assert.Equal(t, bus.PhaseRunning, result.state.phase)
 	assert.NotNil(t, cmd)
 }
 
 func Test_HandleEvent_SignalCaught(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	eventChan := make(chan runtime.Event, 1)
+	msgChan := make(chan bus.Message, 1)
 
-	m := Model{loader: loader, eventChan: eventChan}
+	m := Model{loader: loader, msgChan: msgChan}
 	m.state.shuttingDown = false
 
-	event := runtime.Event{Type: runtime.EventSignalCaught, Data: runtime.SignalCaughtData{Signal: "SIGINT"}}
-	teaModel, cmd := m.handleEvent(event)
+	event := bus.Message{Type: bus.EventSignal, Data: bus.Signal{Name: "SIGINT"}}
+	teaModel, cmd := m.handleMessage(event)
 	result := teaModel.(Model)
 
 	assert.True(t, result.state.shuttingDown)
@@ -499,10 +581,10 @@ func Test_HandleKeyPress_QuitStartsGracefulShutdown(t *testing.T) {
 	mockController := NewMockController(ctrl)
 	mockController.EXPECT().StopAll()
 
-	eventChan := make(chan runtime.Event, 1)
+	msgChan := make(chan bus.Message, 1)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 
-	m := Model{loader: loader, controller: mockController, eventChan: eventChan}
+	m := Model{loader: loader, controller: mockController, msgChan: msgChan}
 	m.state.shuttingDown = false
 	m.ui.servicesKeys = DefaultKeyMap()
 
@@ -577,13 +659,13 @@ func Test_Update_KeyMsg_IgnoreQuitDuringShutdown(t *testing.T) {
 
 func Test_Update_EventMsg(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	eventChan := make(chan runtime.Event, 1)
+	msgChan := make(chan bus.Message, 1)
 
-	m := Model{loader: loader, eventChan: eventChan}
+	m := Model{loader: loader, msgChan: msgChan}
 	m.state.shuttingDown = false
 
-	event := runtime.Event{Type: runtime.EventSignalCaught, Data: runtime.SignalCaughtData{Signal: "SIGINT"}}
-	msg := eventMsg(event)
+	event := bus.Message{Type: bus.EventSignal, Data: bus.Signal{Name: "SIGINT"}}
+	msg := msgMsg(event)
 	teaModel, cmd := m.Update(msg)
 	result := teaModel.(Model)
 

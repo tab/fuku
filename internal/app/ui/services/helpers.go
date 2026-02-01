@@ -1,13 +1,11 @@
 package services
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
 
-	apperrors "fuku/internal/app/errors"
-	"fuku/internal/app/ui/components"
+	"fuku/internal/app/errors"
 )
 
 // simplifyErrorMessage returns a user-friendly short error message
@@ -17,17 +15,17 @@ func simplifyErrorMessage(err error) string {
 	}
 
 	switch {
-	case errors.Is(err, apperrors.ErrMaxRetriesExceeded):
+	case errors.Is(err, errors.ErrMaxRetriesExceeded):
 		return "max retries exceeded"
-	case errors.Is(err, apperrors.ErrProcessExited):
+	case errors.Is(err, errors.ErrProcessExited):
 		return "process exited"
-	case errors.Is(err, apperrors.ErrReadinessTimeout):
+	case errors.Is(err, errors.ErrReadinessTimeout):
 		return "readiness timeout"
-	case errors.Is(err, apperrors.ErrFailedToStartCommand):
+	case errors.Is(err, errors.ErrFailedToStartCommand):
 		return "failed to start"
-	case errors.Is(err, apperrors.ErrServiceNotFound):
+	case errors.Is(err, errors.ErrServiceNotFound):
 		return "service not found"
-	case errors.Is(err, apperrors.ErrServiceDirectoryNotExist):
+	case errors.Is(err, errors.ErrServiceDirectoryNotExist):
 		return "directory not found"
 	default:
 		return err.Error()
@@ -77,9 +75,4 @@ func truncateErrorMessage(errorText string, availableWidth int) string {
 	}
 
 	return fmt.Sprintf("%s%s%s", prefix, ellipsis, suffix)
-}
-
-// padServiceName pads a service name to maxWidth using display width (not rune count)
-func padServiceName(serviceName string, maxWidth int) string {
-	return components.PadRight(serviceName, maxWidth)
 }

@@ -16,6 +16,7 @@
 - **Graceful Shutdown** - SIGTERM with timeout before force kill
 - **Profile Support** - Group services for batch operations
 - **Readiness Checks** - HTTP and log-pattern based detection
+- **Hot-Reload** - Automatic service restart on file changes
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 
 ## Installation

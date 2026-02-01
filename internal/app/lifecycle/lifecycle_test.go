@@ -1,0 +1,235 @@
+package lifecycle
+
+import (
+	"os/exec"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+
+	"fuku/internal/app/process"
+	"fuku/internal/config/logger"
+)
+
+func Test_New(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+
+	lc := NewLifecycle(mockLogger)
+
+	assert.NotNil(t, lc)
+	instance, ok := lc.(*lifecycle)
+	assert.True(t, ok)
+	assert.Equal(t, componentLogger, instance.log)
+}
+
+func Test_Configure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+
+	lc := NewLifecycle(mockLogger)
+
+	cmd := exec.Command("echo", "test")
+	assert.Nil(t, cmd.SysProcAttr)
+
+	lc.Configure(cmd)
+
+	assert.NotNil(t, cmd.SysProcAttr)
+	assert.True(t, cmd.SysProcAttr.Setpgid)
+}
+
+func Test_Terminate_NilProcess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+
+	lc := NewLifecycle(mockLogger)
+
+	mockProcess := process.NewMockProcess(ctrl)
+	mockCmd := &exec.Cmd{Process: nil}
+	mockProcess.EXPECT().Cmd().Return(mockCmd)
+
+	err := lc.Terminate(mockProcess, time.Second)
+	assert.NoError(t, err)
+}
+
+func Test_Terminate_ProcessExitsGracefully(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+
+	lc := NewLifecycle(mockLogger)
+
+	cmd := exec.Command("sleep", "10")
+
+	err := cmd.Start()
+	if err != nil {
+		t.Skip("Cannot start test process")
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	mockProcess := process.NewMockProcess(ctrl)
+	mockProcess.EXPECT().Cmd().Return(cmd).AnyTimes()
+	mockProcess.EXPECT().Name().Return("test-service").AnyTimes()
+	mockProcess.EXPECT().Done().Return(done).AnyTimes()
+
+	err = lc.Terminate(mockProcess, 5*time.Second)
+	assert.NoError(t, err)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Process should have exited")
+	}
+}
+
+func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+
+	lc := NewLifecycle(mockLogger)
+
+	cmd := exec.Command("sh", "-c", "trap '' TERM INT; echo ready; sleep 60")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Skip("Cannot create stdout pipe")
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		t.Skip("Cannot start test process")
+	}
+
+	buf := make([]byte, 6)
+
+	_, err = stdout.Read(buf)
+	if err != nil {
+		t.Skip("Cannot read from stdout")
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	mockProcess := process.NewMockProcess(ctrl)
+	mockProcess.EXPECT().Cmd().Return(cmd).AnyTimes()
+	mockProcess.EXPECT().Name().Return("test-service").AnyTimes()
+	mockProcess.EXPECT().Done().Return(done).AnyTimes()
+
+	err = lc.Terminate(mockProcess, 100*time.Millisecond)
+	assert.NoError(t, err)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Process should have been killed")
+	}
+}
+
+func Test_Terminate_SignalGroupFailsFallbackToDirectSignal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+
+	lc := NewLifecycle(mockLogger)
+
+	cmd := exec.Command("sleep", "10")
+
+	err := cmd.Start()
+	if err != nil {
+		t.Skip("Cannot start test process")
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	mockProcess := process.NewMockProcess(ctrl)
+	mockProcess.EXPECT().Cmd().Return(cmd).AnyTimes()
+	mockProcess.EXPECT().Name().Return("test-service").AnyTimes()
+	mockProcess.EXPECT().Done().Return(done).AnyTimes()
+
+	err = lc.Terminate(mockProcess, 5*time.Second)
+	assert.NoError(t, err)
+}
+
+func Test_Terminate_ProcessAlreadyExited(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
+
+	lc := NewLifecycle(mockLogger)
+
+	cmd := exec.Command("true")
+
+	err := cmd.Start()
+	if err != nil {
+		t.Skip("Cannot start test process")
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	<-done
+
+	mockProcess := process.NewMockProcess(ctrl)
+	mockProcess.EXPECT().Cmd().Return(cmd).AnyTimes()
+	mockProcess.EXPECT().Name().Return("test-service").AnyTimes()
+	mockProcess.EXPECT().Done().Return(done).AnyTimes()
+
+	err = lc.Terminate(mockProcess, time.Second)
+	assert.Error(t, err)
+}

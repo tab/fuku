@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/looplab/fsm"
+
+	"fuku/internal/config/logger"
 )
 
 // FSM states
@@ -36,7 +38,7 @@ const (
 )
 
 // newServiceFSM creates a state machine for service lifecycle management
-func newServiceFSM(service *ServiceState, loader *Loader) *fsm.FSM {
+func newServiceFSM(service *ServiceState, loader *Loader, log logger.Logger) *fsm.FSM {
 	serviceName := service.Name
 
 	return fsm.NewFSM(
@@ -50,6 +52,9 @@ func newServiceFSM(service *ServiceState, loader *Loader) *fsm.FSM {
 			{Name: Failed, Src: []string{Starting, Running, Restarting}, Dst: Failed},
 		},
 		fsm.Callbacks{
+			"after_event": func(ctx context.Context, e *fsm.Event) {
+				log.Debug().Msgf("STATE %s: %s → %s (trigger: %s)", serviceName, e.Src, e.Dst, e.Event)
+			},
 			OnStarting: func(ctx context.Context, e *fsm.Event) {
 				service.MarkStarting()
 

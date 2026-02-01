@@ -49,6 +49,7 @@ type Service struct {
 	Profiles  []string   `yaml:"profiles"`
 	Tier      string     `yaml:"tier"`
 	Readiness *Readiness `yaml:"readiness"`
+	Watch     *Watch     `yaml:"watch"`
 }
 
 // Readiness represents readiness check configuration for a service
@@ -58,6 +59,14 @@ type Readiness struct {
 	Pattern  string        `yaml:"pattern"`
 	Timeout  time.Duration `yaml:"timeout"`
 	Interval time.Duration `yaml:"interval"`
+}
+
+// Watch represents file watch configuration for hot-reload
+type Watch struct {
+	Include  []string      `yaml:"include"`
+	Ignore   []string      `yaml:"ignore"`
+	Shared   []string      `yaml:"shared"`
+	Debounce time.Duration `yaml:"debounce"`
 }
 
 // ServiceDefaults represents default configuration for services
@@ -278,6 +287,10 @@ func (c *Config) Validate() error {
 		if err := service.validateReadiness(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
 		}
+
+		if err := service.validateWatch(); err != nil {
+			return fmt.Errorf("service %s: %w", name, err)
+		}
 	}
 
 	return nil
@@ -343,6 +356,19 @@ func (s *Service) validateReadiness() error {
 
 	if r.Interval == 0 {
 		r.Interval = DefaultInterval
+	}
+
+	return nil
+}
+
+// validateWatch validates the watch configuration
+func (s *Service) validateWatch() error {
+	if s.Watch == nil {
+		return nil
+	}
+
+	if len(s.Watch.Include) == 0 {
+		return errors.ErrWatchIncludeRequired
 	}
 
 	return nil

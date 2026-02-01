@@ -8,28 +8,40 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"fuku/internal/app/runtime"
+	"fuku/internal/app/bus"
+	"fuku/internal/config/logger"
 )
+
+func setupTestLogger(ctrl *gomock.Controller) logger.Logger {
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
+	return mockLogger
+}
 
 func Test_NewController(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	c := NewController(mockCmd)
 
 	assert.NotNil(t, c)
 	impl, ok := c.(*controller)
 	assert.True(t, ok)
-	assert.Equal(t, mockCmd, impl.command)
+	assert.Equal(t, mockCmd, impl.bus)
 }
 
 func Test_Controller_Start(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -54,7 +66,7 @@ func Test_Controller_Start(t *testing.T) {
 			name: "service not stopped",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusRunning}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
 
@@ -64,20 +76,38 @@ func Test_Controller_Start(t *testing.T) {
 			expectedStatus: StatusRunning,
 		},
 		{
-			name: "service stopped - starts successfully",
+			name: "service stopped - publishes command",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStopped}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
 			}(),
 			before: func() {
-				mockCmd.EXPECT().Publish(runtime.Command{
-					Type: runtime.CommandRestartService,
-					Data: runtime.RestartServiceData{Service: "api"},
+				mockCmd.EXPECT().Publish(bus.Message{
+					Type: bus.CommandRestartService,
+					Data: bus.Payload{Name: "api"},
 				})
 			},
-			expectedStatus: StatusStarting,
+			expectedStatus: StatusStopped,
+		},
+		{
+			name: "service failed - publishes command",
+			service: func() *ServiceState {
+				s := &ServiceState{Name: "api", Status: StatusFailed}
+				s.FSM = newServiceFSM(s, loader, log)
+				_ = s.FSM.Event(ctx, Start)
+				_ = s.FSM.Event(ctx, Failed)
+
+				return s
+			}(),
+			before: func() {
+				mockCmd.EXPECT().Publish(bus.Message{
+					Type: bus.CommandRestartService,
+					Data: bus.Payload{Name: "api"},
+				})
+			},
+			expectedStatus: StatusFailed,
 		},
 	}
 
@@ -94,8 +124,12 @@ func Test_Controller_Start(t *testing.T) {
 }
 
 func Test_Controller_Stop(t *testing.T) {
-	noopCmd := runtime.NewNoOpCommandBus()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	noopCmd := bus.NoOp()
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(noopCmd)
 	ctx := context.Background()
 
@@ -110,23 +144,23 @@ func Test_Controller_Stop(t *testing.T) {
 			name: "service not running",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStopped}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
 			}(),
 			expectedStatus: StatusStopped,
 		},
 		{
-			name: "service running - stops successfully",
+			name: "service running - publishes command only",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusRunning}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
 
 				return s
 			}(),
-			expectedStatus: StatusStopping,
+			expectedStatus: StatusRunning,
 		},
 	}
 
@@ -142,8 +176,12 @@ func Test_Controller_Stop(t *testing.T) {
 }
 
 func Test_Controller_Restart(t *testing.T) {
-	noopCmd := runtime.NewNoOpCommandBus()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	noopCmd := bus.NoOp()
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(noopCmd)
 	ctx := context.Background()
 
@@ -158,7 +196,7 @@ func Test_Controller_Restart(t *testing.T) {
 			name: "service starting - cannot restart",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStarting}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 
 				return s
@@ -169,7 +207,7 @@ func Test_Controller_Restart(t *testing.T) {
 			name: "service running - restarts",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusRunning}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
 
@@ -181,7 +219,7 @@ func Test_Controller_Restart(t *testing.T) {
 			name: "service failed - restarts",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusFailed}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Failed)
 
@@ -193,7 +231,7 @@ func Test_Controller_Restart(t *testing.T) {
 			name: "service stopped - restarts",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStopped}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
 			}(),
@@ -216,88 +254,94 @@ func Test_Controller_Stop_PublishesCommand(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
 	service := &ServiceState{Name: "api", Status: StatusRunning}
-	service.FSM = newServiceFSM(service, loader)
+	service.FSM = newServiceFSM(service, loader, log)
 	_ = service.FSM.Event(ctx, Start)
 	_ = service.FSM.Event(ctx, Started)
 
-	mockCmd.EXPECT().Publish(runtime.Command{
-		Type: runtime.CommandStopService,
-		Data: runtime.StopServiceData{Service: "api"},
+	mockCmd.EXPECT().Publish(bus.Message{
+		Type: bus.CommandStopService,
+		Data: bus.Payload{Name: "api"},
 	})
 
 	c.Stop(ctx, service)
 
-	assert.Equal(t, StatusStopping, service.Status)
+	assert.Equal(t, StatusRunning, service.Status)
 }
 
 func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
-		service *ServiceState
-		before  func()
+		name          string
+		service       *ServiceState
+		before        func()
+		expectedState string
 	}{
 		{
 			name: "running service",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusRunning}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
 
 				return s
 			}(),
 			before: func() {
-				mockCmd.EXPECT().Publish(runtime.Command{
-					Type: runtime.CommandRestartService,
-					Data: runtime.RestartServiceData{Service: "api"},
+				mockCmd.EXPECT().Publish(bus.Message{
+					Type: bus.CommandRestartService,
+					Data: bus.Payload{Name: "api"},
 				})
 			},
+			expectedState: Restarting,
 		},
 		{
 			name: "failed service",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusFailed}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Failed)
 
 				return s
 			}(),
 			before: func() {
-				mockCmd.EXPECT().Publish(runtime.Command{
-					Type: runtime.CommandRestartService,
-					Data: runtime.RestartServiceData{Service: "api"},
+				mockCmd.EXPECT().Publish(bus.Message{
+					Type: bus.CommandRestartService,
+					Data: bus.Payload{Name: "api"},
 				})
 			},
+			expectedState: Restarting,
 		},
 		{
 			name: "stopped service",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStopped}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
 			}(),
 			before: func() {
-				mockCmd.EXPECT().Publish(runtime.Command{
-					Type: runtime.CommandRestartService,
-					Data: runtime.RestartServiceData{Service: "api"},
+				mockCmd.EXPECT().Publish(bus.Message{
+					Type: bus.CommandRestartService,
+					Data: bus.Payload{Name: "api"},
 				})
 			},
+			expectedState: Restarting,
 		},
 	}
 
@@ -305,7 +349,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 			c.Restart(ctx, tt.service)
-			assert.Equal(t, Restarting, tt.service.FSM.Current())
+			assert.Equal(t, tt.expectedState, tt.service.FSM.Current())
 		})
 	}
 }
@@ -314,10 +358,10 @@ func Test_Controller_StopAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	c := NewController(mockCmd)
 
-	mockCmd.EXPECT().Publish(runtime.Command{Type: runtime.CommandStopAll})
+	mockCmd.EXPECT().Publish(bus.Message{Type: bus.CommandStopAll})
 
 	c.StopAll()
 }
@@ -326,8 +370,9 @@ func Test_Controller_HandleStarting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -350,7 +395,7 @@ func Test_Controller_HandleStarting(t *testing.T) {
 			name: "with FSM - sets PID and transitions",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStopped}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
 			}(),
@@ -379,8 +424,9 @@ func Test_Controller_HandleReady(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -395,7 +441,7 @@ func Test_Controller_HandleReady(t *testing.T) {
 			name: "with FSM - transitions to ready",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStarting}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 
 				return s
@@ -419,8 +465,9 @@ func Test_Controller_HandleFailed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCmd := runtime.NewMockCommandBus(ctrl)
+	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -435,7 +482,7 @@ func Test_Controller_HandleFailed(t *testing.T) {
 			name: "with FSM - transitions to failed",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusStarting}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 
 				return s
@@ -455,9 +502,119 @@ func Test_Controller_HandleFailed(t *testing.T) {
 	}
 }
 
-func Test_Controller_HandleStopped(t *testing.T) {
-	noopCmd := runtime.NewNoOpCommandBus()
+func Test_Controller_HandleStopping(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
+	c := NewController(mockCmd)
+	ctx := context.Background()
+
+	tests := []struct {
+		name           string
+		service        *ServiceState
+		expectedStatus Status
+	}{
+		{name: "nil service", service: nil},
+		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusRunning}, expectedStatus: StatusRunning},
+		{
+			name: "with FSM - transitions to stopping",
+			service: func() *ServiceState {
+				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s.FSM = newServiceFSM(s, loader, log)
+				_ = s.FSM.Event(ctx, Start)
+				_ = s.FSM.Event(ctx, Started)
+
+				return s
+			}(),
+			expectedStatus: StatusStopping,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c.HandleStopping(ctx, tt.service)
+
+			if tt.service != nil && tt.expectedStatus != "" {
+				assert.Equal(t, tt.expectedStatus, tt.service.Status)
+			}
+		})
+	}
+}
+
+func Test_Controller_HandleRestarting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCmd := bus.NewMockBus(ctrl)
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
+	c := NewController(mockCmd)
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		service       *ServiceState
+		expectedState string
+	}{
+		{name: "nil service", service: nil},
+		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusRunning}},
+		{
+			name: "running service - transitions to restarting",
+			service: func() *ServiceState {
+				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s.FSM = newServiceFSM(s, loader, log)
+				_ = s.FSM.Event(ctx, Start)
+				_ = s.FSM.Event(ctx, Started)
+
+				return s
+			}(),
+			expectedState: Restarting,
+		},
+		{
+			name: "failed service - transitions to restarting",
+			service: func() *ServiceState {
+				s := &ServiceState{Name: "api", Status: StatusFailed}
+				s.FSM = newServiceFSM(s, loader, log)
+				_ = s.FSM.Event(ctx, Start)
+				_ = s.FSM.Event(ctx, Failed)
+
+				return s
+			}(),
+			expectedState: Restarting,
+		},
+		{
+			name: "stopped service - transitions to restarting",
+			service: func() *ServiceState {
+				s := &ServiceState{Name: "api", Status: StatusStopped}
+				s.FSM = newServiceFSM(s, loader, log)
+
+				return s
+			}(),
+			expectedState: Restarting,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c.HandleRestarting(ctx, tt.service)
+
+			if tt.service != nil && tt.expectedState != "" {
+				assert.Equal(t, tt.expectedState, tt.service.FSM.Current())
+			}
+		})
+	}
+}
+
+func Test_Controller_HandleStopped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	noopCmd := bus.NoOp()
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	log := setupTestLogger(ctrl)
 	c := NewController(noopCmd)
 	ctx := context.Background()
 
@@ -484,7 +641,7 @@ func Test_Controller_HandleStopped(t *testing.T) {
 			name: "FSM in stopping state - transitions to stopped",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
 				_ = s.FSM.Event(ctx, Stop)
@@ -499,7 +656,7 @@ func Test_Controller_HandleStopped(t *testing.T) {
 			name: "FSM in restarting state - returns true",
 			service: func() *ServiceState {
 				s := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
-				s.FSM = newServiceFSM(s, loader)
+				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
 				_ = s.FSM.Event(ctx, Restart)

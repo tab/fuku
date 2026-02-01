@@ -28,6 +28,8 @@ var (
 	ErrProcessExited            = errors.New("process exited before readiness")
 	ErrInvalidRegexPattern      = errors.New("invalid regex pattern")
 
+	ErrWatchIncludeRequired = errors.New("watch configuration requires include field")
+
 	ErrFailedToGetWorkingDir = errors.New("failed to get working directory")
 	ErrFailedToCreatePipe    = errors.New("failed to create pipe")
 	ErrFailedToStartCommand  = errors.New("failed to start command")
@@ -38,6 +40,7 @@ var (
 	ErrFailedToAcquireWorker    = errors.New("failed to acquire worker")
 	ErrMaxRetriesExceeded       = errors.New("max retry attempts exceeded")
 	ErrFailedToTerminateProcess = errors.New("failed to terminate process")
+	ErrUnexpectedExit           = errors.New("process exited")
 
 	ErrFailedToConnectSocket    = errors.New("failed to connect to socket")
 	ErrFailedToListenSocket     = errors.New("failed to listen on socket")

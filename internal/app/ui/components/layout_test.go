@@ -182,77 +182,6 @@ func Test_TruncateAndPad_EdgeCases(t *testing.T) {
 	})
 }
 
-func Test_Truncate(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		maxWidth int
-		expect   string
-	}{
-		{
-			name:     "within width no truncation",
-			input:    "hello",
-			maxWidth: 10,
-			expect:   "hello",
-		},
-		{
-			name:     "exact width no truncation",
-			input:    "hello",
-			maxWidth: 5,
-			expect:   "hello",
-		},
-		{
-			name:     "exceeds width truncates",
-			input:    "hello world",
-			maxWidth: 8,
-			expect:   "hello w…",
-		},
-		{
-			name:     "empty string no change",
-			input:    "",
-			maxWidth: 5,
-			expect:   "",
-		},
-		{
-			name:     "width 1 returns ellipsis",
-			input:    "hello",
-			maxWidth: 1,
-			expect:   "…",
-		},
-		{
-			name:     "width 0 returns ellipsis",
-			input:    "hello",
-			maxWidth: 0,
-			expect:   "…",
-		},
-		{
-			name:     "unicode truncation",
-			input:    "日本語テスト",
-			maxWidth: 7,
-			expect:   "日本語…",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := Truncate(tt.input, tt.maxWidth)
-			assert.Equal(t, tt.expect, result)
-		})
-	}
-}
-
-func Test_Truncate_EdgeCases(t *testing.T) {
-	t.Run("negative width returns ellipsis", func(t *testing.T) {
-		result := Truncate("hello", -1)
-		assert.Equal(t, "…", result)
-	})
-
-	t.Run("single wide character exceeds width", func(t *testing.T) {
-		result := Truncate("日", 1)
-		assert.Equal(t, "…", result)
-	})
-}
-
 func Test_buildTopBorder(t *testing.T) {
 	border := func(s string) string { return s }
 
@@ -278,23 +207,33 @@ func Test_buildTopBorder(t *testing.T) {
 func Test_buildBottomBorder(t *testing.T) {
 	border := func(s string) string { return s }
 
-	t.Run("builds bottom border", func(t *testing.T) {
-		result := buildBottomBorder(border, "v1.0", 40)
+	t.Run("builds bottom border with version only", func(t *testing.T) {
+		result := buildBottomBorder(border, "", "v1.0", 40)
 
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, BorderBottomLeft)
 		assert.Contains(t, result, BorderBottomRight)
 	})
 
+	t.Run("builds bottom border with info and version", func(t *testing.T) {
+		result := buildBottomBorder(border, "cpu 0.5% mem 12MB", "v1.0", 60)
+
+		assert.NotEmpty(t, result)
+		assert.Contains(t, result, BorderBottomLeft)
+		assert.Contains(t, result, BorderBottomRight)
+		assert.Contains(t, result, "cpu 0.5% mem 12MB")
+		assert.Contains(t, result, "v1.0")
+	})
+
 	t.Run("handles minimum width", func(t *testing.T) {
-		result := buildBottomBorder(border, "very-long-version-text", 10)
+		result := buildBottomBorder(border, "", "very-long-version-text", 10)
 
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, BorderBottomLeft)
 	})
 
 	t.Run("handles empty text", func(t *testing.T) {
-		result := buildBottomBorder(border, "", 20)
+		result := buildBottomBorder(border, "", "", 20)
 
 		assert.NotEmpty(t, result)
 	})

@@ -51,3 +51,8 @@ const (
 	SocketDialTimeout    = 100 * time.Millisecond
 	SocketLogsBufferSize = 100
 )
+
+// Watch settings
+const (
+	WatchDebounce = 500 * time.Millisecond
+)

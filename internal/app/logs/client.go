@@ -110,7 +110,7 @@ func (c *client) Close() error {
 // FindSocket finds the socket for a running fuku instance in the given directory
 func FindSocket(socketDir, profile string) (string, error) {
 	if profile != "" {
-		socketPath := filepath.Join(socketDir, config.SocketPrefix+profile+config.SocketSuffix)
+		socketPath := SocketPathForProfile(socketDir, profile)
 		if _, err := os.Stat(socketPath); err == nil {
 			return socketPath, nil
 		}

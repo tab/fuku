@@ -75,8 +75,6 @@ func TestGetStats_ContextTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
 
-	time.Sleep(1 * time.Millisecond)
-
 	stats, err := m.GetStats(ctx, os.Getpid())
 	if err != nil {
 		assert.Error(t, err)

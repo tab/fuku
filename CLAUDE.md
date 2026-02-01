@@ -21,11 +21,17 @@
 
 2. **Core Packages** (`internal/`)
    - **app/** - Main application container and lifecycle management
+   - **app/bus/** - Unified pub/sub messaging for events and commands
    - **app/cli/** - Command-line interface parsing and command handling
+   - **app/discovery/** - Profile resolution to tiers and services
+   - **app/lifecycle/** - Process termination with SIGTERM/SIGKILL handling
    - **app/logs/** - Log streaming via Unix sockets (server, hub, client, formatter)
-   - **app/runner/** - Service orchestration, process management, and tier-based startup ordering
-   - **app/runtime/** - Event and command buses for pub/sub communication
+   - **app/process/** - Process interface and handle implementation
+   - **app/readiness/** - HTTP and log-based health checks
+   - **app/registry/** - Running process tracking with detach support
+   - **app/runner/** - Service orchestration and startup coordination
    - **app/ui/services/** - Interactive TUI with Bubble Tea framework
+   - **app/watcher/** - File change detection with debouncing for hot-reload
    - **config/** - Configuration loading, parsing, and data structures
    - **errors/** - Application-specific error definitions
 
@@ -47,32 +53,23 @@
 
 3. **logger.Logger** - Structured logging interface using zerolog
 
-4. **runtime.EventBus** - Pub/sub event bus for runtime events:
+4. **bus.Bus** - Unified pub/sub messaging for events and commands:
    ```go
-   type EventBus interface {
-       Subscribe(ctx context.Context) <-chan Event
-       Publish(event Event)
+   type Bus interface {
+       Subscribe(ctx context.Context) <-chan Message
+       Publish(msg Message)
        Close()
    }
    ```
 
-5. **runtime.CommandBus** - Pub/sub command bus for service control:
-   ```go
-   type CommandBus interface {
-       Subscribe(ctx context.Context) <-chan Command
-       Publish(cmd Command)
-       Close()
-   }
-   ```
-
-6. **logs.Runner** - Log streaming mode runner:
+5. **logs.Runner** - Log streaming mode runner:
    ```go
    type Runner interface {
        Run(profile string, services []string) int
    }
    ```
 
-7. **logs.Client** - Unix socket client for log streaming:
+6. **logs.Client** - Unix socket client for log streaming:
    ```go
    type Client interface {
        Connect(socketPath string) error
@@ -205,18 +202,6 @@
      }
      ```
 
-4. **Test Coverage**
-   - CLI command parsing and execution: ~57.6%
-   - Service tier ordering: ~69.7%
-   - Main application entry point: ~66.7%
-   - Application container lifecycle: ~58.3%
-   - Configuration loading: ~96.2%
-   - Logger implementation: ~30.3%
-   - Runtime event/command buses: ~76.6%
-   - TUI services package: ~50.7%
-   - Error handling and edge cases
-   - Mock-based isolation testing
-
 ### Current Test Files
 - `cmd/main_test.go` - Tests for entry point functions and FX application creation
 - `internal/app/app_test.go` - Application container and lifecycle testing
@@ -248,6 +233,33 @@
 - prefer simple and focused solutions that are easy to understand, maintain and test.
 - use table-driven tests ONLY when testing multiple scenarios with different inputs/outputs; for single test cases, use plain test functions instead of table tests with one entry
 - table tests are appropriate when you have 2+ test cases with meaningful variations in input/output/behavior
+- don't overthink solutions - implement the simplest thing that works, then iterate if needed
+
+## Architecture Guidelines
+
+### Dependency Injection with FX
+- **always use Uber FX for dependency injection** - this is non-negotiable
+- all components must be wired through FX modules (fx.Provide, fx.Invoke)
+- never instantiate dependencies manually in application code; let FX handle the wiring
+- use FX lifecycle hooks (fx.OnStart, fx.OnStop) for component initialization and cleanup
+
+### Interfaces and Mocks
+- **always define interfaces for dependencies** - this is required for FX injection and testability
+- interfaces should be defined on the consumer side (idiomatic Go)
+- **always generate mocks for interfaces** using `go.uber.org/mock`:
+  ```bash
+  mockgen -source=internal/path/to/file.go -destination=internal/path/to/file_mock.go -package=packagename
+  ```
+- every interface should have a corresponding mock file for testing
+- mocks are stored alongside source files (e.g., `foo.go` → `foo_mock.go`)
+
+### Keep It Simple
+- **do not create abstractions unless they are needed** - YAGNI (You Aren't Gonna Need It)
+- **never use the Factory pattern** - we always have exactly one implementation per interface, so factories add unnecessary indirection
+- one interface = one implementation = one mock (for testing)
+- if you're tempted to add a factory, abstract base class, or generalization - stop and ask if it's actually needed right now
+- prefer concrete, straightforward code over clever abstractions
+- don't build for hypothetical future requirements; solve the current problem
 
 ## Build, Lint and Test Commands
 

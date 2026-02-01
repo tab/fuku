@@ -337,6 +337,19 @@ func Test_ApplyDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "service without watch config not affected",
+			config: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api"},
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api"},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -869,6 +882,166 @@ func Test_NormalizeTier(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := normalizeTier(tt.tier)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_ValidateWatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		watch       *Watch
+		expectError bool
+		expectedErr error
+	}{
+		{
+			name:        "nil watch is valid",
+			watch:       nil,
+			expectError: false,
+		},
+		{
+			name: "watch with include is valid",
+			watch: &Watch{
+				Include: []string{"**/*.go"},
+			},
+			expectError: false,
+		},
+		{
+			name: "watch with include and ignore is valid",
+			watch: &Watch{
+				Include: []string{"**/*.go", "**/*.yaml"},
+				Ignore:  []string{"*_test.go", "vendor/**"},
+			},
+			expectError: false,
+		},
+		{
+			name: "watch with include ignore and shared is valid",
+			watch: &Watch{
+				Include: []string{"**/*.go"},
+				Ignore:  []string{"*_test.go"},
+				Shared:  []string{"pkg/common", "pkg/models"},
+			},
+			expectError: false,
+		},
+		{
+			name: "watch with empty include",
+			watch: &Watch{
+				Include: []string{},
+			},
+			expectError: true,
+			expectedErr: errors.ErrWatchIncludeRequired,
+		},
+		{
+			name: "watch without include field",
+			watch: &Watch{
+				Ignore: []string{"*_test.go"},
+			},
+			expectError: true,
+			expectedErr: errors.ErrWatchIncludeRequired,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &Service{Watch: tt.watch}
+			err := service.validateWatch()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_LoadWatchConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		yaml          string
+		expectedWatch map[string]*Watch
+		expectError   bool
+	}{
+		{
+			name: "service with watch config",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    watch:
+      include: ["**/*.go"]
+      ignore: ["*_test.go"]`,
+			expectedWatch: map[string]*Watch{
+				"api": {
+					Include: []string{"**/*.go"},
+					Ignore:  []string{"*_test.go"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "service with watch config and shared dirs",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    watch:
+      include: ["**/*.go"]
+      ignore: ["*_test.go"]
+      shared: ["pkg/common", "pkg/models"]`,
+			expectedWatch: map[string]*Watch{
+				"api": {
+					Include: []string{"**/*.go"},
+					Ignore:  []string{"*_test.go"},
+					Shared:  []string{"pkg/common", "pkg/models"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "service without watch config",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api`,
+			expectedWatch: map[string]*Watch{
+				"api": nil,
+			},
+			expectError: false,
+		},
+		{
+			name: "service with watch but empty include",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    watch:
+      include: []`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove("fuku.yaml")
+
+			cfg, _, err := Load()
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+
+				for name, expectedWatch := range tt.expectedWatch {
+					service, ok := cfg.Services[name]
+					assert.True(t, ok)
+					assert.Equal(t, expectedWatch, service.Watch)
+				}
+			}
 		})
 	}
 }
