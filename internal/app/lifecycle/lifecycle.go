@@ -22,8 +22,8 @@ type lifecycle struct {
 	log logger.Logger
 }
 
-// New creates a new Lifecycle instance
-func New(log logger.Logger) Lifecycle {
+// NewLifecycle creates a new Lifecycle instance
+func NewLifecycle(log logger.Logger) Lifecycle {
 	return &lifecycle{log: log.WithComponent("LIFECYCLE")}
 }
 

@@ -45,8 +45,8 @@ type proc struct {
 	stderrReader *io.PipeReader
 }
 
-// New creates a new Process instance and returns a Handle for lifecycle control
-func New(p Params) *Handle {
+// NewProcess creates a new Process instance and returns a Handle for lifecycle control
+func NewProcess(p Params) *Handle {
 	done := make(chan struct{})
 	process := &proc{
 		name:         p.Name,

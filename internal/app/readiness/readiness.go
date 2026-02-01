@@ -27,8 +27,8 @@ type readiness struct {
 	log logger.Logger
 }
 
-// New creates a new readiness checker instance
-func New(log logger.Logger) Readiness {
+// NewReadiness creates a new readiness checker instance
+func NewReadiness(log logger.Logger) Readiness {
 	return &readiness{
 		log: log.WithComponent("READINESS"),
 	}

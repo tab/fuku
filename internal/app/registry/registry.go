@@ -50,8 +50,8 @@ type registry struct {
 	nextOrder int
 }
 
-// New creates a new process registry
-func New() Registry {
+// NewRegistry creates a new process registry
+func NewRegistry() Registry {
 	return &registry{
 		processes: make(map[string]*entry),
 		detached:  make(map[string]*entry),

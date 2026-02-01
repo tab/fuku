@@ -21,7 +21,7 @@ func Test_New(t *testing.T) {
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
 
-	lc := New(mockLogger)
+	lc := NewLifecycle(mockLogger)
 
 	assert.NotNil(t, lc)
 	instance, ok := lc.(*lifecycle)
@@ -37,7 +37,7 @@ func Test_Configure(t *testing.T) {
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
 
-	lc := New(mockLogger)
+	lc := NewLifecycle(mockLogger)
 
 	cmd := exec.Command("echo", "test")
 	assert.Nil(t, cmd.SysProcAttr)
@@ -56,7 +56,7 @@ func Test_Terminate_NilProcess(t *testing.T) {
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("LIFECYCLE").Return(componentLogger)
 
-	lc := New(mockLogger)
+	lc := NewLifecycle(mockLogger)
 
 	mockProcess := process.NewMockProcess(ctrl)
 	mockCmd := &exec.Cmd{Process: nil}
@@ -76,7 +76,7 @@ func Test_Terminate_ProcessExitsGracefully(t *testing.T) {
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
-	lc := New(mockLogger)
+	lc := NewLifecycle(mockLogger)
 
 	cmd := exec.Command("sleep", "10")
 
@@ -117,7 +117,7 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
-	lc := New(mockLogger)
+	lc := NewLifecycle(mockLogger)
 
 	cmd := exec.Command("sh", "-c", "trap '' TERM INT; echo ready; sleep 60")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -171,7 +171,7 @@ func Test_Terminate_SignalGroupFailsFallbackToDirectSignal(t *testing.T) {
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 
-	lc := New(mockLogger)
+	lc := NewLifecycle(mockLogger)
 
 	cmd := exec.Command("sleep", "10")
 
@@ -207,7 +207,7 @@ func Test_Terminate_ProcessAlreadyExited(t *testing.T) {
 	componentLogger.EXPECT().Warn().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
-	lc := New(mockLogger)
+	lc := NewLifecycle(mockLogger)
 
 	cmd := exec.Command("true")
 

@@ -11,12 +11,12 @@ import (
 
 // Module provides the runner and its dependencies
 var Module = fx.Options(
+	discovery.Module,
+	lifecycle.Module,
+	readiness.Module,
+	registry.Module,
 	fx.Provide(
-		discovery.New,
 		NewGuard,
-		lifecycle.New,
-		readiness.New,
-		registry.New,
 		NewWorkerPool,
 		NewService,
 		NewRunner,

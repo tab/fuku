@@ -13,7 +13,7 @@ import (
 )
 
 func Test_New(t *testing.T) {
-	r := New()
+	r := NewRegistry()
 	assert.NotNil(t, r)
 
 	instance, ok := r.(*registry)
@@ -28,7 +28,7 @@ func Test_Registry_Add(t *testing.T) {
 
 	mockProc := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("test-service", mockProc, "default")
 
 	lookup := reg.Get("test-service")
@@ -39,7 +39,7 @@ func Test_Registry_Add(t *testing.T) {
 }
 
 func Test_Registry_Get_NotFound(t *testing.T) {
-	reg := New()
+	reg := NewRegistry()
 
 	lookup := reg.Get("nonexistent")
 	assert.False(t, lookup.Exists)
@@ -53,7 +53,7 @@ func Test_Registry_Snapshot(t *testing.T) {
 	mockProc1 := process.NewMockProcess(ctrl)
 	mockProc2 := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("service1", mockProc1, "default")
 	reg.Add("service2", mockProc2, "default")
 
@@ -67,7 +67,7 @@ func Test_Registry_Remove_FromProcesses(t *testing.T) {
 
 	mockProc := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("test-service", mockProc, "platform")
 
 	lookup := reg.Get("test-service")
@@ -88,7 +88,7 @@ func Test_Registry_Remove_FromDetached(t *testing.T) {
 
 	mockProc := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("test-service", mockProc, "platform")
 	reg.Detach("test-service")
 
@@ -102,7 +102,7 @@ func Test_Registry_Remove_FromDetached(t *testing.T) {
 }
 
 func Test_Registry_Remove_Nonexistent(t *testing.T) {
-	reg := New()
+	reg := NewRegistry()
 
 	result := reg.Remove("nonexistent", nil)
 	assert.False(t, result.Removed)
@@ -116,7 +116,7 @@ func Test_Registry_Remove_WrongProcess(t *testing.T) {
 	mockProc1 := process.NewMockProcess(ctrl)
 	mockProc2 := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("test-service", mockProc1, "default")
 
 	result := reg.Remove("test-service", mockProc2)
@@ -133,7 +133,7 @@ func Test_Registry_Wait(t *testing.T) {
 	mockProc1 := process.NewMockProcess(ctrl)
 	mockProc2 := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("service1", mockProc1, "default")
 	reg.Add("service2", mockProc2, "default")
 
@@ -164,7 +164,7 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	reg := New()
+	reg := NewRegistry()
 	numServices := 10
 	procs := make([]process.Process, numServices)
 
@@ -232,7 +232,7 @@ func Test_Registry_Detach_RemovesFromMap(t *testing.T) {
 
 	mockProc := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("test-service", mockProc, "default")
 
 	reg.Detach("test-service")
@@ -243,7 +243,7 @@ func Test_Registry_Detach_RemovesFromMap(t *testing.T) {
 }
 
 func Test_Registry_Detach_Nonexistent(t *testing.T) {
-	reg := New()
+	reg := NewRegistry()
 	reg.Detach("nonexistent")
 }
 
@@ -254,7 +254,7 @@ func Test_Registry_Remove_ChecksPointerIdentity(t *testing.T) {
 	mockProc1 := process.NewMockProcess(ctrl)
 	mockProc2 := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("test-service", mockProc1, "default")
 
 	reg.Detach("test-service")
@@ -275,7 +275,7 @@ func Test_Registry_RestartRaceCondition(t *testing.T) {
 	oldProc := process.NewMockProcess(ctrl)
 	newProc := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("test-service", oldProc, "default")
 
 	reg.Detach("test-service")
@@ -297,7 +297,7 @@ func Test_Registry_SnapshotReverse_IncludesDetached(t *testing.T) {
 	mockProc1 := process.NewMockProcess(ctrl)
 	mockProc2 := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("service1", mockProc1, "default")
 	reg.Add("service2", mockProc2, "default")
 	reg.Detach("service1")
@@ -316,7 +316,7 @@ func Test_Registry_SnapshotReverse_ReturnsReverseOrder(t *testing.T) {
 	mockProc2 := process.NewMockProcess(ctrl)
 	mockProc3 := process.NewMockProcess(ctrl)
 
-	reg := New()
+	reg := NewRegistry()
 	reg.Add("service1", mockProc1, "default")
 	reg.Add("service2", mockProc2, "default")
 	reg.Add("service3", mockProc3, "default")

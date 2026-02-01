@@ -14,7 +14,7 @@ func Test_New(t *testing.T) {
 	stdoutReader, _ := io.Pipe()
 	stderrReader, _ := io.Pipe()
 
-	handle := New(Params{
+	handle := NewProcess(Params{
 		Name:         "test-service",
 		Cmd:          cmd,
 		StdoutReader: stdoutReader,
@@ -29,14 +29,14 @@ func Test_New(t *testing.T) {
 }
 
 func Test_Name(t *testing.T) {
-	handle := New(Params{Name: "test-service"})
+	handle := NewProcess(Params{Name: "test-service"})
 
 	assert.Equal(t, "test-service", handle.Name())
 }
 
 func Test_Cmd(t *testing.T) {
 	expectedCmd := exec.Command("make", "run")
-	handle := New(Params{
+	handle := NewProcess(Params{
 		Name: "test-service",
 		Cmd:  expectedCmd,
 	})
@@ -45,7 +45,7 @@ func Test_Cmd(t *testing.T) {
 }
 
 func Test_Done(t *testing.T) {
-	handle := New(Params{Name: "test-service"})
+	handle := NewProcess(Params{Name: "test-service"})
 
 	doneChan := handle.Done()
 	assert.NotNil(t, doneChan)
@@ -59,7 +59,7 @@ func Test_Done(t *testing.T) {
 }
 
 func Test_Ready(t *testing.T) {
-	handle := New(Params{Name: "test-service"})
+	handle := NewProcess(Params{Name: "test-service"})
 
 	readyChan := handle.Ready()
 	assert.NotNil(t, readyChan)
@@ -98,7 +98,7 @@ func Test_SignalReady(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handle := New(Params{Name: "test-service"})
+			handle := NewProcess(Params{Name: "test-service"})
 
 			handle.SignalReady(tt.err)
 
@@ -125,7 +125,7 @@ func Test_StdoutReader(t *testing.T) {
 	reader, writer := io.Pipe()
 	defer writer.Close()
 
-	handle := New(Params{
+	handle := NewProcess(Params{
 		Name:         "test-service",
 		StdoutReader: reader,
 	})
@@ -137,7 +137,7 @@ func Test_StderrReader(t *testing.T) {
 	reader, writer := io.Pipe()
 	defer writer.Close()
 
-	handle := New(Params{
+	handle := NewProcess(Params{
 		Name:         "test-service",
 		StderrReader: reader,
 	})
@@ -146,7 +146,7 @@ func Test_StderrReader(t *testing.T) {
 }
 
 func Test_Handle_Close(t *testing.T) {
-	handle := New(Params{Name: "test-service"})
+	handle := NewProcess(Params{Name: "test-service"})
 
 	handle.Close()
 

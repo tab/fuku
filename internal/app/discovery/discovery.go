@@ -25,8 +25,8 @@ type discovery struct {
 	topology *config.Topology
 }
 
-// New creates a new service discovery instance
-func New(cfg *config.Config, topology *config.Topology) Discovery {
+// NewDiscovery creates a new service discovery instance
+func NewDiscovery(cfg *config.Config, topology *config.Topology) Discovery {
 	return &discovery{
 		cfg:      cfg,
 		topology: topology,

@@ -357,7 +357,7 @@ func Test_SetupReadinessCheck_NoReadiness(t *testing.T) {
 	defer stderr.Close()
 	defer stderrWriter.Close()
 
-	proc := process.New(process.Params{
+	proc := process.NewProcess(process.Params{
 		Name:         "test-service",
 		StdoutReader: stdout,
 		StderrReader: stderr,
@@ -406,7 +406,7 @@ func Test_SetupReadinessCheck_HTTPReadiness(t *testing.T) {
 	defer stderr.Close()
 	defer stderrWriter.Close()
 
-	proc := process.New(process.Params{
+	proc := process.NewProcess(process.Params{
 		Name:         "test-service",
 		StdoutReader: stdout,
 		StderrReader: stderr,
@@ -457,7 +457,7 @@ func Test_SetupReadinessCheck_LogReadiness(t *testing.T) {
 	defer stderr.Close()
 	defer stderrWriter.Close()
 
-	proc := process.New(process.Params{
+	proc := process.NewProcess(process.Params{
 		Name:         "test-service",
 		StdoutReader: stdout,
 		StderrReader: stderr,
@@ -495,7 +495,7 @@ func Test_SetupReadinessCheck_UnknownType(t *testing.T) {
 	defer stderr.Close()
 	defer stderrWriter.Close()
 
-	proc := process.New(process.Params{
+	proc := process.NewProcess(process.Params{
 		Name:         "test-service",
 		StdoutReader: stdout,
 		StderrReader: stderr,

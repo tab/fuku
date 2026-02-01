@@ -298,7 +298,7 @@ func (s *service) setupStreams(name string, cmd *exec.Cmd, stdoutPipe, stderrPip
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
 
-	proc := process.New(process.Params{
+	proc := process.NewProcess(process.Params{
 		Name:         name,
 		Cmd:          cmd,
 		StdoutReader: stdoutReader,
