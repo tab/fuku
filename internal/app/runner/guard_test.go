@@ -18,7 +18,6 @@ func Test_Guard_Lock_Success(t *testing.T) {
 	result := g.Lock("test-service")
 
 	assert.True(t, result)
-	assert.True(t, g.IsLocked("test-service"))
 }
 
 func Test_Guard_Lock_AlreadyLocked(t *testing.T) {
@@ -29,47 +28,37 @@ func Test_Guard_Lock_AlreadyLocked(t *testing.T) {
 
 	second := g.Lock("test-service")
 	assert.False(t, second)
-	assert.True(t, g.IsLocked("test-service"))
 }
 
-func Test_Guard_Unlock(t *testing.T) {
+func Test_Guard_Unlock_AllowsRelock(t *testing.T) {
 	g := NewGuard()
 
 	g.Lock("test-service")
-	assert.True(t, g.IsLocked("test-service"))
-
 	g.Unlock("test-service")
-	assert.False(t, g.IsLocked("test-service"))
+
+	result := g.Lock("test-service")
+	assert.True(t, result)
 }
 
 func Test_Guard_Unlock_NotLocked(t *testing.T) {
 	g := NewGuard()
 
 	g.Unlock("test-service")
-	assert.False(t, g.IsLocked("test-service"))
-}
 
-func Test_Guard_IsLocked_DefaultsFalse(t *testing.T) {
-	g := NewGuard()
-
-	locked := g.IsLocked("new-service")
-
-	assert.False(t, locked)
+	result := g.Lock("test-service")
+	assert.True(t, result)
 }
 
 func Test_Guard_IndependentServices(t *testing.T) {
 	g := NewGuard()
 
-	g.Lock("service-a")
-	g.Lock("service-b")
-
-	assert.True(t, g.IsLocked("service-a"))
-	assert.True(t, g.IsLocked("service-b"))
+	assert.True(t, g.Lock("service-a"))
+	assert.True(t, g.Lock("service-b"))
 
 	g.Unlock("service-a")
 
-	assert.False(t, g.IsLocked("service-a"))
-	assert.True(t, g.IsLocked("service-b"))
+	assert.True(t, g.Lock("service-a"))
+	assert.False(t, g.Lock("service-b"))
 }
 
 func Test_Guard_CanLockAfterUnlock(t *testing.T) {
@@ -79,5 +68,4 @@ func Test_Guard_CanLockAfterUnlock(t *testing.T) {
 	g.Unlock("test-service")
 
 	assert.True(t, g.Lock("test-service"))
-	assert.True(t, g.IsLocked("test-service"))
 }

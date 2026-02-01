@@ -16,9 +16,9 @@ var Module = fx.Options(
 		NewGuard,
 		lifecycle.New,
 		readiness.New,
-		NewService,
-		NewRunner,
 		registry.New,
 		NewWorkerPool,
+		NewService,
+		NewRunner,
 	),
 )

@@ -8,7 +8,6 @@ import (
 type Guard interface {
 	Lock(name string) bool
 	Unlock(name string)
-	IsLocked(name string) bool
 }
 
 // guard implements Guard interface
@@ -44,12 +43,4 @@ func (g *guard) Unlock(name string) {
 	defer g.mu.Unlock()
 
 	delete(g.active, name)
-}
-
-// IsLocked returns whether a service is currently locked
-func (g *guard) IsLocked(name string) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	return g.active[name]
 }

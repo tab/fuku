@@ -11,8 +11,6 @@ package runner
 
 import (
 	context "context"
-	process "fuku/internal/app/process"
-	config "fuku/internal/config"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -42,31 +40,40 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
 }
 
-// Start mocks base method.
-func (m *MockService) Start(ctx context.Context, name string, service *config.Service) (process.Process, error) {
+// Restart mocks base method.
+func (m *MockService) Restart(ctx context.Context, name string) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", ctx, name, service)
-	ret0, _ := ret[0].(process.Process)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	m.ctrl.Call(m, "Restart", ctx, name)
 }
 
-// Start indicates an expected call of Start.
-func (mr *MockServiceMockRecorder) Start(ctx, name, service any) *gomock.Call {
+// Restart indicates an expected call of Restart.
+func (mr *MockServiceMockRecorder) Restart(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockService)(nil).Start), ctx, name, service)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockService)(nil).Restart), ctx, name)
 }
 
-// Stop mocks base method.
-func (m *MockService) Stop(proc process.Process) error {
+// Start mocks base method.
+func (m *MockService) Start(ctx context.Context, name, tier string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop", proc)
+	ret := m.ctrl.Call(m, "Start", ctx, name, tier)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Stop indicates an expected call of Stop.
-func (mr *MockServiceMockRecorder) Stop(proc any) *gomock.Call {
+// Start indicates an expected call of Start.
+func (mr *MockServiceMockRecorder) Start(ctx, name, tier any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockService)(nil).Stop), proc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockService)(nil).Start), ctx, name, tier)
+}
+
+// Stop mocks base method.
+func (m *MockService) Stop(name string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop", name)
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockServiceMockRecorder) Stop(name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockService)(nil).Stop), name)
 }

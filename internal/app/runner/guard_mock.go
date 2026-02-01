@@ -39,20 +39,6 @@ func (m *MockGuard) EXPECT() *MockGuardMockRecorder {
 	return m.recorder
 }
 
-// IsLocked mocks base method.
-func (m *MockGuard) IsLocked(name string) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsLocked", name)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsLocked indicates an expected call of IsLocked.
-func (mr *MockGuardMockRecorder) IsLocked(name any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLocked", reflect.TypeOf((*MockGuard)(nil).IsLocked), name)
-}
-
 // Lock mocks base method.
 func (m *MockGuard) Lock(name string) bool {
 	m.ctrl.T.Helper()
