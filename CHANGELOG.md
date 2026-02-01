@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## v0.11.0
+
+### Features
+- **feat:** Add file watcher with hot-reload support for automatic service restart on file changes
+- **feat:** Add TCP readiness check for service health monitoring
+- **feat:** Add port pre-flight check to detect port conflicts before starting services
+
+### Fixes
+- **fix:** Make restartService call asynchronous to prevent blocking
+- **fix:** Fix error messages display in TUI
+
+### Refactor
+- **refactor:** Refactor app packages organization
+
+### Chore
+- **chore:** Add test:race target for race detection
+- **chore:** Update examples with simple Go services
+
+### Documentation
+- **docs:** Update architecture diagrams and documentation
+
 ## v0.10.0
 
 ### Features

@@ -27,7 +27,7 @@
    - **app/lifecycle/** - Process termination with SIGTERM/SIGKILL handling
    - **app/logs/** - Log streaming via Unix sockets (server, hub, client, formatter)
    - **app/process/** - Process interface and handle implementation
-   - **app/readiness/** - HTTP and log-based health checks
+   - **app/readiness/** - HTTP, TCP, and log-based health checks
    - **app/registry/** - Running process tracking with detach support
    - **app/runner/** - Service orchestration and startup coordination
    - **app/ui/services/** - Interactive TUI with Bubble Tea framework
@@ -142,6 +142,12 @@
 6. **Log Streaming Configuration**
    - Buffer size (`logs.buffer`, default: 100)
    - Controls socket log streaming buffer
+
+7. **Watch Configuration (Hot-Reload)**
+   - Per-service file watching with glob patterns (`watch.include`)
+   - Ignore patterns for files to exclude (`watch.ignore`)
+   - Shared paths for cross-service dependencies (`watch.shared`)
+   - Debounce duration to prevent restart storms (`watch.debounce`)
 
 ### Testing Patterns
 
