@@ -226,7 +226,7 @@ func Test_simplifyErrorMessage(t *testing.T) {
 		{
 			name:     "service not found",
 			err:      errors.ErrServiceNotFound,
-			expected: "not found",
+			expected: "service not found",
 		},
 		{
 			name:     "service directory not exist",
@@ -256,7 +256,7 @@ func Test_simplifyErrorMessage(t *testing.T) {
 		{
 			name:     "deeply wrapped error",
 			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", errors.ErrServiceNotFound)),
-			expected: "not found",
+			expected: "service not found",
 		},
 	}
 

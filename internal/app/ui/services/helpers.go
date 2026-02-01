@@ -24,7 +24,7 @@ func simplifyErrorMessage(err error) string {
 	case errors.Is(err, errors.ErrFailedToStartCommand):
 		return "failed to start"
 	case errors.Is(err, errors.ErrServiceNotFound):
-		return "not found"
+		return "service not found"
 	case errors.Is(err, errors.ErrServiceDirectoryNotExist):
 		return "directory not found"
 	default:
