@@ -571,38 +571,6 @@ func Test_ValidateReadiness(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "http type with url is valid",
-			readiness: &Readiness{
-				Type: TypeHTTP,
-				URL:  "http://localhost:8080",
-			},
-			expectError: false,
-		},
-		{
-			name: "log type with pattern is valid",
-			readiness: &Readiness{
-				Type:    TypeLog,
-				Pattern: "Server started",
-			},
-			expectError: false,
-		},
-		{
-			name: "http type without url",
-			readiness: &Readiness{
-				Type: TypeHTTP,
-			},
-			expectError: true,
-			expectedErr: errors.ErrReadinessURLRequired,
-		},
-		{
-			name: "log type without pattern",
-			readiness: &Readiness{
-				Type: TypeLog,
-			},
-			expectError: true,
-			expectedErr: errors.ErrReadinessPatternRequired,
-		},
-		{
 			name: "empty type",
 			readiness: &Readiness{
 				Type: "",
@@ -626,6 +594,54 @@ func Test_ValidateReadiness(t *testing.T) {
 			},
 			expectError: true,
 			expectedErr: errors.ErrInvalidReadinessType,
+		},
+		{
+			name: "http type with url is valid",
+			readiness: &Readiness{
+				Type: TypeHTTP,
+				URL:  "http://localhost:8080",
+			},
+			expectError: false,
+		},
+		{
+			name: "http type without url",
+			readiness: &Readiness{
+				Type: TypeHTTP,
+			},
+			expectError: true,
+			expectedErr: errors.ErrReadinessURLRequired,
+		},
+		{
+			name: "tcp type with address is valid",
+			readiness: &Readiness{
+				Type:    TypeTCP,
+				Address: "localhost:9090",
+			},
+			expectError: false,
+		},
+		{
+			name: "tcp type without address",
+			readiness: &Readiness{
+				Type: TypeTCP,
+			},
+			expectError: true,
+			expectedErr: errors.ErrReadinessAddressRequired,
+		},
+		{
+			name: "log type with pattern is valid",
+			readiness: &Readiness{
+				Type:    TypeLog,
+				Pattern: "Server started",
+			},
+			expectError: false,
+		},
+		{
+			name: "log type without pattern",
+			readiness: &Readiness{
+				Type: TypeLog,
+			},
+			expectError: true,
+			expectedErr: errors.ErrReadinessPatternRequired,
 		},
 	}
 

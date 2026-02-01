@@ -55,6 +55,7 @@ type Service struct {
 // Readiness represents readiness check configuration for a service
 type Readiness struct {
 	Type     string        `yaml:"type"`
+	Address  string        `yaml:"address"`
 	URL      string        `yaml:"url"`
 	Pattern  string        `yaml:"pattern"`
 	Timeout  time.Duration `yaml:"timeout"`
@@ -340,6 +341,10 @@ func (s *Service) validateReadiness() error {
 		if r.URL == "" {
 			return errors.ErrReadinessURLRequired
 		}
+	case TypeTCP:
+		if r.Address == "" {
+			return errors.ErrReadinessAddressRequired
+		}
 	case TypeLog:
 		if r.Pattern == "" {
 			return errors.ErrReadinessPatternRequired
@@ -347,7 +352,7 @@ func (s *Service) validateReadiness() error {
 	case "":
 		return errors.ErrReadinessTypeRequired
 	default:
-		return fmt.Errorf("%w: '%s' (must be 'http' or 'log')", errors.ErrInvalidReadinessType, r.Type)
+		return fmt.Errorf("%w: '%s' (must be 'http', 'tcp', or 'log')", errors.ErrInvalidReadinessType, r.Type)
 	}
 
 	if r.Timeout == 0 {

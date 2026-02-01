@@ -337,7 +337,7 @@ func (s *service) setupReadinessCheck(ctx context.Context, name string, cfg *con
 	}
 
 	switch cfg.Readiness.Type {
-	case config.TypeHTTP:
+	case config.TypeHTTP, config.TypeTCP:
 		go drainPipe(stdout)
 		go drainPipe(stderr)
 

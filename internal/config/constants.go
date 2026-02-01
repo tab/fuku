@@ -27,6 +27,7 @@ const (
 // Readiness check types
 const (
 	TypeHTTP = "http"
+	TypeTCP  = "tcp"
 	TypeLog  = "log"
 )
 
