@@ -806,6 +806,11 @@ func Test_ExtractFromURL(t *testing.T) {
 			expected: "0.0.0.0:8080",
 		},
 		{
+			name:     "IPv6 address with port",
+			url:      "http://[::1]:8080/health",
+			expected: "[::1]:8080",
+		},
+		{
 			name:     "with username and password",
 			url:      "postgresql://user:password@localhost:5432/database",
 			expected: "localhost:5432",

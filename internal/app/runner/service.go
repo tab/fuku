@@ -511,7 +511,7 @@ func extractFromURL(rawURL string) string {
 		}
 	}
 
-	return host + ":" + port
+	return net.JoinHostPort(host, port)
 }
 
 // isWatched returns true if the service has watch configuration
