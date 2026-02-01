@@ -247,21 +247,36 @@ func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
 	_, err = conn.Write(data)
 	assert.NoError(t, err)
 
-	time.Sleep(50 * time.Millisecond)
-	s.Broadcast("api", "hello")
+	msgReceived := make(chan LogMessage, 1)
 
-	reader := bufio.NewReader(conn)
+	go func() {
+		reader := bufio.NewReader(conn)
 
-	line, err := reader.ReadBytes('\n')
-	assert.NoError(t, err)
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			return
+		}
 
-	var msg LogMessage
+		var msg LogMessage
+		if json.Unmarshal(line, &msg) == nil {
+			msgReceived <- msg
+		}
+	}()
 
-	err = json.Unmarshal(line, &msg)
-	assert.NoError(t, err)
-	assert.Equal(t, MessageLog, msg.Type)
-	assert.Equal(t, "api", msg.Service)
-	assert.Equal(t, "hello", msg.Message)
+	assert.Eventually(t, func() bool {
+		s.Broadcast("api", "hello")
+
+		select {
+		case msg := <-msgReceived:
+			assert.Equal(t, MessageLog, msg.Type)
+			assert.Equal(t, "api", msg.Service)
+			assert.Equal(t, "hello", msg.Message)
+
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
 
 	conn.Close()
 	cancel()
@@ -298,8 +313,6 @@ func Test_Server_handleConnection_InvalidSubscribeRequest(t *testing.T) {
 
 	_, err = conn.Write([]byte("invalid json\n"))
 	assert.NoError(t, err)
-
-	time.Sleep(50 * time.Millisecond)
 
 	conn.Close()
 	cancel()
@@ -340,8 +353,6 @@ func Test_Server_handleConnection_WrongMessageType(t *testing.T) {
 
 	_, err = conn.Write(data)
 	assert.NoError(t, err)
-
-	time.Sleep(50 * time.Millisecond)
 
 	conn.Close()
 	cancel()

@@ -83,6 +83,7 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	eventCh := b.Subscribe(ctx)
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -90,7 +91,8 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	// Wait for WatchStarted event instead of sleeping
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	m := w.(*manager)
 	m.mu.RLock()
@@ -139,6 +141,7 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	eventCh := b.Subscribe(ctx)
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -146,14 +149,14 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStopped,
 		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStopped)
 
 	m := w.(*manager)
 	m.mu.RLock()
@@ -188,7 +191,8 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 			"test-service": {
 				Dir: tmpDir,
 				Watch: &config.Watch{
-					Include: []string{"*.go", "**/*.go"},
+					Include:  []string{"*.go", "**/*.go"},
+					Debounce: 10 * time.Millisecond,
 				},
 			},
 		},
@@ -207,7 +211,6 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 	defer cancel()
 
 	eventCh := b.Subscribe(ctx)
-
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -215,16 +218,14 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(200 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	err = os.WriteFile(testFile, []byte("package main\n// modified"), 0644)
 	require.NoError(t, err)
 
-	var watchTriggered bool
-
 	timeout := time.After(3 * time.Second)
 
-	for !watchTriggered {
+	for {
 		select {
 		case event := <-eventCh:
 			if event.Type == bus.EventWatchTriggered {
@@ -233,7 +234,7 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 				assert.Equal(t, "test-service", data.Service)
 				assert.NotEmpty(t, data.ChangedFiles)
 
-				watchTriggered = true
+				return
 			}
 		case <-timeout:
 			t.Fatal("timeout waiting for watch event")
@@ -266,8 +267,9 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 			"test-service": {
 				Dir: tmpDir,
 				Watch: &config.Watch{
-					Include: []string{"*.go", "**/*.go"},
-					Ignore:  []string{"*_test.go"},
+					Include:  []string{"*.go", "**/*.go"},
+					Ignore:   []string{"*_test.go"},
+					Debounce: 10 * time.Millisecond,
 				},
 			},
 		},
@@ -286,7 +288,6 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 	defer cancel()
 
 	eventCh := b.Subscribe(ctx)
-
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -294,12 +295,13 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	err = os.WriteFile(testFile, []byte("package main\n// modified"), 0644)
 	require.NoError(t, err)
 
-	timeout := time.After(700 * time.Millisecond)
+	// Wait briefly and verify no WatchTriggered event
+	timeout := time.After(200 * time.Millisecond)
 
 	for {
 		select {
@@ -308,7 +310,7 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 				t.Fatal("should not receive event for ignored file")
 			}
 		case <-timeout:
-			return
+			return // Success - no event received
 		}
 	}
 }
@@ -337,7 +339,7 @@ func Test_Watcher_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	w.Close()
-	w.Close()
+	w.Close() // Should not panic on double close
 }
 
 func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
@@ -377,6 +379,7 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	eventCh := b.Subscribe(ctx)
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -384,14 +387,26 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "no-watch-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	// Wait briefly - no WatchStarted event should be published
+	timeout := time.After(100 * time.Millisecond)
 
-	m := w.(*manager)
-	m.mu.RLock()
-	_, exists := m.watchers["no-watch-service"]
-	m.mu.RUnlock()
+	for {
+		select {
+		case event := <-eventCh:
+			if event.Type == bus.EventWatchStarted {
+				t.Fatal("should not start watching service without watch config")
+			}
+		case <-timeout:
+			// Verify watcher was not registered
+			m := w.(*manager)
+			m.mu.RLock()
+			_, exists := m.watchers["no-watch-service"]
+			m.mu.RUnlock()
+			assert.False(t, exists, "watcher should not be registered for service without watch config")
 
-	assert.False(t, exists, "watcher should not be registered for service without watch config")
+			return
+		}
+	}
 }
 
 func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
@@ -434,7 +449,6 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 	defer cancel()
 
 	eventCh := b.Subscribe(ctx)
-
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -442,11 +456,9 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	var watchStarted bool
+	timeout := time.After(time.Second)
 
-	timeout := time.After(1 * time.Second)
-
-	for !watchStarted {
+	for {
 		select {
 		case event := <-eventCh:
 			if event.Type == bus.EventWatchStarted {
@@ -454,7 +466,7 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 				assert.True(t, ok)
 				assert.Equal(t, "test-service", data.Name)
 
-				watchStarted = true
+				return
 			}
 		case <-timeout:
 			t.Fatal("timeout waiting for watch started event")
@@ -502,7 +514,6 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 	defer cancel()
 
 	eventCh := b.Subscribe(ctx)
-
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -510,18 +521,16 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStopped,
 		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	var watchStopped bool
+	timeout := time.After(time.Second)
 
-	timeout := time.After(1 * time.Second)
-
-	for !watchStopped {
+	for {
 		select {
 		case event := <-eventCh:
 			if event.Type == bus.EventWatchStopped {
@@ -529,7 +538,7 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 				assert.True(t, ok)
 				assert.Equal(t, "test-service", data.Name)
 
-				watchStopped = true
+				return
 			}
 		case <-timeout:
 			t.Fatal("timeout waiting for watch stopped event")
@@ -583,6 +592,7 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	eventCh := b.Subscribe(ctx)
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -590,7 +600,7 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	m := w.(*manager)
 	m.mu.RLock()
@@ -632,8 +642,9 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 			"test-service": {
 				Dir: serviceDir,
 				Watch: &config.Watch{
-					Include: []string{"*.go", "**/*.go"},
-					Shared:  []string{sharedDir},
+					Include:  []string{"*.go", "**/*.go"},
+					Shared:   []string{sharedDir},
+					Debounce: 10 * time.Millisecond,
 				},
 			},
 		},
@@ -652,7 +663,6 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 	defer cancel()
 
 	eventCh := b.Subscribe(ctx)
-
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -660,16 +670,14 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(200 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	err = os.WriteFile(sharedFile, []byte("package shared\n// modified"), 0644)
 	require.NoError(t, err)
 
-	var watchTriggered bool
-
 	timeout := time.After(3 * time.Second)
 
-	for !watchTriggered {
+	for {
 		select {
 		case event := <-eventCh:
 			if event.Type == bus.EventWatchTriggered {
@@ -678,7 +686,7 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 				assert.Equal(t, "test-service", data.Service)
 				assert.NotEmpty(t, data.ChangedFiles)
 
-				watchTriggered = true
+				return
 			}
 		case <-timeout:
 			t.Fatal("timeout waiting for watch event from shared directory")
@@ -732,6 +740,7 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	eventCh := b.Subscribe(ctx)
 	w.Start(ctx)
 
 	b.Publish(bus.Message{
@@ -739,7 +748,7 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	m := w.(*manager)
 	m.mu.RLock()
@@ -793,5 +802,23 @@ func Test_normalizeSharedPath(t *testing.T) {
 			result := normalizeSharedPath(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+// waitForEvent waits for a specific event type with timeout
+func waitForEvent(t *testing.T, eventCh <-chan bus.Message, eventType bus.MessageType) {
+	t.Helper()
+
+	timer := time.After(time.Second)
+
+	for {
+		select {
+		case event := <-eventCh:
+			if event.Type == eventType {
+				return
+			}
+		case <-timer:
+			t.Fatalf("timeout waiting for event %s", eventType)
+		}
 	}
 }

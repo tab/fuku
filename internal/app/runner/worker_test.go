@@ -61,6 +61,9 @@ func Test_ConcurrentWorkers(t *testing.T) {
 		mu            sync.Mutex
 	)
 
+	workersStarted := make(chan struct{}, 10)
+	workersCanFinish := make(chan struct{})
+
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -82,7 +85,9 @@ func Test_ConcurrentWorkers(t *testing.T) {
 
 			mu.Unlock()
 
-			time.Sleep(10 * time.Millisecond)
+			workersStarted <- struct{}{}
+
+			<-workersCanFinish
 
 			mu.Lock()
 
@@ -92,6 +97,11 @@ func Test_ConcurrentWorkers(t *testing.T) {
 		}()
 	}
 
+	for i := 0; i < cfg.Concurrency.Workers; i++ {
+		<-workersStarted
+	}
+
+	close(workersCanFinish)
 	wg.Wait()
 
 	assert.Equal(t, 0, activeWorkers)
@@ -117,7 +127,6 @@ func Test_AcquireContextCancelled(t *testing.T) {
 		done <- pool.Acquire(ctx)
 	}()
 
-	time.Sleep(5 * time.Millisecond)
 	cancel()
 
 	select {

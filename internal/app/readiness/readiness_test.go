@@ -230,25 +230,33 @@ func Test_CheckLog_ContextCanceled(t *testing.T) {
 	defer stdoutReader.Close()
 	defer stderrReader.Close()
 
+	writerDone := make(chan struct{})
+
 	go func() {
 		defer stdoutWriter.Close()
 		defer stderrWriter.Close()
 
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+
 		for {
-			time.Sleep(100 * time.Millisecond)
-			fmt.Fprintln(stdoutWriter, "still waiting...")
+			select {
+			case <-writerDone:
+				return
+			case <-ticker.C:
+				fmt.Fprintln(stdoutWriter, "still waiting...")
+			}
 		}
 	}()
 
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
-	}()
+	cancel()
 
 	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 10*time.Second, done)
+
+	close(writerDone)
 	assert.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
@@ -350,7 +358,6 @@ func Test_Check_Log(t *testing.T) {
 		defer stdoutWriter.Close()
 		defer stderrWriter.Close()
 
-		time.Sleep(10 * time.Millisecond)
 		fmt.Fprintln(stdoutWriter, "Server ready on port 8080")
 	}()
 

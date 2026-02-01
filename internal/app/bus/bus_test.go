@@ -115,10 +115,13 @@ func Test_Bus_Unsubscribe_OnContextCancel(t *testing.T) {
 	ch := b.Subscribe(ctx)
 
 	cancel()
-	time.Sleep(10 * time.Millisecond)
 
-	_, ok := <-ch
-	assert.False(t, ok, "Channel should be closed after context cancel")
+	select {
+	case _, ok := <-ch:
+		assert.False(t, ok, "Channel should be closed after context cancel")
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Channel was not closed after context cancel")
+	}
 }
 
 func Test_Bus_Close(t *testing.T) {
@@ -241,10 +244,13 @@ func Test_NoOp(t *testing.T) {
 	}
 
 	cancel()
-	time.Sleep(10 * time.Millisecond)
 
-	_, ok := <-ch
-	assert.False(t, ok)
+	select {
+	case _, ok := <-ch:
+		assert.False(t, ok, "Channel should be closed after context cancel")
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Channel was not closed after context cancel")
+	}
 
 	b.Close()
 }

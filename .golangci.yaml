@@ -5,6 +5,7 @@ linters:
     - bodyclose
     - copyloopvar
     - dupl
+    - forbidigo
     - gochecknoinits
     - gocritic
     - gocyclo
@@ -20,6 +21,10 @@ linters:
     - unused
     - wsl_v5
   settings:
+    forbidigo:
+      forbid:
+        - pattern: ^time\.Sleep$
+          msg: "time.Sleep in tests is a code smell. Use channel-based synchronization instead."
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: false
@@ -36,6 +41,9 @@ linters:
           - dupl
           - gosec
         path: _test\.go
+      - linters:
+          - forbidigo
+        path-except: _test\.go
     paths:
       - docs
       - vendor

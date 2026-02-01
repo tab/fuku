@@ -415,7 +415,6 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	sigChan := make(chan os.Signal, 1)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
 		b.Publish(bus.Message{Type: bus.CommandStopAll})
 	}()
 
@@ -441,13 +440,11 @@ func Test_RunServicePhase_ContextCancelled(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	commandChan := make(chan bus.Message)
 	sigChan := make(chan os.Signal, 1)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
 		cancel()
 	}()
 
@@ -478,7 +475,6 @@ func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
 	sigChan := make(chan os.Signal, 1)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
 		close(commandChan)
 	}()
 
@@ -594,10 +590,14 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 	mockProcess := process.NewMockProcess(ctrl)
 	mockProcess.EXPECT().Name().Return("api").AnyTimes()
 
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
 		func(ctx context.Context, name, tier string) error {
-			time.Sleep(50 * time.Millisecond)
+			close(startCalled)
+			<-startCanProceed
 
 			return nil
 		})
@@ -629,9 +629,11 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 	commandChan := make(chan bus.Message)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 
 		sigChan <- syscall.SIGTERM
+
+		close(startCanProceed)
 	}()
 
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
@@ -653,10 +655,14 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
 		func(ctx context.Context, name, tier string) error {
-			time.Sleep(100 * time.Millisecond)
+			close(startCalled)
+			<-startCanProceed
 
 			return ctx.Err()
 		}).AnyTimes()
@@ -685,8 +691,9 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	commandChan := make(chan bus.Message)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 		cancel()
+		close(startCanProceed)
 	}()
 
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
@@ -707,10 +714,14 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
 		func(ctx context.Context, name, tier string) error {
-			time.Sleep(100 * time.Millisecond)
+			close(startCalled)
+			<-startCanProceed
 
 			return ctx.Err()
 		}).AnyTimes()
@@ -740,8 +751,9 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	commandChan := make(chan bus.Message)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 		close(commandChan)
+		close(startCanProceed)
 	}()
 
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
@@ -763,10 +775,14 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
+	startCalled := make(chan struct{})
+	startCanProceed := make(chan struct{})
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", "platform").DoAndReturn(
 		func(ctx context.Context, name, tier string) error {
-			time.Sleep(100 * time.Millisecond)
+			close(startCalled)
+			<-startCanProceed
 
 			return ctx.Err()
 		}).AnyTimes()
@@ -796,9 +812,11 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	commandChan := make(chan bus.Message, 1)
 
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		<-startCalled
 
 		commandChan <- bus.Message{Type: bus.CommandStopAll}
+
+		close(startCanProceed)
 	}()
 
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
@@ -833,8 +851,6 @@ func Test_RunServicePhase_SignalReceived(t *testing.T) {
 	sigChan := make(chan os.Signal, 1)
 
 	go func() {
-		time.Sleep(5 * time.Millisecond)
-
 		sigChan <- syscall.SIGTERM
 	}()
 
@@ -854,15 +870,19 @@ func Test_HandleMessage_WatchTriggered(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	done := make(chan struct{})
+	restartCalled := make(chan struct{})
+	releaseCalled := make(chan struct{})
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Restart(gomock.Any(), "api").Do(func(_ context.Context, _ string) {
-		close(done)
+		close(restartCalled)
 	})
 
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
-	mockWorkerPool.EXPECT().Release()
+	mockWorkerPool.EXPECT().Release().Do(func() {
+		close(releaseCalled)
+	})
 
 	r := &runner{
 		cfg:       cfg,
@@ -885,8 +905,14 @@ func Test_HandleMessage_WatchTriggered(t *testing.T) {
 	assert.False(t, result)
 
 	select {
-	case <-done:
+	case <-restartCalled:
 	case <-time.After(time.Second):
 		t.Fatal("Restart was not called")
+	}
+
+	select {
+	case <-releaseCalled:
+	case <-time.After(time.Second):
+		t.Fatal("Release was not called")
 	}
 }

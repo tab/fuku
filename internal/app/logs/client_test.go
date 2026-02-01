@@ -161,7 +161,6 @@ func Test_Stream_ReceivesLogMessages(t *testing.T) {
 
 	go func() {
 		serverConn.Write(data)
-		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
 	}()
 
@@ -188,7 +187,6 @@ func Test_Stream_ContextCancellation(t *testing.T) {
 		done <- c.Stream(ctx, &output)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
 	cancel()
 	serverConn.Close()
 
@@ -231,7 +229,6 @@ func Test_Stream_SkipsInvalidJSON(t *testing.T) {
 		data, _ := json.Marshal(msg)
 		data = append(data, '\n')
 		serverConn.Write(data)
-		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
 	}()
 
@@ -260,7 +257,6 @@ func Test_Stream_SkipsNonLogMessages(t *testing.T) {
 		data, _ = json.Marshal(msg)
 		data = append(data, '\n')
 		serverConn.Write(data)
-		time.Sleep(50 * time.Millisecond)
 		serverConn.Close()
 	}()
 

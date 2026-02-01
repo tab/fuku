@@ -600,15 +600,11 @@ func Test_LaunchStatsWorkers_ContextCancelledDuringSelect(t *testing.T) {
 	m := &Model{monitor: mockMonitor}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
 	jobs := []job{{name: "api", pid: 1234}, {name: "db", pid: 5678}}
 	sem := make(chan struct{})
 	results := make(chan result, 2)
-
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
 
 	launched := m.launchStatsWorkers(ctx, jobs, sem, results)
 
@@ -640,10 +636,15 @@ func Test_CollectStats_ContextCancelledDuringResultCollection(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	statsStarted := make(chan struct{}, 2)
+	cancelStats := make(chan struct{})
+
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockMonitor.EXPECT().GetStats(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, pid int) (monitor.Stats, error) {
-			time.Sleep(50 * time.Millisecond)
+			statsStarted <- struct{}{}
+
+			<-cancelStats
 
 			return monitor.Stats{CPU: 25.5, MEM: 512.0}, nil
 		},
@@ -658,8 +659,9 @@ func Test_CollectStats_ContextCancelledDuringResultCollection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		time.Sleep(30 * time.Millisecond)
+		<-statsStarted
 		cancel()
+		close(cancelStats)
 	}()
 
 	stats := m.collectStats(ctx)

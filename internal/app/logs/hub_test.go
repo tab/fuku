@@ -154,12 +154,15 @@ func Test_Register(t *testing.T) {
 	client := NewClientConn("test", cfg.Logs.Buffer)
 
 	h.Register(client)
-	time.Sleep(10 * time.Millisecond)
 
 	impl := h.(*hub)
-	impl.mu.RLock()
-	assert.True(t, impl.clients[client])
-	impl.mu.RUnlock()
+
+	assert.Eventually(t, func() bool {
+		impl.mu.RLock()
+		defer impl.mu.RUnlock()
+
+		return impl.clients[client]
+	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func Test_Register_AfterDone(t *testing.T) {
@@ -168,10 +171,20 @@ func Test_Register_AfterDone(t *testing.T) {
 	cfg := config.DefaultConfig()
 	h := NewHub(cfg.Logs.Buffer)
 
-	go h.Run(ctx)
+	done := make(chan struct{})
+
+	go func() {
+		h.Run(ctx)
+		close(done)
+	}()
 
 	cancel()
-	time.Sleep(10 * time.Millisecond)
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Hub did not stop")
+	}
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 
@@ -190,15 +203,24 @@ func Test_Unregister(t *testing.T) {
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
-	time.Sleep(10 * time.Millisecond)
-
-	h.Unregister(client)
-	time.Sleep(10 * time.Millisecond)
 
 	impl := h.(*hub)
-	impl.mu.RLock()
-	assert.False(t, impl.clients[client])
-	impl.mu.RUnlock()
+
+	assert.Eventually(t, func() bool {
+		impl.mu.RLock()
+		defer impl.mu.RUnlock()
+
+		return impl.clients[client]
+	}, 100*time.Millisecond, 5*time.Millisecond)
+
+	h.Unregister(client)
+
+	assert.Eventually(t, func() bool {
+		impl.mu.RLock()
+		defer impl.mu.RUnlock()
+
+		return !impl.clients[client]
+	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func Test_Unregister_NonExistent(t *testing.T) {
@@ -214,7 +236,6 @@ func Test_Unregister_NonExistent(t *testing.T) {
 	client := NewClientConn("test", cfg.Logs.Buffer)
 
 	h.Unregister(client)
-	time.Sleep(10 * time.Millisecond)
 }
 
 func Test_Unregister_AfterDone(t *testing.T) {
@@ -223,10 +244,20 @@ func Test_Unregister_AfterDone(t *testing.T) {
 	cfg := config.DefaultConfig()
 	h := NewHub(cfg.Logs.Buffer)
 
-	go h.Run(ctx)
+	done := make(chan struct{})
+
+	go func() {
+		h.Run(ctx)
+		close(done)
+	}()
 
 	cancel()
-	time.Sleep(10 * time.Millisecond)
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Hub did not stop")
+	}
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 
@@ -251,17 +282,24 @@ func Test_Broadcast_ToSubscribedClients(t *testing.T) {
 
 	h.Register(client1)
 	h.Register(client2)
-	time.Sleep(10 * time.Millisecond)
+
+	impl := h.(*hub)
+
+	assert.Eventually(t, func() bool {
+		impl.mu.RLock()
+		defer impl.mu.RUnlock()
+
+		return impl.clients[client1] && impl.clients[client2]
+	}, 100*time.Millisecond, 5*time.Millisecond)
 
 	h.Broadcast("api", "test message")
-	time.Sleep(10 * time.Millisecond)
 
 	select {
 	case msg := <-client1.SendChan:
 		assert.Equal(t, MessageLog, msg.Type)
 		assert.Equal(t, "api", msg.Service)
 		assert.Equal(t, "test message", msg.Message)
-	default:
+	case <-time.After(100 * time.Millisecond):
 		t.Fatal("client1 should receive message")
 	}
 
@@ -284,15 +322,22 @@ func Test_Broadcast_ToAllWhenNoFilter(t *testing.T) {
 
 	client := NewClientConn("client", cfg.Logs.Buffer)
 	h.Register(client)
-	time.Sleep(10 * time.Millisecond)
+
+	impl := h.(*hub)
+
+	assert.Eventually(t, func() bool {
+		impl.mu.RLock()
+		defer impl.mu.RUnlock()
+
+		return impl.clients[client]
+	}, 100*time.Millisecond, 5*time.Millisecond)
 
 	h.Broadcast("any-service", "test message")
-	time.Sleep(10 * time.Millisecond)
 
 	select {
 	case msg := <-client.SendChan:
 		assert.Equal(t, "any-service", msg.Service)
-	default:
+	case <-time.After(100 * time.Millisecond):
 		t.Fatal("client should receive message")
 	}
 }
@@ -321,7 +366,15 @@ func Test_Run_ContextCancellation(t *testing.T) {
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
-	time.Sleep(10 * time.Millisecond)
+
+	impl := h.(*hub)
+
+	assert.Eventually(t, func() bool {
+		impl.mu.RLock()
+		defer impl.mu.RUnlock()
+
+		return impl.clients[client]
+	}, 100*time.Millisecond, 5*time.Millisecond)
 
 	cancel()
 
