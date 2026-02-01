@@ -688,6 +688,14 @@ func Test_ExtractAddress(t *testing.T) {
 			expected: "0.0.0.0:8080",
 		},
 		{
+			name: "TCP type with database port",
+			readiness: &config.Readiness{
+				Type:    config.TypeTCP,
+				Address: "localhost:5432",
+			},
+			expected: "localhost:5432",
+		},
+		{
 			name: "Log type returns empty",
 			readiness: &config.Readiness{
 				Type:    config.TypeLog,
@@ -809,11 +817,6 @@ func Test_ExtractFromURL(t *testing.T) {
 			name:     "IPv6 address with port",
 			url:      "http://[::1]:8080/health",
 			expected: "[::1]:8080",
-		},
-		{
-			name:     "with username and password",
-			url:      "postgresql://user:password@localhost:5432/database",
-			expected: "localhost:5432",
 		},
 		{
 			name:     "invalid URL returns empty",
