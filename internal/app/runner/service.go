@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +26,11 @@ import (
 const (
 	scannerBufferSize    = 64 * 1024
 	scannerMaxBufferSize = 4 * 1024 * 1024
+
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+	portHTTP    = "80"
+	portHTTPS   = "443"
 )
 
 // Service handles individual service lifecycle
@@ -448,37 +454,64 @@ func (s *service) getConfig(name string) (*config.Service, string) {
 }
 
 // preFlightCheck verifies the service port is not already in use
-func (s *service) preFlightCheck(name string, readiness *config.Readiness) error {
-	port := s.extractPort(readiness)
-	if port == "" {
+func (s *service) preFlightCheck(name string, r *config.Readiness) error {
+	address := s.extractAddress(r)
+	if address == "" {
 		return nil
 	}
 
-	conn, err := net.DialTimeout("tcp", "localhost:"+port, config.PreFlightTimeout)
+	conn, err := net.DialTimeout("tcp", address, config.PreFlightTimeout)
 	if err != nil {
 		return nil
 	}
 
 	conn.Close()
-	s.log.Warn().Msgf("Service '%s' port %s is already in use", name, port)
+	s.log.Warn().Msgf("Service '%s' address %s is already in use", name, address)
 
-	return fmt.Errorf("%w: port %s", errors.ErrPortAlreadyInUse, port)
+	return fmt.Errorf("%w: %s", errors.ErrPortAlreadyInUse, address)
 }
 
-// extractPort returns the port from readiness configuration
-func (s *service) extractPort(r *config.Readiness) string {
+// extractAddress returns the host:port from readiness configuration
+func (s *service) extractAddress(r *config.Readiness) string {
 	if r == nil {
 		return ""
 	}
 
 	switch r.Type {
 	case config.TypeHTTP:
-		return readiness.ExtractFromURL(r.URL)
+		return extractFromURL(r.URL)
 	case config.TypeTCP:
-		return readiness.ExtractFromAddress(r.Address)
+		return r.Address
 	default:
 		return ""
 	}
+}
+
+// extractFromURL extracts host:port from URL (e.g., "http://localhost:8080/health" → "localhost:8080")
+func extractFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		return ""
+	}
+
+	port := parsed.Port()
+	if port == "" {
+		switch parsed.Scheme {
+		case schemeHTTP:
+			port = portHTTP
+		case schemeHTTPS:
+			port = portHTTPS
+		default:
+			return ""
+		}
+	}
+
+	return host + ":" + port
 }
 
 // isWatched returns true if the service has watch configuration

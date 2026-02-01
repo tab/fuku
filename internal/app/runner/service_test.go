@@ -634,7 +634,7 @@ func Test_WaitForReady_ContextCancelled(t *testing.T) {
 	assert.Equal(t, context.Canceled, err)
 }
 
-func Test_ExtractPort(t *testing.T) {
+func Test_ExtractAddress(t *testing.T) {
 	s := &service{}
 
 	tests := []struct {
@@ -653,7 +653,7 @@ func Test_ExtractPort(t *testing.T) {
 				Type: config.TypeHTTP,
 				URL:  "http://localhost:8080/health",
 			},
-			expected: "8080",
+			expected: "localhost:8080",
 		},
 		{
 			name: "HTTP type without port",
@@ -661,15 +661,31 @@ func Test_ExtractPort(t *testing.T) {
 				Type: config.TypeHTTP,
 				URL:  "http://localhost/health",
 			},
-			expected: "80",
+			expected: "localhost:80",
 		},
 		{
-			name: "TCP type with port",
+			name: "HTTP type with IP address",
+			readiness: &config.Readiness{
+				Type: config.TypeHTTP,
+				URL:  "http://127.0.0.1:3000/api",
+			},
+			expected: "127.0.0.1:3000",
+		},
+		{
+			name: "TCP type with address",
 			readiness: &config.Readiness{
 				Type:    config.TypeTCP,
 				Address: "localhost:9090",
 			},
-			expected: "9090",
+			expected: "localhost:9090",
+		},
+		{
+			name: "TCP type with IP address",
+			readiness: &config.Readiness{
+				Type:    config.TypeTCP,
+				Address: "0.0.0.0:8080",
+			},
+			expected: "0.0.0.0:8080",
 		},
 		{
 			name: "Log type returns empty",
@@ -690,7 +706,7 @@ func Test_ExtractPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := s.extractPort(tt.readiness)
+			result := s.extractAddress(tt.readiness)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -756,4 +772,65 @@ func Test_PreFlightCheck_NoPort(t *testing.T) {
 	err := s.preFlightCheck("test-service", readiness)
 
 	assert.NoError(t, err)
+}
+
+func Test_ExtractFromURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		expected string
+	}{
+		{
+			name:     "URL with explicit port",
+			url:      "http://localhost:8080/health",
+			expected: "localhost:8080",
+		},
+		{
+			name:     "URL with IP address and port",
+			url:      "http://127.0.0.1:3000/api",
+			expected: "127.0.0.1:3000",
+		},
+		{
+			name:     "HTTP URL without port defaults to 80",
+			url:      "http://localhost/health",
+			expected: "localhost:80",
+		},
+		{
+			name:     "HTTPS URL without port defaults to 443",
+			url:      "https://localhost/health",
+			expected: "localhost:443",
+		},
+		{
+			name:     "URL with 0.0.0.0",
+			url:      "http://0.0.0.0:8080/health",
+			expected: "0.0.0.0:8080",
+		},
+		{
+			name:     "with username and password",
+			url:      "postgresql://user:password@localhost:5432/database",
+			expected: "localhost:5432",
+		},
+		{
+			name:     "invalid URL returns empty",
+			url:      "://invalid",
+			expected: "",
+		},
+		{
+			name:     "empty URL returns empty",
+			url:      "",
+			expected: "",
+		},
+		{
+			name:     "unknown scheme without port returns empty",
+			url:      "ftp://localhost/file",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractFromURL(tt.url)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
