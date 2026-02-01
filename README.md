@@ -15,7 +15,8 @@
 - **Service Control** - Start, stop, and restart services interactively
 - **Graceful Shutdown** - SIGTERM with timeout before force kill
 - **Profile Support** - Group services for batch operations
-- **Readiness Checks** - HTTP and log-pattern based detection
+- **Readiness Checks** - HTTP, TCP, and log-pattern based health checks
+- **Pre-flight Checks** - Port conflict detection before starting services
 - **Hot-Reload** - Automatic service restart on file changes
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 
@@ -28,24 +29,24 @@ Download the latest binary from [GitHub Releases](https://github.com/tab/fuku/re
 **macOS (Apple Silicon):**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.8.1_macos_arm64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.8.1_macos_arm64/fuku
-sudo mv ~/Downloads/fuku_v0.8.1_macos_arm64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.11.0_macos_arm64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.11.0_macos_arm64/fuku
+sudo mv ~/Downloads/fuku_v0.11.0_macos_arm64/fuku /usr/local/bin/fuku
 ```
 
 **macOS (Intel):**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.8.1_macos_amd64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.8.1_macos_amd64/fuku
-sudo mv ~/Downloads/fuku_v0.8.1_macos_amd64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.11.0_macos_amd64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.11.0_macos_amd64/fuku
+sudo mv ~/Downloads/fuku_v0.11.0_macos_amd64/fuku /usr/local/bin/fuku
 ```
 
 **Linux:**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.8.1_linux_amd64.tar.gz
-sudo mv ~/Downloads/fuku_v0.8.1_linux_amd64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.11.0_linux_amd64.tar.gz
+sudo mv ~/Downloads/fuku_v0.11.0_linux_amd64/fuku /usr/local/bin/fuku
 ```
 
 ### Build from Source
@@ -103,25 +104,33 @@ version: 1
 
 services:
   postgres:
-    dir: ./infrastructure/postgres
+    dir: infrastructure/postgres
     tier: foundation
     readiness:
-      type: log
-      pattern: "database system is ready"
+      type: tcp
+      address: localhost:5432
       timeout: 30s
 
-  api:
-    dir: ./api
+  backend:
+    dir: backend
     tier: platform
     readiness:
       type: http
       url: http://localhost:8080/health
       timeout: 30s
+    watch:
+      include: ["**/*.go"]
+      ignore: ["**/*_test.go"]
+      shared: ["pkg/common"]
+      debounce: 1s
 
   web:
-    dir: ./frontend
+    dir: frontend
     tier: edge
-    profiles: [default]
+    readiness:
+      type: http
+      url: http://localhost:3000/health
+      timeout: 20s
 
 defaults:
   profiles: [default]
@@ -129,7 +138,6 @@ defaults:
 profiles:
   default: "*"                    # All services
   backend: [postgres, api]        # Backend services only
-  minimal: [api, postgres]        # Minimal set
 
 concurrency:
   workers: 5                      # Max concurrent service starts
@@ -166,8 +174,46 @@ For example, if your YAML defines services with tiers in this order: `foundation
 
 ### Readiness Checks
 
-- **log** - Wait for pattern in service output
-- **http** - Wait for HTTP endpoint to respond
+**HTTP** - Wait for HTTP endpoint to respond with 2xx status:
+```yaml
+readiness:
+  type: http
+  url: http://localhost:8080/health
+  timeout: 30s
+  interval: 1s
+```
+
+**TCP** - Wait for TCP port to accept connections:
+```yaml
+readiness:
+  type: tcp
+  address: localhost:6379
+  timeout: 10s
+  interval: 1s
+```
+
+**Log** - Wait for pattern in service output:
+```yaml
+readiness:
+  type: log
+  pattern: "gRPC server started"
+  timeout: 30s
+```
+
+### Watch Configuration (Hot-Reload)
+
+Enable automatic service restart on file changes:
+
+```yaml
+services:
+  api:
+    dir: ./api
+    watch:
+      include: ["**/*.go"]           # Glob patterns to watch
+      ignore: ["**/*_test.go"]       # Patterns to ignore
+      shared: ["pkg/common"]         # Shared paths (triggers restart)
+      debounce: 300ms                # Debounce duration (default: 300ms)
+```
 
 ### Service Requirements
 
