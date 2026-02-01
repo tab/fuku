@@ -407,9 +407,16 @@ func (m *manager) removeDirs(w *watcher) {
 
 // normalizeSharedPath strips trailing glob suffixes from shared directory paths
 func normalizeSharedPath(path string) string {
-	path = strings.TrimSuffix(path, "/**")
-	path = strings.TrimSuffix(path, "**")
-	path = strings.TrimSuffix(path, "/")
-
-	return path
+	for {
+		switch {
+		case strings.HasSuffix(path, "/**"):
+			path = strings.TrimSuffix(path, "/**")
+		case strings.HasSuffix(path, "**"):
+			path = strings.TrimSuffix(path, "**")
+		case strings.HasSuffix(path, "/"):
+			path = strings.TrimSuffix(path, "/")
+		default:
+			return path
+		}
+	}
 }
