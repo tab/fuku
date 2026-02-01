@@ -5,7 +5,8 @@ import (
 )
 
 var config = common.Config{
-	Name: "USER",
+	Name:    "USER",
+	TCPPort: 9090,
 	Messages: []string{
 		"INFO: [USER] Profile updated for user_456",
 		"DEBUG: [USER] Preferences cached",

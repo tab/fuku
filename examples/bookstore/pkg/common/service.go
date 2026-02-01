@@ -11,41 +11,35 @@ import (
 type Config struct {
 	Name     string
 	Messages []string
+	HTTPPort int
+	TCPPort  int
 }
 
 func Run(cfg Config) {
 	fmt.Printf("INFO: [%s] run at %s\n", cfg.Name, time.Now().Format(time.RFC3339))
-
 	fmt.Printf("INFO: [%s] Starting %s service...\n", cfg.Name, cfg.Name)
+
+	if cfg.HTTPPort > 0 {
+		go startHTTPServer(cfg)
+	}
+
+	if cfg.TCPPort > 0 {
+		go startTCPServer(cfg)
+	}
+
 	time.Sleep(2 * time.Second)
 	fmt.Printf("INFO: [%s] Service ready\n", cfg.Name)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+	stopCh := make(chan struct{})
 
-	counter := 0
-	msgCount := len(cfg.Messages)
-	if msgCount == 0 {
-		msgCount = 1
-	}
+	go logMessages(cfg, stopCh)
 
-	for {
-		select {
-		case <-sigCh:
-			shutdown(cfg.Name)
-			return
-		case <-ticker.C:
-			if len(cfg.Messages) > 0 {
-				fmt.Printf("%s\n", cfg.Messages[counter%msgCount])
-			} else {
-				fmt.Printf("INFO: [%s] Processing at %s\n", cfg.Name, time.Now().Format(time.RFC3339))
-			}
-			counter++
-		}
-	}
+	<-sigCh
+	close(stopCh)
+	shutdown(cfg.Name)
 }
 
 func shutdown(name string) {
