@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +26,11 @@ import (
 const (
 	scannerBufferSize    = 64 * 1024
 	scannerMaxBufferSize = 4 * 1024 * 1024
+
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+	portHTTP    = "80"
+	portHTTPS   = "443"
 )
 
 // Service handles individual service lifecycle
@@ -202,6 +209,10 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 
 	serviceDir, envFile, err := s.resolvePaths(name, cfg.Dir)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := s.preFlightCheck(name, cfg.Readiness); err != nil {
 		return nil, err
 	}
 
@@ -440,6 +451,67 @@ func (s *service) getConfig(name string) (*config.Service, string) {
 	}
 
 	return cfg, tier
+}
+
+// preFlightCheck verifies the service port is not already in use
+func (s *service) preFlightCheck(name string, r *config.Readiness) error {
+	address := s.extractAddress(r)
+	if address == "" {
+		return nil
+	}
+
+	conn, err := net.DialTimeout("tcp", address, config.PreFlightTimeout)
+	if err != nil {
+		return nil
+	}
+
+	conn.Close()
+	s.log.Warn().Msgf("Service '%s' address %s is already in use", name, address)
+
+	return fmt.Errorf("%w: %s", errors.ErrPortAlreadyInUse, address)
+}
+
+// extractAddress returns the host:port from readiness configuration
+func (s *service) extractAddress(r *config.Readiness) string {
+	if r == nil {
+		return ""
+	}
+
+	switch r.Type {
+	case config.TypeHTTP:
+		return extractFromURL(r.URL)
+	case config.TypeTCP:
+		return r.Address
+	default:
+		return ""
+	}
+}
+
+// extractFromURL extracts host:port from URL (e.g., "http://localhost:8080/health" → "localhost:8080")
+func extractFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		return ""
+	}
+
+	port := parsed.Port()
+	if port == "" {
+		switch parsed.Scheme {
+		case schemeHTTP:
+			port = portHTTP
+		case schemeHTTPS:
+			port = portHTTPS
+		default:
+			return ""
+		}
+	}
+
+	return net.JoinHostPort(host, port)
 }
 
 // isWatched returns true if the service has watch configuration

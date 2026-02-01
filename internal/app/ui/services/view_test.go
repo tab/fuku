@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/errors"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config/logger"
 )
@@ -278,6 +279,80 @@ func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 
 	assert.Contains(t, notSelected, "  ")
 	assert.Contains(t, selected, components.IndicatorSelected+" ")
+}
+
+func Test_GetServiceDetails_WithError(t *testing.T) {
+	m := Model{}
+
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name:     "port already in use",
+			err:      errors.ErrPortAlreadyInUse,
+			expected: "port already in use",
+		},
+		{
+			name:     "max retries exceeded",
+			err:      errors.ErrMaxRetriesExceeded,
+			expected: "max retries exceeded",
+		},
+		{
+			name:     "readiness timeout",
+			err:      errors.ErrReadinessTimeout,
+			expected: "readiness timeout",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &ServiceState{
+				Name:   "api",
+				Status: StatusFailed,
+				Error:  tt.err,
+			}
+
+			result := m.getServiceDetails(service, true)
+
+			assert.Contains(t, result, tt.expected)
+		})
+	}
+}
+
+func Test_GetServiceDetails_WithMetrics(t *testing.T) {
+	m := Model{}
+
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusRunning,
+		Monitor: ServiceMonitor{
+			PID: 12345,
+			CPU: 5.5,
+			MEM: 128,
+		},
+	}
+
+	result := m.getServiceDetails(service, false)
+
+	assert.Contains(t, result, "5.5%")
+	assert.Contains(t, result, "128MB")
+	assert.Contains(t, result, "12345")
+}
+
+func Test_GetServiceDetails_NoMetricsWhenStopped(t *testing.T) {
+	m := Model{}
+
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusStopped,
+	}
+
+	result := m.getServiceDetails(service, false)
+
+	assert.NotContains(t, result, "%")
+	assert.NotContains(t, result, "MB")
 }
 
 func Test_RenderTier_Spacing(t *testing.T) {

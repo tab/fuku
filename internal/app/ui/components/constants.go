@@ -46,6 +46,7 @@ const (
 	FixedColumnsWidth   = 50
 	ServiceNameMinWidth = 20
 	RowWidthPadding     = 8
+	ErrorPadding        = "  "
 )
 
 // Column widths for services table
