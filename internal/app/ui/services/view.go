@@ -230,41 +230,39 @@ func (m Model) getWatchIndicator(isSelected bool) string {
 // renderServiceRow renders a single service row with all columns
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
 	rowWidth := m.getRowWidth()
-	maxNameLen = m.clampNameWidth(maxNameLen)
 	indicator := m.getServiceIndicator(service, isSelected)
-	serviceName := components.TruncateAndPad(service.Name, maxNameLen)
+	name := components.TruncateAndPad(service.Name, m.clampNameWidth(maxNameLen))
 	status := m.getStyledAndPaddedStatus(service, isSelected)
+	details := m.getServiceDetails(service, isSelected)
 
-	var b strings.Builder
+	row := fmt.Sprintf("%s %s  %s  %s", indicator, name, status, details)
+	row = components.PadRight(row, rowWidth)
 
-	fmt.Fprintf(&b, "%s %s  %s  %*s  %*s  %*s  %*s",
-		indicator,
-		serviceName,
-		status,
+	style := components.ServiceRowStyle
+	if isSelected {
+		style = components.SelectedServiceRowStyle
+	}
+
+	return style.Width(rowWidth).Render(row)
+}
+
+// getServiceDetails returns either error message or metrics columns
+func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string {
+	if service.Error != nil {
+		errorMsg := renderError(service.Error)
+		if !isSelected {
+			return components.ErrorStyle.Render("  " + errorMsg)
+		}
+
+		return "  " + errorMsg
+	}
+
+	return fmt.Sprintf("%*s  %*s  %*s  %*s",
 		components.ColWidthCPU, m.getCPU(service),
 		components.ColWidthMem, m.getMem(service),
 		components.ColWidthPID, m.getPID(service),
 		components.ColWidthUptime, m.getUptime(service),
 	)
-
-	if service.Error != nil {
-		errorAvailWidth := rowWidth - lipgloss.Width(b.String())
-		errorMsg := truncateErrorMessage(renderError(service.Error), errorAvailWidth)
-
-		if !isSelected {
-			errorMsg = components.ErrorStyle.Render(errorMsg)
-		}
-
-		b.WriteString(errorMsg)
-	}
-
-	row := components.PadRight(b.String(), rowWidth)
-
-	if isSelected {
-		return components.SelectedServiceRowStyle.Width(rowWidth).Render(row)
-	}
-
-	return components.ServiceRowStyle.Width(rowWidth).Render(row)
 }
 
 // getStyledAndPaddedStatus returns the styled status string with padding
