@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -631,4 +632,128 @@ func Test_WaitForReady_ContextCancelled(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
+}
+
+func Test_ExtractPort(t *testing.T) {
+	s := &service{}
+
+	tests := []struct {
+		name      string
+		readiness *config.Readiness
+		expected  string
+	}{
+		{
+			name:      "nil readiness",
+			readiness: nil,
+			expected:  "",
+		},
+		{
+			name: "HTTP type with port",
+			readiness: &config.Readiness{
+				Type: config.TypeHTTP,
+				URL:  "http://localhost:8080/health",
+			},
+			expected: "8080",
+		},
+		{
+			name: "HTTP type without port",
+			readiness: &config.Readiness{
+				Type: config.TypeHTTP,
+				URL:  "http://localhost/health",
+			},
+			expected: "80",
+		},
+		{
+			name: "TCP type with port",
+			readiness: &config.Readiness{
+				Type:    config.TypeTCP,
+				Address: "localhost:9090",
+			},
+			expected: "9090",
+		},
+		{
+			name: "Log type returns empty",
+			readiness: &config.Readiness{
+				Type:    config.TypeLog,
+				Pattern: "ready",
+			},
+			expected: "",
+		},
+		{
+			name: "unknown type returns empty",
+			readiness: &config.Readiness{
+				Type: "unknown",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := s.extractPort(tt.readiness)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_PreFlightCheck_PortFree(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+
+	s := &service{log: mockLog}
+
+	readiness := &config.Readiness{
+		Type:    config.TypeTCP,
+		Address: "localhost:59999",
+	}
+
+	err := s.preFlightCheck("test-service", readiness)
+
+	assert.NoError(t, err)
+}
+
+func Test_PreFlightCheck_PortInUse(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+
+	s := &service{log: mockLog}
+
+	err = s.preFlightCheck("test-service", &config.Readiness{
+		Type:    config.TypeTCP,
+		Address: listener.Addr().String(),
+	})
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, errors.ErrPortAlreadyInUse))
+}
+
+func Test_PreFlightCheck_NilReadiness(t *testing.T) {
+	s := &service{}
+
+	err := s.preFlightCheck("test-service", nil)
+
+	assert.NoError(t, err)
+}
+
+func Test_PreFlightCheck_NoPort(t *testing.T) {
+	s := &service{}
+
+	readiness := &config.Readiness{
+		Type:    config.TypeLog,
+		Pattern: "ready",
+	}
+
+	err := s.preFlightCheck("test-service", readiness)
+
+	assert.NoError(t, err)
 }

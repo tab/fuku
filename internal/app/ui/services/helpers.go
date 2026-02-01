@@ -8,13 +8,15 @@ import (
 	"fuku/internal/app/errors"
 )
 
-// simplifyErrorMessage returns a user-friendly short error message
-func simplifyErrorMessage(err error) string {
+// renderError returns a user-friendly short error message
+func renderError(err error) string {
 	if err == nil {
 		return ""
 	}
 
 	switch {
+	case errors.Is(err, errors.ErrPortAlreadyInUse):
+		return "port already in use"
 	case errors.Is(err, errors.ErrMaxRetriesExceeded):
 		return "max retries exceeded"
 	case errors.Is(err, errors.ErrProcessExited):

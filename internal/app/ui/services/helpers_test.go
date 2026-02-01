@@ -192,7 +192,7 @@ func Test_truncateErrorMessage_DisplayWidth(t *testing.T) {
 	}
 }
 
-func Test_simplifyErrorMessage(t *testing.T) {
+func Test_renderError(t *testing.T) {
 	tests := []struct {
 		name     string
 		err      error
@@ -202,6 +202,11 @@ func Test_simplifyErrorMessage(t *testing.T) {
 			name:     "nil error",
 			err:      nil,
 			expected: "",
+		},
+		{
+			name:     "port already in use",
+			err:      errors.ErrPortAlreadyInUse,
+			expected: "port already in use",
 		},
 		{
 			name:     "max retries exceeded",
@@ -262,7 +267,7 @@ func Test_simplifyErrorMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := simplifyErrorMessage(tt.err)
+			result := renderError(tt.err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

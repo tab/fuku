@@ -249,7 +249,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameL
 
 	if service.Error != nil {
 		errorAvailWidth := rowWidth - lipgloss.Width(b.String())
-		errorMsg := truncateErrorMessage(simplifyErrorMessage(service.Error), errorAvailWidth)
+		errorMsg := truncateErrorMessage(renderError(service.Error), errorAvailWidth)
 
 		if !isSelected {
 			errorMsg = components.ErrorStyle.Render(errorMsg)

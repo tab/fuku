@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -202,6 +203,10 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 
 	serviceDir, envFile, err := s.resolvePaths(name, cfg.Dir)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := s.preFlightCheck(name, cfg.Readiness); err != nil {
 		return nil, err
 	}
 
@@ -440,6 +445,40 @@ func (s *service) getConfig(name string) (*config.Service, string) {
 	}
 
 	return cfg, tier
+}
+
+// preFlightCheck verifies the service port is not already in use
+func (s *service) preFlightCheck(name string, readiness *config.Readiness) error {
+	port := s.extractPort(readiness)
+	if port == "" {
+		return nil
+	}
+
+	conn, err := net.DialTimeout("tcp", "localhost:"+port, config.PreFlightTimeout)
+	if err != nil {
+		return nil
+	}
+
+	conn.Close()
+	s.log.Warn().Msgf("Service '%s' port %s is already in use", name, port)
+
+	return fmt.Errorf("%w: port %s", errors.ErrPortAlreadyInUse, port)
+}
+
+// extractPort returns the port from readiness configuration
+func (s *service) extractPort(r *config.Readiness) string {
+	if r == nil {
+		return ""
+	}
+
+	switch r.Type {
+	case config.TypeHTTP:
+		return readiness.ExtractFromURL(r.URL)
+	case config.TypeTCP:
+		return readiness.ExtractFromAddress(r.Address)
+	default:
+		return ""
+	}
 }
 
 // isWatched returns true if the service has watch configuration

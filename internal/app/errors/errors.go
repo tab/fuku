@@ -28,6 +28,7 @@ var (
 	ErrReadinessTimeout         = errors.New("readiness check timed out")
 	ErrProcessExited            = errors.New("process exited before readiness")
 	ErrInvalidRegexPattern      = errors.New("invalid regex pattern")
+	ErrPortAlreadyInUse         = errors.New("port already in use")
 
 	ErrWatchIncludeRequired = errors.New("watch configuration requires include field")
 
