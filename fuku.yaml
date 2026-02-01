@@ -1,8 +1,19 @@
 version: 1
 
-x-readiness: &readiness
+x-readiness-log: &readiness-log
   type: log
+  pattern: "Service ready"
   timeout: 30s
+
+x-readiness-http: &readiness-http
+  type: http
+  timeout: 30s
+  interval: 500ms
+
+x-readiness-tcp: &readiness-tcp
+  type: tcp
+  timeout: 30s
+  interval: 500ms
 
 x-watch: &watch
   include:
@@ -34,16 +45,15 @@ services:
     dir: examples/bookstore/auth
     tier: foundation
     readiness:
-      <<: *readiness
-      pattern: "Service ready"
+      <<: *readiness-log
     watch:
       <<: *watch
+
   storage:
     dir: examples/bookstore/storage
     tier: foundation
     readiness:
-      <<: *readiness
-      pattern: "Service ready"
+      <<: *readiness-log
     watch:
       <<: *watch
 
@@ -52,8 +62,8 @@ services:
     dir: examples/bookstore/user
     tier: platform
     readiness:
-      <<: *readiness
-      pattern: "Service ready"
+      <<: *readiness-tcp
+      address: localhost:9090
     watch:
       <<: *watch
 
@@ -61,8 +71,8 @@ services:
     dir: examples/bookstore/api
     tier: platform
     readiness:
-      <<: *readiness
-      pattern: "Service ready"
+      <<: *readiness-http
+      url: http://localhost:8080/health
     watch:
       <<: *watch
 
@@ -72,8 +82,8 @@ services:
     tier: edge
     profiles: [core]
     readiness:
-      <<: *readiness
-      pattern: "Service ready"
+      <<: *readiness-http
+      url: http://localhost:8081/health
     watch:
       <<: *watch
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -455,4 +456,114 @@ func Test_CheckLog_ProcessExited(t *testing.T) {
 	err := checker.CheckLog(ctx, "ready", stdoutReader, stderrReader, 5*time.Second, done)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errors.ErrProcessExited)
+}
+
+func Test_CheckTCP_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	checker := NewReadiness(mockLogger)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	done := make(chan struct{})
+	ctx := context.Background()
+	err = checker.CheckTCP(ctx, listener.Addr().String(), 5*time.Second, 100*time.Millisecond, done)
+	assert.NoError(t, err)
+}
+
+func Test_CheckTCP_Timeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	checker := NewReadiness(mockLogger)
+
+	done := make(chan struct{})
+	ctx := context.Background()
+	err := checker.CheckTCP(ctx, "127.0.0.1:59999", 50*time.Millisecond, 10*time.Millisecond, done)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "readiness check timed out")
+}
+
+func Test_CheckTCP_ContextCanceled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	checker := NewReadiness(mockLogger)
+
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := checker.CheckTCP(ctx, "127.0.0.1:59999", 5*time.Second, 100*time.Millisecond, done)
+	assert.Error(t, err)
+	assert.Equal(t, context.Canceled, err)
+}
+
+func Test_CheckTCP_ProcessExited(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	checker := NewReadiness(mockLogger)
+
+	done := make(chan struct{})
+	close(done)
+
+	ctx := context.Background()
+	err := checker.CheckTCP(ctx, "127.0.0.1:59999", 5*time.Second, 100*time.Millisecond, done)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errors.ErrProcessExited)
+}
+
+func Test_Check_TCP(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
+	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
+
+	checker := NewReadiness(mockLogger)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	srv := &config.Service{
+		Readiness: &config.Readiness{
+			Type:     config.TypeTCP,
+			Address:  listener.Addr().String(),
+			Timeout:  5 * time.Second,
+			Interval: 100 * time.Millisecond,
+		},
+	}
+
+	proc := process.NewProcess(process.Params{Name: "test-service"})
+
+	ctx := context.Background()
+	checker.Check(ctx, "test-service", srv, proc)
+
+	select {
+	case err := <-proc.Ready():
+		assert.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("readiness check didn't complete")
+	}
 }

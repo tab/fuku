@@ -23,6 +23,7 @@ var (
 	ErrInvalidReadinessType     = errors.New("invalid readiness type")
 	ErrReadinessTypeRequired    = errors.New("readiness type is required")
 	ErrReadinessURLRequired     = errors.New("readiness type 'http' requires url field")
+	ErrReadinessAddressRequired = errors.New("readiness type 'tcp' requires address field")
 	ErrReadinessPatternRequired = errors.New("readiness type 'log' requires pattern field")
 	ErrReadinessTimeout         = errors.New("readiness check timed out")
 	ErrProcessExited            = errors.New("process exited before readiness")

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"time"
@@ -18,6 +19,7 @@ import (
 // Readiness handles service readiness checking
 type Readiness interface {
 	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error
+	CheckTCP(ctx context.Context, address string, timeout, interval time.Duration, done <-chan struct{}) error
 	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error
 	Check(ctx context.Context, name string, service *config.Service, proc process.Process)
 }
@@ -123,6 +125,36 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 	}
 }
 
+// CheckTCP checks if a TCP port is accepting connections
+func (r *readiness) CheckTCP(ctx context.Context, address string, timeout, interval time.Duration, done <-chan struct{}) error {
+	deadline := time.Now().Add(timeout)
+
+	reqCtx, cancel := r.contextWithDone(ctx, done)
+	defer cancel()
+
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%w: TCP check after %v", errors.ErrReadinessTimeout, timeout)
+		}
+
+		conn, err := net.DialTimeout("tcp", address, interval)
+		if err == nil {
+			conn.Close()
+			return nil
+		}
+
+		select {
+		case <-reqCtx.Done():
+			if r.isDone(done) {
+				return errors.ErrProcessExited
+			}
+
+			return reqCtx.Err()
+		case <-time.After(interval):
+		}
+	}
+}
+
 // Check performs the appropriate readiness check for a service
 func (r *readiness) Check(ctx context.Context, name string, service *config.Service, proc process.Process) {
 	options := service.Readiness
@@ -135,6 +167,8 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 	switch options.Type {
 	case config.TypeHTTP:
 		err = r.CheckHTTP(ctx, options.URL, options.Timeout, options.Interval, done)
+	case config.TypeTCP:
+		err = r.CheckTCP(ctx, options.Address, options.Timeout, options.Interval, done)
 	case config.TypeLog:
 		err = r.CheckLog(ctx, options.Pattern, proc.StdoutReader(), proc.StderrReader(), options.Timeout, done)
 	default:

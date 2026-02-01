@@ -5,7 +5,8 @@ import (
 )
 
 var config = common.Config{
-	Name: "API",
+	Name:     "API",
+	HTTPPort: 8080,
 	Messages: []string{
 		"INFO: [API] Processing request GET /api/v1/books",
 		"DEBUG: [API] Cache hit for user data",

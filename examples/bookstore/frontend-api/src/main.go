@@ -5,7 +5,8 @@ import (
 )
 
 var config = common.Config{
-	Name: "FRONTEND-API",
+	Name:     "FRONTEND-API",
+	HTTPPort: 8081,
 	Messages: []string{
 		"INFO: [FRONTEND-API] Rendered homepage in 45ms",
 		"DEBUG: [FRONTEND-API] Template cache hit",

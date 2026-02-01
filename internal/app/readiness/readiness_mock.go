@@ -83,3 +83,17 @@ func (mr *MockReadinessMockRecorder) CheckLog(ctx, pattern, stdout, stderr, time
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLog", reflect.TypeOf((*MockReadiness)(nil).CheckLog), ctx, pattern, stdout, stderr, timeout, done)
 }
+
+// CheckTCP mocks base method.
+func (m *MockReadiness) CheckTCP(ctx context.Context, address string, timeout, interval time.Duration, done <-chan struct{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckTCP", ctx, address, timeout, interval, done)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckTCP indicates an expected call of CheckTCP.
+func (mr *MockReadinessMockRecorder) CheckTCP(ctx, address, timeout, interval, done any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckTCP", reflect.TypeOf((*MockReadiness)(nil).CheckTCP), ctx, address, timeout, interval, done)
+}
