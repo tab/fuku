@@ -98,32 +98,6 @@ func TruncateAndPad(s string, width int) string {
 	return ellipsis + strings.Repeat(IndicatorEmpty, width-ellipsisWidth)
 }
 
-// Truncate truncates text to fit within maxWidth display columns
-func Truncate(s string, maxWidth int) string {
-	currentWidth := lipgloss.Width(s)
-	if currentWidth <= maxWidth {
-		return s
-	}
-
-	ellipsis := "…"
-	ellipsisWidth := lipgloss.Width(ellipsis)
-	targetWidth := maxWidth - ellipsisWidth
-
-	if targetWidth <= 0 {
-		return ellipsis
-	}
-
-	runes := []rune(s)
-	for i := len(runes); i > 0; i-- {
-		candidate := string(runes[:i])
-		if lipgloss.Width(candidate) <= targetWidth {
-			return candidate + ellipsis
-		}
-	}
-
-	return ellipsis
-}
-
 // buildTopBorder builds the top border with title and status
 func buildTopBorder(border func(string) string, titleText, topRightText string, middleWidth int) string {
 	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
