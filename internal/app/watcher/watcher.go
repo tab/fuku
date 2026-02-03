@@ -22,13 +22,13 @@ type Watcher interface {
 
 // watcher holds state for a single watched service
 type watcher struct {
-	name       string
-	dir        string
-	sharedDirs []string
-	dirs       []string
-	matcher    Matcher
-	debouncer  Debouncer
-	cancel     context.CancelFunc
+	name      string
+	root      string
+	shared    []string
+	list      []string
+	matcher   Matcher
+	debouncer Debouncer
+	cancel    context.CancelFunc
 }
 
 // manager implements the Watcher interface
@@ -37,6 +37,7 @@ type manager struct {
 	bus       bus.Bus
 	fsWatcher *fsnotify.Watcher
 	watchers  map[string]*watcher
+	registry  map[string][]string
 	mu        sync.RWMutex
 	closed    bool
 	log       logger.Logger
@@ -54,6 +55,7 @@ func NewWatcher(cfg *config.Config, b bus.Bus, log logger.Logger) (Watcher, erro
 		bus:       b,
 		fsWatcher: fsw,
 		watchers:  make(map[string]*watcher),
+		registry:  make(map[string][]string),
 		log:       log.WithComponent("WATCHER"),
 	}
 
@@ -113,7 +115,7 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 		return
 	}
 
-	absDir, err := filepath.Abs(serviceCfg.Dir)
+	root, err := filepath.Abs(serviceCfg.Dir)
 	if err != nil {
 		m.log.Warn().Err(err).Msgf("Failed to get absolute path for service '%s'", serviceName)
 		return
@@ -123,7 +125,7 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 
 	w := &watcher{
 		name:    serviceName,
-		dir:     absDir,
+		root:    root,
 		matcher: matcher,
 		cancel:  cancel,
 	}
@@ -137,7 +139,7 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 		m.emitEvent(serviceName, files)
 	})
 
-	dirs, err := m.addDirRecursive(absDir, matcher)
+	dirs, err := m.registerRecursive(root, serviceName, matcher)
 	if err != nil {
 		cancel()
 		m.log.Warn().Err(err).Msgf("Failed to add directories for service '%s'", serviceName)
@@ -145,30 +147,30 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 		return
 	}
 
-	w.dirs = dirs
+	w.list = dirs
 
-	for _, shared := range serviceCfg.Watch.Shared {
-		shared = normalizeSharedPath(shared)
+	for _, sharedPath := range serviceCfg.Watch.Shared {
+		sharedPath = normalizeSharedPath(sharedPath)
 
-		absShared, err := filepath.Abs(shared)
+		absShared, err := filepath.Abs(sharedPath)
 		if err != nil {
-			m.log.Warn().Err(err).Msgf("Failed to resolve shared path '%s' for service '%s'", shared, serviceName)
+			m.log.Warn().Err(err).Msgf("Failed to resolve shared path '%s' for service '%s'", sharedPath, serviceName)
 			continue
 		}
 
-		w.sharedDirs = append(w.sharedDirs, absShared)
+		w.shared = append(w.shared, absShared)
 
-		sharedDirs, err := m.addDirRecursive(absShared, matcher)
+		sharedDirs, err := m.registerRecursive(absShared, serviceName, matcher)
 		if err != nil {
 			m.log.Warn().Err(err).Msgf("Failed to add shared directory '%s' for service '%s'", absShared, serviceName)
 			continue
 		}
 
-		w.dirs = append(w.dirs, sharedDirs...)
+		w.list = append(w.list, sharedDirs...)
 	}
 
 	m.watchers[serviceName] = w
-	m.log.Info().Msgf("Started watching service '%s' in %s", serviceName, absDir)
+	m.log.Info().Msgf("Started watching service '%s' in %s", serviceName, root)
 
 	m.bus.Publish(bus.Message{
 		Type: bus.EventWatchStarted,
@@ -192,7 +194,7 @@ func (m *manager) stopWatching(serviceName string) {
 	}
 
 	w.cancel()
-	m.removeDirs(w)
+	m.unregisterAll(w)
 	delete(m.watchers, serviceName)
 	m.log.Info().Msgf("Stopped watching service '%s'", serviceName)
 
@@ -248,14 +250,21 @@ func (m *manager) handleEvent(event fsnotify.Event) {
 	}
 
 	var (
-		newDirPath        string
-		targetWatcherName string
+		newDirPath string
+		targets    []string
 	)
+
+	dir := filepath.Dir(event.Name)
 
 	m.mu.RLock()
 
-	for _, w := range m.watchers {
-		relPath, ok := relativeToAnyBaseDir(w, event.Name)
+	for _, serviceName := range m.registry[dir] {
+		w, exists := m.watchers[serviceName]
+		if !exists {
+			continue
+		}
+
+		relPath, ok := relativeToBase(w, event.Name)
 		if !ok {
 			continue
 		}
@@ -266,25 +275,34 @@ func (m *manager) handleEvent(event fsnotify.Event) {
 	}
 
 	if event.Has(fsnotify.Create) {
-		newDirPath, targetWatcherName = m.findNewDirTarget(event.Name)
+		newDirPath, targets = m.findTargets(event.Name)
 	}
 
 	m.mu.RUnlock()
 
-	if targetWatcherName != "" {
-		m.addNewDir(newDirPath, targetWatcherName)
+	if len(targets) > 0 {
+		m.register(newDirPath, targets)
 	}
 }
 
-// findNewDirTarget checks if path is a new directory to watch (called under RLock)
-func (m *manager) findNewDirTarget(path string) (string, string) {
+// findTargets returns all services that should watch the new directory (called under RLock)
+func (m *manager) findTargets(path string) (string, []string) {
 	info, err := os.Stat(path)
 	if err != nil || !info.IsDir() {
-		return "", ""
+		return "", nil
 	}
 
-	for _, w := range m.watchers {
-		relPath, ok := relativeToAnyBaseDir(w, path)
+	parentDir := filepath.Dir(path)
+	subscribers := m.registry[parentDir]
+	targets := make([]string, 0, len(subscribers))
+
+	for _, serviceName := range subscribers {
+		w, exists := m.watchers[serviceName]
+		if !exists {
+			continue
+		}
+
+		relPath, ok := relativeToBase(w, path)
 		if !ok {
 			continue
 		}
@@ -293,38 +311,41 @@ func (m *manager) findNewDirTarget(path string) (string, string) {
 			continue
 		}
 
-		return path, w.name
+		targets = append(targets, serviceName)
 	}
 
-	return "", ""
+	return path, targets
 }
 
-// addNewDir adds a directory to the watch list (acquires write lock)
-func (m *manager) addNewDir(path, watcherName string) {
+// register adds a directory to the watch list for specified services (acquires write lock)
+func (m *manager) register(path string, serviceNames []string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	w, exists := m.watchers[watcherName]
-	if !exists {
-		return
-	}
 
 	if err := m.fsWatcher.Add(path); err != nil {
 		m.log.Warn().Err(err).Msgf("Failed to watch new directory: %s", path)
 		return
 	}
 
-	w.dirs = append(w.dirs, path)
+	for _, serviceName := range serviceNames {
+		w, exists := m.watchers[serviceName]
+		if !exists {
+			continue
+		}
+
+		w.list = append(w.list, path)
+		m.registry[path] = append(m.registry[path], serviceName)
+	}
 }
 
-// relativeToAnyBaseDir returns a relative path from the first matching base dir (service dir or shared dirs)
-func relativeToAnyBaseDir(w *watcher, path string) (string, bool) {
-	if relPath, err := filepath.Rel(w.dir, path); err == nil && !strings.HasPrefix(relPath, "..") {
+// relativeToBase returns a relative path from the first matching base (root or shared)
+func relativeToBase(w *watcher, path string) (string, bool) {
+	if relPath, err := filepath.Rel(w.root, path); err == nil && !strings.HasPrefix(relPath, "..") {
 		return relPath, true
 	}
 
-	for _, baseDir := range w.sharedDirs {
-		relPath, err := filepath.Rel(baseDir, path)
+	for _, base := range w.shared {
+		relPath, err := filepath.Rel(base, path)
 		if err != nil {
 			continue
 		}
@@ -354,8 +375,8 @@ func (m *manager) emitEvent(serviceName string, files []string) {
 	})
 }
 
-// addDirRecursive adds a directory and all subdirectories to the watch list and returns the added paths
-func (m *manager) addDirRecursive(dir string, matcher Matcher) ([]string, error) {
+// registerRecursive adds a directory and all subdirectories to the watch list and returns the added paths
+func (m *manager) registerRecursive(dir string, serviceName string, matcher Matcher) ([]string, error) {
 	var dirs []string
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -382,6 +403,7 @@ func (m *manager) addDirRecursive(dir string, matcher Matcher) ([]string, error)
 			m.log.Warn().Err(err).Msgf("Failed to watch directory: %s", path)
 		} else {
 			dirs = append(dirs, path)
+			m.registry[path] = append(m.registry[path], serviceName)
 		}
 
 		return nil
@@ -398,11 +420,39 @@ func isRelevantEvent(event fsnotify.Event) bool {
 		event.Has(fsnotify.Rename)
 }
 
-// removeDirs removes all tracked directories for a watcher from fsnotify
-func (m *manager) removeDirs(w *watcher) {
-	for _, dir := range w.dirs {
-		_ = m.fsWatcher.Remove(dir)
+// unregisterAll removes all tracked directories for a watcher from fsnotify and registry
+func (m *manager) unregisterAll(w *watcher) {
+	for _, dir := range w.list {
+		if m.unregister(dir, w.name) {
+			_ = m.fsWatcher.Remove(dir)
+		}
 	}
+}
+
+// unregister removes a service from a directory's registry, returning true if it should be removed from fsnotify
+func (m *manager) unregister(dir, serviceName string) bool {
+	subscribers := m.registry[dir]
+	if len(subscribers) == 0 {
+		return true
+	}
+
+	n := 0
+
+	for _, name := range subscribers {
+		if name != serviceName {
+			subscribers[n] = name
+			n++
+		}
+	}
+
+	if n == 0 {
+		delete(m.registry, dir)
+		return true
+	}
+
+	m.registry[dir] = subscribers[:n]
+
+	return false
 }
 
 // normalizeSharedPath strips trailing glob suffixes from shared directory paths

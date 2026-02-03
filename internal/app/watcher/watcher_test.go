@@ -609,11 +609,11 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 
 	require.True(t, exists)
 
-	for _, dir := range watcher.dirs {
+	for _, dir := range watcher.list {
 		assert.NotContains(t, dir, ".git", "should not watch .git directory")
 	}
 
-	assert.Contains(t, watcher.dirs, watchedDir, "should watch src directory")
+	assert.Contains(t, watcher.list, watchedDir, "should watch src directory")
 }
 
 func Test_Watcher_WatchesSharedDirs(t *testing.T) {
@@ -757,11 +757,185 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 
 	require.True(t, exists)
 
-	for _, dir := range watcher.dirs {
+	for _, dir := range watcher.list {
 		assert.NotContains(t, dir, "build", "should not watch build directory")
 	}
 
-	assert.Contains(t, watcher.dirs, srcDir, "should watch src directory")
+	assert.Contains(t, watcher.list, srcDir, "should watch src directory")
+}
+
+func Test_Watcher_WatchesNewDirCreatedAtRuntime(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	tmpDir := t.TempDir()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"test-service": {
+				Dir: tmpDir,
+				Watch: &config.Watch{
+					Include:  []string{"**/*.go"},
+					Debounce: 10 * time.Millisecond,
+				},
+			},
+		},
+	}
+	cfg.Logs.Buffer = 10
+
+	b := bus.New(cfg, mockServer, nil)
+	defer b.Close()
+
+	w, err := NewWatcher(cfg, b, mockLog)
+	require.NoError(t, err)
+
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eventCh := b.Subscribe(ctx)
+	w.Start(ctx)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+	})
+
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
+
+	m := w.(*manager)
+
+	newDir := filepath.Join(tmpDir, "newpkg")
+	require.NoError(t, os.Mkdir(newDir, 0755))
+
+	require.Eventually(t, func() bool {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+
+		_, exists := m.registry[newDir]
+
+		return exists
+	}, 3*time.Second, 10*time.Millisecond, "new directory should be registered")
+
+	newFile := filepath.Join(newDir, "new.go")
+	err = os.WriteFile(newFile, []byte("package newpkg"), 0644)
+	require.NoError(t, err)
+
+	timeout := time.After(3 * time.Second)
+
+	for {
+		select {
+		case event := <-eventCh:
+			if event.Type == bus.EventWatchTriggered {
+				data, ok := event.Data.(bus.WatchTriggered)
+				assert.True(t, ok)
+				assert.Equal(t, "test-service", data.Service)
+
+				return
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for watch event from new directory")
+		}
+	}
+}
+
+func Test_Watcher_NewDirInSharedPathRegistersAllServices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent(gomock.Any()).Return(componentLog).AnyTimes()
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+	componentLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	serviceDir1 := t.TempDir()
+	serviceDir2 := t.TempDir()
+	sharedDir := t.TempDir()
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"service-1": {
+				Dir: serviceDir1,
+				Watch: &config.Watch{
+					Include:  []string{"**/*.go"},
+					Shared:   []string{sharedDir},
+					Debounce: 10 * time.Millisecond,
+				},
+			},
+			"service-2": {
+				Dir: serviceDir2,
+				Watch: &config.Watch{
+					Include:  []string{"**/*.go"},
+					Shared:   []string{sharedDir},
+					Debounce: 10 * time.Millisecond,
+				},
+			},
+		},
+	}
+	cfg.Logs.Buffer = 10
+
+	b := bus.New(cfg, mockServer, nil)
+	defer b.Close()
+
+	w, err := NewWatcher(cfg, b, mockLog)
+	require.NoError(t, err)
+
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eventCh := b.Subscribe(ctx)
+	w.Start(ctx)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "service-1", Tier: "default"}},
+	})
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "service-2", Tier: "default"}},
+	})
+	waitForEvent(t, eventCh, bus.EventWatchStarted)
+
+	m := w.(*manager)
+
+	newDir := filepath.Join(sharedDir, "newpkg")
+	require.NoError(t, os.Mkdir(newDir, 0755))
+
+	require.Eventually(t, func() bool {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+
+		subscribers := m.registry[newDir]
+
+		return len(subscribers) == 2
+	}, 3*time.Second, 10*time.Millisecond, "new directory should be registered for both services")
+
+	m.mu.RLock()
+	subscribers := m.registry[newDir]
+	m.mu.RUnlock()
+
+	assert.Contains(t, subscribers, "service-1")
+	assert.Contains(t, subscribers, "service-2")
 }
 
 func Test_normalizeSharedPath(t *testing.T) {
