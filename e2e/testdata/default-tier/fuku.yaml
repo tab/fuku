@@ -1,0 +1,14 @@
+version: 1
+
+services:
+  auth-api:
+    dir: auth-api
+  user-api:
+    dir: user-api
+
+profiles:
+  default: "*"
+
+logging:
+  format: console
+  level: debug

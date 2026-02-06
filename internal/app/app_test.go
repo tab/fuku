@@ -22,6 +22,7 @@ func Test_NewApp(t *testing.T) {
 
 	assert.NotNil(t, application)
 	assert.Equal(t, mockCLI, application.cli)
+	assert.NotNil(t, application.done)
 }
 
 func Test_execute(t *testing.T) {
@@ -31,7 +32,8 @@ func Test_execute(t *testing.T) {
 	mockCLI := cli.NewMockCLI(ctrl)
 
 	app := &App{
-		cli: mockCLI,
+		cli:  mockCLI,
+		done: make(chan struct{}),
 	}
 
 	tests := []struct {
@@ -91,7 +93,30 @@ func Test_Register(t *testing.T) {
 	assert.NotNil(t, capturedHook.OnStop)
 }
 
-func Test_Register_OnStop_ReturnsNil(t *testing.T) {
+func Test_Register_OnStop_ReturnsWhenDoneClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCLI := cli.NewMockCLI(ctrl)
+	app := NewApp(mockCLI)
+	close(app.done)
+
+	var capturedHook fx.Hook
+
+	testLifecycle := &testLifecycleImpl{
+		onAppend: func(hook fx.Hook) {
+			capturedHook = hook
+		},
+	}
+
+	Register(testLifecycle, app)
+
+	ctx := context.Background()
+	err := capturedHook.OnStop(ctx)
+	assert.NoError(t, err)
+}
+
+func Test_Register_OnStop_RespectsContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -108,9 +133,12 @@ func Test_Register_OnStop_ReturnsNil(t *testing.T) {
 
 	Register(testLifecycle, app)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
 	err := capturedHook.OnStop(ctx)
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 // testLifecycleImpl implements fx.Lifecycle for testing
