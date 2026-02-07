@@ -1,0 +1,16 @@
+version: 1
+
+services:
+  worker:
+    dir: worker
+    watch:
+      include:
+        - "*.go"
+      debounce: 200ms
+
+profiles:
+  default: "*"
+
+logging:
+  format: console
+  level: debug

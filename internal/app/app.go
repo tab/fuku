@@ -11,19 +11,23 @@ import (
 
 // App represents the main application container
 type App struct {
-	cli cli.CLI
+	cli  cli.CLI
+	done chan struct{}
 }
 
 // NewApp creates a new application instance with its dependencies
 func NewApp(cli cli.CLI) *App {
 	return &App{
-		cli: cli,
+		cli:  cli,
+		done: make(chan struct{}),
 	}
 }
 
 // Run executes the application
 func (a *App) Run() {
 	exitCode := a.execute()
+	close(a.done)
+
 	os.Exit(exitCode)
 }
 
@@ -42,7 +46,12 @@ func Register(lifecycle fx.Lifecycle, app *App) {
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			return nil
+			select {
+			case <-app.done:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		},
 	})
 }

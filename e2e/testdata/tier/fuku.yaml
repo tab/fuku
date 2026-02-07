@@ -1,0 +1,19 @@
+version: 1
+
+services:
+  postgres:
+    dir: postgres
+    tier: foundation
+  redis:
+    dir: redis
+    tier: platform
+  gateway:
+    dir: gateway-api
+    tier: edge
+
+profiles:
+  default: "*"
+
+logging:
+  format: console
+  level: debug
