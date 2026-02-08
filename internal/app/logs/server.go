@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"fuku/internal/app/errors"
 	"fuku/internal/config"
@@ -221,6 +222,9 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 			}
 
 			data = append(data, '\n')
+
+			conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout))
+
 			if _, err := conn.Write(data); err != nil {
 				s.log.Debug().Err(err).Msgf("Client %s disconnected", clientID)
 				return
