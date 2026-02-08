@@ -49,6 +49,7 @@ type Service struct {
 	Profiles  []string   `yaml:"profiles"`
 	Tier      string     `yaml:"tier"`
 	Readiness *Readiness `yaml:"readiness"`
+	Logs      *Logs      `yaml:"logs"`
 	Watch     *Watch     `yaml:"watch"`
 }
 
@@ -68,6 +69,11 @@ type Watch struct {
 	Ignore   []string      `yaml:"ignore"`
 	Shared   []string      `yaml:"shared"`
 	Debounce time.Duration `yaml:"debounce"`
+}
+
+// Logs represents per-service console logging configuration
+type Logs struct {
+	Output []string `yaml:"output"`
 }
 
 // ServiceDefaults represents default configuration for services
@@ -289,6 +295,10 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("service %s: %w", name, err)
 		}
 
+		if err := service.validateLogs(); err != nil {
+			return fmt.Errorf("service %s: %w", name, err)
+		}
+
 		if err := service.validateWatch(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
 		}
@@ -361,6 +371,23 @@ func (s *Service) validateReadiness() error {
 
 	if r.Interval == 0 {
 		r.Interval = DefaultInterval
+	}
+
+	return nil
+}
+
+// validateLogs validates the service logs configuration
+func (s *Service) validateLogs() error {
+	if s.Logs == nil {
+		return nil
+	}
+
+	for _, output := range s.Logs.Output {
+		switch strings.ToLower(output) {
+		case "stdout", "stderr":
+		default:
+			return fmt.Errorf("%w: '%s'", errors.ErrInvalidLogsOutput, output)
+		}
 	}
 
 	return nil

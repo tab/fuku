@@ -15,6 +15,9 @@ x-readiness-tcp: &readiness-tcp
   timeout: 30s
   interval: 500ms
 
+x-logs: &logs
+  output: [stdout, stderr]
+
 x-watch: &watch
   include:
     - "**/*.go"
@@ -46,6 +49,8 @@ services:
     tier: foundation
     readiness:
       <<: *readiness-log
+    logs:
+      <<: *logs
     watch:
       <<: *watch
 

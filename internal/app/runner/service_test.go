@@ -1,11 +1,13 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -520,14 +522,240 @@ func Test_SetupReadinessCheck_UnknownType(t *testing.T) {
 	}
 }
 
-func Test_TeeStream_WithOutput(t *testing.T) {
+func Test_ShouldLogStream(t *testing.T) {
+	tests := []struct {
+		name       string
+		services   map[string]*config.Service
+		service    string
+		streamType string
+		expected   bool
+	}{
+		{
+			name:       "service not in config",
+			services:   map[string]*config.Service{},
+			service:    "api",
+			streamType: "STDOUT",
+			expected:   false,
+		},
+		{
+			name: "nil logs config",
+			services: map[string]*config.Service{
+				"api": {Dir: "api"},
+			},
+			service:    "api",
+			streamType: "STDOUT",
+			expected:   false,
+		},
+		{
+			name: "empty output means both streams enabled",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Logs: &config.Logs{Output: []string{}}},
+			},
+			service:    "api",
+			streamType: "STDOUT",
+			expected:   true,
+		},
+		{
+			name: "empty output means stderr also enabled",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Logs: &config.Logs{Output: []string{}}},
+			},
+			service:    "api",
+			streamType: "STDERR",
+			expected:   true,
+		},
+		{
+			name: "stdout configured and stdout requested",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Logs: &config.Logs{Output: []string{"stdout"}}},
+			},
+			service:    "api",
+			streamType: "STDOUT",
+			expected:   true,
+		},
+		{
+			name: "stdout configured and stderr requested",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Logs: &config.Logs{Output: []string{"stdout"}}},
+			},
+			service:    "api",
+			streamType: "STDERR",
+			expected:   false,
+		},
+		{
+			name: "stderr configured and stderr requested",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Logs: &config.Logs{Output: []string{"stderr"}}},
+			},
+			service:    "api",
+			streamType: "STDERR",
+			expected:   true,
+		},
+		{
+			name: "both configured and stdout requested",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Logs: &config.Logs{Output: []string{"stdout", "stderr"}}},
+			},
+			service:    "api",
+			streamType: "STDOUT",
+			expected:   true,
+		},
+		{
+			name: "case insensitive match",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Logs: &config.Logs{Output: []string{"STDOUT"}}},
+			},
+			service:    "api",
+			streamType: "STDOUT",
+			expected:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Services = tt.services
+
+			s := &service{cfg: cfg}
+
+			result := s.shouldLogStream(tt.service, tt.streamType)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_TeeStream_WithLogsEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["test-service"] = &config.Service{
+		Dir:  "test",
+		Logs: &config.Logs{Output: []string{"stdout"}},
+	}
 
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	s := &service{log: mockLog}
+	s := &service{cfg: cfg, log: mockLog}
+
+	reader, writer := io.Pipe()
+	dstReader, dstWriter := io.Pipe()
+
+	done := make(chan struct{})
+
+	go func() {
+		s.teeStream(reader, dstWriter, "test-service", "STDOUT")
+		close(done)
+	}()
+
+	go func() {
+		writer.Write([]byte("test line\n"))
+		writer.Close()
+	}()
+
+	go func() {
+		io.Copy(io.Discard, dstReader)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("teeStream did not complete")
+	}
+}
+
+func Test_TeeStream_WithLogsDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["test-service"] = &config.Service{Dir: "test"}
+
+	mockLog := logger.NewMockLogger(ctrl)
+
+	s := &service{cfg: cfg, log: mockLog}
+
+	reader, writer := io.Pipe()
+	dstReader, dstWriter := io.Pipe()
+
+	done := make(chan struct{})
+
+	go func() {
+		s.teeStream(reader, dstWriter, "test-service", "STDOUT")
+		close(done)
+	}()
+
+	go func() {
+		writer.Write([]byte("test line\n"))
+		writer.Close()
+	}()
+
+	go func() {
+		io.Copy(io.Discard, dstReader)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("teeStream did not complete")
+	}
+}
+
+func Test_TeeStream_StderrFiltered(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["test-service"] = &config.Service{
+		Dir:  "test",
+		Logs: &config.Logs{Output: []string{"stdout"}},
+	}
+
+	mockLog := logger.NewMockLogger(ctrl)
+
+	s := &service{cfg: cfg, log: mockLog}
+
+	reader, writer := io.Pipe()
+	dstReader, dstWriter := io.Pipe()
+
+	done := make(chan struct{})
+
+	go func() {
+		s.teeStream(reader, dstWriter, "test-service", "STDERR")
+		close(done)
+	}()
+
+	go func() {
+		writer.Write([]byte("error line\n"))
+		writer.Close()
+	}()
+
+	go func() {
+		io.Copy(io.Discard, dstReader)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("teeStream did not complete")
+	}
+}
+
+func Test_TeeStream_WithOutput(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["test-service"] = &config.Service{
+		Dir:  "test",
+		Logs: &config.Logs{Output: []string{"stdout"}},
+	}
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	s := &service{cfg: cfg, log: mockLog}
 
 	reader, writer := io.Pipe()
 	dstReader, dstWriter := io.Pipe()
@@ -551,6 +779,101 @@ func Test_TeeStream_WithOutput(t *testing.T) {
 
 	select {
 	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("teeStream did not complete")
+	}
+}
+
+func Test_TeeStream_LongLineLogsAndForwards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["test-service"] = &config.Service{
+		Dir:  "test",
+		Logs: &config.Logs{Output: []string{"stdout"}},
+	}
+
+	longContent := strings.Repeat("x", 128*1024)
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast("test-service", longContent).Times(1)
+
+	s := &service{cfg: cfg, log: mockLog, server: mockServer}
+
+	reader, writer := io.Pipe()
+	dstReader, dstWriter := io.Pipe()
+
+	go func() {
+		s.teeStream(reader, dstWriter, "test-service", "STDOUT")
+		dstWriter.Close()
+	}()
+
+	go func() {
+		writer.Write([]byte(longContent + "\n"))
+		writer.Close()
+	}()
+
+	var buf bytes.Buffer
+
+	done := make(chan struct{})
+
+	go func() {
+		io.Copy(&buf, dstReader)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		assert.Equal(t, longContent+"\n", buf.String())
+	case <-time.After(2 * time.Second):
+		t.Fatal("teeStream did not complete")
+	}
+}
+
+func Test_TeeStream_ForwardsOutput(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["test-service"] = &config.Service{
+		Dir:  "test",
+		Logs: &config.Logs{Output: []string{"stdout"}},
+	}
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	s := &service{cfg: cfg, log: mockLog}
+
+	reader, writer := io.Pipe()
+	dstReader, dstWriter := io.Pipe()
+
+	go func() {
+		s.teeStream(reader, dstWriter, "test-service", "STDOUT")
+		dstWriter.Close()
+	}()
+
+	go func() {
+		writer.Write([]byte("line one\nline two\n"))
+		writer.Close()
+	}()
+
+	var buf bytes.Buffer
+
+	done := make(chan struct{})
+
+	go func() {
+		io.Copy(&buf, dstReader)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		assert.Equal(t, "line one\nline two\n", buf.String())
 	case <-time.After(time.Second):
 		t.Fatal("teeStream did not complete")
 	}
