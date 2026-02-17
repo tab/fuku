@@ -59,12 +59,6 @@ func NewRunner(
 
 // Run executes the specified profile
 func (r *runner) Run(ctx context.Context, profile string) error {
-	if err := r.server.Start(ctx, profile); err != nil {
-		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
-	} else {
-		defer r.server.Stop()
-	}
-
 	r.bus.Publish(bus.Message{
 		Type:     bus.EventPhaseChanged,
 		Data:     bus.PhaseChanged{Phase: bus.PhaseStartup},
@@ -91,6 +85,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	})
 
 	services := r.collectServices(tiers)
+
 	if len(services) == 0 {
 		r.log.Warn().Msgf("No services found for profile '%s'. Nothing to run.", profile)
 		r.bus.Publish(bus.Message{
@@ -100,6 +95,12 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		})
 
 		return nil
+	}
+
+	if err := r.server.Start(ctx, profile, services); err != nil {
+		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
+	} else {
+		defer r.server.Stop()
 	}
 
 	r.log.Info().Msgf("Starting services in profile '%s': %v", profile, services)

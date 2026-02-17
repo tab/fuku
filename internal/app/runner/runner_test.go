@@ -72,8 +72,6 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Start(gomock.Any(), "nonexistent").Return(nil)
-	mockServer.EXPECT().Stop().Return(nil)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
@@ -105,8 +103,6 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Start(gomock.Any(), "test").Return(nil)
-	mockServer.EXPECT().Stop().Return(nil)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
@@ -154,7 +150,7 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Start(gomock.Any(), "test").Return(nil)
+	mockServer.EXPECT().Start(gomock.Any(), "test", []string{"api"}).Return(nil)
 	mockServer.EXPECT().Stop().Return(nil)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
@@ -188,8 +184,6 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	mockWorkerPool := NewMockWorkerPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Start(gomock.Any(), "default").Return(nil)
-	mockServer.EXPECT().Stop().Return(nil)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 

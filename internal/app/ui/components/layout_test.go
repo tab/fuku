@@ -182,11 +182,11 @@ func Test_TruncateAndPad_EdgeCases(t *testing.T) {
 	})
 }
 
-func Test_buildTopBorder(t *testing.T) {
+func Test_BuildTopBorder(t *testing.T) {
 	border := func(s string) string { return s }
 
-	t.Run("builds top border with title", func(t *testing.T) {
-		result := buildTopBorder(border, "Title", "Info", 10)
+	t.Run("builds top border with title and right text", func(t *testing.T) {
+		result := BuildTopBorder(border, "Title", "Info", 40)
 
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, "Title")
@@ -195,8 +195,17 @@ func Test_buildTopBorder(t *testing.T) {
 		assert.Contains(t, result, BorderTopRight)
 	})
 
+	t.Run("builds top border with empty right text", func(t *testing.T) {
+		result := BuildTopBorder(border, "logs", "", 40)
+
+		assert.NotEmpty(t, result)
+		assert.Contains(t, result, "logs")
+		assert.Contains(t, result, BorderTopLeft)
+		assert.Contains(t, result, BorderTopRight)
+	})
+
 	t.Run("builds top border with empty title", func(t *testing.T) {
-		result := buildTopBorder(border, "", "", 5)
+		result := BuildTopBorder(border, "", "", 20)
 
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, BorderTopLeft)
@@ -204,11 +213,11 @@ func Test_buildTopBorder(t *testing.T) {
 	})
 }
 
-func Test_buildBottomBorder(t *testing.T) {
+func Test_BuildBottomBorder(t *testing.T) {
 	border := func(s string) string { return s }
 
 	t.Run("builds bottom border with version only", func(t *testing.T) {
-		result := buildBottomBorder(border, "", "v1.0", 40)
+		result := BuildBottomBorder(border, "", "v1.0", 40)
 
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, BorderBottomLeft)
@@ -216,7 +225,7 @@ func Test_buildBottomBorder(t *testing.T) {
 	})
 
 	t.Run("builds bottom border with info and version", func(t *testing.T) {
-		result := buildBottomBorder(border, "cpu 0.5% mem 12MB", "v1.0", 60)
+		result := BuildBottomBorder(border, "cpu 0.5% mem 12MB", "v1.0", 60)
 
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, BorderBottomLeft)
@@ -226,14 +235,14 @@ func Test_buildBottomBorder(t *testing.T) {
 	})
 
 	t.Run("handles minimum width", func(t *testing.T) {
-		result := buildBottomBorder(border, "", "very-long-version-text", 10)
+		result := BuildBottomBorder(border, "", "very-long-version-text", 10)
 
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, BorderBottomLeft)
 	})
 
 	t.Run("handles empty text", func(t *testing.T) {
-		result := buildBottomBorder(border, "", "", 20)
+		result := BuildBottomBorder(border, "", "", 20)
 
 		assert.NotEmpty(t, result)
 	})
@@ -286,7 +295,7 @@ func Test_splitAndPadContent(t *testing.T) {
 	}
 }
 
-func Test_appendContentLines(t *testing.T) {
+func Test_AppendContentLines(t *testing.T) {
 	border := func(s string) string { return "[" + s + "]" }
 
 	t.Run("appends bordered lines", func(t *testing.T) {
@@ -294,7 +303,7 @@ func Test_appendContentLines(t *testing.T) {
 		contentLines := []string{"content1", "content2"}
 		innerWidth := 10
 
-		result := appendContentLines(lines, contentLines, innerWidth, border)
+		result := AppendContentLines(lines, contentLines, innerWidth, border)
 
 		assert.Len(t, result, 3)
 		assert.Equal(t, "header", result[0])
@@ -307,7 +316,7 @@ func Test_appendContentLines(t *testing.T) {
 		contentLines := []string{""}
 		innerWidth := 5
 
-		result := appendContentLines(lines, contentLines, innerWidth, border)
+		result := AppendContentLines(lines, contentLines, innerWidth, border)
 
 		assert.Len(t, result, 1)
 	})
@@ -317,13 +326,13 @@ func Test_appendContentLines(t *testing.T) {
 		contentLines := []string{"very long content line"}
 		innerWidth := 5
 
-		result := appendContentLines(lines, contentLines, innerWidth, border)
+		result := AppendContentLines(lines, contentLines, innerWidth, border)
 
 		assert.Len(t, result, 1)
 	})
 }
 
-func Test_splitAtDisplayWidth(t *testing.T) {
+func Test_SplitAtDisplayWidth(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
@@ -388,23 +397,23 @@ func Test_splitAtDisplayWidth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			left, right := splitAtDisplayWidth(tt.input)
+			left, right := SplitAtDisplayWidth(tt.input)
 			assert.Equal(t, tt.wantLeft, left)
 			assert.Equal(t, tt.wantRight, right)
 		})
 	}
 }
 
-func Test_splitAtDisplayWidth_WithWideCharacters(t *testing.T) {
+func Test_SplitAtDisplayWidth_WithWideCharacters(t *testing.T) {
 	t.Run("handles emoji", func(t *testing.T) {
-		left, right := splitAtDisplayWidth("🎉🎊")
+		left, right := SplitAtDisplayWidth("🎉🎊")
 		combined := left + right
 		assert.Equal(t, "🎉🎊", combined)
 	})
 
 	t.Run("handles CJK characters", func(t *testing.T) {
 		input := "中文字"
-		left, right := splitAtDisplayWidth(input)
+		left, right := SplitAtDisplayWidth(input)
 		assert.Equal(t, input, left+right)
 	})
 }

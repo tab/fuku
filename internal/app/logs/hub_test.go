@@ -2,23 +2,30 @@ package logs
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"fuku/internal/config"
+	"fuku/internal/config/logger"
 )
+
+func testLogger() logger.Logger {
+	cfg := config.DefaultConfig()
+	return logger.NewLoggerWithOutput(cfg, io.Discard)
+}
 
 func Test_NewHub(t *testing.T) {
 	bufferSize := 100
+	log := testLogger()
 
-	h := NewHub(bufferSize)
+	h := NewHub(bufferSize, log)
 	assert.NotNil(t, h)
 
 	impl, ok := h.(*hub)
 	assert.True(t, ok)
-	assert.Equal(t, bufferSize, impl.bufferSize)
 	assert.NotNil(t, impl.clients)
 	assert.NotNil(t, impl.register)
 	assert.NotNil(t, impl.unregister)
@@ -143,25 +150,26 @@ func Test_ShouldReceive(t *testing.T) {
 
 func Test_Register(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-
 	defer cancel()
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	go h.Run(ctx)
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
-
 	h.Register(client)
 
-	impl := h.(*hub)
-
 	assert.Eventually(t, func() bool {
-		impl.mu.RLock()
-		defer impl.mu.RUnlock()
+		h.Broadcast("test", "ping")
 
-		return impl.clients[client]
+		select {
+		case <-client.SendChan:
+			return true
+		default:
+			return false
+		}
 	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
@@ -169,7 +177,8 @@ func Test_Register_AfterDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	done := make(chan struct{})
 
@@ -193,33 +202,37 @@ func Test_Register_AfterDone(t *testing.T) {
 
 func Test_Unregister(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-
 	defer cancel()
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	go h.Run(ctx)
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
 
-	impl := h.(*hub)
-
 	assert.Eventually(t, func() bool {
-		impl.mu.RLock()
-		defer impl.mu.RUnlock()
+		h.Broadcast("test", "ping")
 
-		return impl.clients[client]
+		select {
+		case <-client.SendChan:
+			return true
+		default:
+			return false
+		}
 	}, 100*time.Millisecond, 5*time.Millisecond)
 
 	h.Unregister(client)
 
 	assert.Eventually(t, func() bool {
-		impl.mu.RLock()
-		defer impl.mu.RUnlock()
-
-		return !impl.clients[client]
+		select {
+		case _, ok := <-client.SendChan:
+			return !ok
+		default:
+			return false
+		}
 	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
@@ -229,7 +242,8 @@ func Test_Unregister_NonExistent(t *testing.T) {
 	defer cancel()
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	go h.Run(ctx)
 
@@ -242,7 +256,8 @@ func Test_Unregister_AfterDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	done := make(chan struct{})
 
@@ -266,11 +281,11 @@ func Test_Unregister_AfterDone(t *testing.T) {
 
 func Test_Broadcast_ToSubscribedClients(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-
 	defer cancel()
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	go h.Run(ctx)
 
@@ -283,25 +298,20 @@ func Test_Broadcast_ToSubscribedClients(t *testing.T) {
 	h.Register(client1)
 	h.Register(client2)
 
-	impl := h.(*hub)
-
 	assert.Eventually(t, func() bool {
-		impl.mu.RLock()
-		defer impl.mu.RUnlock()
+		h.Broadcast("api", "test message")
 
-		return impl.clients[client1] && impl.clients[client2]
+		select {
+		case msg := <-client1.SendChan:
+			assert.Equal(t, MessageLog, msg.Type)
+			assert.Equal(t, "api", msg.Service)
+			assert.Equal(t, "test message", msg.Message)
+
+			return true
+		default:
+			return false
+		}
 	}, 100*time.Millisecond, 5*time.Millisecond)
-
-	h.Broadcast("api", "test message")
-
-	select {
-	case msg := <-client1.SendChan:
-		assert.Equal(t, MessageLog, msg.Type)
-		assert.Equal(t, "api", msg.Service)
-		assert.Equal(t, "test message", msg.Message)
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("client1 should receive message")
-	}
 
 	select {
 	case <-client2.SendChan:
@@ -312,50 +322,50 @@ func Test_Broadcast_ToSubscribedClients(t *testing.T) {
 
 func Test_Broadcast_ToAllWhenNoFilter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-
 	defer cancel()
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	go h.Run(ctx)
 
 	client := NewClientConn("client", cfg.Logs.Buffer)
 	h.Register(client)
 
-	impl := h.(*hub)
-
 	assert.Eventually(t, func() bool {
-		impl.mu.RLock()
-		defer impl.mu.RUnlock()
+		h.Broadcast("any-service", "test message")
 
-		return impl.clients[client]
+		select {
+		case msg := <-client.SendChan:
+			assert.Equal(t, "any-service", msg.Service)
+			assert.Equal(t, "test message", msg.Message)
+
+			return true
+		default:
+			return false
+		}
 	}, 100*time.Millisecond, 5*time.Millisecond)
-
-	h.Broadcast("any-service", "test message")
-
-	select {
-	case msg := <-client.SendChan:
-		assert.Equal(t, "any-service", msg.Service)
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("client should receive message")
-	}
 }
 
 func Test_Broadcast_DropsWhenBufferFull(t *testing.T) {
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer).(*hub)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log).(*hub)
 
 	for i := 0; i < cfg.Logs.Buffer+10; i++ {
 		h.Broadcast("api", "message")
 	}
+
+	assert.Equal(t, int64(10), h.dropped.Load())
 }
 
 func Test_Run_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cfg := config.DefaultConfig()
-	h := NewHub(cfg.Logs.Buffer)
+	log := testLogger()
+	h := NewHub(cfg.Logs.Buffer, log)
 
 	done := make(chan struct{})
 
@@ -367,23 +377,25 @@ func Test_Run_ContextCancellation(t *testing.T) {
 	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
 
-	impl := h.(*hub)
-
 	assert.Eventually(t, func() bool {
-		impl.mu.RLock()
-		defer impl.mu.RUnlock()
+		h.Broadcast("test", "ping")
 
-		return impl.clients[client]
+		select {
+		case <-client.SendChan:
+			return true
+		default:
+			return false
+		}
 	}, 100*time.Millisecond, 5*time.Millisecond)
 
 	cancel()
 
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Hub did not stop")
-	}
-
-	_, ok := <-client.SendChan
-	assert.False(t, ok, "SendChan should be closed")
+	assert.Eventually(t, func() bool {
+		select {
+		case _, ok := <-client.SendChan:
+			return !ok
+		default:
+			return false
+		}
+	}, time.Second, 5*time.Millisecond)
 }

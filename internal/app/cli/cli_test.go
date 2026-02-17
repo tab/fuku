@@ -223,7 +223,6 @@ func Test_Execute_LogsMode(t *testing.T) {
 				log:      mockLogger,
 			}
 
-			mockLogger.EXPECT().Debug().Return(nil)
 			mockLogsRunner.EXPECT().Run(tt.profile, tt.services).Return(0)
 
 			exitCode, err := c.Execute()

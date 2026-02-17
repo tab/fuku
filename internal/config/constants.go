@@ -52,7 +52,7 @@ const (
 	SocketSuffix         = ".sock"
 	SocketDialTimeout    = 100 * time.Millisecond
 	SocketWriteTimeout   = 5 * time.Second
-	SocketLogsBufferSize = 100
+	SocketLogsBufferSize = 1000
 )
 
 // Watch settings

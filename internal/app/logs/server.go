@@ -19,7 +19,7 @@ import (
 
 // Server manages the Unix socket server for log streaming
 type Server interface {
-	Start(ctx context.Context, profile string) error
+	Start(ctx context.Context, profile string, services []string) error
 	Stop() error
 	Broadcast(service, message string)
 	SocketPath() string
@@ -28,6 +28,8 @@ type Server interface {
 // server implements the Server interface
 type server struct {
 	socketPath string
+	profile    string
+	services   []string
 	bufferSize int
 	listener   net.Listener
 	hub        Hub
@@ -42,7 +44,7 @@ type server struct {
 func NewServer(cfg *config.Config, log logger.Logger) Server {
 	return &server{
 		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer),
+		hub:        NewHub(cfg.Logs.Buffer, log.WithComponent("HUB")),
 		log:        log.WithComponent("SERVER"),
 	}
 }
@@ -58,7 +60,9 @@ func SocketPathForProfile(socketDir, profile string) string {
 }
 
 // Start starts the Unix socket server
-func (s *server) Start(ctx context.Context, profile string) error {
+func (s *server) Start(ctx context.Context, profile string, services []string) error {
+	s.profile = profile
+	s.services = services
 	s.socketPath = SocketPathForProfile(config.SocketDir, profile)
 
 	if err := s.cleanupStaleSocket(); err != nil {
@@ -206,6 +210,8 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 	s.log.Debug().Msgf("Client %s subscribed to services: %v", clientID, req.Services)
 
+	s.sendStatus(conn, clientID)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -230,5 +236,29 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 				return
 			}
 		}
+	}
+}
+
+// sendStatus sends a status message to a newly connected client
+func (s *server) sendStatus(conn net.Conn, clientID string) {
+	status := StatusMessage{
+		Type:     MessageStatus,
+		Version:  config.Version,
+		Profile:  s.profile,
+		Services: s.services,
+	}
+
+	data, err := json.Marshal(status)
+	if err != nil {
+		s.log.Error().Err(err).Msgf("Failed to marshal status for %s", clientID)
+		return
+	}
+
+	data = append(data, '\n')
+
+	conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout))
+
+	if _, err := conn.Write(data); err != nil {
+		s.log.Debug().Err(err).Msgf("Failed to send status to %s", clientID)
 	}
 }

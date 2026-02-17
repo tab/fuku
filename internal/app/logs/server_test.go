@@ -24,6 +24,8 @@ func Test_NewServer(t *testing.T) {
 	cfg := config.DefaultConfig()
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
+	hubLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().WithComponent("HUB").Return(hubLogger)
 	mockLogger.EXPECT().WithComponent("SERVER").Return(componentLogger)
 
 	s := NewServer(cfg, mockLogger)
@@ -45,12 +47,12 @@ func Test_Server_SocketPath(t *testing.T) {
 
 	s := &server{
 		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer),
+		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
 		log:        mockLogger,
 	}
 
 	ctx := context.Background()
-	err := s.Start(ctx, "my-profile")
+	err := s.Start(ctx, "my-profile", []string{"api", "db"})
 	assert.NoError(t, err)
 
 	defer s.Stop()
@@ -74,11 +76,11 @@ func Test_Server_StartAndStop(t *testing.T) {
 
 	s := &server{
 		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer),
+		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
 		log:        mockLogger,
 	}
 
-	err := s.Start(ctx, "test-start")
+	err := s.Start(ctx, "test-start", nil)
 	assert.NoError(t, err)
 	assert.True(t, s.running.Load())
 	assert.FileExists(t, s.socketPath)
@@ -101,14 +103,6 @@ func Test_Server_StopWhenNotRunning(t *testing.T) {
 
 	err := s.Stop()
 	assert.NoError(t, err)
-}
-
-func Test_Server_StartFailsOnInvalidPath(t *testing.T) {
-	// Skip: With the refactored design, Start() computes socketPath from profile + config constants.
-	// The SocketDir (/tmp) always exists on Unix, so we can't test invalid path through Start().
-	// The old test manually set socketPath before Start(), but Start() now overwrites it.
-	// Socket creation errors are covered by cleanupStaleSocket tests (active socket case).
-	t.Skip("Socket path is now computed from profile; invalid path scenario is not possible")
 }
 
 func Test_Server_Broadcast(t *testing.T) {
@@ -228,11 +222,11 @@ func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
 
 	s := &server{
 		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer),
+		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
 		log:        mockLogger,
 	}
 
-	err := s.Start(ctx, "test-conn1")
+	err := s.Start(ctx, "test-conn1", []string{"api", "db"})
 	assert.NoError(t, err)
 
 	defer os.Remove(s.SocketPath())
@@ -247,11 +241,23 @@ func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
 	_, err = conn.Write(data)
 	assert.NoError(t, err)
 
+	reader := bufio.NewReader(conn)
+
+	statusLine, err := reader.ReadBytes('\n')
+	assert.NoError(t, err)
+
+	var status StatusMessage
+
+	err = json.Unmarshal(statusLine, &status)
+	assert.NoError(t, err)
+	assert.Equal(t, MessageStatus, status.Type)
+	assert.NotEmpty(t, status.Version)
+	assert.Equal(t, "test-conn1", status.Profile)
+	assert.Equal(t, []string{"api", "db"}, status.Services)
+
 	msgReceived := make(chan LogMessage, 1)
 
 	go func() {
-		reader := bufio.NewReader(conn)
-
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
 			return
@@ -299,11 +305,11 @@ func Test_Server_handleConnection_InvalidSubscribeRequest(t *testing.T) {
 
 	s := &server{
 		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer),
+		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
 		log:        mockLogger,
 	}
 
-	err := s.Start(ctx, "test-conn2")
+	err := s.Start(ctx, "test-conn2", nil)
 	assert.NoError(t, err)
 
 	defer os.Remove(s.SocketPath())
@@ -335,11 +341,11 @@ func Test_Server_handleConnection_WrongMessageType(t *testing.T) {
 
 	s := &server{
 		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer),
+		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
 		log:        mockLogger,
 	}
 
-	err := s.Start(ctx, "test-conn3")
+	err := s.Start(ctx, "test-conn3", nil)
 	assert.NoError(t, err)
 
 	defer os.Remove(s.SocketPath())

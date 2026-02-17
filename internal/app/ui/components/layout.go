@@ -24,18 +24,11 @@ func RenderPanel(opts PanelOptions) string {
 	innerWidth := opts.Width - PanelInnerPadding
 
 	titleText := PanelTitleStyle.Render(opts.Title)
-	titleLen := lipgloss.Width(titleText)
-	statusLen := lipgloss.Width(opts.Status) + SpacerWidth + BorderEdgeWidth
-
-	middleLineWidth := innerWidth - titleLen - statusLen - BorderEdgeWidth - SpacerWidth
-	if middleLineWidth < 1 {
-		middleLineWidth = 1
-	}
 
 	border := func(s string) string { return PanelBorderStyle.Render(s) }
 
-	topBorder := buildTopBorder(border, titleText, opts.Status, middleLineWidth)
-	bottomBorder := buildBottomBorder(border, opts.Stats, opts.Version, innerWidth)
+	topBorder := BuildTopBorder(border, titleText, opts.Status, innerWidth)
+	bottomBorder := BuildBottomBorder(border, opts.Stats, opts.Version, innerWidth)
 
 	contentHeight := opts.Height - PanelBorderHeight
 	if contentHeight < 1 {
@@ -46,7 +39,7 @@ func RenderPanel(opts PanelOptions) string {
 
 	lines := make([]string, 0, contentHeight+3)
 	lines = append(lines, topBorder)
-	lines = appendContentLines(lines, contentLines, innerWidth, border)
+	lines = AppendContentLines(lines, contentLines, innerWidth, border)
 	lines = append(lines, bottomBorder)
 
 	panel := lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -98,28 +91,44 @@ func TruncateAndPad(s string, width int) string {
 	return ellipsis + strings.Repeat(IndicatorEmpty, width-ellipsisWidth)
 }
 
-// buildTopBorder builds the top border with title and status
-func buildTopBorder(border func(string) string, titleText, topRightText string, middleWidth int) string {
+// BuildTopBorder builds the top border with title and optional right-side text
+func BuildTopBorder(border func(string) string, titleText, topRightText string, innerWidth int) string {
 	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
 	spacer := PanelTitleSpacer.Render("")
-	leftSpacer, rightSpacer := splitAtDisplayWidth(spacer)
+	leftSpacer, rightSpacer := SplitAtDisplayWidth(spacer)
+
+	titleLen := lipgloss.Width(titleText) + SpacerWidth + BorderEdgeWidth
+
+	rightLen := 0
+	if topRightText != "" {
+		rightLen = lipgloss.Width(topRightText) + SpacerWidth + BorderEdgeWidth
+	}
+
+	fillWidth := innerWidth - titleLen - rightLen
+	if fillWidth < 1 {
+		fillWidth = 1
+	}
 
 	result := border(BorderTopLeft + hLine(BorderEdgeWidth))
 	result += leftSpacer + titleText + rightSpacer
-	result += border(hLine(middleWidth))
-	result += leftSpacer + topRightText + rightSpacer
-	result += border(hLine(BorderEdgeWidth))
+	result += border(hLine(fillWidth))
+
+	if topRightText != "" {
+		result += leftSpacer + topRightText + rightSpacer
+		result += border(hLine(BorderEdgeWidth))
+	}
+
 	result += border(BorderTopRight)
 
 	return result
 }
 
-// buildBottomBorder builds the bottom border with optional info (left) and version (right)
-func buildBottomBorder(border func(string) string, bottomLeftText, bottomRightText string, innerWidth int) string {
+// BuildBottomBorder builds the bottom border with optional info (left) and version (right)
+func BuildBottomBorder(border func(string) string, bottomLeftText, bottomRightText string, innerWidth int) string {
 	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
 
 	spacer := PanelTitleSpacer.Render("")
-	leftSpacer, rightSpacer := splitAtDisplayWidth(spacer)
+	leftSpacer, rightSpacer := SplitAtDisplayWidth(spacer)
 
 	rightText := PanelMutedStyle.Render(bottomRightText)
 	rightLen := lipgloss.Width(rightText) + SpacerWidth + BorderEdgeWidth
@@ -169,8 +178,8 @@ func splitAndPadContent(content string, height int) []string {
 	return lines
 }
 
-// appendContentLines adds content lines with borders and padding
-func appendContentLines(result, contentLines []string, innerWidth int, border func(string) string) []string {
+// AppendContentLines adds content lines with borders and padding
+func AppendContentLines(result, contentLines []string, innerWidth int, border func(string) string) []string {
 	for _, line := range contentLines {
 		lineWidth := lipgloss.Width(line)
 		padding := innerWidth - lineWidth
@@ -186,8 +195,8 @@ func appendContentLines(result, contentLines []string, innerWidth int, border fu
 	return result
 }
 
-// splitAtDisplayWidth splits a string at half its display width
-func splitAtDisplayWidth(s string) (left, right string) {
+// SplitAtDisplayWidth splits a string at half its display width
+func SplitAtDisplayWidth(s string) (left, right string) {
 	runes := []rune(s)
 	totalWidth := lipgloss.Width(s)
 	targetWidth := totalWidth / 2
