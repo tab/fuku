@@ -34,6 +34,7 @@ func Test_NewClient(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotNil(t, impl.formatter)
 	assert.Nil(t, impl.conn)
+	assert.Nil(t, impl.services)
 }
 
 func Test_Connect(t *testing.T) {
@@ -237,6 +238,42 @@ func Test_Stream_SkipsInvalidJSON(t *testing.T) {
 	err := c.Stream(context.Background(), &output)
 	assert.NoError(t, err)
 	assert.Contains(t, output.String(), "Valid")
+}
+
+func Test_Stream_ReceivesStatusMessage(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+
+	defer clientConn.Close()
+
+	c := NewClient(createTestFormatter()).(*client)
+	c.conn = clientConn
+	c.services = []string{"api"}
+
+	go func() {
+		status := StatusMessage{
+			Type:     MessageStatus,
+			Version:  "0.11.0",
+			Profile:  "default",
+			Services: []string{"api", "db"},
+		}
+		data, _ := json.Marshal(status)
+		data = append(data, '\n')
+		serverConn.Write(data)
+
+		msg := LogMessage{Type: MessageLog, Service: "api", Message: "Hello"}
+		data, _ = json.Marshal(msg)
+		data = append(data, '\n')
+		serverConn.Write(data)
+		serverConn.Close()
+	}()
+
+	var output bytes.Buffer
+
+	err := c.Stream(context.Background(), &output)
+	assert.NoError(t, err)
+	assert.Contains(t, output.String(), "logs")
+	assert.Contains(t, output.String(), "v0.11.0")
+	assert.Contains(t, output.String(), "Hello")
 }
 
 func Test_Stream_SkipsNonLogMessages(t *testing.T) {

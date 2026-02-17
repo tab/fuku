@@ -2,7 +2,10 @@ package logs
 
 import (
 	"context"
-	"sync"
+	"sync/atomic"
+	"time"
+
+	"fuku/internal/config/logger"
 )
 
 // Hub manages client connections and broadcasts log messages
@@ -48,24 +51,24 @@ func (c *ClientConn) ShouldReceive(service string) bool {
 
 // hub implements the Hub interface
 type hub struct {
-	bufferSize int
 	clients    map[*ClientConn]bool
 	register   chan *ClientConn
 	unregister chan *ClientConn
 	broadcast  chan LogMessage
 	done       chan struct{}
-	mu         sync.RWMutex
+	log        logger.Logger
+	dropped    atomic.Int64
 }
 
 // NewHub creates a new Hub instance with the specified buffer size
-func NewHub(bufferSize int) Hub {
+func NewHub(bufferSize int, log logger.Logger) Hub {
 	return &hub{
-		bufferSize: bufferSize,
 		clients:    make(map[*ClientConn]bool),
 		register:   make(chan *ClientConn),
 		unregister: make(chan *ClientConn),
 		broadcast:  make(chan LogMessage, bufferSize),
 		done:       make(chan struct{}),
+		log:        log,
 	}
 }
 
@@ -96,6 +99,7 @@ func (h *hub) Broadcast(service, message string) {
 	select {
 	case h.broadcast <- msg:
 	default:
+		h.dropped.Add(1)
 	}
 }
 
@@ -103,45 +107,39 @@ func (h *hub) Broadcast(service, message string) {
 func (h *hub) Run(ctx context.Context) {
 	defer close(h.done)
 
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
-			h.mu.Lock()
-
 			for client := range h.clients {
 				close(client.SendChan)
 				delete(h.clients, client)
 			}
 
-			h.mu.Unlock()
-
 			return
+		case <-ticker.C:
+			if dropped := h.dropped.Swap(0); dropped > 0 {
+				h.log.Warn().Msgf("Dropped %d log messages (buffer full)", dropped)
+			}
 		case client := <-h.register:
-			h.mu.Lock()
 			h.clients[client] = true
-			h.mu.Unlock()
 		case client := <-h.unregister:
-			h.mu.Lock()
-
 			if _, ok := h.clients[client]; ok {
 				close(client.SendChan)
 				delete(h.clients, client)
 			}
-
-			h.mu.Unlock()
 		case msg := <-h.broadcast:
-			h.mu.RLock()
-
 			for client := range h.clients {
 				if client.ShouldReceive(msg.Service) {
 					select {
 					case client.SendChan <- msg:
 					default:
+						h.dropped.Add(1)
 					}
 				}
 			}
-
-			h.mu.RUnlock()
 		}
 	}
 }

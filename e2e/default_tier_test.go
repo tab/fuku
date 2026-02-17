@@ -80,10 +80,13 @@ func Test_DefaultTier_LogsCommand(t *testing.T) {
 	err = logsRunner.Start("default")
 	require.NoError(t, err)
 
-	err = logsRunner.WaitForLog("Running logs mode", 5*time.Second)
+	err = logsRunner.WaitForLog("Press Ctrl+C to exit", 5*time.Second)
 	require.NoError(t, err)
 
 	output := logsRunner.Output()
 
-	assert.Contains(t, output, "[CLI] Running logs mode")
+	assert.Contains(t, output, "Profile:")
+	assert.Contains(t, output, "default")
+	assert.Contains(t, output, "Services:")
+	assert.Contains(t, output, "2 running")
 }

@@ -143,6 +143,7 @@ services: "this should be a map not a string"
 
 				return func() {
 					_ = os.Chmod("fuku.yaml", 0644)
+
 					os.Remove("fuku.yaml")
 				}
 			},
@@ -204,6 +205,7 @@ concurrency:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
@@ -252,6 +254,7 @@ retry:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
@@ -288,6 +291,7 @@ logs:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
@@ -541,6 +545,19 @@ func Test_Validate(t *testing.T) {
 			name:        "empty services map",
 			config:      DefaultConfig(),
 			expectError: false,
+		},
+		{
+			name: "service with invalid logs output value",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api", Logs: &Logs{Output: []string{"invalid"}}},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "service api",
 		},
 	}
 
@@ -971,6 +988,172 @@ func Test_ValidateWatch(t *testing.T) {
 	}
 }
 
+func Test_ValidateServiceLogs(t *testing.T) {
+	tests := []struct {
+		name        string
+		logs        *Logs
+		expectError bool
+		expectedErr error
+	}{
+		{
+			name:        "nil logs is valid",
+			logs:        nil,
+			expectError: false,
+		},
+		{
+			name:        "empty output is valid",
+			logs:        &Logs{Output: []string{}},
+			expectError: false,
+		},
+		{
+			name:        "stdout only is valid",
+			logs:        &Logs{Output: []string{"stdout"}},
+			expectError: false,
+		},
+		{
+			name:        "stderr only is valid",
+			logs:        &Logs{Output: []string{"stderr"}},
+			expectError: false,
+		},
+		{
+			name:        "both stdout and stderr is valid",
+			logs:        &Logs{Output: []string{"stdout", "stderr"}},
+			expectError: false,
+		},
+		{
+			name:        "case insensitive STDOUT is valid",
+			logs:        &Logs{Output: []string{"STDOUT"}},
+			expectError: false,
+		},
+		{
+			name:        "case insensitive STDERR is valid",
+			logs:        &Logs{Output: []string{"Stderr"}},
+			expectError: false,
+		},
+		{
+			name:        "invalid output value",
+			logs:        &Logs{Output: []string{"invalid"}},
+			expectError: true,
+			expectedErr: errors.ErrInvalidLogsOutput,
+		},
+		{
+			name:        "mixed valid and invalid output values",
+			logs:        &Logs{Output: []string{"stdout", "badvalue"}},
+			expectError: true,
+			expectedErr: errors.ErrInvalidLogsOutput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &Service{Logs: tt.logs}
+			err := service.validateLogs()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_LoadServiceLogsConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		yaml         string
+		expectedLogs map[string]*Logs
+		expectError  bool
+	}{
+		{
+			name: "service with logs config both outputs",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    logs:
+      output: [stdout, stderr]`,
+			expectedLogs: map[string]*Logs{
+				"api": {Output: []string{"stdout", "stderr"}},
+			},
+			expectError: false,
+		},
+		{
+			name: "service with logs config stdout only",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    logs:
+      output: [stdout]`,
+			expectedLogs: map[string]*Logs{
+				"api": {Output: []string{"stdout"}},
+			},
+			expectError: false,
+		},
+		{
+			name: "service with logs config empty output",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    logs:
+      output: []`,
+			expectedLogs: map[string]*Logs{
+				"api": {Output: []string{}},
+			},
+			expectError: false,
+		},
+		{
+			name: "service without logs config",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api`,
+			expectedLogs: map[string]*Logs{
+				"api": nil,
+			},
+			expectError: false,
+		},
+		{
+			name: "service with invalid logs output",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+    logs:
+      output: [invalid]`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer os.Remove("fuku.yaml")
+
+			cfg, _, err := Load()
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+
+				for name, expectedLogs := range tt.expectedLogs {
+					service, ok := cfg.Services[name]
+					assert.True(t, ok)
+					assert.Equal(t, expectedLogs, service.Logs)
+				}
+			}
+		})
+	}
+}
+
 func Test_LoadWatchConfig(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -1043,6 +1226,7 @@ services:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()

@@ -51,7 +51,8 @@ const (
 	SocketPrefix         = "fuku-"
 	SocketSuffix         = ".sock"
 	SocketDialTimeout    = 100 * time.Millisecond
-	SocketLogsBufferSize = 100
+	SocketWriteTimeout   = 5 * time.Second
+	SocketLogsBufferSize = 1000
 )
 
 // Watch settings

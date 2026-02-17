@@ -26,6 +26,7 @@ type Client interface {
 // client implements the Client interface
 type client struct {
 	conn      net.Conn
+	services  []string
 	formatter *LogFormatter
 }
 
@@ -50,6 +51,8 @@ func (c *client) Connect(socketPath string) error {
 
 // Subscribe sends subscription request for the specified services
 func (c *client) Subscribe(services []string) error {
+	c.services = services
+
 	req := SubscribeRequest{
 		Type:     MessageSubscribe,
 		Services: services,
@@ -70,30 +73,49 @@ func (c *client) Subscribe(services []string) error {
 
 // Stream reads log messages and writes them to output
 func (c *client) Stream(ctx context.Context, output io.Writer) error {
+	done := make(chan struct{})
+	defer close(done)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			c.conn.Close()
+		case <-done:
+		}
+	}()
+
 	reader := bufio.NewReader(c.conn)
 
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			line, err := reader.ReadBytes('\n')
-			if err != nil {
-				if err == io.EOF {
-					return nil
-				}
-
-				return fmt.Errorf("%w: %w", errors.ErrFailedToReadSocket, err)
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			if ctx.Err() != nil || err == io.EOF {
+				return nil
 			}
 
+			return fmt.Errorf("%w: %w", errors.ErrFailedToReadSocket, err)
+		}
+
+		var envelope MessageEnvelope
+		if err := json.Unmarshal(line, &envelope); err != nil {
+			continue
+		}
+
+		switch envelope.Type {
+		case MessageStatus:
+			var status StatusMessage
+			if err := json.Unmarshal(line, &status); err != nil {
+				continue
+			}
+
+			c.formatter.RenderBanner(output, status, c.services)
+		case MessageLog:
 			var msg LogMessage
 			if err := json.Unmarshal(line, &msg); err != nil {
 				continue
 			}
 
-			if msg.Type == MessageLog {
-				c.formatter.WriteFormatted(output, msg.Service, msg.Message)
-			}
+			c.formatter.WriteFormatted(output, msg.Service, msg.Message)
 		}
 	}
 }

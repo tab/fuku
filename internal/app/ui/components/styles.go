@@ -43,6 +43,11 @@ var (
 	PhaseMutedStyle    = lipgloss.NewStyle().Foreground(FgMuted)
 )
 
+// Text styles
+var (
+	BoldStyle = lipgloss.NewStyle().Bold(true)
+)
+
 // Common styles
 var (
 	HelpStyle            = lipgloss.NewStyle().Foreground(FgBorder)

@@ -252,3 +252,80 @@ func Test_LogFormatter_formatLine_UpdatesMaxServiceLen(t *testing.T) {
 
 	assert.Greater(t, f.maxServiceLen, initialLen)
 }
+
+func Test_RenderBanner(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     StatusMessage
+		subscribed []string
+		contains   []string
+	}{
+		{
+			name: "All services",
+			status: StatusMessage{
+				Type:     MessageStatus,
+				Version:  "0.11.0",
+				Profile:  "default",
+				Services: []string{"api", "db", "cache"},
+			},
+			subscribed: nil,
+			contains: []string{
+				"logs",
+				"v0.11.0",
+				"default",
+				"3 running",
+				"Showing:",
+				"all",
+				"Ctrl+C",
+				"╭", "╰", "│",
+			},
+		},
+		{
+			name: "Filtered services",
+			status: StatusMessage{
+				Type:     MessageStatus,
+				Version:  "0.11.0",
+				Profile:  "backend",
+				Services: []string{"api", "db", "cache", "auth", "gateway"},
+			},
+			subscribed: []string{"api", "db"},
+			contains: []string{
+				"logs",
+				"v0.11.0",
+				"backend",
+				"5 running",
+				"api, db",
+				"Ctrl+C",
+			},
+		},
+		{
+			name: "More than 5 filtered services truncated",
+			status: StatusMessage{
+				Type:     MessageStatus,
+				Version:  "0.11.0",
+				Profile:  "default",
+				Services: []string{"s1", "s2", "s3", "s4", "s5", "s6", "s7"},
+			},
+			subscribed: []string{"s1", "s2", "s3", "s4", "s5", "s6", "s7"},
+			contains: []string{
+				"s1, s2, s3, s4, s5",
+				"and 2 more",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			f := NewLogFormatter(cfg)
+
+			var buf bytes.Buffer
+			f.RenderBanner(&buf, tt.status, tt.subscribed)
+
+			output := buf.String()
+			for _, c := range tt.contains {
+				assert.Contains(t, output, c)
+			}
+		})
+	}
+}

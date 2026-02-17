@@ -67,17 +67,17 @@ func (mr *MockServerMockRecorder) SocketPath() *gomock.Call {
 }
 
 // Start mocks base method.
-func (m *MockServer) Start(ctx context.Context, profile string) error {
+func (m *MockServer) Start(ctx context.Context, profile string, services []string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", ctx, profile)
+	ret := m.ctrl.Call(m, "Start", ctx, profile, services)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockServerMockRecorder) Start(ctx, profile any) *gomock.Call {
+func (mr *MockServerMockRecorder) Start(ctx, profile, services any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockServer)(nil).Start), ctx, profile)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockServer)(nil).Start), ctx, profile, services)
 }
 
 // Stop mocks base method.

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config"
@@ -39,13 +40,6 @@ func NewLogFormatter(cfg *config.Config) *LogFormatter {
 	}
 }
 
-// logEntry represents a parsed JSON log entry
-type logEntry struct {
-	Component string `json:"component"`
-	Message   string `json:"message"`
-	Service   string `json:"service"`
-}
-
 // Write implements io.Writer for logger output
 func (f *LogFormatter) Write(p []byte) (n int, err error) {
 	f.mu.Lock()
@@ -60,6 +54,101 @@ func (f *LogFormatter) Write(p []byte) (n int, err error) {
 	}
 
 	return f.writeConsole(p), nil
+}
+
+// SetEnabled enables/disables log output
+func (f *LogFormatter) SetEnabled(enabled bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.enabled = enabled
+}
+
+// FormatMessage formats a service log message (used by logs client)
+func (f *LogFormatter) FormatMessage(service, message string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.format == logger.JSONFormat {
+		data, err := json.Marshal(map[string]string{
+			"service": service,
+			"message": message,
+		})
+		if err != nil {
+			return fmt.Sprintf(`{"service":%q,"message":%q}`+"\n", service, message)
+		}
+
+		return string(data) + "\n"
+	}
+
+	return f.formatLine(service, message)
+}
+
+// WriteFormatted writes a formatted message to the given writer
+func (f *LogFormatter) WriteFormatted(w io.Writer, service, message string) {
+	line := f.FormatMessage(service, message)
+	fmt.Fprint(w, line)
+}
+
+// RenderBanner writes a connection banner to the given writer
+func (f *LogFormatter) RenderBanner(w io.Writer, status StatusMessage, subscribed []string) {
+	serviceCount := fmt.Sprintf("%d running", len(status.Services))
+
+	showing := "all"
+
+	if len(subscribed) > 0 {
+		const maxShown = 5
+		if len(subscribed) <= maxShown {
+			showing = strings.Join(subscribed, ", ")
+		} else {
+			showing = strings.Join(subscribed[:maxShown], ", ") + fmt.Sprintf(" and %d more", len(subscribed)-maxShown)
+		}
+	}
+
+	hint := "Press Ctrl+C to exit"
+
+	termWidth, _, err := term.GetSize(os.Stdout.Fd())
+	if err != nil || termWidth < 40 {
+		termWidth = 80
+	}
+
+	innerWidth := termWidth - components.PanelInnerPadding
+	border := func(s string) string { return components.PanelBorderStyle.Render(s) }
+
+	muted := components.PanelMutedStyle.Render
+	bold := components.BoldStyle.Render
+
+	field := func(label, value string) string {
+		return " " + muted(label) + " " + bold(value)
+	}
+
+	titleText := components.PanelTitleStyle.Render("logs")
+	topBorder := components.BuildTopBorder(border, titleText, "", innerWidth)
+
+	contentLines := []string{
+		field("Profile:", status.Profile),
+		field("Services:", serviceCount),
+		field("Showing:", showing),
+		"",
+		" " + muted(hint),
+	}
+
+	lines := []string{topBorder}
+	lines = components.AppendContentLines(lines, contentLines, innerWidth, border)
+
+	bottomBorder := components.BuildBottomBorder(border, "", "v"+status.Version, innerWidth)
+	lines = append(lines, bottomBorder)
+
+	for _, line := range lines {
+		fmt.Fprintln(w, line)
+	}
+}
+
+// logEntry represents a parsed JSON log entry
+type logEntry struct {
+	Component string `json:"component"`
+	Message   string `json:"message"`
+	Service   string `json:"service"`
 }
 
 // writeJSON outputs raw JSON
@@ -92,26 +181,6 @@ func (f *LogFormatter) writeConsole(p []byte) int {
 	os.Stdout.Write([]byte(line))
 
 	return len(p)
-}
-
-// FormatMessage formats a service log message (used by logs client)
-func (f *LogFormatter) FormatMessage(service, message string) string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.format == logger.JSONFormat {
-		data, err := json.Marshal(map[string]string{
-			"service": service,
-			"message": message,
-		})
-		if err != nil {
-			return fmt.Sprintf(`{"service":%q,"message":%q}`+"\n", service, message)
-		}
-
-		return string(data) + "\n"
-	}
-
-	return f.formatLine(service, message)
 }
 
 // formatLine formats a single log line with colors
@@ -156,18 +225,4 @@ func hashString(s string) int {
 	}
 
 	return h
-}
-
-// SetEnabled enables/disables log output
-func (f *LogFormatter) SetEnabled(enabled bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.enabled = enabled
-}
-
-// WriteFormatted writes a formatted message to the given writer
-func (f *LogFormatter) WriteFormatted(w io.Writer, service, message string) {
-	line := f.FormatMessage(service, message)
-	fmt.Fprint(w, line)
 }

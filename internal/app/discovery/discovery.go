@@ -76,6 +76,7 @@ func (d *discovery) getServicesForProfile(profile string) ([]string, error) {
 		return []string{v}, nil
 	case []interface{}:
 		var services []string
+
 		for _, item := range v {
 			str, ok := item.(string)
 			if !ok {

@@ -139,8 +139,6 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 
 // handleLogs streams logs from a running fuku instance
 func (c *cli) handleLogs() (int, error) {
-	c.log.Debug().Msg("Running logs mode")
-
 	return c.streamer.Run(c.cmd.Profile, c.cmd.Services), nil
 }
 

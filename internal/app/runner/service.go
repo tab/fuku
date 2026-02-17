@@ -2,6 +2,7 @@ package runner
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"fuku/internal/app/bus"
@@ -24,8 +26,8 @@ import (
 )
 
 const (
-	scannerBufferSize    = 64 * 1024
-	scannerMaxBufferSize = 4 * 1024 * 1024
+	streamBufferSize = 64 * 1024
+	maxLineSize      = 4 * 1024 * 1024
 
 	schemeHTTP  = "http"
 	schemeHTTPS = "https"
@@ -421,21 +423,68 @@ func (s *service) watchForExit(proc process.Process) {
 
 // teeStream reads from source and writes to destination while logging
 func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, streamType string) {
-	scanner := newScanner(src)
+	isEnabled := s.shouldLogStream(serviceName, streamType)
+	if !isEnabled {
+		io.Copy(dst, src)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		s.log.Info().Str("service", serviceName).Str("stream", streamType).Msg(line)
-		fmt.Fprintln(dst, line)
+		return
+	}
 
-		if s.server != nil {
-			s.server.Broadcast(serviceName, line)
+	reader := bufio.NewReaderSize(src, streamBufferSize)
+
+	var buf bytes.Buffer
+
+	for {
+		line, isPrefix, err := reader.ReadLine()
+		if len(line) > 0 {
+			dst.Write(line)
+
+			if buf.Len()+len(line) <= maxLineSize {
+				buf.Write(line)
+			}
+		}
+
+		if !isPrefix && (len(line) > 0 || buf.Len() > 0 || err == nil) {
+			dst.Write([]byte{'\n'})
+
+			text := buf.String()
+			s.log.Info().Str("service", serviceName).Str("stream", streamType).Msg(text)
+
+			if s.server != nil {
+				s.server.Broadcast(serviceName, text)
+			}
+
+			buf.Reset()
+		}
+
+		if err != nil {
+			if err != io.EOF {
+				s.log.Error().Err(err).Msgf("Error reading %s stream for service '%s'", streamType, serviceName)
+			}
+
+			break
+		}
+	}
+}
+
+// shouldLogStream returns whether a service stream should be logged to console
+func (s *service) shouldLogStream(name, streamType string) bool {
+	cfg, exists := s.cfg.Services[name]
+	if !exists {
+		return false
+	}
+
+	if cfg.Logs == nil || len(cfg.Logs.Output) == 0 {
+		return true
+	}
+
+	for _, output := range cfg.Logs.Output {
+		if strings.EqualFold(output, streamType) {
+			return true
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		s.log.Error().Err(err).Msgf("Error reading %s stream for service '%s'", streamType, serviceName)
-	}
+	return false
 }
 
 // getConfig returns service configuration and tier
@@ -521,15 +570,6 @@ func (s *service) isWatched(name string) bool {
 	return exists && cfg.Watch != nil
 }
 
-func newScanner(r io.Reader) *bufio.Scanner {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, scannerBufferSize), scannerMaxBufferSize)
-
-	return scanner
-}
-
 func drainPipe(reader io.Reader) {
-	scanner := newScanner(reader)
-	for scanner.Scan() {
-	}
+	io.Copy(io.Discard, reader)
 }
