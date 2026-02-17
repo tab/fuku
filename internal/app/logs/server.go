@@ -229,7 +229,10 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 			data = append(data, '\n')
 
-			conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout))
+			if err := conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout)); err != nil {
+				s.log.Debug().Err(err).Msgf("Client %s disconnected", clientID)
+				return
+			}
 
 			if _, err := conn.Write(data); err != nil {
 				s.log.Debug().Err(err).Msgf("Client %s disconnected", clientID)
@@ -256,7 +259,10 @@ func (s *server) sendStatus(conn net.Conn, clientID string) {
 
 	data = append(data, '\n')
 
-	conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout))
+	if err := conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout)); err != nil {
+		s.log.Debug().Err(err).Msgf("Failed to set write deadline for %s", clientID)
+		return
+	}
 
 	if _, err := conn.Write(data); err != nil {
 		s.log.Debug().Err(err).Msgf("Failed to send status to %s", clientID)

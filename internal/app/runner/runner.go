@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"syscall"
 
@@ -375,10 +376,10 @@ func (r *runner) shutdown() {
 }
 
 func (r *runner) collectServices(tiers []discovery.Tier) []string {
-	var services []string
-	for _, tier := range tiers {
-		services = append(services, tier.Services...)
+	groups := make([][]string, len(tiers))
+	for i, tier := range tiers {
+		groups[i] = tier.Services
 	}
 
-	return services
+	return slices.Concat(groups...)
 }

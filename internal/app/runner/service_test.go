@@ -538,13 +538,13 @@ func Test_ShouldLogStream(t *testing.T) {
 			expected:   false,
 		},
 		{
-			name: "nil logs config",
+			name: "nil logs config defaults to enabled",
 			services: map[string]*config.Service{
 				"api": {Dir: "api"},
 			},
 			service:    "api",
 			streamType: "STDOUT",
-			expected:   false,
+			expected:   true,
 		},
 		{
 			name: "empty output means both streams enabled",
@@ -670,7 +670,10 @@ func Test_TeeStream_WithLogsDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	cfg := config.DefaultConfig()
-	cfg.Services["test-service"] = &config.Service{Dir: "test"}
+	cfg.Services["test-service"] = &config.Service{
+		Dir:  "test",
+		Logs: &config.Logs{Output: []string{"stderr"}},
+	}
 
 	mockLog := logger.NewMockLogger(ctrl)
 

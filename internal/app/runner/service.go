@@ -27,6 +27,7 @@ import (
 
 const (
 	streamBufferSize = 64 * 1024
+	maxLineSize      = 4 * 1024 * 1024
 
 	schemeHTTP  = "http"
 	schemeHTTPS = "https"
@@ -431,21 +432,19 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 
 	reader := bufio.NewReaderSize(src, streamBufferSize)
 
-	var (
-		buf     bytes.Buffer
-		partial bool
-	)
+	var buf bytes.Buffer
 
 	for {
 		line, isPrefix, err := reader.ReadLine()
 		if len(line) > 0 {
 			dst.Write(line)
-			buf.Write(line)
+
+			if buf.Len()+len(line) <= maxLineSize {
+				buf.Write(line)
+			}
 		}
 
-		if isPrefix {
-			partial = true
-		} else if len(line) > 0 || partial {
+		if !isPrefix && (len(line) > 0 || buf.Len() > 0 || err == nil) {
 			dst.Write([]byte{'\n'})
 
 			text := buf.String()
@@ -456,8 +455,6 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 			}
 
 			buf.Reset()
-
-			partial = false
 		}
 
 		if err != nil {
@@ -473,11 +470,11 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 // shouldLogStream returns whether a service stream should be logged to console
 func (s *service) shouldLogStream(name, streamType string) bool {
 	cfg, exists := s.cfg.Services[name]
-	if !exists || cfg.Logs == nil {
+	if !exists {
 		return false
 	}
 
-	if len(cfg.Logs.Output) == 0 {
+	if cfg.Logs == nil || len(cfg.Logs.Output) == 0 {
 		return true
 	}
 
