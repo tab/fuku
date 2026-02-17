@@ -21,31 +21,31 @@ func Test_Loader_Start(t *testing.T) {
 			name:       "adds first service",
 			setup:      func(l *Loader) {},
 			service:    "api",
-			msg:        "Starting api…",
+			msg:        "starting api…",
 			wantLen:    1,
-			wantMsg:    "Starting api…",
+			wantMsg:    "starting api…",
 			wantActive: true,
 		},
 		{
 			name: "adds second service",
 			setup: func(l *Loader) {
-				l.Start("storage", "Starting storage…")
+				l.Start("storage", "starting storage…")
 			},
 			service:    "api",
-			msg:        "Starting api…",
+			msg:        "starting api…",
 			wantLen:    2,
-			wantMsg:    "Starting storage…",
+			wantMsg:    "starting storage…",
 			wantActive: true,
 		},
 		{
 			name: "updates existing service message",
 			setup: func(l *Loader) {
-				l.Start("api", "Starting api…")
+				l.Start("api", "starting api…")
 			},
 			service:    "api",
-			msg:        "Restarting api…",
+			msg:        "restarting api…",
 			wantLen:    1,
-			wantMsg:    "Restarting api…",
+			wantMsg:    "restarting api…",
 			wantActive: true,
 		},
 	}
@@ -75,7 +75,7 @@ func Test_Loader_Stop(t *testing.T) {
 		{
 			name: "removes only service",
 			setup: func(l *Loader) {
-				l.Start("api", "Starting api…")
+				l.Start("api", "starting api…")
 			},
 			service:    "api",
 			wantLen:    0,
@@ -85,35 +85,35 @@ func Test_Loader_Stop(t *testing.T) {
 		{
 			name: "removes first service shows second",
 			setup: func(l *Loader) {
-				l.Start("storage", "Starting storage…")
-				l.Start("api", "Starting api…")
+				l.Start("storage", "starting storage…")
+				l.Start("api", "starting api…")
 			},
 			service:    "storage",
 			wantLen:    1,
-			wantMsg:    "Starting api…",
+			wantMsg:    "starting api…",
 			wantActive: true,
 		},
 		{
 			name: "removes second service shows first",
 			setup: func(l *Loader) {
-				l.Start("storage", "Starting storage…")
-				l.Start("api", "Starting api…")
+				l.Start("storage", "starting storage…")
+				l.Start("api", "starting api…")
 			},
 			service:    "api",
 			wantLen:    1,
-			wantMsg:    "Starting storage…",
+			wantMsg:    "starting storage…",
 			wantActive: true,
 		},
 		{
 			name: "removes middle service",
 			setup: func(l *Loader) {
-				l.Start("storage", "Starting storage…")
-				l.Start("api", "Starting api…")
-				l.Start("user", "Starting user…")
+				l.Start("storage", "starting storage…")
+				l.Start("api", "starting api…")
+				l.Start("user", "starting user…")
 			},
 			service:    "api",
 			wantLen:    2,
-			wantMsg:    "Starting storage…",
+			wantMsg:    "starting storage…",
 			wantActive: true,
 		},
 		{
@@ -141,9 +141,9 @@ func Test_Loader_Stop(t *testing.T) {
 
 func Test_Loader_StopAll(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("storage", "Starting storage…")
-	loader.Start("api", "Starting api…")
-	loader.Start("user", "Starting user…")
+	loader.Start("storage", "starting storage…")
+	loader.Start("api", "starting api…")
+	loader.Start("user", "starting user…")
 
 	assert.Equal(t, 3, len(loader.queue))
 	assert.True(t, loader.Active)
@@ -169,17 +169,17 @@ func Test_Loader_Message(t *testing.T) {
 		{
 			name: "returns first message in queue (FIFO)",
 			setup: func(l *Loader) {
-				l.Start("storage", "Starting storage…")
-				l.Start("api", "Starting api…")
+				l.Start("storage", "starting storage…")
+				l.Start("api", "starting api…")
 			},
-			wantMsg: "Starting storage…",
+			wantMsg: "starting storage…",
 		},
 		{
 			name: "single item returns its message",
 			setup: func(l *Loader) {
-				l.Start("api", "Restarting api…")
+				l.Start("api", "restarting api…")
 			},
-			wantMsg: "Restarting api…",
+			wantMsg: "restarting api…",
 		},
 	}
 
@@ -195,17 +195,17 @@ func Test_Loader_Message(t *testing.T) {
 func Test_Loader_FIFO_Order(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 
-	loader.Start("storage", "Starting storage…")
-	loader.Start("api", "Starting api…")
-	loader.Start("user", "Starting user…")
+	loader.Start("storage", "starting storage…")
+	loader.Start("api", "starting api…")
+	loader.Start("user", "starting user…")
 
-	assert.Equal(t, "Starting storage…", loader.Message())
+	assert.Equal(t, "starting storage…", loader.Message())
 
 	loader.Stop("storage")
-	assert.Equal(t, "Starting api…", loader.Message())
+	assert.Equal(t, "starting api…", loader.Message())
 
 	loader.Stop("api")
-	assert.Equal(t, "Starting user…", loader.Message())
+	assert.Equal(t, "starting user…", loader.Message())
 
 	loader.Stop("user")
 	assert.Equal(t, "", loader.Message())

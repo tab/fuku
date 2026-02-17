@@ -30,11 +30,11 @@ func Test_View_NotReady(t *testing.T) {
 	m.state.ready = false
 
 	result := m.View()
-	assert.Equal(t, "Initializing…", result)
+	assert.Equal(t, "initializing…", result)
 }
 
 func Test_View_RendersWhileShuttingDown(t *testing.T) {
-	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: "_shutdown", Message: "Shutting down…"}}}
+	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: "_shutdown", Message: "shutting down…"}}}
 	m := Model{loader: loader}
 	m.state.ready = true
 	m.state.shuttingDown = true
@@ -50,7 +50,7 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	result := m.View()
 
 	assert.NotEmpty(t, result)
-	assert.Contains(t, result, "Shutting down")
+	assert.Contains(t, result, "shutting down")
 }
 
 func Test_RenderTitle_ServicesView(t *testing.T) {
@@ -67,7 +67,7 @@ func Test_RenderTitle_ServicesView(t *testing.T) {
 
 func Test_RenderTitle_WithActiveLoader(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: true, queue: make([]LoaderItem, 0)}
-	loader.Start("api", "Starting api…")
+	loader.Start("api", "starting api…")
 	m := Model{loader: loader}
 	m.state.phase = bus.PhaseStartup
 	m.state.services = make(map[string]*ServiceState)
@@ -75,7 +75,7 @@ func Test_RenderTitle_WithActiveLoader(t *testing.T) {
 	m.ui.width = 100
 
 	title := m.renderTitle()
-	assert.Contains(t, title, "Starting api…")
+	assert.Contains(t, title, "starting api…")
 }
 
 func Test_RenderStatus_PhaseColors(t *testing.T) {
@@ -90,9 +90,9 @@ func Test_RenderStatus_PhaseColors(t *testing.T) {
 		phase        bus.Phase
 		wantContains string
 	}{
-		{name: "startup phase", phase: bus.PhaseStartup, wantContains: "Starting…"},
-		{name: "running phase", phase: bus.PhaseRunning, wantContains: "Running"},
-		{name: "stopping phase", phase: bus.PhaseStopping, wantContains: "Stopping"},
+		{name: "startup phase", phase: bus.PhaseStartup, wantContains: "starting…"},
+		{name: "running phase", phase: bus.PhaseRunning, wantContains: "running"},
+		{name: "stopping phase", phase: bus.PhaseStopping, wantContains: "stopping"},
 	}
 
 	for _, tt := range tests {
@@ -111,7 +111,7 @@ func Test_RenderServices_Empty(t *testing.T) {
 	m.ui.servicesViewport = viewport.New(80, 20)
 
 	result := m.renderServices()
-	assert.Contains(t, result, "No services configured")
+	assert.Contains(t, result, "no services configured")
 }
 
 func Test_GetStyledAndPaddedStatus(t *testing.T) {
@@ -262,9 +262,9 @@ func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
 	row2 := m.renderServiceRow(service2, false, 25)
 
 	assert.Contains(t, row1, "api")
-	assert.Contains(t, row1, "Running")
+	assert.Contains(t, row1, "running")
 	assert.Contains(t, row2, "user-management-service")
-	assert.Contains(t, row2, "Starting")
+	assert.Contains(t, row2, "starting")
 }
 
 func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {

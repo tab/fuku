@@ -59,15 +59,15 @@ func newServiceFSM(service *ServiceState, loader *Loader, log logger.Logger) *fs
 				service.MarkStarting()
 
 				if !loader.Has(serviceName) {
-					loader.Start(serviceName, fmt.Sprintf("Starting %s…", serviceName))
+					loader.Start(serviceName, fmt.Sprintf("starting %s…", serviceName))
 				}
 			},
 			OnStopping: func(ctx context.Context, e *fsm.Event) {
-				loader.Start(serviceName, fmt.Sprintf("Stopping %s…", serviceName))
+				loader.Start(serviceName, fmt.Sprintf("stopping %s…", serviceName))
 				service.MarkStopping()
 			},
 			OnRestarting: func(ctx context.Context, e *fsm.Event) {
-				loader.Start(serviceName, fmt.Sprintf("Restarting %s…", serviceName))
+				loader.Start(serviceName, fmt.Sprintf("restarting %s…", serviceName))
 			},
 			OnRunning: func(ctx context.Context, e *fsm.Event) {
 				service.MarkRunning()

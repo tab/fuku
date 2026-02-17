@@ -22,11 +22,11 @@ type Status string
 
 // Status values for service lifecycle
 const (
-	StatusStarting Status = "Starting"
-	StatusRunning  Status = "Running"
-	StatusStopping Status = "Stopping"
-	StatusFailed   Status = "Failed"
-	StatusStopped  Status = "Stopped"
+	StatusStarting Status = "starting"
+	StatusRunning  Status = "running"
+	StatusStopping Status = "stopping"
+	StatusFailed   Status = "failed"
+	StatusStopped  Status = "stopped"
 )
 
 // Tier represents a tier in the UI

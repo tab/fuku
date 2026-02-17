@@ -163,8 +163,8 @@ func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
 	defer ctrl.Finish()
 
 	loader := NewLoader()
-	loader.Start("old-service-1", "Starting old-service-1")
-	loader.Start("old-service-2", "Starting old-service-2")
+	loader.Start("old-service-1", "starting old-service-1")
+	loader.Start("old-service-2", "starting old-service-2")
 
 	m := Model{log: newTestLogger(ctrl), loader: loader}
 	m.state.services = make(map[string]*ServiceState)
@@ -284,7 +284,7 @@ func Test_HandleServiceReady(t *testing.T) {
 
 	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "Starting api…")
+	loader.Start("api", "starting api…")
 
 	service := &ServiceState{Name: "api", Status: StatusStarting}
 	m := Model{
@@ -310,7 +310,7 @@ func Test_HandleServiceReady(t *testing.T) {
 
 func Test_HandleServiceReady_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "Starting api…")
+	loader.Start("api", "starting api…")
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
 	event := bus.Message{Type: bus.EventServiceReady, Data: "invalid"}
@@ -324,7 +324,7 @@ func Test_HandleServiceFailed(t *testing.T) {
 
 	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "Starting api…")
+	loader.Start("api", "starting api…")
 
 	service := &ServiceState{Name: "api", Status: StatusStarting}
 	m := Model{
@@ -363,7 +363,7 @@ func Test_HandleServiceStopped(t *testing.T) {
 
 	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "Stopping api…")
+	loader.Start("api", "stopping api…")
 
 	service := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
 	m := Model{
@@ -472,7 +472,7 @@ func Test_HandleWatchStopped_UnknownService(t *testing.T) {
 
 func Test_HandlePhaseChanged_PhaseStopped(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("_shutdown", "Shutting down…")
+	loader.Start("_shutdown", "shutting down…")
 
 	m := Model{loader: loader}
 	m.state.shuttingDown = true
@@ -510,7 +510,7 @@ func Test_HandleEvent_SignalCaught(t *testing.T) {
 
 	assert.True(t, result.state.shuttingDown)
 	assert.True(t, result.loader.Active)
-	assert.Equal(t, "Shutting down all services…", result.loader.Message())
+	assert.Equal(t, "shutting down all services…", result.loader.Message())
 	assert.NotNil(t, cmd)
 }
 
@@ -594,7 +594,7 @@ func Test_HandleKeyPress_QuitStartsGracefulShutdown(t *testing.T) {
 
 	assert.True(t, result.state.shuttingDown)
 	assert.True(t, result.loader.Active)
-	assert.Equal(t, "Shutting down all services…", result.loader.Message())
+	assert.Equal(t, "shutting down all services…", result.loader.Message())
 	assert.NotNil(t, cmd)
 }
 
