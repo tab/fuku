@@ -220,7 +220,8 @@ func (r *LogsRunner) Start(profile string, services ...string) error {
 		bin = "fuku"
 	}
 
-	args := []string{"logs", profile}
+	args := make([]string, 0, 2+len(services))
+	args = append(args, "logs", profile)
 	args = append(args, services...)
 
 	r.cmd = exec.Command(bin, args...)
