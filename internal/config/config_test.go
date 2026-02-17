@@ -143,6 +143,7 @@ services: "this should be a map not a string"
 
 				return func() {
 					_ = os.Chmod("fuku.yaml", 0644)
+
 					os.Remove("fuku.yaml")
 				}
 			},
@@ -204,6 +205,7 @@ concurrency:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
@@ -252,6 +254,7 @@ retry:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
@@ -288,6 +291,7 @@ logs:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
@@ -1130,6 +1134,7 @@ services:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
@@ -1221,6 +1226,7 @@ services:
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
