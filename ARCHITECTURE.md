@@ -235,6 +235,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 **Package**: `internal/app/watcher`
 
 The watcher package monitors file changes and triggers service restarts with debouncing to prevent restart storms.
+It uses a directory registry to track which services watch each directory, enabling correct handling of shared paths where multiple services watch the same directories.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -637,6 +638,9 @@ JSON lines over Unix socket:
 ```json
 // Client → Server (subscribe)
 {"type":"subscribe","services":["api","db"]}
+
+// Server → Client (status - sent after subscribe)
+{"type":"status","version":"0.12.0","profile":"default","services":["api","db","web"]}
 
 // Server → Client (log message)
 {"type":"log","service":"api","message":"Server started on :8080"}

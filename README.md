@@ -29,24 +29,24 @@ Download the latest binary from [GitHub Releases](https://github.com/tab/fuku/re
 **macOS (Apple Silicon):**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.11.0_macos_arm64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.11.0_macos_arm64/fuku
-sudo mv ~/Downloads/fuku_v0.11.0_macos_arm64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.12.0_macos_arm64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.12.0_macos_arm64/fuku
+sudo mv ~/Downloads/fuku_v0.12.0_macos_arm64/fuku /usr/local/bin/fuku
 ```
 
 **macOS (Intel):**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.11.0_macos_amd64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.11.0_macos_amd64/fuku
-sudo mv ~/Downloads/fuku_v0.11.0_macos_amd64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.12.0_macos_amd64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.12.0_macos_amd64/fuku
+sudo mv ~/Downloads/fuku_v0.12.0_macos_amd64/fuku /usr/local/bin/fuku
 ```
 
 **Linux:**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.11.0_linux_amd64.tar.gz
-sudo mv ~/Downloads/fuku_v0.11.0_linux_amd64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.12.0_linux_amd64.tar.gz
+sudo mv ~/Downloads/fuku_v0.12.0_linux_amd64/fuku /usr/local/bin/fuku
 ```
 
 ### Build from Source
@@ -102,35 +102,55 @@ Create `fuku.yaml` in your project root:
 ```yaml
 version: 1
 
+x-readiness-http: &readiness-http
+  type: http
+  timeout: 30s
+  interval: 500ms
+
+x-readiness-tcp: &readiness-tcp
+  type: tcp
+  timeout: 30s
+  interval: 500ms
+
+x-readiness-log: &readiness-log
+  type: log
+  pattern: "Service ready"
+  timeout: 30s
+
+x-logs: &logs
+  output: [stdout, stderr]
+
+x-watch: &watch
+  include: ["**/*.go"]
+  ignore: ["**/*_test.go"]
+  shared: ["pkg/common"]
+  debounce: 1s
+
 services:
   postgres:
     dir: infrastructure/postgres
     tier: foundation
     readiness:
-      type: tcp
+      <<: *readiness-tcp
       address: localhost:5432
-      timeout: 30s
 
   backend:
     dir: backend
     tier: platform
     readiness:
-      type: http
+      <<: *readiness-http
       url: http://localhost:8080/health
-      timeout: 30s
+    logs:
+      <<: *logs
     watch:
-      include: ["**/*.go"]
-      ignore: ["**/*_test.go"]
-      shared: ["pkg/common"]
-      debounce: 1s
+      <<: *watch
 
   web:
     dir: frontend
     tier: edge
     readiness:
-      type: http
+      <<: *readiness-http
       url: http://localhost:3000/health
-      timeout: 20s
 
 defaults:
   profiles: [default]
@@ -214,6 +234,51 @@ services:
       shared: ["pkg/common"]         # Shared paths (triggers restart)
       debounce: 300ms                # Debounce duration (default: 300ms)
 ```
+
+### Per-Service Log Output
+
+Control which output streams are logged to the console per service:
+
+```yaml
+services:
+  api:
+    dir: ./api
+    logs:
+      output: [stdout]              # Only log stdout (default: both)
+  worker:
+    dir: ./worker
+    logs:
+      output: [stdout, stderr]      # Log both streams explicitly
+```
+
+Valid output values: `stdout`, `stderr`. When omitted, both streams are logged.
+
+### YAML Anchors
+
+Use YAML anchors (`&`) and merge keys (`<<: *`) to avoid repeating common configuration:
+
+```yaml
+x-readiness-http: &readiness-http
+  type: http
+  timeout: 30s
+  interval: 500ms
+
+x-watch: &watch
+  include: ["**/*.go"]
+  ignore: ["**/*_test.go"]
+  debounce: 1s
+
+services:
+  api:
+    dir: ./api
+    readiness:
+      <<: *readiness-http
+      url: http://localhost:8080/health
+    watch:
+      <<: *watch
+```
+
+Top-level keys prefixed with `x-` are ignored by fuku and serve as anchor definitions.
 
 ### Service Requirements
 

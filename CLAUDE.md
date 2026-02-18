@@ -149,6 +149,10 @@
    - Shared paths for cross-service dependencies (`watch.shared`)
    - Debounce duration to prevent restart storms (`watch.debounce`)
 
+8. **Per-Service Log Output**
+   - Configurable output streams per service (`logs.output`)
+   - Valid values: `stdout`, `stderr` (default: both streams)
+
 ### Testing Patterns
 
 1. **Mock Generation**
@@ -211,24 +215,44 @@
 ### Current Test Files
 - `cmd/main_test.go` - Tests for entry point functions and FX application creation
 - `internal/app/app_test.go` - Application container and lifecycle testing
+- `internal/app/bus/bus_test.go` - Bus pub/sub messaging testing
 - `internal/app/cli/cli_test.go` - CLI command execution testing
 - `internal/app/cli/commands_test.go` - Cobra command parsing tests
+- `internal/app/discovery/discovery_test.go` - Profile resolution testing
+- `internal/app/lifecycle/lifecycle_test.go` - Process termination testing
+- `internal/app/logs/broadcast_test.go` - Log broadcast message testing
 - `internal/app/logs/client_test.go` - Unix socket client testing
+- `internal/app/logs/formatter_test.go` - Log formatter testing
+- `internal/app/logs/hub_test.go` - Log hub connection testing
 - `internal/app/logs/runner_test.go` - Log streaming runner testing
+- `internal/app/logs/server_test.go` - Log server testing
+- `internal/app/monitor/monitor_test.go` - Process monitoring testing
+- `internal/app/process/process_test.go` - Process handle testing
+- `internal/app/readiness/readiness_test.go` - Readiness check testing
+- `internal/app/registry/registry_test.go` - Process registry testing
+- `internal/app/runner/guard_test.go` - Restart guard testing
 - `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
-- `internal/app/runtime/events_test.go` - Event bus pub/sub testing
-- `internal/app/runtime/commands_test.go` - Command bus pub/sub testing
-- `internal/app/ui/components/keys_test.go` - Shared key bindings
-- `internal/app/ui/services/loader_test.go` - Loader queue operations
-- `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
-- `internal/app/ui/services/model_test.go` - Service state methods and helpers
+- `internal/app/runner/service_test.go` - Service start/stop/restart testing
+- `internal/app/runner/worker_test.go` - Worker pool testing
+- `internal/app/ui/components/blink_test.go` - Blink animation testing
+- `internal/app/ui/components/layout_test.go` - Layout component testing
+- `internal/app/ui/services/controller_test.go` - Service controller testing
+- `internal/app/ui/services/helpers_test.go` - Service helper functions testing
 - `internal/app/ui/services/keys_test.go` - Services view key bindings
+- `internal/app/ui/services/loader_test.go` - Loader queue operations
+- `internal/app/ui/services/model_test.go` - Service state methods and helpers
+- `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
 - `internal/app/ui/services/state_test.go` - FSM state transitions and callbacks
 - `internal/app/ui/services/update_test.go` - Event handlers
 - `internal/app/ui/services/view_test.go` - View rendering functions
+- `internal/app/ui/wire/module_test.go` - UI wire module testing
+- `internal/app/watcher/debouncer_test.go` - Debouncer testing
+- `internal/app/watcher/matcher_test.go` - File matcher testing
+- `internal/app/watcher/watcher_test.go` - File watcher testing
 - `internal/config/config_test.go` - Configuration loading and parsing
 - `internal/config/logger/logger_test.go` - Logger implementation testing
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
+- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command)
 
 ## Primary Guidelines
 
@@ -518,6 +542,8 @@ services:
   service-name:
     dir: path/to/service
     tier: foundation
+    logs:
+      output: [stdout, stderr]
 
 profiles:
   default: "*"
