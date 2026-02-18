@@ -80,7 +80,7 @@ func Test_DefaultTier_LogsCommand(t *testing.T) {
 	err = logsRunner.Start("default")
 	require.NoError(t, err)
 
-	err = logsRunner.WaitForLog("press ctrl+c to exit", 5*time.Second)
+	err = logsRunner.WaitForLog("ctrl+c", 5*time.Second)
 	require.NoError(t, err)
 
 	output := logsRunner.Output()

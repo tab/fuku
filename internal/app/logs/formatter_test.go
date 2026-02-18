@@ -276,7 +276,7 @@ func Test_RenderBanner(t *testing.T) {
 				"3 running",
 				"showing:",
 				"all",
-				"ctrl+c",
+				"ctrl+c", "exit",
 				"╭", "╰", "│",
 			},
 		},

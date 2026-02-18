@@ -1,15 +1,7 @@
 package components
 
-import "github.com/charmbracelet/lipgloss"
-
-// Tip styles
-var (
-	tipKeyStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#909090", Dark: "#626262"})
-	tipDescStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B2B2B2", Dark: "#4A4A4A"})
-)
-
-func tipKey(k string) string  { return tipKeyStyle.Render(k) }
-func tipDesc(d string) string { return tipDescStyle.Render(d) }
+func tipKey(k string) string  { return HelpKeyStyle.Render(k) }
+func tipDesc(d string) string { return HelpDescStyle.Render(d) }
 
 // Tips contains helpful hints displayed in the footer
 var Tips = []string{

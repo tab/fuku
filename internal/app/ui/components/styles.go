@@ -48,6 +48,12 @@ var (
 	BoldStyle = lipgloss.NewStyle().Bold(true)
 )
 
+// Help key/desc styles (matches bubbles/help defaults)
+var (
+	HelpKeyStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#909090", Dark: "#626262"})
+	HelpDescStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B2B2B2", Dark: "#4A4A4A"})
+)
+
 // Common styles
 var (
 	HelpStyle            = lipgloss.NewStyle().Foreground(FgBorder)
