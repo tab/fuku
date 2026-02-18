@@ -105,8 +105,6 @@ func (f *LogFormatter) RenderBanner(w io.Writer, status StatusMessage, subscribe
 		}
 	}
 
-	hint := "Press Ctrl+C to exit"
-
 	termWidth, _, err := term.GetSize(os.Stdout.Fd())
 	if err != nil || termWidth < 40 {
 		termWidth = 80
@@ -126,11 +124,9 @@ func (f *LogFormatter) RenderBanner(w io.Writer, status StatusMessage, subscribe
 	topBorder := components.BuildTopBorder(border, titleText, "", innerWidth)
 
 	contentLines := []string{
-		field("Profile:", status.Profile),
-		field("Services:", serviceCount),
-		field("Showing:", showing),
-		"",
-		" " + muted(hint),
+		field("profile:", status.Profile),
+		field("services:", serviceCount),
+		field("showing:", showing),
 	}
 
 	lines := []string{topBorder}
@@ -138,6 +134,9 @@ func (f *LogFormatter) RenderBanner(w io.Writer, status StatusMessage, subscribe
 
 	bottomBorder := components.BuildBottomBorder(border, "", "v"+status.Version, innerWidth)
 	lines = append(lines, bottomBorder)
+
+	footer := " " + components.HelpKeyStyle.Render("ctrl+c") + " " + components.HelpDescStyle.Render("exit")
+	lines = append(lines, footer, "")
 
 	for _, line := range lines {
 		fmt.Fprintln(w, line)

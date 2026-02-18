@@ -109,7 +109,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.ui.servicesKeys.Quit):
 		m.state.shuttingDown = true
-		m.loader.Start("_shutdown", "Shutting down all services…")
+		m.loader.Start("_shutdown", "shutting down all services…")
 		m.controller.StopAll()
 
 		return m, waitForMsgCmd(m.msgChan)
@@ -227,7 +227,7 @@ func (m Model) handleMessage(msg bus.Message) (tea.Model, tea.Cmd) {
 		m = m.handleWatchStopped(msg)
 	case bus.EventSignal:
 		m.state.shuttingDown = true
-		m.loader.Start("_shutdown", "Shutting down all services…")
+		m.loader.Start("_shutdown", "shutting down all services…")
 	}
 
 	return m, waitForMsgCmd(m.msgChan)

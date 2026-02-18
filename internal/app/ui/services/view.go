@@ -14,7 +14,7 @@ import (
 // View renders the UI
 func (m Model) View() string {
 	if !m.state.ready {
-		return "Initializing…"
+		return "initializing…"
 	}
 
 	panelWidth := m.ui.width
@@ -45,13 +45,13 @@ func (m Model) renderStatus() string {
 
 	switch m.state.phase {
 	case bus.PhaseStartup:
-		phaseStr = "Starting…"
+		phaseStr = "starting…"
 		phaseStyle = components.PhaseStartingStyle
 	case bus.PhaseRunning:
-		phaseStr = "Running"
+		phaseStr = "running"
 		phaseStyle = components.PhaseRunningStyle
 	case bus.PhaseStopping:
-		phaseStr = "Stopping"
+		phaseStr = "stopping"
 		phaseStyle = components.PhaseStoppingStyle
 	}
 
@@ -109,7 +109,7 @@ func (m Model) renderTitle() string {
 // renderServices renders the services list or empty state
 func (m Model) renderServices() string {
 	if len(m.state.tiers) == 0 {
-		return components.EmptyStateStyle.Render("No services configured")
+		return components.EmptyStateStyle.Render("no services configured")
 	}
 
 	return m.ui.servicesViewport.View()

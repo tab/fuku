@@ -29,10 +29,10 @@ var (
 
 // Status styles
 var (
-	StatusRunningStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning).Bold(true)
-	StatusStartingStyle = lipgloss.NewStyle().Foreground(FgStatusWarning).Bold(true)
-	StatusFailedStyle   = lipgloss.NewStyle().Foreground(FgStatusError).Bold(true)
-	StatusStoppedStyle  = lipgloss.NewStyle().Foreground(FgStatusStopped).Bold(true)
+	StatusRunningStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning)
+	StatusStartingStyle = lipgloss.NewStyle().Foreground(FgStatusWarning)
+	StatusFailedStyle   = lipgloss.NewStyle().Foreground(FgStatusError)
+	StatusStoppedStyle  = lipgloss.NewStyle().Foreground(FgStatusStopped)
 )
 
 // Phase styles
@@ -46,6 +46,12 @@ var (
 // Text styles
 var (
 	BoldStyle = lipgloss.NewStyle().Bold(true)
+)
+
+// Help key/desc styles (matches bubbles/help defaults)
+var (
+	HelpKeyStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#909090", Dark: "#626262"})
+	HelpDescStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B2B2B2", Dark: "#4A4A4A"})
 )
 
 // Common styles
