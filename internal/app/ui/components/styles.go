@@ -29,10 +29,10 @@ var (
 
 // Status styles
 var (
-	StatusRunningStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning).Bold(true)
-	StatusStartingStyle = lipgloss.NewStyle().Foreground(FgStatusWarning).Bold(true)
-	StatusFailedStyle   = lipgloss.NewStyle().Foreground(FgStatusError).Bold(true)
-	StatusStoppedStyle  = lipgloss.NewStyle().Foreground(FgStatusStopped).Bold(true)
+	StatusRunningStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning)
+	StatusStartingStyle = lipgloss.NewStyle().Foreground(FgStatusWarning)
+	StatusFailedStyle   = lipgloss.NewStyle().Foreground(FgStatusError)
+	StatusStoppedStyle  = lipgloss.NewStyle().Foreground(FgStatusStopped)
 )
 
 // Phase styles
