@@ -252,7 +252,7 @@ func Test_Stream_ReceivesStatusMessage(t *testing.T) {
 	go func() {
 		status := StatusMessage{
 			Type:     MessageStatus,
-			Version:  "0.11.0",
+			Version:  config.Version,
 			Profile:  "default",
 			Services: []string{"api", "db"},
 		}
@@ -272,7 +272,7 @@ func Test_Stream_ReceivesStatusMessage(t *testing.T) {
 	err := c.Stream(context.Background(), &output)
 	assert.NoError(t, err)
 	assert.Contains(t, output.String(), "logs")
-	assert.Contains(t, output.String(), "v0.11.0")
+	assert.Contains(t, output.String(), config.Version)
 	assert.Contains(t, output.String(), "Hello")
 }
 

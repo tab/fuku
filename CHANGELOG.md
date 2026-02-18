@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## v0.12.0
+
+### Features
+- **feat:** Add service logs output with banner display via `fuku logs`
+- **feat:** Add per-service log output configuration (`logs.output`)
+
+### Fixes
+- **fix:** Fix e2e tests
+
+### Refactor
+- **refactor:** Replace scanner-based stream reading with buffered reader in teeStream
+
+### Chore
+- **chore:** Update UI text to lowercase and remove bold from service status styles
+- **chore:** Update CI and codecov badge links
+
+### Documentation
+- **docs:** Update readiness checks and add pre-flight checks to README
+
 ## v0.11.0
 
 ### Features
