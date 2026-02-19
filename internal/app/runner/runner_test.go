@@ -238,9 +238,11 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	mockLog := logger.NewMockLogger(ctrl)
+
 	mockService := NewMockService(ctrl)
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockWorkerPool := NewMockWorkerPool(ctrl)
+
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{})
 	mockRegistry.EXPECT().Wait()
@@ -580,6 +582,7 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
 
 	mockProcess := process.NewMockProcess(ctrl)
 	mockProcess.EXPECT().Name().Return("api").AnyTimes()

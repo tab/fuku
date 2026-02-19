@@ -46,7 +46,7 @@ func loadConfig() (*config.Config, *config.Topology, error) {
 func createApp(cfg *config.Config, topology *config.Topology, cmd *cli.Options) *fx.App {
 	formatter := logs.NewLogFormatter(cfg)
 
-	if cmd.NoUI || cmd.Type == cli.CommandLogs {
+	if cmd.NoUI || cmd.Type == cli.CommandLogs || cmd.Type == cli.CommandStop {
 		formatter.SetEnabled(true)
 	}
 

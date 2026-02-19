@@ -21,6 +21,9 @@ cmd/fuku
 # Claude
 .claude/
 
+# Session
+.fuku/
+
 # Dependency directories (remove the comment below to include it)
 vendor/
 

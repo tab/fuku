@@ -13,6 +13,7 @@ type CommandType int
 const (
 	CommandRun CommandType = iota
 	CommandLogs
+	CommandStop
 	CommandVersion
 	CommandHelp
 )
@@ -42,6 +43,7 @@ func Parse(args []string) (*Options, error) {
 	root.AddCommand(
 		buildRunCommand(result),
 		buildLogsCommand(result),
+		buildStopCommand(result),
 		buildVersionCommand(result),
 	)
 
@@ -129,6 +131,21 @@ func buildLogsCommand(result *Options) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&logsProfile, "profile", "", "Filter by profile")
+
+	return cmd
+}
+
+// buildStopCommand creates the stop subcommand
+func buildStopCommand(result *Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "stop",
+		Aliases: []string{"s"},
+		Short:   "Stop orphaned processes from a previous session",
+		Args:    cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			result.Type = CommandStop
+		},
+	}
 
 	return cmd
 }

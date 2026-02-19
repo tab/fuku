@@ -45,6 +45,12 @@ var (
 	ErrFailedToTerminateProcess = errors.New("failed to terminate process")
 	ErrUnexpectedExit           = errors.New("process exited")
 
+	ErrSessionNotFound  = errors.New("no active session found")
+	ErrSessionCorrupted = errors.New("session file corrupted")
+	ErrSessionDirCreate = errors.New("failed to create session directory")
+	ErrSessionFileWrite = errors.New("failed to write session file")
+	ErrSessionFileRead  = errors.New("failed to read session file")
+
 	ErrFailedToConnectSocket    = errors.New("failed to connect to socket")
 	ErrFailedToListenSocket     = errors.New("failed to listen on socket")
 	ErrFailedToReadSocket       = errors.New("failed to read from socket")

@@ -253,6 +253,59 @@ func (r *LogsRunner) Output() string {
 	return r.stdout.String()
 }
 
+// StopRunner manages fuku stop command for e2e tests
+type StopRunner struct {
+	t       *testing.T
+	stdout  *lockedBuffer
+	stderr  *lockedBuffer
+	workDir string
+}
+
+// NewStopRunner creates a runner for fuku stop command
+func NewStopRunner(t *testing.T, dir string) *StopRunner {
+	t.Helper()
+
+	workDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+
+	return &StopRunner{
+		t:       t,
+		workDir: workDir,
+		stdout:  &lockedBuffer{},
+		stderr:  &lockedBuffer{},
+	}
+}
+
+// Run executes fuku stop and waits for completion
+func (r *StopRunner) Run() (int, error) {
+	bin := os.Getenv("FUKU_BIN")
+	if bin == "" {
+		bin = "fuku"
+	}
+
+	cmd := exec.Command(bin, "stop")
+	cmd.Dir = r.workDir
+	cmd.Stdout = r.stdout
+	cmd.Stderr = r.stderr
+
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return exitErr.ExitCode(), nil
+		}
+
+		return -1, err
+	}
+
+	return 0, nil
+}
+
+// Output returns the captured stdout
+func (r *StopRunner) Output() string {
+	return r.stdout.String()
+}
+
 // WaitForLog blocks until pattern appears in stdout or timeout
 func (r *LogsRunner) WaitForLog(pattern string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

@@ -59,3 +59,8 @@ const (
 const (
 	WatchDebounce = 500 * time.Millisecond
 )
+
+// Session settings
+const (
+	SessionPath = ".fuku/session.json"
+)

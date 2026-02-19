@@ -157,6 +157,20 @@ func Test_Parse(t *testing.T) {
 			expectedNoUI:    false,
 		},
 		{
+			name:            "stop command",
+			args:            []string{"stop"},
+			expectedType:    CommandStop,
+			expectedProfile: config.Default,
+			expectedNoUI:    false,
+		},
+		{
+			name:            "stop alias s",
+			args:            []string{"s"},
+			expectedType:    CommandStop,
+			expectedProfile: config.Default,
+			expectedNoUI:    false,
+		},
+		{
 			name:            "help command",
 			args:            []string{"help"},
 			expectedType:    CommandHelp,

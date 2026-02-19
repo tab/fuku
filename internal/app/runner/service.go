@@ -240,6 +240,7 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 	}
 
 	s.log.Info().Msgf("Started service '%s' (PID: %d) in directory: %s", name, cmd.Process.Pid, serviceDir)
+
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
 		Data: bus.ServiceStarting{

@@ -7,6 +7,7 @@ import (
 	"fuku/internal/app/lifecycle"
 	"fuku/internal/app/readiness"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/session"
 )
 
 // Module provides the runner and its dependencies
@@ -15,6 +16,7 @@ var Module = fx.Options(
 	lifecycle.Module,
 	readiness.Module,
 	registry.Module,
+	session.Module,
 	fx.Provide(
 		NewGuard,
 		NewWorkerPool,

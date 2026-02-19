@@ -13,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	apperrors "fuku/internal/app/errors"
 	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
+	"fuku/internal/app/session"
 	"fuku/internal/app/ui/wire"
 	"fuku/internal/app/watcher"
 	"fuku/internal/config"
@@ -28,7 +30,9 @@ func Test_NewCLI(t *testing.T) {
 	cmd := &Options{Type: CommandRun, Profile: config.Default, NoUI: true}
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockWatcher := watcher.NewMockWatcher(ctrl)
+	mockListener := session.NewMockListener(ctrl)
 	mockLogsRunner := logs.NewMockRunner(ctrl)
+	mockSession := session.NewMockSession(ctrl)
 	mockUI := func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
 	}
@@ -36,7 +40,7 @@ func Test_NewCLI(t *testing.T) {
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("CLI").Return(componentLogger)
 
-	cliInstance := NewCLI(cmd, mockRunner, mockWatcher, mockLogsRunner, mockUI, mockLogger)
+	cliInstance := NewCLI(cmd, mockRunner, mockWatcher, mockListener, mockLogsRunner, mockSession, mockUI, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
@@ -45,7 +49,9 @@ func Test_NewCLI(t *testing.T) {
 	assert.Equal(t, cmd, instance.cmd)
 	assert.Equal(t, mockRunner, instance.runner)
 	assert.Equal(t, mockWatcher, instance.watcher)
+	assert.Equal(t, mockListener, instance.listener)
 	assert.Equal(t, mockLogsRunner, instance.streamer)
+	assert.Equal(t, mockSession, instance.session)
 	assert.NotNil(t, instance.ui)
 	assert.Equal(t, componentLogger, instance.log)
 }
@@ -56,6 +62,7 @@ func Test_Execute(t *testing.T) {
 
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockWatcher := watcher.NewMockWatcher(ctrl)
+	mockListener := session.NewMockListener(ctrl)
 	mockUI := wire.UI(func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
 	})
@@ -77,6 +84,7 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockListener.EXPECT().Start(gomock.Any())
 				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.Default).Return(nil)
 				mockWatcher.EXPECT().Close()
@@ -117,6 +125,7 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockListener.EXPECT().Start(gomock.Any())
 				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
 				mockWatcher.EXPECT().Close()
@@ -133,6 +142,7 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockListener.EXPECT().Start(gomock.Any())
 				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
 				mockWatcher.EXPECT().Close()
@@ -146,11 +156,12 @@ func Test_Execute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cli{
-				cmd:     tt.cmd,
-				runner:  mockRunner,
-				watcher: mockWatcher,
-				ui:      mockUI,
-				log:     mockLogger,
+				cmd:      tt.cmd,
+				runner:   mockRunner,
+				watcher:  mockWatcher,
+				listener: mockListener,
+				ui:       mockUI,
+				log:      mockLogger,
 			}
 
 			oldStdout := os.Stdout
@@ -233,12 +244,47 @@ func Test_Execute_LogsMode(t *testing.T) {
 	}
 }
 
+func Test_Execute_StopCommand(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSession := session.NewMockSession(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	mockSession.EXPECT().Load().Return(nil, apperrors.ErrSessionNotFound)
+
+	c := &cli{
+		cmd:     &Options{Type: CommandStop},
+		session: mockSession,
+		log:     mockLogger,
+	}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	exitCode, err := c.Execute()
+
+	w.Close()
+
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+
+	_, _ = io.Copy(&buf, r)
+
+	assert.Equal(t, 0, exitCode)
+	assert.NoError(t, err)
+	assert.Contains(t, buf.String(), "No active session found")
+}
+
 func Test_handleRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockWatcher := watcher.NewMockWatcher(ctrl)
+	mockListener := session.NewMockListener(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	tests := []struct {
@@ -253,6 +299,7 @@ func Test_handleRun(t *testing.T) {
 			profile: "test-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockListener.EXPECT().Start(gomock.Any())
 				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
 				mockWatcher.EXPECT().Close()
@@ -265,6 +312,7 @@ func Test_handleRun(t *testing.T) {
 			profile: "failed-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
+				mockListener.EXPECT().Start(gomock.Any())
 				mockWatcher.EXPECT().Start(gomock.Any())
 				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
 				mockWatcher.EXPECT().Close()
@@ -278,10 +326,11 @@ func Test_handleRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cli{
-				cmd:     &Options{Type: CommandRun, Profile: tt.profile, NoUI: true},
-				runner:  mockRunner,
-				watcher: mockWatcher,
-				log:     mockLogger,
+				cmd:      &Options{Type: CommandRun, Profile: tt.profile, NoUI: true},
+				runner:   mockRunner,
+				watcher:  mockWatcher,
+				listener: mockListener,
+				log:      mockLogger,
 			}
 
 			oldStdout := os.Stdout
@@ -305,6 +354,95 @@ func Test_handleRun(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_handleStop(t *testing.T) {
+	tests := []struct {
+		name           string
+		before         func(*session.MockSession, *logger.MockLogger)
+		expectedExit   int
+		expectedError  bool
+		expectedOutput string
+	}{
+		{
+			name: "No active session",
+			before: func(s *session.MockSession, l *logger.MockLogger) {
+				s.EXPECT().Load().Return(nil, apperrors.ErrSessionNotFound)
+			},
+			expectedExit:   0,
+			expectedError:  false,
+			expectedOutput: "No active session found",
+		},
+		{
+			name: "Corrupted session",
+			before: func(s *session.MockSession, l *logger.MockLogger) {
+				s.EXPECT().Load().Return(nil, fmt.Errorf("%w: invalid json", apperrors.ErrSessionCorrupted))
+				l.EXPECT().Error().Return(nil)
+			},
+			expectedExit:  1,
+			expectedError: true,
+		},
+		{
+			name: "Valid session with no live processes",
+			before: func(s *session.MockSession, l *logger.MockLogger) {
+				s.EXPECT().Load().Return(&session.State{
+					Profile: "test",
+					Entries: []session.Entry{
+						{Service: "api", PID: 999999},
+					},
+				}, nil)
+				l.EXPECT().Debug().Return(nil).AnyTimes()
+				s.EXPECT().Delete().Return(nil)
+			},
+			expectedExit:   0,
+			expectedError:  false,
+			expectedOutput: "No orphaned processes found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockSession := session.NewMockSession(ctrl)
+			mockLogger := logger.NewMockLogger(ctrl)
+
+			tt.before(mockSession, mockLogger)
+
+			c := &cli{
+				cmd:     &Options{Type: CommandStop},
+				session: mockSession,
+				log:     mockLogger,
+			}
+
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			exitCode, err := c.handleStop()
+
+			w.Close()
+
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+
+			_, _ = io.Copy(&buf, r)
+
+			assert.Equal(t, tt.expectedExit, exitCode)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tt.expectedOutput != "" {
+				assert.Contains(t, buf.String(), tt.expectedOutput)
 			}
 		})
 	}

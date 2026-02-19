@@ -96,6 +96,22 @@ func Test_CreateApp(t *testing.T) {
 				NoUI:    false,
 			},
 		},
+		{
+			name: "Creates app with stop command",
+			cfg: &config.Config{
+				Logging: struct {
+					Level  string `yaml:"level"`
+					Format string `yaml:"format"`
+				}{
+					Level: logger.InfoLevel,
+				},
+			},
+			cmd: &cli.Options{
+				Type:    cli.CommandStop,
+				Profile: config.Default,
+				NoUI:    false,
+			},
+		},
 	}
 
 	for _, tt := range tests {
