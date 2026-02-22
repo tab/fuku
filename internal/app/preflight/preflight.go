@@ -26,7 +26,6 @@ type Preflight interface {
 }
 
 // entry holds information about a running process
-// name is the process name, dir is the current working directory, and pid is the process ID
 type entry struct {
 	name string
 	dir  string
