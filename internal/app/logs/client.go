@@ -88,11 +88,11 @@ func (c *client) Stream(ctx context.Context, output io.Writer) error {
 
 	for {
 		line, err := reader.ReadBytes('\n')
-		if err != nil {
-			if ctx.Err() != nil || err == io.EOF {
-				return nil
-			}
+		if err != nil && (ctx.Err() != nil || err == io.EOF) {
+			return nil
+		}
 
+		if err != nil {
 			return fmt.Errorf("%w: %w", errors.ErrFailedToReadSocket, err)
 		}
 

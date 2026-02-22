@@ -404,11 +404,14 @@ func (m Model) handleServiceStopped(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
-		wasRestarting := m.controller.HandleStopped(m.ctx, service)
-		if !wasRestarting {
-			m.loader.Stop(data.Service)
-		}
+	service, exists := m.state.services[data.Service]
+	if !exists {
+		return m
+	}
+
+	wasRestarting := m.controller.HandleStopped(m.ctx, service)
+	if !wasRestarting {
+		m.loader.Stop(data.Service)
 	}
 
 	return m

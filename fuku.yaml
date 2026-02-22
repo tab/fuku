@@ -111,5 +111,5 @@ logs:
   buffer: 500
 
 logging:
-  level: debug
   format: console
+  level: debug

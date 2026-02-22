@@ -12,6 +12,7 @@ type CommandType int
 // Command type values
 const (
 	CommandRun CommandType = iota
+	CommandInit
 	CommandLogs
 	CommandVersion
 	CommandHelp
@@ -25,6 +26,14 @@ type Options struct {
 	NoUI     bool
 }
 
+// rootFlags holds flag values for the root command
+type rootFlags struct {
+	version bool
+	run     string
+	logs    bool
+	init    bool
+}
+
 // Parse parses command-line args and returns a Options struct
 func Parse(args []string) (*Options, error) {
 	result := &Options{
@@ -32,15 +41,12 @@ func Parse(args []string) (*Options, error) {
 		Profile: config.Default,
 	}
 
-	var (
-		showVersion bool
-		runProfile  string
-		logsFlag    bool
-	)
+	var flags rootFlags
 
-	root := buildRootCommand(result, &showVersion, &runProfile, &logsFlag)
+	root := buildRootCommand(result, &flags)
 	root.AddCommand(
 		buildRunCommand(result),
+		buildInitCommand(result),
 		buildLogsCommand(result),
 		buildVersionCommand(result),
 	)
@@ -51,26 +57,30 @@ func Parse(args []string) (*Options, error) {
 		return nil, err
 	}
 
-	if showVersion {
+	if flags.version {
 		result.Type = CommandVersion
 	}
 
-	if runProfile != "" {
+	if flags.run != "" {
 		result.Type = CommandRun
-		result.Profile = runProfile
+		result.Profile = flags.run
 	}
 
-	if logsFlag {
+	if flags.logs {
 		result.Type = CommandLogs
 		result.Profile = ""
 		result.Services = []string{}
+	}
+
+	if flags.init {
+		result.Type = CommandInit
 	}
 
 	return result, nil
 }
 
 // buildRootCommand creates the root cobra command
-func buildRootCommand(result *Options, showVersion *bool, runProfile *string, logsFlag *bool) *cobra.Command {
+func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fuku",
 		Short: "A lightweight CLI orchestrator for running and managing multiple local services",
@@ -84,13 +94,29 @@ multiple local services in development environments.`,
 	}
 
 	cmd.PersistentFlags().BoolVar(&result.NoUI, "no-ui", false, "Run without TUI")
-	cmd.Flags().BoolVarP(showVersion, "version", "v", false, "Show version information")
-	cmd.Flags().StringVarP(runProfile, "run", "r", "", "Run services with specified profile")
-	cmd.Flags().BoolVarP(logsFlag, "logs", "l", false, "Stream logs from running services")
+	cmd.Flags().BoolVarP(&flags.version, "version", "v", false, "Show version information")
+	cmd.Flags().StringVarP(&flags.run, "run", "r", "", "Run services with specified profile")
+	cmd.Flags().BoolVarP(&flags.logs, "logs", "l", false, "Stream logs from running services")
+	cmd.Flags().BoolVarP(&flags.init, "init", "i", false, "Generate fuku.yaml template")
 
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		result.Type = CommandHelp
 	})
+
+	return cmd
+}
+
+// buildInitCommand creates the init subcommand
+func buildInitCommand(result *Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "init",
+		Aliases: []string{"i"},
+		Short:   "Generate fuku.yaml template",
+		Args:    cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			result.Type = CommandInit
+		},
+	}
 
 	return cmd
 }
@@ -138,6 +164,7 @@ func buildVersionCommand(result *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show version information",
+		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			result.Type = CommandVersion
 		},

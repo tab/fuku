@@ -2,7 +2,10 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 
 	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
@@ -10,6 +13,7 @@ import (
 	"fuku/internal/app/watcher"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
+	"fuku/internal/config/template"
 )
 
 // Help text constants
@@ -19,6 +23,8 @@ const (
   fuku run <profile>              Run services with specified profile
   fuku --run <profile>            Same as above (--run, -r, run, r)
   fuku run <profile> --no-ui      Run services without TUI
+
+  fuku init                       Generate fuku.yaml template (--init, -i, init, i)
 
   fuku logs [service...]          Stream logs from running services
   fuku --logs                     Same as above (--logs, -l, logs, l)
@@ -31,6 +37,7 @@ Examples:
   fuku                            Run default profile with TUI
   fuku run core --no-ui           Run core services without TUI
   fuku -r core --no-ui            Same as above using flag
+  fuku init                       Generate fuku.yaml in current directory
   fuku logs                       Stream all logs from running fuku
   fuku logs api auth              Stream logs from api and auth services
   fuku -l                         Stream logs using flag`
@@ -75,6 +82,8 @@ func (c *cli) Execute() (int, error) {
 	switch c.cmd.Type {
 	case CommandHelp:
 		return c.handleHelp()
+	case CommandInit:
+		return c.handleInit()
 	case CommandVersion:
 		return c.handleVersion()
 	case CommandLogs:
@@ -93,16 +102,16 @@ func (c *cli) handleRun(profile string) (int, error) {
 	c.watcher.Start(ctx)
 	defer c.watcher.Close()
 
-	if c.cmd.NoUI {
-		if err := c.runner.Run(ctx, profile); err != nil {
-			c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
-			return 1, err
-		}
-
-		return 0, nil
+	if !c.cmd.NoUI {
+		return c.runWithUI(ctx, profile)
 	}
 
-	return c.runWithUI(ctx, profile)
+	if err := c.runner.Run(ctx, profile); err != nil {
+		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
+		return 1, err
+	}
+
+	return 0, nil
 }
 
 // runWithUI runs the TUI alongside the runner
@@ -133,6 +142,31 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
 		return 1, err
 	}
+
+	return 0, nil
+}
+
+// handleInit generates a fuku.yaml template in the current directory
+func (c *cli) handleInit() (int, error) {
+	c.log.Debug().Msg("Initializing configuration")
+
+	f, err := os.OpenFile(config.ConfigFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if errors.Is(err, fs.ErrExist) {
+		fmt.Printf("%s already exists\n", config.ConfigFile)
+		return 0, nil
+	}
+
+	if err != nil {
+		return 1, fmt.Errorf("failed to write %s: %w", config.ConfigFile, err)
+	}
+
+	defer f.Close()
+
+	if _, err := f.Write(template.Content); err != nil {
+		return 1, fmt.Errorf("failed to write %s: %w", config.ConfigFile, err)
+	}
+
+	fmt.Printf("Created %s\n", config.ConfigFile)
 
 	return 0, nil
 }

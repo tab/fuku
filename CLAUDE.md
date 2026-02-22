@@ -332,10 +332,9 @@ go fmt ./... && make lint && make vet && make test
 - when merging master changes to an active branch, make sure both branches are pulled and up to date first
 - don't leave commented out code in place
 - if working with github repos use `gh`
-- avoid multi-level nesting
-- avoid deeply nested conditionals (more than 3 levels)
+- never nest if blocks — `if { if { } }` is forbidden; use guard clauses (early return/continue) to flatten
 - never use goto
-- prefer early returns to reduce nesting, but else/else if are acceptable when they improve readability
+- prefer early returns to reduce nesting; else/else if are acceptable when they improve readability
 - never inline table test cases; always use multi-line format with each field on its own line
 - before any significant refactoring, ensure all tests pass and consider creating a new branch
 - when refactoring, editing, or fixing failed tests:
@@ -433,11 +432,10 @@ Example workflow:
   - avoid functions that are too small if they reduce readability
 - keep lines readable; while gofmt doesn't enforce line length, consider breaking very long lines for clarity
 - manage conditional complexity:
-  - avoid nested if statements (if { if { } else { } }) - they are hard to read and maintain
+  - never nest if blocks — `if { if { } }` is forbidden; flatten with guard clauses (early return/continue)
   - use if statements only for guard clauses (early returns/continue) or simple single-level branches
   - for multiple conditions or state-based logic, prefer switch statements
   - for many discrete values, prefer switch statements over long if-else-if chains
-  - use early returns to reduce nesting depth when appropriate
   - extract complex conditions into well-named boolean functions or variables
   - use context structs or functional options instead of multiple boolean flags
 - for CLI command processing, use switch statements with multiple conditions per case (e.g., `case cmd == "help" || cmd == "--help" || cmd == "-h":`)

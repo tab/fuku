@@ -42,14 +42,20 @@ func (l *lifecycle) Terminate(proc process.Process, timeout time.Duration) error
 	pid := cmd.Process.Pid
 	l.log.Info().Msgf("Stopping service '%s' (PID: %d)", proc.Name(), pid)
 
-	if err := l.signalGroup(pid, syscall.SIGTERM); err != nil {
-		l.log.Warn().Err(err).Msgf("Failed to send SIGTERM to process group, trying direct signal")
+	groupErr := l.signalGroup(pid, syscall.SIGTERM)
+	if groupErr != nil {
+		l.log.Warn().Err(groupErr).Msgf("Failed to send SIGTERM to process group, trying direct signal")
+	}
 
-		if directErr := cmd.Process.Signal(syscall.SIGTERM); directErr != nil {
-			l.log.Error().Err(directErr).Msgf("Failed to send SIGTERM to process '%s'", proc.Name())
+	var directErr error
+	if groupErr != nil {
+		directErr = cmd.Process.Signal(syscall.SIGTERM)
+	}
 
-			return l.forceKill(proc, pid)
-		}
+	if directErr != nil {
+		l.log.Error().Err(directErr).Msgf("Failed to send SIGTERM to process '%s'", proc.Name())
+
+		return l.forceKill(proc, pid)
 	}
 
 	select {
@@ -68,12 +74,18 @@ func (l *lifecycle) signalGroup(pid int, sig syscall.Signal) error {
 
 // forceKill sends SIGKILL to the process group
 func (l *lifecycle) forceKill(proc process.Process, pid int) error {
-	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
-		l.log.Warn().Err(err).Msgf("Failed to SIGKILL process group, trying direct kill")
+	groupErr := syscall.Kill(-pid, syscall.SIGKILL)
+	if groupErr != nil {
+		l.log.Warn().Err(groupErr).Msgf("Failed to SIGKILL process group, trying direct kill")
+	}
 
-		if killErr := proc.Cmd().Process.Kill(); killErr != nil {
-			return fmt.Errorf("%w: %v", errors.ErrFailedToTerminateProcess, killErr)
-		}
+	var killErr error
+	if groupErr != nil {
+		killErr = proc.Cmd().Process.Kill()
+	}
+
+	if killErr != nil {
+		return fmt.Errorf("%w: %v", errors.ErrFailedToTerminateProcess, killErr)
 	}
 
 	<-proc.Done()

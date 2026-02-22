@@ -119,7 +119,7 @@ func Load() (*Config, *Topology, error) {
 	cfg := DefaultConfig()
 	defaultTopology := DefaultTopology()
 
-	data, err := os.ReadFile("fuku.yaml")
+	data, err := os.ReadFile(ConfigFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, defaultTopology, nil

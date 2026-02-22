@@ -156,11 +156,11 @@ func (s *server) cleanupStaleSocket() error {
 func (s *server) acceptConnections(ctx context.Context) {
 	for s.running.Load() {
 		conn, err := s.listener.Accept()
-		if err != nil {
-			if s.running.Load() {
-				s.log.Error().Err(err).Msg("Failed to accept connection")
-			}
+		if err != nil && s.running.Load() {
+			s.log.Error().Err(err).Msg("Failed to accept connection")
+		}
 
+		if err != nil {
 			continue
 		}
 
