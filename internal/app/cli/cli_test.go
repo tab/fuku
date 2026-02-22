@@ -85,6 +85,23 @@ func Test_Execute(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name: "Init command",
+			cmd: &Options{
+				Type:    CommandInit,
+				Profile: config.Default,
+			},
+			before: func() {
+				dir := t.TempDir()
+				origDir, _ := os.Getwd()
+
+				os.Chdir(dir)
+				t.Cleanup(func() { os.Chdir(origDir) })
+				mockLogger.EXPECT().Debug().Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
 			name: "Help command",
 			cmd: &Options{
 				Type:    CommandHelp,
@@ -335,6 +352,112 @@ func Test_handleHelp(t *testing.T) {
 	output := buf.String()
 
 	assert.Equal(t, fmt.Sprintf("%s\n", Usage), output)
+}
+
+func Test_handleInit(t *testing.T) {
+	t.Run("fuku.yaml already exists", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLogger := logger.NewMockLogger(ctrl)
+		mockLogger.EXPECT().Debug().Return(nil)
+
+		dir := t.TempDir()
+		origDir, _ := os.Getwd()
+
+		os.Chdir(dir)
+		defer os.Chdir(origDir)
+
+		os.WriteFile(config.ConfigFile, []byte("existing"), 0600)
+
+		c := &cli{log: mockLogger}
+
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+
+		os.Stdout = w
+
+		exitCode, err := c.handleInit()
+
+		w.Close()
+
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+
+		_, _ = io.Copy(&buf, r)
+
+		assert.Equal(t, 0, exitCode)
+		assert.NoError(t, err)
+		assert.Contains(t, buf.String(), "already exists")
+
+		content, _ := os.ReadFile(config.ConfigFile)
+		assert.Equal(t, "existing", string(content))
+	})
+
+	t.Run("fuku.yaml created successfully", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLogger := logger.NewMockLogger(ctrl)
+		mockLogger.EXPECT().Debug().Return(nil)
+
+		dir := t.TempDir()
+		origDir, _ := os.Getwd()
+
+		os.Chdir(dir)
+		defer os.Chdir(origDir)
+
+		c := &cli{log: mockLogger}
+
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+
+		os.Stdout = w
+
+		exitCode, err := c.handleInit()
+
+		w.Close()
+
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+
+		_, _ = io.Copy(&buf, r)
+
+		assert.Equal(t, 0, exitCode)
+		assert.NoError(t, err)
+		assert.Contains(t, buf.String(), "Created")
+
+		content, readErr := os.ReadFile(config.ConfigFile)
+		assert.NoError(t, readErr)
+		assert.Contains(t, string(content), "version: 1")
+		assert.Contains(t, string(content), "services:")
+	})
+
+	t.Run("write error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockLogger := logger.NewMockLogger(ctrl)
+		mockLogger.EXPECT().Debug().Return(nil)
+
+		dir := t.TempDir()
+		origDir, _ := os.Getwd()
+
+		os.Chdir(dir)
+		defer os.Chdir(origDir)
+
+		os.Chmod(dir, 0444)
+		defer os.Chmod(dir, 0755)
+
+		c := &cli{log: mockLogger}
+
+		exitCode, err := c.handleInit()
+
+		assert.Equal(t, 1, exitCode)
+		assert.Error(t, err)
+	})
 }
 
 func Test_handleVersion(t *testing.T) {

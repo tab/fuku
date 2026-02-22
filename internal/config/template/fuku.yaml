@@ -1,0 +1,80 @@
+version: 1
+
+# Readiness: log-based (wait for a pattern in stdout)
+x-readiness-log: &readiness-log
+  type: log
+  pattern: "started"
+  timeout: 30s
+  interval: 500ms
+
+# Readiness: HTTP health check
+x-readiness-http: &readiness-http
+  type: http
+  url: http://localhost:3000/health
+  timeout: 30s
+  interval: 500ms
+
+# Readiness: TCP port check
+x-readiness-tcp: &readiness-tcp
+  type: tcp
+  address: localhost:5432
+  timeout: 30s
+  interval: 500ms
+
+# Log output streams
+x-logs: &logs
+  output: [stdout, stderr]
+
+# File watcher for hot-reload
+x-watch: &watch
+  include:
+    - "**/*.go"
+    - "**/*.yml"
+    - "**/*.yaml"
+  ignore:
+    - ".git/**"
+    - ".idea/**"
+    - ".vscode/**"
+    - "**/*.swp"
+    - "**/*~"
+    - "**/.DS_Store"
+    - "vendor/**"
+    - "**/*_test.go"
+    - "**/testdata/**"
+  shared:
+    - "pkg/common"
+  debounce: 500ms
+
+services: {}
+  # example-service:
+  #   dir: services/example
+  #   tier: foundation
+  #   readiness:
+  #     <<: *readiness-log
+  #     pattern: "listening on"
+  #   logs:
+  #     <<: *logs
+  #   watch:
+  #     <<: *watch
+  #     include: ["**/*.go", "**/*.yaml"]
+  #     shared: ["libs/shared"]
+
+# defaults:
+#   tier: default
+
+profiles:
+  default: "*"
+
+concurrency:
+  workers: 5
+
+retry:
+  attempts: 3
+  backoff: 500ms
+
+logs:
+  buffer: 1000
+
+logging:
+  format: console
+  level: info
