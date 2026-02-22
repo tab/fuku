@@ -138,6 +138,7 @@ func buildVersionCommand(result *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show version information",
+		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			result.Type = CommandVersion
 		},
