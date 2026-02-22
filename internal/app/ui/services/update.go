@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -15,6 +16,12 @@ import (
 const (
 	tickInterval       = components.UITickInterval
 	tickCounterMaximum = 1000000
+)
+
+// Loader keys for system operations
+const (
+	loaderKeyPreflight = "_preflight"
+	loaderKeyShutdown  = "_shutdown"
 )
 
 // msgMsg wraps a bus message for tea messaging
@@ -109,7 +116,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.ui.servicesKeys.Quit):
 		m.state.shuttingDown = true
-		m.loader.Start("_shutdown", "shutting down all services…")
+		m.loader.Start(loaderKeyShutdown, "shutting down all services…")
 		m.controller.StopAll()
 
 		return m, waitForMsgCmd(m.msgChan)
@@ -225,9 +232,14 @@ func (m Model) handleMessage(msg bus.Message) (tea.Model, tea.Cmd) {
 		m = m.handleWatchStarted(msg)
 	case bus.EventWatchStopped:
 		m = m.handleWatchStopped(msg)
+	case bus.EventPreflightStarted:
+		m = m.handlePreflightStarted()
+	case bus.EventPreflightKill:
+		m = m.handlePreflightKill(msg)
+	case bus.EventPreflightComplete:
+		m = m.handlePreflightComplete()
 	case bus.EventSignal:
-		m.state.shuttingDown = true
-		m.loader.Start("_shutdown", "shutting down all services…")
+		m = m.handleSignal()
 	}
 
 	return m, waitForMsgCmd(m.msgChan)
@@ -445,6 +457,40 @@ func (m Model) handleWatchStopped(msg bus.Message) Model {
 	}
 
 	m.updateServicesContent()
+
+	return m
+}
+
+// handlePreflightStarted updates loader when preflight scan begins
+func (m Model) handlePreflightStarted() Model {
+	m.loader.Start(loaderKeyPreflight, "preflight: scanning processes…")
+
+	return m
+}
+
+// handlePreflightKill updates loader with the service being killed
+func (m Model) handlePreflightKill(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.PreflightKill)
+	if !ok {
+		return m
+	}
+
+	m.loader.Start(loaderKeyPreflight, fmt.Sprintf("preflight: stopping %s…", data.Service))
+
+	return m
+}
+
+// handlePreflightComplete removes preflight loader when scan finishes
+func (m Model) handlePreflightComplete() Model {
+	m.loader.Stop(loaderKeyPreflight)
+
+	return m
+}
+
+// handleSignal marks the application as shutting down
+func (m Model) handleSignal() Model {
+	m.state.shuttingDown = true
+	m.loader.Start(loaderKeyShutdown, "shutting down all services…")
 
 	return m
 }

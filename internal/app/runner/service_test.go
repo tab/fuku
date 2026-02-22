@@ -335,13 +335,15 @@ func Test_DoStart_ValidDirectory(t *testing.T) {
 	proc, err := s.doStart(ctx, "test-service", "platform", svc)
 	if err != nil {
 		assert.Contains(t, err.Error(), "failed to start command")
-	} else {
-		assert.NotNil(t, proc)
-		cancel()
 
-		if proc != nil {
-			_ = s.lifecycle.Terminate(proc, config.ShutdownTimeout)
-		}
+		return
+	}
+
+	assert.NotNil(t, proc)
+	cancel()
+
+	if proc != nil {
+		_ = s.lifecycle.Terminate(proc, config.ShutdownTimeout)
 	}
 }
 

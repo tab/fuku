@@ -16,8 +16,11 @@ type MessageType string
 
 // Event types
 const (
-	EventProfileResolved   MessageType = "profile_resolved"
 	EventPhaseChanged      MessageType = "phase_changed"
+	EventProfileResolved   MessageType = "profile_resolved"
+	EventPreflightStarted  MessageType = "preflight_started"
+	EventPreflightKill     MessageType = "preflight_kill"
+	EventPreflightComplete MessageType = "preflight_complete"
 	EventTierStarting      MessageType = "tier_starting"
 	EventTierReady         MessageType = "tier_ready"
 	EventServiceStarting   MessageType = "service_starting"
@@ -66,6 +69,23 @@ type ProfileResolved struct {
 // PhaseChanged indicates an application phase transition
 type PhaseChanged struct {
 	Phase Phase
+}
+
+// PreflightStarted indicates the preflight scan has begun
+type PreflightStarted struct {
+	Services []string
+}
+
+// PreflightKill indicates a process was killed during preflight
+type PreflightKill struct {
+	Service string
+	Name    string
+	PID     int
+}
+
+// PreflightComplete indicates the preflight scan has finished
+type PreflightComplete struct {
+	Killed int
 }
 
 // Tier represents a group of services that start together
@@ -255,6 +275,12 @@ func formatData(data interface{}) string {
 		return fmt.Sprintf("{profile: %s}", d.Profile)
 	case PhaseChanged:
 		return fmt.Sprintf("{phase: %s}", d.Phase)
+	case PreflightStarted:
+		return fmt.Sprintf("{services: %v}", d.Services)
+	case PreflightKill:
+		return fmt.Sprintf("{service: %s, pid: %d, name: %s}", d.Service, d.PID, d.Name)
+	case PreflightComplete:
+		return fmt.Sprintf("{killed: %d}", d.Killed)
 	case TierStarting:
 		return fmt.Sprintf("{tier: %s, %d/%d}", d.Name, d.Index, d.Total)
 	case Payload:

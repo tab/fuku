@@ -1,4 +1,4 @@
-package runner
+package worker
 
 import (
 	"context"
@@ -15,17 +15,17 @@ import (
 func Test_AcquireRelease(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.DefaultConfig()
-	pool := NewWorkerPool(cfg)
+	worker := NewWorkerPool(cfg)
 
 	for i := 0; i < cfg.Concurrency.Workers; i++ {
-		err := pool.Acquire(ctx)
+		err := worker.Acquire(ctx)
 		require.NoError(t, err)
 	}
 
 	done := make(chan bool)
 
 	go func() {
-		err := pool.Acquire(ctx)
+		err := worker.Acquire(ctx)
 		require.NoError(t, err)
 
 		done <- true
@@ -37,7 +37,7 @@ func Test_AcquireRelease(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	pool.Release()
+	worker.Release()
 
 	select {
 	case <-done:
@@ -46,14 +46,14 @@ func Test_AcquireRelease(t *testing.T) {
 	}
 
 	for i := 0; i < cfg.Concurrency.Workers; i++ {
-		pool.Release()
+		worker.Release()
 	}
 }
 
 func Test_ConcurrentWorkers(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.DefaultConfig()
-	pool := NewWorkerPool(cfg)
+	worker := NewWorkerPool(cfg)
 
 	var (
 		activeWorkers int
@@ -71,10 +71,10 @@ func Test_ConcurrentWorkers(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			err := pool.Acquire(ctx)
+			err := worker.Acquire(ctx)
 			require.NoError(t, err)
 
-			defer pool.Release()
+			defer worker.Release()
 
 			mu.Lock()
 
@@ -112,10 +112,10 @@ func Test_ConcurrentWorkers(t *testing.T) {
 func Test_AcquireContextCancelled(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.DefaultConfig()
-	pool := NewWorkerPool(cfg)
+	worker := NewWorkerPool(cfg)
 
 	for i := 0; i < cfg.Concurrency.Workers; i++ {
-		err := pool.Acquire(ctx)
+		err := worker.Acquire(ctx)
 		require.NoError(t, err)
 	}
 
@@ -124,7 +124,7 @@ func Test_AcquireContextCancelled(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- pool.Acquire(ctx)
+		done <- worker.Acquire(ctx)
 	}()
 
 	cancel()
@@ -138,6 +138,6 @@ func Test_AcquireContextCancelled(t *testing.T) {
 	}
 
 	for i := 0; i < cfg.Concurrency.Workers; i++ {
-		pool.Release()
+		worker.Release()
 	}
 }

@@ -20,11 +20,16 @@ import (
 const (
 	Usage = `Usage:
   fuku                            Run services with default profile (with TUI)
+
+  fuku init                       Generate fuku.yaml template (--init, -i, init, i)
+
   fuku run <profile>              Run services with specified profile
   fuku --run <profile>            Same as above (--run, -r, run, r)
   fuku run <profile> --no-ui      Run services without TUI
 
-  fuku init                       Generate fuku.yaml template (--init, -i, init, i)
+  fuku stop                       Stop services with default profile
+  fuku stop <profile>             Stop services with specified profile
+  fuku --stop <profile>           Same as above (--stop, -s, stop, s)
 
   fuku logs [service...]          Stream logs from running services
   fuku --logs                     Same as above (--logs, -l, logs, l)
@@ -35,9 +40,11 @@ const (
 
 Examples:
   fuku                            Run default profile with TUI
+  fuku init                       Generate fuku.yaml in current directory
   fuku run core --no-ui           Run core services without TUI
   fuku -r core --no-ui            Same as above using flag
-  fuku init                       Generate fuku.yaml in current directory
+  fuku stop                       Stop all services (default profile)
+  fuku stop backend               Stop backend services
   fuku logs                       Stream all logs from running fuku
   fuku logs api auth              Stream logs from api and auth services
   fuku -l                         Stream logs using flag`
@@ -84,6 +91,8 @@ func (c *cli) Execute() (int, error) {
 		return c.handleHelp()
 	case CommandInit:
 		return c.handleInit()
+	case CommandStop:
+		return c.handleStop(c.cmd.Profile)
 	case CommandVersion:
 		return c.handleVersion()
 	case CommandLogs:
@@ -108,6 +117,19 @@ func (c *cli) handleRun(profile string) (int, error) {
 
 	if err := c.runner.Run(ctx, profile); err != nil {
 		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
+		return 1, err
+	}
+
+	return 0, nil
+}
+
+// handleStop kills processes in service directories for the given profile
+func (c *cli) handleStop(profile string) (int, error) {
+	c.log.Debug().Msgf("Stopping services for profile: %s", profile)
+
+	if err := c.runner.Stop(profile); err != nil {
+		c.log.Error().Err(err).Msgf("Failed to stop profile '%s'", profile)
+
 		return 1, err
 	}
 

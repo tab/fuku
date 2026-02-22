@@ -34,7 +34,7 @@ func Test_View_NotReady(t *testing.T) {
 }
 
 func Test_View_RendersWhileShuttingDown(t *testing.T) {
-	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: "_shutdown", Message: "shutting down…"}}}
+	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: loaderKeyShutdown, Message: "shutting down…"}}}
 	m := Model{loader: loader}
 	m.state.ready = true
 	m.state.shuttingDown = true

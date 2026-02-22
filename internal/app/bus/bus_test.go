@@ -316,14 +316,29 @@ func Test_FormatData(t *testing.T) {
 		contains string
 	}{
 		{
+			name:     "PhaseChanged",
+			data:     PhaseChanged{Phase: PhaseRunning},
+			contains: "running",
+		},
+		{
 			name:     "ProfileResolved",
 			data:     ProfileResolved{Profile: "default"},
 			contains: "default",
 		},
 		{
-			name:     "PhaseChanged",
-			data:     PhaseChanged{Phase: PhaseRunning},
-			contains: "running",
+			name:     "PreflightStarted",
+			data:     PreflightStarted{Services: []string{"api", "db"}},
+			contains: "api",
+		},
+		{
+			name:     "PreflightKill",
+			data:     PreflightKill{Service: "api", PID: 1234, Name: "node"},
+			contains: "api",
+		},
+		{
+			name:     "PreflightComplete",
+			data:     PreflightComplete{Killed: 3},
+			contains: "3",
 		},
 		{
 			name:     "TierStarting",

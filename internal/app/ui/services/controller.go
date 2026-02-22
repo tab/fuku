@@ -152,15 +152,16 @@ func (c *controller) HandleStopped(ctx context.Context, service *ServiceState) b
 		return false
 	}
 
-	wasRestarting := false
-	if service.FSM != nil {
-		wasRestarting = service.FSM.Current() == Restarting
+	if service.FSM == nil {
+		service.MarkStopped()
 
-		err := service.FSM.Event(ctx, Stopped)
-		if err != nil {
-			service.MarkStopped()
-		}
-	} else {
+		return false
+	}
+
+	wasRestarting := service.FSM.Current() == Restarting
+
+	err := service.FSM.Event(ctx, Stopped)
+	if err != nil {
 		service.MarkStopped()
 	}
 

@@ -35,10 +35,11 @@ const (
 
 // Timing constants
 const (
-	DefaultTimeout   = 30 * time.Second
-	DefaultInterval  = 500 * time.Millisecond
-	ShutdownTimeout  = 5 * time.Second
-	PreFlightTimeout = 100 * time.Millisecond
+	DefaultTimeout       = 30 * time.Second
+	DefaultInterval      = 500 * time.Millisecond
+	ShutdownTimeout      = 5 * time.Second
+	PreFlightTimeout     = 100 * time.Millisecond
+	PreFlightKillTimeout = 2 * time.Second
 )
 
 // Retry settings

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"sync"
 	"syscall"
@@ -13,7 +14,9 @@ import (
 	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/logs"
+	"fuku/internal/app/preflight"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/worker"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -21,15 +24,17 @@ import (
 // Runner defines the interface for service orchestration
 type Runner interface {
 	Run(ctx context.Context, profile string) error
+	Stop(profile string) error
 }
 
 // runner implements the Runner interface
 type runner struct {
 	cfg       *config.Config
 	discovery discovery.Discovery
+	preflight preflight.Preflight
 	registry  registry.Registry
 	service   Service
-	pool      WorkerPool
+	worker    worker.Pool
 	bus       bus.Bus
 	server    logs.Server
 	log       logger.Logger
@@ -38,20 +43,22 @@ type runner struct {
 // NewRunner creates a new runner instance
 func NewRunner(
 	cfg *config.Config,
-	disc discovery.Discovery,
-	reg registry.Registry,
+	discovery discovery.Discovery,
+	registry registry.Registry,
+	preflight preflight.Preflight,
 	service Service,
-	pool WorkerPool,
+	worker worker.Pool,
 	bus bus.Bus,
 	server logs.Server,
 	log logger.Logger,
 ) Runner {
 	return &runner{
 		cfg:       cfg,
-		discovery: disc,
-		registry:  reg,
+		discovery: discovery,
+		registry:  registry,
+		preflight: preflight,
 		service:   service,
-		pool:      pool,
+		worker:    worker,
 		bus:       bus,
 		server:    server,
 		log:       log.WithComponent("RUNNER"),
@@ -96,6 +103,11 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		})
 
 		return nil
+	}
+
+	dirs := r.resolveServiceDirs(services)
+	if _, err := r.preflight.Cleanup(ctx, dirs); err != nil {
+		r.log.Warn().Err(err).Msg("Preflight cleanup failed, continuing startup")
 	}
 
 	if err := r.server.Start(ctx, profile, services); err != nil {
@@ -247,12 +259,12 @@ func (r *runner) handleMessage(ctx context.Context, msg bus.Message) bool {
 	case bus.EventWatchTriggered:
 		if data, ok := msg.Data.(bus.WatchTriggered); ok {
 			go func(service string, files []string) {
-				if err := r.pool.Acquire(ctx); err != nil {
+				if err := r.worker.Acquire(ctx); err != nil {
 					r.log.Warn().Err(err).Msgf("Failed to acquire worker for watch restart of '%s'", service)
 
 					return
 				}
-				defer r.pool.Release()
+				defer r.worker.Release()
 
 				r.log.Info().Msgf("File change detected for service '%s': %v", service, files)
 				r.service.Restart(ctx, service)
@@ -329,7 +341,7 @@ func (r *runner) startTier(ctx context.Context, tier string, services []string) 
 		go func(name string) {
 			defer wg.Done()
 
-			if err := r.pool.Acquire(ctx); err != nil {
+			if err := r.worker.Acquire(ctx); err != nil {
 				r.log.Error().Err(err).Msgf("Failed to acquire worker for service '%s'", name)
 				r.bus.Publish(bus.Message{
 					Type:     bus.EventServiceFailed,
@@ -341,7 +353,7 @@ func (r *runner) startTier(ctx context.Context, tier string, services []string) 
 
 				return
 			}
-			defer r.pool.Release()
+			defer r.worker.Release()
 
 			if err := r.service.Start(ctx, name, tier); err != nil {
 				failedChan <- name
@@ -375,6 +387,28 @@ func (r *runner) shutdown() {
 	r.registry.Wait()
 }
 
+// Stop resolves a profile and kills any processes running in service directories
+func (r *runner) Stop(profile string) error {
+	tiers, err := r.discovery.Resolve(profile)
+	if err != nil {
+		return fmt.Errorf("failed to resolve profile: %w", err)
+	}
+
+	services := r.collectServices(tiers)
+	if len(services) == 0 {
+		r.log.Warn().Msgf("No services found for profile '%s'", profile)
+
+		return nil
+	}
+
+	dirs := r.resolveServiceDirs(services)
+	if _, err := r.preflight.Cleanup(context.Background(), dirs); err != nil {
+		r.log.Warn().Err(err).Msg("Preflight cleanup failed during stop")
+	}
+
+	return nil
+}
+
 func (r *runner) collectServices(tiers []discovery.Tier) []string {
 	groups := make([][]string, len(tiers))
 	for i, tier := range tiers {
@@ -382,4 +416,32 @@ func (r *runner) collectServices(tiers []discovery.Tier) []string {
 	}
 
 	return slices.Concat(groups...)
+}
+
+// resolveServiceDirs resolves service names to their absolute directories
+func (r *runner) resolveServiceDirs(services []string) map[string]string {
+	wd, err := os.Getwd()
+	if err != nil {
+		r.log.Warn().Err(err).Msg("Failed to get working directory for preflight")
+
+		return nil
+	}
+
+	dirs := make(map[string]string, len(services))
+
+	for _, name := range services {
+		cfg, exists := r.cfg.Services[name]
+		if !exists {
+			continue
+		}
+
+		dir := cfg.Dir
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(wd, dir)
+		}
+
+		dirs[name] = dir
+	}
+
+	return dirs
 }

@@ -15,8 +15,10 @@ import (
 	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/logs"
+	"fuku/internal/app/preflight"
 	"fuku/internal/app/process"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/worker"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -32,12 +34,13 @@ func Test_NewRunner(t *testing.T) {
 
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockPreflight := preflight.NewMockPreflight(ctrl)
 	mockService := NewMockService(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	assert.NotNil(t, r)
 	instance, ok := r.(*runner)
@@ -45,8 +48,9 @@ func Test_NewRunner(t *testing.T) {
 	assert.Equal(t, cfg, instance.cfg)
 	assert.Equal(t, componentLog, instance.log)
 	assert.Equal(t, mockDiscovery, instance.discovery)
+	assert.Equal(t, mockPreflight, instance.preflight)
 	assert.Equal(t, mockService, instance.service)
-	assert.Equal(t, mockWorkerPool, instance.pool)
+	assert.Equal(t, mockWorkerPool, instance.worker)
 	assert.Equal(t, mockRegistry, instance.registry)
 	assert.Equal(t, mockBus, instance.bus)
 }
@@ -68,12 +72,13 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockDiscovery.EXPECT().Resolve("nonexistent").Return(nil, errors.ErrProfileNotFound)
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockPreflight := preflight.NewMockPreflight(ctrl)
 	mockService := NewMockService(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
 
 	err := r.Run(ctx, "nonexistent")
@@ -99,12 +104,13 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockDiscovery.EXPECT().Resolve("test").Return(nil, errors.ErrServiceNotFound)
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockPreflight := preflight.NewMockPreflight(ctrl)
 	mockService := NewMockService(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
 
 	err := r.Run(ctx, "test")
@@ -132,11 +138,14 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("test").Return([]discovery.Tier{{Name: "platform", Services: []string{"api"}}}, nil)
 
+	mockPreflight := preflight.NewMockPreflight(ctrl)
+	mockPreflight.EXPECT().Cleanup(gomock.Any(), gomock.Any()).Return(nil, nil)
+
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", "platform").Return(nil)
 	mockService.EXPECT().Stop("api").AnyTimes()
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
@@ -153,7 +162,7 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockServer.EXPECT().Start(gomock.Any(), "test", []string{"api"}).Return(nil)
 	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -179,13 +188,14 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
 	mockDiscovery.EXPECT().Resolve("default").Return([]discovery.Tier{}, nil)
 
+	mockPreflight := preflight.NewMockPreflight(ctrl)
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockService := NewMockService(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -212,7 +222,7 @@ func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 	mockService.EXPECT().Stop("service2")
 
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{mockProcess1, mockProcess2})
 	mockRegistry.EXPECT().Detach("service1")
@@ -222,8 +232,9 @@ func Test_Shutdown_StopsAllProcesses(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -240,7 +251,7 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockService := NewMockService(ctrl)
 	mockDiscovery := discovery.NewMockDiscovery(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().SnapshotReverse().Return([]process.Process{})
 	mockRegistry.EXPECT().Wait()
@@ -248,8 +259,9 @@ func Test_Shutdown_EmptyRegistry(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: mockDiscovery,
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -271,8 +283,9 @@ func Test_HandleCommand_StopService(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -304,8 +317,9 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -335,8 +349,9 @@ func Test_HandleCommand_StopAll(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -360,8 +375,9 @@ func Test_HandleCommand_InvalidData(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -394,8 +410,9 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       b,
 		server:    mockServer,
@@ -426,8 +443,9 @@ func Test_RunServicePhase_ContextCancelled(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -455,8 +473,9 @@ func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -486,15 +505,16 @@ func Test_StartTier_Success(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", "platform").Return(nil)
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
 	mockWorkerPool.EXPECT().Release()
 
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -517,14 +537,15 @@ func Test_StartTier_AcquireError(t *testing.T) {
 	mockLog.EXPECT().Error().Return(nil)
 
 	mockService := NewMockService(ctrl)
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(context.Canceled)
 
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -550,15 +571,16 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockService.EXPECT().Start(gomock.Any(), "api", "platform").Return(errors.ErrServiceNotFound)
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
 	mockWorkerPool.EXPECT().Release()
 
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -597,7 +619,7 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 		})
 	mockService.EXPECT().Stop("api").AnyTimes()
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
 	mockWorkerPool.EXPECT().Release()
 
@@ -609,8 +631,9 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -661,7 +684,7 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 			return ctx.Err()
 		}).AnyTimes()
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
@@ -672,8 +695,9 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -720,7 +744,7 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 			return ctx.Err()
 		}).AnyTimes()
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
@@ -731,8 +755,9 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -781,7 +806,7 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 			return ctx.Err()
 		}).AnyTimes()
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
 	mockWorkerPool.EXPECT().Release().AnyTimes()
 
@@ -792,8 +817,9 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  mockRegistry,
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -831,8 +857,9 @@ func Test_RunServicePhase_SignalReceived(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   NewMockService(ctrl),
-		pool:      NewMockWorkerPool(ctrl),
+		worker:    worker.NewMockPool(ctrl),
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -872,7 +899,7 @@ func Test_HandleMessage_WatchTriggered(t *testing.T) {
 		close(restartCalled)
 	})
 
-	mockWorkerPool := NewMockWorkerPool(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
 	mockWorkerPool.EXPECT().Release().Do(func() {
 		close(releaseCalled)
@@ -881,8 +908,9 @@ func Test_HandleMessage_WatchTriggered(t *testing.T) {
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		pool:      mockWorkerPool,
+		worker:    mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -909,4 +937,116 @@ func Test_HandleMessage_WatchTriggered(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Release was not called")
 	}
+}
+
+func Test_Stop(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
+	cfg.Services["web"] = &config.Service{Dir: "web"}
+
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Info().Return(nil).AnyTimes()
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
+	mockDiscovery.EXPECT().Resolve("test").Return([]discovery.Tier{
+		{Name: "platform", Services: []string{"api", "web"}},
+	}, nil)
+
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockPreflight := preflight.NewMockPreflight(ctrl)
+	mockPreflight.EXPECT().Cleanup(gomock.Any(), gomock.Any()).Return(nil, nil)
+
+	mockService := NewMockService(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+
+	err := r.Stop("test")
+
+	assert.NoError(t, err)
+}
+
+func Test_Stop_ProfileNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
+	mockDiscovery.EXPECT().Resolve("nonexistent").Return(nil, errors.ErrProfileNotFound)
+
+	mockRegistry := registry.NewMockRegistry(ctrl)
+
+	mockPreflight := preflight.NewMockPreflight(ctrl)
+	mockService := NewMockService(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+
+	err := r.Stop("nonexistent")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve profile")
+}
+
+func Test_Stop_NoServices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	mockLog := logger.NewMockLogger(ctrl)
+	componentLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("RUNNER").Return(componentLog)
+	componentLog.EXPECT().Warn().Return(nil).AnyTimes()
+
+	mockDiscovery := discovery.NewMockDiscovery(ctrl)
+	mockDiscovery.EXPECT().Resolve("empty").Return([]discovery.Tier{}, nil)
+
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockPreflight := preflight.NewMockPreflight(ctrl)
+	mockService := NewMockService(ctrl)
+	mockWorkerPool := worker.NewMockPool(ctrl)
+	mockBus := bus.NoOp()
+	mockServer := logs.NewMockServer(ctrl)
+
+	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+
+	err := r.Stop("empty")
+
+	assert.NoError(t, err)
+}
+
+func Test_ResolveServiceDirs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api"}
+	cfg.Services["web"] = &config.Service{Dir: "/absolute/web"}
+
+	mockLog := logger.NewMockLogger(ctrl)
+
+	r := &runner{
+		cfg: cfg,
+		log: mockLog,
+	}
+
+	dirs := r.resolveServiceDirs([]string{"api", "web", "nonexistent"})
+
+	assert.Len(t, dirs, 2)
+	assert.Contains(t, dirs["api"], "api")
+	assert.Equal(t, "/absolute/web", dirs["web"])
 }
