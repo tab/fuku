@@ -3,9 +3,11 @@ package preflight
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
@@ -206,6 +208,46 @@ func Test_Cleanup_MatchesExactDirectory(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, int32(200), results[0].PID)
+}
+
+func Test_Scan(t *testing.T) {
+	entries, err := scan()
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, entries)
+
+	ownPID := int32(os.Getpid())
+	found := false
+
+	for _, e := range entries {
+		if e.pid == ownPID {
+			found = true
+
+			break
+		}
+	}
+
+	assert.True(t, found)
+}
+
+func Test_Kill_ProcessExitsOnSIGTERM(t *testing.T) {
+	cmd := exec.Command("sleep", "60")
+	require.NoError(t, cmd.Start())
+
+	pid := int32(cmd.Process.Pid) // #nosec G115 -- PID fits in int32
+
+	// Reap the child when it exits so kill() can detect termination via signal 0
+	go cmd.Wait() //nolint:errcheck
+
+	err := kill(pid)
+
+	assert.NoError(t, err)
+}
+
+func Test_Kill_ProcessNotFound(t *testing.T) {
+	err := kill(2147483647)
+
+	assert.NoError(t, err)
 }
 
 func Test_SortedKeys(t *testing.T) {
