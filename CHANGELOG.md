@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.14.0
+
+### Features
+- **feat:** Add preflight cleanup to detect and terminate orphaned processes before starting services
+
+### Refactor
+- **refactor:** Extract shared worker pool package from runner
+
+### Chore
+- **chore:** Add `nestif` linter to enforce flat control flow
+- **chore:** Update golangci-lint action to v9.2.0 and linter to v2.8.0
+
+### Documentation
+- **docs:** Update architecture diagrams and documentation
+
 ## v0.13.0
 
 ### Features
