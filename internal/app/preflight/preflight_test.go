@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/worker"
+	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
@@ -18,10 +21,11 @@ func Test_NewPreflight(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cfg := config.DefaultConfig()
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().WithComponent("PREFLIGHT").Return(mockLog)
 
-	p := NewPreflight(bus.NoOp(), mockLog)
+	p := NewPreflight(cfg, bus.NoOp(), mockLog)
 
 	assert.NotNil(t, p)
 }
@@ -140,9 +144,17 @@ func Test_Cleanup(t *testing.T) {
 				return tt.killErr
 			}
 
-			p := &preflight{bus: bus.NoOp(), log: mockLog, scan: scan, kill: kill}
+			cfg := config.DefaultConfig()
 
-			results, err := p.Cleanup(tt.dirs)
+			p := &preflight{
+				bus:  bus.NoOp(),
+				log:  mockLog,
+				scan: scan,
+				kill: kill,
+				pool: worker.NewWorkerPool(cfg),
+			}
+
+			results, err := p.Cleanup(context.Background(), tt.dirs)
 
 			assert.NoError(t, err)
 			assert.Len(t, results, tt.expectedResults)
@@ -168,9 +180,17 @@ func Test_Cleanup_ResultFields(t *testing.T) {
 		return nil
 	}
 
-	p := &preflight{bus: bus.NoOp(), log: mockLog, scan: scan, kill: kill}
+	cfg := config.DefaultConfig()
 
-	results, err := p.Cleanup(map[string]string{
+	p := &preflight{
+		bus:  bus.NoOp(),
+		log:  mockLog,
+		scan: scan,
+		kill: kill,
+		pool: worker.NewWorkerPool(cfg),
+	}
+
+	results, err := p.Cleanup(context.Background(), map[string]string{
 		"api": "/project/api",
 	})
 
@@ -199,15 +219,71 @@ func Test_Cleanup_MatchesExactDirectory(t *testing.T) {
 		return nil
 	}
 
-	p := &preflight{bus: bus.NoOp(), log: mockLog, scan: scan, kill: kill}
+	cfg := config.DefaultConfig()
 
-	results, err := p.Cleanup(map[string]string{
+	p := &preflight{
+		bus:  bus.NoOp(),
+		log:  mockLog,
+		scan: scan,
+		kill: kill,
+		pool: worker.NewWorkerPool(cfg),
+	}
+
+	results, err := p.Cleanup(context.Background(), map[string]string{
 		"api": "/project/api",
 	})
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, int32(200), results[0].PID)
+}
+
+func Test_Cleanup_ContextCancellationStopsKills(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+
+	scan := func() ([]entry, error) {
+		return []entry{
+			{pid: 100, dir: "/project/api", name: "node"},
+			{pid: 200, dir: "/project/web", name: "go"},
+			{pid: 300, dir: "/project/db", name: "postgres"},
+		}, nil
+	}
+
+	killCount := 0
+	kill := func(pid int32) error {
+		killCount++
+
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cfg := config.DefaultConfig()
+	cfg.Concurrency.Workers = 1
+
+	p := &preflight{
+		bus:  bus.NoOp(),
+		log:  mockLog,
+		scan: scan,
+		kill: kill,
+		pool: worker.NewWorkerPool(cfg),
+	}
+
+	results, err := p.Cleanup(ctx, map[string]string{
+		"api": "/project/api",
+		"web": "/project/web",
+		"db":  "/project/db",
+	})
+
+	assert.NoError(t, err)
+	assert.Less(t, len(results), 3)
+	assert.Equal(t, killCount, len(results))
 }
 
 func Test_Scan(t *testing.T) {

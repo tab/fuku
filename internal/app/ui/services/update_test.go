@@ -472,7 +472,7 @@ func Test_HandleWatchStopped_UnknownService(t *testing.T) {
 
 func Test_HandlePhaseChanged_PhaseStopped(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("_shutdown", "shutting down…")
+	loader.Start(loaderKeyShutdown, "shutting down…")
 
 	m := Model{loader: loader}
 	m.state.shuttingDown = true
@@ -494,23 +494,6 @@ func Test_HandlePhaseChanged_OtherPhase(t *testing.T) {
 	result, cmd := m.handlePhaseChanged(event)
 
 	assert.Equal(t, bus.PhaseRunning, result.state.phase)
-	assert.NotNil(t, cmd)
-}
-
-func Test_HandleEvent_SignalCaught(t *testing.T) {
-	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	msgChan := make(chan bus.Message, 1)
-
-	m := Model{loader: loader, msgChan: msgChan}
-	m.state.shuttingDown = false
-
-	event := bus.Message{Type: bus.EventSignal, Data: bus.Signal{Name: "SIGINT"}}
-	teaModel, cmd := m.handleMessage(event)
-	result := teaModel.(Model)
-
-	assert.True(t, result.state.shuttingDown)
-	assert.True(t, result.loader.Active)
-	assert.Equal(t, "shutting down all services…", result.loader.Message())
 	assert.NotNil(t, cmd)
 }
 
@@ -671,6 +654,67 @@ func Test_Update_EventMsg(t *testing.T) {
 
 	assert.True(t, result.state.shuttingDown)
 	assert.NotNil(t, cmd)
+}
+
+func Test_HandlePreflightStarted(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+
+	result := m.handlePreflightStarted()
+
+	assert.True(t, result.loader.Active)
+	assert.True(t, result.loader.Has(loaderKeyPreflight))
+	assert.Equal(t, "preflight: scanning processes…", result.loader.Message())
+}
+
+func Test_HandlePreflightKill(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start(loaderKeyPreflight, "preflight: scanning processes…")
+
+	m := Model{loader: loader}
+
+	event := bus.Message{Type: bus.EventPreflightKill, Data: bus.PreflightKill{Service: "api", PID: 1234, Name: "node"}}
+	result := m.handlePreflightKill(event)
+
+	assert.True(t, result.loader.Active)
+	assert.Equal(t, "preflight: stopping api…", result.loader.Message())
+}
+
+func Test_HandlePreflightKill_InvalidData(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start(loaderKeyPreflight, "preflight: scanning processes…")
+
+	m := Model{loader: loader}
+
+	event := bus.Message{Type: bus.EventPreflightKill, Data: "invalid"}
+	result := m.handlePreflightKill(event)
+
+	assert.True(t, result.loader.Active)
+	assert.Equal(t, "preflight: scanning processes…", result.loader.Message())
+}
+
+func Test_HandlePreflightComplete(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start(loaderKeyPreflight, "preflight: stopping api…")
+
+	m := Model{loader: loader}
+
+	result := m.handlePreflightComplete()
+
+	assert.False(t, result.loader.Active)
+	assert.False(t, result.loader.Has(loaderKeyPreflight))
+}
+
+func Test_HandleSignal(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.shuttingDown = false
+
+	result := m.handleSignal()
+
+	assert.True(t, result.state.shuttingDown)
+	assert.True(t, result.loader.Active)
+	assert.Equal(t, "shutting down all services…", result.loader.Message())
 }
 
 func toKeyMsg(s string) tea.KeyMsg {

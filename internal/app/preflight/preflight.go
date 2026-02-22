@@ -1,14 +1,17 @@
 package preflight
 
 import (
+	"context"
 	"os"
 	"sort"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/worker"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -22,7 +25,7 @@ type Result struct {
 
 // Preflight handles pre-start cleanup of orphaned processes
 type Preflight interface {
-	Cleanup(dirs map[string]string) ([]Result, error)
+	Cleanup(ctx context.Context, dirs map[string]string) ([]Result, error)
 }
 
 // entry holds information about a running process
@@ -32,6 +35,12 @@ type entry struct {
 	pid  int32
 }
 
+// match holds a process matched to a service
+type match struct {
+	service string
+	entry   entry
+}
+
 type scanFunc func() ([]entry, error)
 type killFunc func(pid int32) error
 
@@ -39,21 +48,23 @@ type preflight struct {
 	scan scanFunc
 	kill killFunc
 	bus  bus.Bus
+	pool worker.Pool
 	log  logger.Logger
 }
 
 // NewPreflight creates a new Preflight instance
-func NewPreflight(bus bus.Bus, log logger.Logger) Preflight {
+func NewPreflight(cfg *config.Config, bus bus.Bus, log logger.Logger) Preflight {
 	return &preflight{
 		scan: scan,
 		kill: kill,
 		bus:  bus,
+		pool: worker.NewWorkerPool(cfg),
 		log:  log.WithComponent("PREFLIGHT"),
 	}
 }
 
 // Cleanup scans running processes and kills any whose working directory matches a service directory
-func (p *preflight) Cleanup(dirs map[string]string) ([]Result, error) {
+func (p *preflight) Cleanup(ctx context.Context, dirs map[string]string) ([]Result, error) {
 	if len(dirs) == 0 {
 		return nil, nil
 	}
@@ -64,7 +75,7 @@ func (p *preflight) Cleanup(dirs map[string]string) ([]Result, error) {
 		Critical: true,
 	})
 
-	processes, err := p.scan()
+	matches, err := p.matchProcesses(dirs)
 	if err != nil {
 		p.log.Warn().Err(err).Msg("Failed to scan processes")
 		p.bus.Publish(bus.Message{
@@ -76,9 +87,26 @@ func (p *preflight) Cleanup(dirs map[string]string) ([]Result, error) {
 		return nil, nil
 	}
 
-	ownPID := int32(os.Getpid()) // #nosec G115 -- PID fits in int32
+	results := p.killMatches(ctx, matches)
 
-	results := make([]Result, 0, len(processes))
+	p.bus.Publish(bus.Message{
+		Type:     bus.EventPreflightComplete,
+		Data:     bus.PreflightComplete{Killed: len(results)},
+		Critical: true,
+	})
+
+	return results, nil
+}
+
+// matchProcesses scans running processes and returns those matching service directories
+func (p *preflight) matchProcesses(dirs map[string]string) ([]match, error) {
+	processes, err := p.scan()
+	if err != nil {
+		return nil, err
+	}
+
+	ownPID := int32(os.Getpid()) // #nosec G115 -- PID fits in int32
+	matches := make([]match, 0, len(processes))
 
 	for _, proc := range processes {
 		if proc.pid == ownPID {
@@ -90,38 +118,70 @@ func (p *preflight) Cleanup(dirs map[string]string) ([]Result, error) {
 				continue
 			}
 
-			p.log.Info().Msgf("Killing process '%s' (PID: %d) in '%s' for service '%s'", proc.name, proc.pid, dir, service)
-
-			p.bus.Publish(bus.Message{
-				Type: bus.EventPreflightKill,
-				Data: bus.PreflightKill{
-					Service: service,
-					PID:     int(proc.pid),
-					Name:    proc.name,
-				},
-			})
-
-			if err := p.kill(proc.pid); err != nil {
-				p.log.Warn().Err(err).Msgf("Failed to kill process %d", proc.pid)
-			}
-
-			results = append(results, Result{
-				Service: service,
-				Name:    proc.name,
-				PID:     proc.pid,
-			})
+			matches = append(matches, match{service: service, entry: proc})
 
 			break
 		}
 	}
 
-	p.bus.Publish(bus.Message{
-		Type:     bus.EventPreflightComplete,
-		Data:     bus.PreflightComplete{Killed: len(results)},
-		Critical: true,
-	})
+	return matches, nil
+}
 
-	return results, nil
+// killMatches kills matched processes concurrently using the worker pool
+func (p *preflight) killMatches(ctx context.Context, matches []match) []Result {
+	if len(matches) == 0 {
+		return nil
+	}
+
+	var (
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		results = make([]Result, 0, len(matches))
+	)
+
+	for _, m := range matches {
+		if err := p.pool.Acquire(ctx); err != nil {
+			p.log.Warn().Err(err).Msg("Context cancelled, stopping preflight kills")
+
+			break
+		}
+
+		wg.Add(1)
+
+		go func(m match) {
+			defer wg.Done()
+			defer p.pool.Release()
+
+			p.log.Info().Msgf("Killing process '%s' (PID: %d) in '%s' for service '%s'", m.entry.name, m.entry.pid, m.entry.dir, m.service)
+
+			p.bus.Publish(bus.Message{
+				Type: bus.EventPreflightKill,
+				Data: bus.PreflightKill{
+					Service: m.service,
+					PID:     int(m.entry.pid),
+					Name:    m.entry.name,
+				},
+			})
+
+			if err := p.kill(m.entry.pid); err != nil {
+				p.log.Warn().Err(err).Msgf("Failed to kill process %d", m.entry.pid)
+			}
+
+			mu.Lock()
+
+			results = append(results, Result{
+				Service: m.service,
+				Name:    m.entry.name,
+				PID:     m.entry.pid,
+			})
+
+			mu.Unlock()
+		}(m)
+	}
+
+	wg.Wait()
+
+	return results
 }
 
 func scan() ([]entry, error) {

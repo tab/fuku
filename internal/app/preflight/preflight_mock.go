@@ -10,6 +10,7 @@
 package preflight
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -40,16 +41,16 @@ func (m *MockPreflight) EXPECT() *MockPreflightMockRecorder {
 }
 
 // Cleanup mocks base method.
-func (m *MockPreflight) Cleanup(dirs map[string]string) ([]Result, error) {
+func (m *MockPreflight) Cleanup(ctx context.Context, dirs map[string]string) ([]Result, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", dirs)
+	ret := m.ctrl.Call(m, "Cleanup", ctx, dirs)
 	ret0, _ := ret[0].([]Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Cleanup indicates an expected call of Cleanup.
-func (mr *MockPreflightMockRecorder) Cleanup(dirs any) *gomock.Call {
+func (mr *MockPreflightMockRecorder) Cleanup(ctx, dirs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockPreflight)(nil).Cleanup), dirs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockPreflight)(nil).Cleanup), ctx, dirs)
 }

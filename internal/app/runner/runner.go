@@ -16,6 +16,7 @@ import (
 	"fuku/internal/app/logs"
 	"fuku/internal/app/preflight"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/worker"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -33,7 +34,7 @@ type runner struct {
 	preflight preflight.Preflight
 	registry  registry.Registry
 	service   Service
-	pool      WorkerPool
+	worker    worker.Pool
 	bus       bus.Bus
 	server    logs.Server
 	log       logger.Logger
@@ -46,7 +47,7 @@ func NewRunner(
 	registry registry.Registry,
 	preflight preflight.Preflight,
 	service Service,
-	pool WorkerPool,
+	worker worker.Pool,
 	bus bus.Bus,
 	server logs.Server,
 	log logger.Logger,
@@ -57,7 +58,7 @@ func NewRunner(
 		registry:  registry,
 		preflight: preflight,
 		service:   service,
-		pool:      pool,
+		worker:    worker,
 		bus:       bus,
 		server:    server,
 		log:       log.WithComponent("RUNNER"),
@@ -105,7 +106,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	}
 
 	dirs := r.resolveServiceDirs(services)
-	if _, err := r.preflight.Cleanup(dirs); err != nil {
+	if _, err := r.preflight.Cleanup(ctx, dirs); err != nil {
 		r.log.Warn().Err(err).Msg("Preflight cleanup failed, continuing startup")
 	}
 
@@ -258,12 +259,12 @@ func (r *runner) handleMessage(ctx context.Context, msg bus.Message) bool {
 	case bus.EventWatchTriggered:
 		if data, ok := msg.Data.(bus.WatchTriggered); ok {
 			go func(service string, files []string) {
-				if err := r.pool.Acquire(ctx); err != nil {
+				if err := r.worker.Acquire(ctx); err != nil {
 					r.log.Warn().Err(err).Msgf("Failed to acquire worker for watch restart of '%s'", service)
 
 					return
 				}
-				defer r.pool.Release()
+				defer r.worker.Release()
 
 				r.log.Info().Msgf("File change detected for service '%s': %v", service, files)
 				r.service.Restart(ctx, service)
@@ -340,7 +341,7 @@ func (r *runner) startTier(ctx context.Context, tier string, services []string) 
 		go func(name string) {
 			defer wg.Done()
 
-			if err := r.pool.Acquire(ctx); err != nil {
+			if err := r.worker.Acquire(ctx); err != nil {
 				r.log.Error().Err(err).Msgf("Failed to acquire worker for service '%s'", name)
 				r.bus.Publish(bus.Message{
 					Type:     bus.EventServiceFailed,
@@ -352,7 +353,7 @@ func (r *runner) startTier(ctx context.Context, tier string, services []string) 
 
 				return
 			}
-			defer r.pool.Release()
+			defer r.worker.Release()
 
 			if err := r.service.Start(ctx, name, tier); err != nil {
 				failedChan <- name
@@ -401,7 +402,7 @@ func (r *runner) Stop(profile string) error {
 	}
 
 	dirs := r.resolveServiceDirs(services)
-	if _, err := r.preflight.Cleanup(dirs); err != nil {
+	if _, err := r.preflight.Cleanup(context.Background(), dirs); err != nil {
 		r.log.Warn().Err(err).Msg("Preflight cleanup failed during stop")
 	}
 

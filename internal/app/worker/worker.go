@@ -1,4 +1,4 @@
-package runner
+package worker
 
 import (
 	"context"
@@ -6,26 +6,26 @@ import (
 	"fuku/internal/config"
 )
 
-// WorkerPool manages concurrent worker execution with a maximum worker limit
-type WorkerPool interface {
+// Pool manages concurrent worker execution with a maximum worker limit
+type Pool interface {
 	Acquire(ctx context.Context) error
 	Release()
 }
 
-// workerPool implements the WorkerPool interface
-type workerPool struct {
+// pool implements the Pool interface
+type pool struct {
 	sem chan struct{}
 }
 
 // NewWorkerPool creates a new worker pool with the configured maximum workers
-func NewWorkerPool(cfg *config.Config) WorkerPool {
-	return &workerPool{
+func NewWorkerPool(cfg *config.Config) Pool {
+	return &pool{
 		sem: make(chan struct{}, cfg.Concurrency.Workers),
 	}
 }
 
 // Acquire acquires a worker slot, blocking if all workers are busy or returning error if context is cancelled
-func (w *workerPool) Acquire(ctx context.Context) error {
+func (w *pool) Acquire(ctx context.Context) error {
 	select {
 	case w.sem <- struct{}{}:
 		return nil
@@ -35,6 +35,6 @@ func (w *workerPool) Acquire(ctx context.Context) error {
 }
 
 // Release releases a worker slot
-func (w *workerPool) Release() {
+func (w *pool) Release() {
 	<-w.sem
 }
