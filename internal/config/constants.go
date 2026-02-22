@@ -6,6 +6,8 @@ import "time"
 const (
 	AppName = "fuku"
 	Version = "0.12.0"
+
+	ConfigFile = "fuku.yaml"
 )
 
 // Default values
