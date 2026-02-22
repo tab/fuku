@@ -29,24 +29,24 @@ Download the latest binary from [GitHub Releases](https://github.com/tab/fuku/re
 **macOS (Apple Silicon):**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.12.0_macos_arm64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.12.0_macos_arm64/fuku
-sudo mv ~/Downloads/fuku_v0.12.0_macos_arm64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.13.0_macos_arm64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.13.0_macos_arm64/fuku
+sudo mv ~/Downloads/fuku_v0.13.0_macos_arm64/fuku /usr/local/bin/fuku
 ```
 
 **macOS (Intel):**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.12.0_macos_amd64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.12.0_macos_amd64/fuku
-sudo mv ~/Downloads/fuku_v0.12.0_macos_amd64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.13.0_macos_amd64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.13.0_macos_amd64/fuku
+sudo mv ~/Downloads/fuku_v0.13.0_macos_amd64/fuku /usr/local/bin/fuku
 ```
 
 **Linux:**
 ```bash
 cd ~/Downloads
-tar -xzf fuku_v0.12.0_linux_amd64.tar.gz
-sudo mv ~/Downloads/fuku_v0.12.0_linux_amd64/fuku /usr/local/bin/fuku
+tar -xzf fuku_v0.13.0_linux_amd64.tar.gz
+sudo mv ~/Downloads/fuku_v0.13.0_linux_amd64/fuku /usr/local/bin/fuku
 ```
 
 ### Build from Source
@@ -61,6 +61,10 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku
 ## Quick Start
 
 ```bash
+# Generate config file
+fuku init                       # Creates fuku.yaml template
+fuku i                          # Short alias
+
 # Run with TUI (default profile)
 fuku
 
@@ -97,7 +101,7 @@ q                Quit (stops all services)
 
 ## Configuration
 
-Create `fuku.yaml` in your project root:
+Generate a config template with `fuku init`, or create `fuku.yaml` manually in your project root:
 
 ```yaml
 version: 1

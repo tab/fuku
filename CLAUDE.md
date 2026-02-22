@@ -96,7 +96,7 @@
    - `commands.go` - Cobra-based argument parsing with `Parse()` function
    - `cli.go` - Command execution via `Execute()` method
    - Supports flags in any position (e.g., `--no-ui run core` or `run core --no-ui`)
-   - Commands: `run`, `logs`, `version`, `help` with short aliases
+   - Commands: `run`, `init`, `logs`, `version`, `help` with short aliases
 
 4. **Service Orchestration** (`internal/app/runner/runner.go`)
    - Orders services by tier for startup sequencing

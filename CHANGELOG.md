@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.13.0
+
+### Features
+- **feat:** Add `init` command to generate config
+
+### Fixes
+- **fix:** Enforce no arguments for `version` command
+
+### Build
+- **build:** Bump github.com/charmbracelet/bubbles from 0.21.0 to 1.0.0
+- **build:** Bump github.com/spf13/cobra from 1.8.0 to 1.10.2
+
+### Chore
+- **chore:** Add `ConfigFile` constant
+
 ## v0.12.0
 
 ### Features
