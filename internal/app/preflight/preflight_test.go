@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -128,7 +129,7 @@ func Test_Cleanup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			killCount := 0
+			var killCount atomic.Int32
 
 			scan := func() ([]entry, error) {
 				if tt.scanErr != nil {
@@ -139,7 +140,7 @@ func Test_Cleanup(t *testing.T) {
 			}
 
 			kill := func(pid int32) error {
-				killCount++
+				killCount.Add(1)
 
 				return tt.killErr
 			}
@@ -158,7 +159,7 @@ func Test_Cleanup(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, results, tt.expectedResults)
-			assert.Equal(t, tt.expectedKills, killCount)
+			assert.Equal(t, int32(tt.expectedKills), killCount.Load())
 		})
 	}
 }
@@ -254,9 +255,10 @@ func Test_Cleanup_ContextCancellationStopsKills(t *testing.T) {
 		}, nil
 	}
 
-	killCount := 0
+	var killCount atomic.Int32
+
 	kill := func(pid int32) error {
-		killCount++
+		killCount.Add(1)
 
 		return nil
 	}
@@ -283,7 +285,7 @@ func Test_Cleanup_ContextCancellationStopsKills(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Less(t, len(results), 3)
-	assert.Equal(t, killCount, len(results))
+	assert.Equal(t, killCount.Load(), int32(len(results)))
 }
 
 func Test_Scan(t *testing.T) {
