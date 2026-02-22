@@ -93,16 +93,16 @@ func (c *cli) handleRun(profile string) (int, error) {
 	c.watcher.Start(ctx)
 	defer c.watcher.Close()
 
-	if c.cmd.NoUI {
-		if err := c.runner.Run(ctx, profile); err != nil {
-			c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
-			return 1, err
-		}
-
-		return 0, nil
+	if !c.cmd.NoUI {
+		return c.runWithUI(ctx, profile)
 	}
 
-	return c.runWithUI(ctx, profile)
+	if err := c.runner.Run(ctx, profile); err != nil {
+		c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
+		return 1, err
+	}
+
+	return 0, nil
 }
 
 // runWithUI runs the TUI alongside the runner

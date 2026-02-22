@@ -438,10 +438,10 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 		line, isPrefix, err := reader.ReadLine()
 		if len(line) > 0 {
 			dst.Write(line)
+		}
 
-			if buf.Len()+len(line) <= maxLineSize {
-				buf.Write(line)
-			}
+		if len(line) > 0 && buf.Len()+len(line) <= maxLineSize {
+			buf.Write(line)
 		}
 
 		if !isPrefix && (len(line) > 0 || buf.Len() > 0 || err == nil) {
@@ -457,11 +457,11 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 			buf.Reset()
 		}
 
-		if err != nil {
-			if err != io.EOF {
-				s.log.Error().Err(err).Msgf("Error reading %s stream for service '%s'", streamType, serviceName)
-			}
+		if err != nil && err != io.EOF {
+			s.log.Error().Err(err).Msgf("Error reading %s stream for service '%s'", streamType, serviceName)
+		}
 
+		if err != nil {
 			break
 		}
 	}

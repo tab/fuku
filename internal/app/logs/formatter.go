@@ -94,15 +94,17 @@ func (f *LogFormatter) WriteFormatted(w io.Writer, service, message string) {
 func (f *LogFormatter) RenderBanner(w io.Writer, status StatusMessage, subscribed []string) {
 	serviceCount := fmt.Sprintf("%d running", len(status.Services))
 
-	showing := "all"
+	const maxShown = 5
 
-	if len(subscribed) > 0 {
-		const maxShown = 5
-		if len(subscribed) <= maxShown {
-			showing = strings.Join(subscribed, ", ")
-		} else {
-			showing = strings.Join(subscribed[:maxShown], ", ") + fmt.Sprintf(" and %d more", len(subscribed)-maxShown)
-		}
+	var showing string
+
+	switch {
+	case len(subscribed) == 0:
+		showing = "all"
+	case len(subscribed) <= maxShown:
+		showing = strings.Join(subscribed, ", ")
+	default:
+		showing = strings.Join(subscribed[:maxShown], ", ") + fmt.Sprintf(" and %d more", len(subscribed)-maxShown)
 	}
 
 	termWidth, _, err := term.GetSize(os.Stdout.Fd())
