@@ -16,7 +16,7 @@
 - **Graceful Shutdown** - SIGTERM with timeout before force kill
 - **Profile Support** - Group services for batch operations
 - **Readiness Checks** - HTTP, TCP, and log-pattern based health checks
-- **Pre-flight Checks** - Port conflict detection before starting services
+- **Pre-flight Cleanup** - Automatic detection and termination of orphaned processes before starting services
 - **Hot-Reload** - Automatic service restart on file changes
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 

@@ -29,8 +29,8 @@ Fuku uses a layered architecture with three distinct patterns:
 │ (Orchestration) │    │ (Streaming)  │    │  (FSM-Based)     │
 │ ├─ runner       │    │ ├─ server    │    │  ├─ services/    │
 │ ├─ service      │    │ ├─ hub       │    │  ├─ components/  │
-│ ├─ guard        │    │ ├─ client    │    │  └─ wire/        │
-│ └─ worker       │    │ └─ formatter │    └──────────────────┘
+│ └─ guard        │    │ ├─ client    │    │  └─ wire/        │
+│                 │    │ └─ formatter │    └──────────────────┘
 └────────┬────────┘    └──────────────┘             │
          │                    │                     │
          └────────────────────┼─────────────────────┘
@@ -38,11 +38,14 @@ Fuku uses a layered architecture with three distinct patterns:
 ┌─────────────────────────────────────────────────────────────┐
 │                     Shared Packages                         │
 ├──────────────┬──────────────┬──────────────┬────────────────┤
-│ bus          │ discovery    │ registry     │ watcher        │
-│ (messaging)  │ (profiles)   │ (processes)  │ (hot-reload)   │
+│ bus          │ discovery    │ preflight    │ registry       │
+│ (messaging)  │ (profiles)   │ (cleanup)    │ (processes)    │
 ├──────────────┼──────────────┼──────────────┼────────────────┤
-│ process      │ lifecycle    │ readiness    │ monitor        │
-│ (handles)    │ (signals)    │ (checks)     │ (stats)        │
+│ process      │ lifecycle    │ readiness    │ watcher        │
+│ (handles)    │ (signals)    │ (checks)     │ (hot-reload)   │
+├──────────────┼──────────────┼──────────────┼────────────────┤
+│ worker       │ monitor      │              │                │
+│ (pool)       │ (stats)      │              │                │
 └──────────────┴──────────────┴──────────────┴────────────────┘
                               │
                               ▼
@@ -90,6 +93,9 @@ EventServiceFailed     → Service failed to start/run
 EventServiceStopping   → Service shutdown initiated
 EventServiceStopped    → Service process terminated
 EventServiceRestarting → Service restart initiated
+EventPreflightStarted  → Preflight process scan begins
+EventPreflightKill     → Orphaned process being killed
+EventPreflightComplete → Preflight cleanup finished
 EventSignal            → OS signal received (SIGINT/SIGTERM)
 EventWatchTriggered    → File change detected for hot-reload
 ```
@@ -136,6 +142,12 @@ The runner package manages actual OS processes using event-driven patterns rathe
                     ┌─────────────┐
                     │   Resolve   │
                     │   Profile   │
+                    └──────┬──────┘
+                           │
+                           ▼
+                    ┌─────────────┐
+                    │  Preflight  │
+                    │  Cleanup    │
                     └──────┬──────┘
                            │
                            ▼
@@ -189,7 +201,11 @@ func (r *runner) Run(ctx context.Context, profile string) error {
     tiers, _ := r.discovery.Resolve(profile)
     r.bus.Publish(Message{Type: EventProfileResolved, Data: ProfileResolved{Tiers: tiers}})
 
-    // 3. Start tiers sequentially
+    // 3. Preflight cleanup — kill orphaned processes in service directories
+    dirs := r.resolveServiceDirs(services)
+    r.preflight.Cleanup(ctx, dirs)
+
+    // 4. Start tiers sequentially
     for _, tier := range tiers {
         r.bus.Publish(Message{Type: EventTierStarting})
         // Start services concurrently within tier
@@ -197,10 +213,10 @@ func (r *runner) Run(ctx context.Context, profile string) error {
         r.bus.Publish(Message{Type: EventTierReady})
     }
 
-    // 4. Transition to running phase
+    // 5. Transition to running phase
     r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseRunning}})
 
-    // 5. Wait for signals or commands (including watch events for hot-reload)
+    // 6. Wait for signals or commands (including watch events for hot-reload)
     for {
         select {
         case sig := <-sigChan:
@@ -210,7 +226,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
         }
     }
 
-    // 6. Graceful shutdown
+    // 7. Graceful shutdown
     r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStopping}})
     r.shutdown()
     r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStopped}})
@@ -226,9 +242,15 @@ func (r *runner) Run(ctx context.Context, profile string) error {
    - Ensures WaitGroup only decrements when processes actually exit
 2. **Guard** (`internal/app/runner/guard`): Prevents concurrent restarts of the same service
    - Essential for hot-reload correctness when multiple file changes occur rapidly
-3. **Worker Pool**: Limit concurrent service starts
-4. **Retry with Backoff**: Automatic retry on transient failures
-5. **Graceful Shutdown**: SIGTERM → wait → SIGKILL
+3. **Worker Pool** (`internal/app/worker`): Shared bounded pool for concurrent task execution
+   - Semaphore-based with configurable max workers from `config.Concurrency.Workers`
+   - Used by both runner (tier starts) and preflight (process kills)
+4. **Preflight Cleanup** (`internal/app/preflight`): Kills orphaned processes before startup
+   - Scans running processes and matches working directories to service directories
+   - Concurrent kills bounded by worker pool, context-cancellable
+   - SIGTERM with 2s grace period before SIGKILL escalation
+5. **Retry with Backoff**: Automatic retry on transient failures
+6. **Graceful Shutdown**: SIGTERM → wait → SIGKILL
 
 ### Hot-Reload Lifecycle
 

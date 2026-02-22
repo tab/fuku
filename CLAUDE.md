@@ -29,9 +29,11 @@
    - **app/process/** - Process interface and handle implementation
    - **app/readiness/** - HTTP, TCP, and log-based health checks
    - **app/registry/** - Running process tracking with detach support
+   - **app/preflight/** - Pre-start cleanup of orphaned processes in service directories
    - **app/runner/** - Service orchestration and startup coordination
    - **app/ui/services/** - Interactive TUI with Bubble Tea framework
    - **app/watcher/** - File change detection with debouncing for hot-reload
+   - **app/worker/** - Shared bounded worker pool for concurrent task execution
    - **config/** - Configuration loading, parsing, and data structures
    - **errors/** - Application-specific error definitions
 
@@ -79,6 +81,21 @@
    }
    ```
 
+7. **preflight.Preflight** - Pre-start cleanup of orphaned processes:
+   ```go
+   type Preflight interface {
+       Cleanup(ctx context.Context, dirs map[string]string) ([]Result, error)
+   }
+   ```
+
+8. **worker.Pool** - Bounded worker pool for concurrent task execution:
+   ```go
+   type Pool interface {
+       Acquire(ctx context.Context) error
+       Release()
+   }
+   ```
+
 ### Execution Flow
 
 1. **CLI Entry Point** (`cmd/main.go`)
@@ -99,6 +116,7 @@
    - Commands: `run`, `init`, `logs`, `version`, `help` with short aliases
 
 4. **Service Orchestration** (`internal/app/runner/runner.go`)
+   - Runs preflight cleanup to kill orphaned processes before starting services
    - Orders services by tier for startup sequencing
    - Manages process lifecycle with signal handling (SIGINT, SIGTERM)
    - Streams service logs with prefixed output format
@@ -227,13 +245,14 @@
 - `internal/app/logs/runner_test.go` - Log streaming runner testing
 - `internal/app/logs/server_test.go` - Log server testing
 - `internal/app/monitor/monitor_test.go` - Process monitoring testing
+- `internal/app/preflight/preflight_test.go` - Preflight process cleanup testing
 - `internal/app/process/process_test.go` - Process handle testing
 - `internal/app/readiness/readiness_test.go` - Readiness check testing
 - `internal/app/registry/registry_test.go` - Process registry testing
 - `internal/app/runner/guard_test.go` - Restart guard testing
 - `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
 - `internal/app/runner/service_test.go` - Service start/stop/restart testing
-- `internal/app/runner/worker_test.go` - Worker pool testing
+- `internal/app/worker/worker_test.go` - Worker pool testing
 - `internal/app/ui/components/blink_test.go` - Blink animation testing
 - `internal/app/ui/components/layout_test.go` - Layout component testing
 - `internal/app/ui/services/controller_test.go` - Service controller testing
