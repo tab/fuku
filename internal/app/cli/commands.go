@@ -12,6 +12,7 @@ type CommandType int
 // Command type values
 const (
 	CommandRun CommandType = iota
+	CommandStop
 	CommandInit
 	CommandLogs
 	CommandVersion
@@ -30,6 +31,7 @@ type Options struct {
 type rootFlags struct {
 	version bool
 	run     string
+	stop    string
 	logs    bool
 	init    bool
 }
@@ -45,8 +47,9 @@ func Parse(args []string) (*Options, error) {
 
 	root := buildRootCommand(result, &flags)
 	root.AddCommand(
-		buildRunCommand(result),
 		buildInitCommand(result),
+		buildRunCommand(result),
+		buildStopCommand(result),
 		buildLogsCommand(result),
 		buildVersionCommand(result),
 	)
@@ -64,6 +67,11 @@ func Parse(args []string) (*Options, error) {
 	if flags.run != "" {
 		result.Type = CommandRun
 		result.Profile = flags.run
+	}
+
+	if flags.stop != "" {
+		result.Type = CommandStop
+		result.Profile = flags.stop
 	}
 
 	if flags.logs {
@@ -96,6 +104,7 @@ multiple local services in development environments.`,
 	cmd.PersistentFlags().BoolVar(&result.NoUI, "no-ui", false, "Run without TUI")
 	cmd.Flags().BoolVarP(&flags.version, "version", "v", false, "Show version information")
 	cmd.Flags().StringVarP(&flags.run, "run", "r", "", "Run services with specified profile")
+	cmd.Flags().StringVarP(&flags.stop, "stop", "s", "", "Stop services with specified profile")
 	cmd.Flags().BoolVarP(&flags.logs, "logs", "l", false, "Stream logs from running services")
 	cmd.Flags().BoolVarP(&flags.init, "init", "i", false, "Generate fuku.yaml template")
 
@@ -130,6 +139,24 @@ func buildRunCommand(result *Options) *cobra.Command {
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			result.Type = CommandRun
+			if len(args) > 0 {
+				result.Profile = args[0]
+			}
+		},
+	}
+
+	return cmd
+}
+
+// buildStopCommand creates the stop subcommand
+func buildStopCommand(result *Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "stop [profile]",
+		Aliases: []string{"s"},
+		Short:   "Stop services by killing processes in service directories",
+		Args:    cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			result.Type = CommandStop
 			if len(args) > 0 {
 				result.Profile = args[0]
 			}

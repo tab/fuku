@@ -136,6 +136,41 @@ func Test_Parse(t *testing.T) {
 			expectedNoUI:     false,
 		},
 		{
+			name:            "stop command without profile",
+			args:            []string{"stop"},
+			expectedType:    CommandStop,
+			expectedProfile: config.Default,
+			expectedNoUI:    false,
+		},
+		{
+			name:            "stop command with profile",
+			args:            []string{"stop", "core"},
+			expectedType:    CommandStop,
+			expectedProfile: "core",
+			expectedNoUI:    false,
+		},
+		{
+			name:            "stop alias s with profile",
+			args:            []string{"s", "backend"},
+			expectedType:    CommandStop,
+			expectedProfile: "backend",
+			expectedNoUI:    false,
+		},
+		{
+			name:            "--stop flag with profile",
+			args:            []string{"--stop", "backend"},
+			expectedType:    CommandStop,
+			expectedProfile: "backend",
+			expectedNoUI:    false,
+		},
+		{
+			name:            "-s flag with profile",
+			args:            []string{"-s", "backend"},
+			expectedType:    CommandStop,
+			expectedProfile: "backend",
+			expectedNoUI:    false,
+		},
+		{
 			name:            "init command",
 			args:            []string{"init"},
 			expectedType:    CommandInit,
@@ -229,6 +264,12 @@ func Test_Parse_InvalidCommand(t *testing.T) {
 
 func Test_Parse_RunWithTooManyArgs(t *testing.T) {
 	result, err := Parse([]string{"run", "profile1", "profile2"})
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func Test_Parse_StopWithTooManyArgs(t *testing.T) {
+	result, err := Parse([]string{"stop", "profile1", "profile2"})
 	assert.Error(t, err)
 	assert.Nil(t, result)
 }

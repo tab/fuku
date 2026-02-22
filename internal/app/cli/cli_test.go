@@ -126,6 +126,19 @@ func Test_Execute(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name: "Stop command",
+			cmd: &Options{
+				Type:    CommandStop,
+				Profile: config.Default,
+			},
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Stop(config.Default).Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
 			name: "Run command with profile and --no-ui",
 			cmd: &Options{
 				Type:    CommandRun,
@@ -595,4 +608,63 @@ func Test_runWithUI(t *testing.T) {
 		assert.Equal(t, 0, exitCode)
 		assert.NoError(t, err)
 	})
+}
+
+func Test_handleStop(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	tests := []struct {
+		name          string
+		before        func()
+		profile       string
+		expectedExit  int
+		expectedError bool
+	}{
+		{
+			name:    "Success",
+			profile: "test-profile",
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Stop("test-profile").Return(nil)
+			},
+			expectedExit:  0,
+			expectedError: false,
+		},
+		{
+			name:    "Failure",
+			profile: "failed-profile",
+			before: func() {
+				mockLogger.EXPECT().Debug().Return(nil)
+				mockRunner.EXPECT().Stop("failed-profile").Return(errors.New("stop failed"))
+				mockLogger.EXPECT().Error().Return(nil)
+			},
+			expectedExit:  1,
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &cli{
+				cmd:    &Options{Type: CommandStop, Profile: tt.profile},
+				runner: mockRunner,
+				log:    mockLogger,
+			}
+
+			tt.before()
+			exitCode, err := c.handleStop(tt.profile)
+
+			assert.Equal(t, tt.expectedExit, exitCode)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
