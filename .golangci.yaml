@@ -13,6 +13,7 @@ linters:
     - govet
     - ineffassign
     - misspell
+    - nestif
     - nakedret
     - prealloc
     - staticcheck
@@ -25,6 +26,8 @@ linters:
       forbid:
         - pattern: ^time\.Sleep$
           msg: "time.Sleep in tests is a code smell. Use channel-based synchronization instead."
+    nestif:
+      min-complexity: 2
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: false

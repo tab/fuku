@@ -257,26 +257,27 @@ func (m Model) calculateScrollOffset() int {
 		serviceIndexInTier := 0
 
 		for range tier.Services {
-			if currentIdx == m.state.selected {
-				viewportTop := m.ui.servicesViewport.YOffset
-				viewportBottom := viewportTop + m.ui.servicesViewport.Height - 1
+			if currentIdx != m.state.selected {
+				lineNumber++
+				currentIdx++
+				serviceIndexInTier++
 
-				if lineNumber < viewportTop {
-					if serviceIndexInTier == 0 {
-						return tierStartLine
-					}
-
-					return lineNumber
-				} else if lineNumber > viewportBottom {
-					return lineNumber - m.ui.servicesViewport.Height + 1
-				}
-
-				return m.ui.servicesViewport.YOffset
+				continue
 			}
 
-			lineNumber++
-			currentIdx++
-			serviceIndexInTier++
+			viewportTop := m.ui.servicesViewport.YOffset
+			viewportBottom := viewportTop + m.ui.servicesViewport.Height - 1
+
+			switch {
+			case lineNumber < viewportTop && serviceIndexInTier == 0:
+				return tierStartLine
+			case lineNumber < viewportTop:
+				return lineNumber
+			case lineNumber > viewportBottom:
+				return lineNumber - m.ui.servicesViewport.Height + 1
+			default:
+				return m.ui.servicesViewport.YOffset
+			}
 		}
 	}
 

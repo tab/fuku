@@ -388,15 +388,8 @@ func (m *manager) registerRecursive(dir string, serviceName string, matcher Matc
 			return nil
 		}
 
-		if path != dir {
-			relPath, relErr := filepath.Rel(dir, path)
-			if relErr != nil {
-				return nil
-			}
-
-			if matcher.MatchDir(relPath) {
-				return filepath.SkipDir
-			}
+		if err := shouldSkipDir(dir, path, matcher); err != nil {
+			return err
 		}
 
 		if err := m.fsWatcher.Add(path); err != nil {
@@ -410,6 +403,24 @@ func (m *manager) registerRecursive(dir string, serviceName string, matcher Matc
 	})
 
 	return dirs, err
+}
+
+// shouldSkipDir returns filepath.SkipDir if the subdirectory matches an ignore pattern
+func shouldSkipDir(dir, path string, matcher Matcher) error {
+	if path == dir {
+		return nil
+	}
+
+	relPath, err := filepath.Rel(dir, path)
+	if err != nil {
+		return nil
+	}
+
+	if matcher.MatchDir(relPath) {
+		return filepath.SkipDir
+	}
+
+	return nil
 }
 
 // isRelevantEvent returns true if the event should trigger a reload

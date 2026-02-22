@@ -161,15 +161,17 @@ func (c *Config) ApplyDefaults() {
 			service.Dir = name
 		}
 
-		if c.Defaults != nil {
-			if len(service.Profiles) == 0 && len(c.Defaults.Profiles) > 0 {
-				service.Profiles = make([]string, len(c.Defaults.Profiles))
-				copy(service.Profiles, c.Defaults.Profiles)
-			}
+		if c.Defaults == nil {
+			continue
+		}
 
-			if service.Tier == "" && c.Defaults.Tier != "" {
-				service.Tier = c.Defaults.Tier
-			}
+		if len(service.Profiles) == 0 && len(c.Defaults.Profiles) > 0 {
+			service.Profiles = make([]string, len(c.Defaults.Profiles))
+			copy(service.Profiles, c.Defaults.Profiles)
+		}
+
+		if service.Tier == "" && c.Defaults.Tier != "" {
+			service.Tier = c.Defaults.Tier
 		}
 	}
 }
@@ -245,13 +247,14 @@ func parseTierOrder(data []byte) (*Topology, error) {
 				}
 			}
 
-			if tier == "" {
-				if defaultTier != "" {
-					tier = defaultTier
-				} else {
-					tier = Default
-					hasDefaultServices = true
-				}
+			switch {
+			case tier != "":
+				// tier already set from service config
+			case defaultTier != "":
+				tier = defaultTier
+			default:
+				tier = Default
+				hasDefaultServices = true
 			}
 
 			if tier != Default && !tierSeen[tier] {
