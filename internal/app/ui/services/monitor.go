@@ -162,7 +162,7 @@ type result struct {
 
 // collectStats polls all services and returns batched stats with per-call timeouts
 func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
-	var jobs []job
+	jobs := make([]job, 0, len(m.state.services))
 
 	for name, service := range m.state.services {
 		if service.Monitor.PID > 0 && service.Status != StatusStopped {

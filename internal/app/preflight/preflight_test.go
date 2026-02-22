@@ -35,7 +35,7 @@ func Test_Cleanup(t *testing.T) {
 	tests := []struct {
 		name            string
 		dirs            map[string]string
-		processes       []processInfo
+		processes       []entry
 		scanErr         error
 		killErr         error
 		expectedResults int
@@ -52,7 +52,7 @@ func Test_Cleanup(t *testing.T) {
 			dirs: map[string]string{
 				"api": "/project/api",
 			},
-			processes: []processInfo{
+			processes: []entry{
 				{pid: 100, dir: "/other/dir", name: "node"},
 			},
 			expectedResults: 0,
@@ -63,7 +63,7 @@ func Test_Cleanup(t *testing.T) {
 			dirs: map[string]string{
 				"api": "/project/api",
 			},
-			processes: []processInfo{
+			processes: []entry{
 				{pid: 100, dir: "/project/api", name: "node"},
 			},
 			expectedResults: 1,
@@ -75,7 +75,7 @@ func Test_Cleanup(t *testing.T) {
 				"api": "/project/api",
 				"web": "/project/web",
 			},
-			processes: []processInfo{
+			processes: []entry{
 				{pid: 100, dir: "/project/api", name: "node"},
 				{pid: 200, dir: "/project/web", name: "go"},
 				{pid: 300, dir: "/other/dir", name: "vim"},
@@ -88,7 +88,7 @@ func Test_Cleanup(t *testing.T) {
 			dirs: map[string]string{
 				"api": "/project/api",
 			},
-			processes: []processInfo{
+			processes: []entry{
 				{pid: int32(os.Getpid()), dir: "/project/api", name: "fuku"},
 				{pid: 200, dir: "/project/api", name: "node"},
 			},
@@ -110,7 +110,7 @@ func Test_Cleanup(t *testing.T) {
 				"api": "/project/api",
 				"web": "/project/web",
 			},
-			processes: []processInfo{
+			processes: []entry{
 				{pid: 100, dir: "/project/api", name: "node"},
 				{pid: 200, dir: "/project/web", name: "go"},
 			},
@@ -124,7 +124,7 @@ func Test_Cleanup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			killCount := 0
 
-			scan := func() ([]processInfo, error) {
+			scan := func() ([]entry, error) {
 				if tt.scanErr != nil {
 					return nil, tt.scanErr
 				}
@@ -156,8 +156,8 @@ func Test_Cleanup_ResultFields(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	scan := func() ([]processInfo, error) {
-		return []processInfo{
+	scan := func() ([]entry, error) {
+		return []entry{
 			{pid: 100, dir: "/project/api", name: "node"},
 		}, nil
 	}
@@ -186,8 +186,8 @@ func Test_Cleanup_MatchesExactDirectory(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	scan := func() ([]processInfo, error) {
-		return []processInfo{
+	scan := func() ([]entry, error) {
+		return []entry{
 			{pid: 100, dir: "/project/api-v2", name: "node"},
 			{pid: 200, dir: "/project/api", name: "go"},
 		}, nil

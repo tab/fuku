@@ -65,17 +65,17 @@ func (d *discovery) getServicesForProfile(profile string) ([]string, error) {
 	switch v := profileConfig.(type) {
 	case string:
 		if v == "*" {
-			var allServices []string
+			services := make([]string, 0, len(d.cfg.Services))
 			for name := range d.cfg.Services {
-				allServices = append(allServices, name)
+				services = append(services, name)
 			}
 
-			return allServices, nil
+			return services, nil
 		}
 
 		return []string{v}, nil
 	case []interface{}:
-		var services []string
+		services := make([]string, 0, len(v))
 
 		for _, item := range v {
 			str, ok := item.(string)

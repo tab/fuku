@@ -25,15 +25,15 @@ type Preflight interface {
 	Cleanup(dirs map[string]string) ([]Result, error)
 }
 
-// processInfo holds information about a running process
+// entry holds information about a running process
 // name is the process name, dir is the current working directory, and pid is the process ID
-type processInfo struct {
+type entry struct {
 	name string
 	dir  string
 	pid  int32
 }
 
-type scanFunc func() ([]processInfo, error)
+type scanFunc func() ([]entry, error)
 type killFunc func(pid int32) error
 
 type preflight struct {
@@ -79,7 +79,7 @@ func (p *preflight) Cleanup(dirs map[string]string) ([]Result, error) {
 
 	ownPID := int32(os.Getpid()) // #nosec G115 -- PID fits in int32
 
-	var results []Result
+	results := make([]Result, 0, len(processes))
 
 	for _, proc := range processes {
 		if proc.pid == ownPID {
@@ -125,13 +125,13 @@ func (p *preflight) Cleanup(dirs map[string]string) ([]Result, error) {
 	return results, nil
 }
 
-func scan() ([]processInfo, error) {
+func scan() ([]entry, error) {
 	processes, err := process.Processes()
 	if err != nil {
 		return nil, err
 	}
 
-	var result []processInfo
+	results := make([]entry, 0, len(processes))
 
 	for _, p := range processes {
 		dir, err := p.Cwd()
@@ -140,14 +140,14 @@ func scan() ([]processInfo, error) {
 		}
 
 		name, _ := p.Name()
-		result = append(result, processInfo{
+		results = append(results, entry{
 			name: name,
 			dir:  dir,
 			pid:  p.Pid,
 		})
 	}
 
-	return result, nil
+	return results, nil
 }
 
 func kill(pid int32) error {
