@@ -962,13 +962,7 @@ func Test_Stop(t *testing.T) {
 	mockPreflight.EXPECT().Cleanup(gomock.Any()).Return(nil, nil)
 
 	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Stop("api").AnyTimes()
-	mockService.EXPECT().Stop("web").AnyTimes()
-
 	mockWorkerPool := NewMockWorkerPool(ctrl)
-	mockWorkerPool.EXPECT().Acquire(gomock.Any()).AnyTimes()
-	mockWorkerPool.EXPECT().Release().AnyTimes()
-
 	mockBus := bus.NoOp()
 	mockServer := logs.NewMockServer(ctrl)
 

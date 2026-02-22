@@ -402,7 +402,7 @@ func (r *runner) Stop(profile string) error {
 
 	dirs := r.resolveServiceDirs(services)
 	if _, err := r.preflight.Cleanup(dirs); err != nil {
-		return fmt.Errorf("preflight failed: %w", err)
+		r.log.Warn().Err(err).Msg("Preflight cleanup failed during stop")
 	}
 
 	return nil
