@@ -380,6 +380,7 @@ Example workflow:
       "fuku/internal/config"
   )
   ```
+- never alias `fuku/internal/app/errors` as `apperrors` — the package already re-exports `errors.Is`, `errors.As`, and `errors.New`, so import it directly as `"fuku/internal/app/errors"` and use `errors.Is(...)`, `errors.ErrFoo`, etc.
 
 ### Error Handling
 - return errors to the caller rather than using panics
