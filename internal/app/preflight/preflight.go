@@ -2,6 +2,7 @@ package preflight
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sort"
 	"sync"
@@ -45,21 +46,21 @@ type scanFunc func() ([]entry, error)
 type killFunc func(pid int32) error
 
 type preflight struct {
-	scan scanFunc
-	kill killFunc
-	bus  bus.Bus
-	pool worker.Pool
-	log  logger.Logger
+	scan   scanFunc
+	kill   killFunc
+	bus    bus.Bus
+	worker worker.Pool
+	log    logger.Logger
 }
 
 // NewPreflight creates a new Preflight instance
-func NewPreflight(cfg *config.Config, bus bus.Bus, log logger.Logger) Preflight {
+func NewPreflight(bus bus.Bus, worker worker.Pool, log logger.Logger) Preflight {
 	return &preflight{
-		scan: scan,
-		kill: kill,
-		bus:  bus,
-		pool: worker.NewWorkerPool(cfg),
-		log:  log.WithComponent("PREFLIGHT"),
+		scan:   scan,
+		kill:   kill,
+		bus:    bus,
+		worker: worker,
+		log:    log.WithComponent("PREFLIGHT"),
 	}
 }
 
@@ -140,7 +141,7 @@ func (p *preflight) killMatches(ctx context.Context, matches []match) []Result {
 	)
 
 	for _, m := range matches {
-		if err := p.pool.Acquire(ctx); err != nil {
+		if err := p.worker.Acquire(ctx); err != nil {
 			p.log.Warn().Err(err).Msg("Context cancelled, stopping preflight kills")
 
 			break
@@ -150,7 +151,7 @@ func (p *preflight) killMatches(ctx context.Context, matches []match) []Result {
 
 		go func(m match) {
 			defer wg.Done()
-			defer p.pool.Release()
+			defer p.worker.Release()
 
 			p.log.Info().Msgf("Killing process '%s' (PID: %d) in '%s' for service '%s'", m.entry.name, m.entry.pid, m.entry.dir, m.service)
 
@@ -210,11 +211,9 @@ func scan() ([]entry, error) {
 }
 
 func kill(pid int32) error {
-	// Try SIGTERM to process group first (catches child processes)
-	if err := syscall.Kill(-int(pid), syscall.SIGTERM); err != nil {
-		if err := syscall.Kill(int(pid), syscall.SIGTERM); err != nil {
-			return nil
-		}
+	err := sendTERM(pid)
+	if err != nil {
+		return err
 	}
 
 	deadline := time.After(config.PreFlightKillTimeout)
@@ -235,6 +234,20 @@ func kill(pid int32) error {
 			}
 		}
 	}
+}
+
+// sendTERM sends SIGTERM to the process group first, then to the process directly
+func sendTERM(pid int32) error {
+	if err := syscall.Kill(-int(pid), syscall.SIGTERM); err == nil {
+		return nil
+	}
+
+	err := syscall.Kill(int(pid), syscall.SIGTERM)
+	if errors.Is(err, syscall.ESRCH) {
+		return nil
+	}
+
+	return err
 }
 
 func sortedKeys(m map[string]string) []string {

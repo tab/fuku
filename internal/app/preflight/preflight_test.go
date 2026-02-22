@@ -14,7 +14,6 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/worker"
-	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
@@ -22,11 +21,12 @@ func Test_NewPreflight(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := config.DefaultConfig()
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().WithComponent("PREFLIGHT").Return(mockLog)
 
-	p := NewPreflight(cfg, bus.NoOp(), mockLog)
+	mockWorker := worker.NewMockPool(ctrl)
+
+	p := NewPreflight(bus.NoOp(), mockWorker, mockLog)
 
 	assert.NotNil(t, p)
 }
@@ -38,6 +38,10 @@ func Test_Cleanup(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+
+	mockWorker := worker.NewMockPool(ctrl)
+	mockWorker.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
+	mockWorker.EXPECT().Release().AnyTimes()
 
 	tests := []struct {
 		name            string
@@ -145,14 +149,12 @@ func Test_Cleanup(t *testing.T) {
 				return tt.killErr
 			}
 
-			cfg := config.DefaultConfig()
-
 			p := &preflight{
-				bus:  bus.NoOp(),
-				log:  mockLog,
-				scan: scan,
-				kill: kill,
-				pool: worker.NewWorkerPool(cfg),
+				bus:    bus.NoOp(),
+				log:    mockLog,
+				scan:   scan,
+				kill:   kill,
+				worker: mockWorker,
 			}
 
 			results, err := p.Cleanup(context.Background(), tt.dirs)
@@ -181,14 +183,16 @@ func Test_Cleanup_ResultFields(t *testing.T) {
 		return nil
 	}
 
-	cfg := config.DefaultConfig()
+	mockWorker := worker.NewMockPool(ctrl)
+	mockWorker.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
+	mockWorker.EXPECT().Release().AnyTimes()
 
 	p := &preflight{
-		bus:  bus.NoOp(),
-		log:  mockLog,
-		scan: scan,
-		kill: kill,
-		pool: worker.NewWorkerPool(cfg),
+		bus:    bus.NoOp(),
+		log:    mockLog,
+		scan:   scan,
+		kill:   kill,
+		worker: mockWorker,
 	}
 
 	results, err := p.Cleanup(context.Background(), map[string]string{
@@ -220,14 +224,16 @@ func Test_Cleanup_MatchesExactDirectory(t *testing.T) {
 		return nil
 	}
 
-	cfg := config.DefaultConfig()
+	mockWorker := worker.NewMockPool(ctrl)
+	mockWorker.EXPECT().Acquire(gomock.Any()).Return(nil).AnyTimes()
+	mockWorker.EXPECT().Release().AnyTimes()
 
 	p := &preflight{
-		bus:  bus.NoOp(),
-		log:  mockLog,
-		scan: scan,
-		kill: kill,
-		pool: worker.NewWorkerPool(cfg),
+		bus:    bus.NoOp(),
+		log:    mockLog,
+		scan:   scan,
+		kill:   kill,
+		worker: mockWorker,
 	}
 
 	results, err := p.Cleanup(context.Background(), map[string]string{
@@ -266,15 +272,15 @@ func Test_Cleanup_ContextCancellationStopsKills(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	cfg := config.DefaultConfig()
-	cfg.Concurrency.Workers = 1
+	mockWorker := worker.NewMockPool(ctrl)
+	mockWorker.EXPECT().Acquire(gomock.Any()).Return(context.Canceled).AnyTimes()
 
 	p := &preflight{
-		bus:  bus.NoOp(),
-		log:  mockLog,
-		scan: scan,
-		kill: kill,
-		pool: worker.NewWorkerPool(cfg),
+		bus:    bus.NoOp(),
+		log:    mockLog,
+		scan:   scan,
+		kill:   kill,
+		worker: mockWorker,
 	}
 
 	results, err := p.Cleanup(ctx, map[string]string{
