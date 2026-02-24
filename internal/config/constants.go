@@ -17,6 +17,7 @@ const (
 
 // Environment names
 const (
+	EnvProduction  = "production"
 	EnvDevelopment = "development"
 	EnvTest        = "test"
 )

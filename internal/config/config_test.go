@@ -22,9 +22,9 @@ func Test_ResolveEnv(t *testing.T) {
 			expected: "production",
 		},
 		{
-			name:     "Defaults to development when empty",
+			name:     "Defaults to production when empty",
 			goEnv:    "",
-			expected: EnvDevelopment,
+			expected: EnvProduction,
 		},
 		{
 			name:     "Returns test when set to test",

@@ -134,11 +134,11 @@ func LoadEnv() {
 	_ = godotenv.Load()
 }
 
-// ResolveEnv returns the current environment name from GO_ENV, defaulting to EnvDevelopment
+// ResolveEnv returns the current environment name from GO_ENV, defaulting to EnvProduction
 func ResolveEnv() string {
 	env := os.Getenv("GO_ENV")
 	if env == "" {
-		return EnvDevelopment
+		return EnvProduction
 	}
 
 	return env
