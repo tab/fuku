@@ -323,6 +323,29 @@ go fmt ./...
 make vet && make lint && make test
 ```
 
+## Privacy & Telemetry
+
+Official release binaries include [Sentry](https://sentry.io) error tracking to help identify and fix bugs. This is completely transparent and can be disabled.
+
+### What is collected
+
+- Error types and stack traces (no file paths with usernames)
+- Performance timing for startup, shutdown, and readiness checks
+- Environment metadata: OS, architecture, Go version, fuku version
+- Command and profile names, service/tier counts
+
+### What is NOT collected
+
+- Hostnames, IP addresses, or usernames
+- Service names, fuku.yaml contents, or log output
+- Environment variable values or file paths
+- Any personally identifiable information
+
+### How to opt out
+
+1. **Set `FUKU_TELEMETRY_DISABLED=1`** — disables all telemetry regardless of DSN
+2. **Build from source** — no Sentry DSN compiled in, telemetry is disabled by default
+
 ## About the Name
 
 The name fuku (福) means "good fortune" in Japanese. Inspired by jazz pianist Ryo Fukui, reflecting the tool's focus on orchestration and harmony.
