@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.15.1
+
+### Fixes
+- **fix:** Update default environment to production
+
 ## v0.15.0
 
 ### Features
