@@ -46,6 +46,8 @@ func Test_MeterReExports(t *testing.T) {
 			MetricServiceRestart,
 			MetricWatchRestart,
 			MetricPreflightKilled,
+			MetricPreflightDuration,
+			MetricStartupDuration,
 		}
 
 		for _, name := range metrics {
