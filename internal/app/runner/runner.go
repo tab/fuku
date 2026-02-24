@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 	"syscall"
+	"time"
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/discovery"
@@ -24,7 +25,7 @@ import (
 // Runner defines the interface for service orchestration
 type Runner interface {
 	Run(ctx context.Context, profile string) error
-	Stop(profile string) error
+	Stop(ctx context.Context, profile string) error
 }
 
 // runner implements the Runner interface
@@ -67,16 +68,22 @@ func NewRunner(
 
 // Run executes the specified profile
 func (r *runner) Run(ctx context.Context, profile string) error {
+	startupStart := time.Now()
+
 	r.bus.Publish(bus.Message{
 		Type:     bus.EventPhaseChanged,
 		Data:     bus.PhaseChanged{Phase: bus.PhaseStartup},
 		Critical: true,
 	})
 
+	discoveryStart := time.Now()
+
 	tiers, err := r.discovery.Resolve(profile)
 	if err != nil {
 		return fmt.Errorf("failed to resolve profile: %w", err)
 	}
+
+	discoveryDuration := time.Since(discoveryStart)
 
 	tierData := make([]bus.Tier, len(tiers))
 	for i, tier := range tiers {
@@ -86,8 +93,9 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	r.bus.Publish(bus.Message{
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
-			Profile: profile,
-			Tiers:   tierData,
+			Profile:  profile,
+			Tiers:    tierData,
+			Duration: discoveryDuration,
 		},
 		Critical: true,
 	})
@@ -138,23 +146,33 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	}
 
 	r.bus.Publish(bus.Message{
-		Type:     bus.EventPhaseChanged,
-		Data:     bus.PhaseChanged{Phase: bus.PhaseRunning},
+		Type: bus.EventPhaseChanged,
+		Data: bus.PhaseChanged{
+			Phase:        bus.PhaseRunning,
+			Duration:     time.Since(startupStart),
+			ServiceCount: len(services),
+		},
 		Critical: true,
 	})
 	r.runServicePhase(ctx, cancel, sigChan, msgChan)
+
 	r.bus.Publish(bus.Message{
 		Type:     bus.EventPhaseChanged,
 		Data:     bus.PhaseChanged{Phase: bus.PhaseStopping},
 		Critical: true,
 	})
 
-	r.shutdown()
+	shutdownStart := time.Now()
+	serviceCount := r.shutdown()
 	r.log.Info().Msg("All services stopped")
 
 	r.bus.Publish(bus.Message{
-		Type:     bus.EventPhaseChanged,
-		Data:     bus.PhaseChanged{Phase: bus.PhaseStopped},
+		Type: bus.EventPhaseChanged,
+		Data: bus.PhaseChanged{
+			Phase:        bus.PhaseStopped,
+			Duration:     time.Since(shutdownStart),
+			ServiceCount: serviceCount,
+		},
 		Critical: true,
 	})
 
@@ -179,6 +197,7 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 			return nil
 		case sig := <-sigChan:
 			r.log.Info().Msgf("Received signal %s during startup, shutting down services...", sig)
+
 			r.bus.Publish(bus.Message{
 				Type:     bus.EventSignal,
 				Data:     bus.Signal{Name: sig.String()},
@@ -227,6 +246,7 @@ func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc,
 		select {
 		case sig := <-sigChan:
 			r.log.Info().Msgf("Received signal %s, shutting down services...", sig)
+
 			r.bus.Publish(bus.Message{
 				Type:     bus.EventSignal,
 				Data:     bus.Signal{Name: sig.String()},
@@ -314,6 +334,7 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []discovery.Tier) {
 			Critical: true,
 		})
 
+		tierStart := time.Now()
 		failed := r.startTier(ctx, tier.Name, tier.Services)
 
 		if len(failed) > 0 {
@@ -321,8 +342,12 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []discovery.Tier) {
 		} else {
 			r.log.Info().Msgf("Tier '%s' started successfully, all services ready", tier.Name)
 			r.bus.Publish(bus.Message{
-				Type:     bus.EventTierReady,
-				Data:     bus.Payload{Name: tier.Name},
+				Type: bus.EventTierReady,
+				Data: bus.TierReady{
+					Name:         tier.Name,
+					Duration:     time.Since(tierStart),
+					ServiceCount: len(tier.Services),
+				},
 				Critical: true,
 			})
 		}
@@ -372,8 +397,8 @@ func (r *runner) startTier(ctx context.Context, tier string, services []string) 
 	return failed
 }
 
-// shutdown stops all services in reverse order
-func (r *runner) shutdown() {
+// shutdown stops all services in reverse order and returns the count of stopped services
+func (r *runner) shutdown() int {
 	processes := r.registry.SnapshotReverse()
 
 	for _, proc := range processes {
@@ -385,10 +410,12 @@ func (r *runner) shutdown() {
 	}
 
 	r.registry.Wait()
+
+	return len(processes)
 }
 
 // Stop resolves a profile and kills any processes running in service directories
-func (r *runner) Stop(profile string) error {
+func (r *runner) Stop(ctx context.Context, profile string) error {
 	tiers, err := r.discovery.Resolve(profile)
 	if err != nil {
 		return fmt.Errorf("failed to resolve profile: %w", err)
@@ -402,7 +429,7 @@ func (r *runner) Stop(profile string) error {
 	}
 
 	dirs := r.resolveServiceDirs(services)
-	if _, err := r.preflight.Cleanup(context.Background(), dirs); err != nil {
+	if _, err := r.preflight.Cleanup(ctx, dirs); err != nil {
 		r.log.Warn().Err(err).Msg("Preflight cleanup failed during stop")
 	}
 

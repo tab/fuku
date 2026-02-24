@@ -44,14 +44,17 @@ Fuku uses a layered architecture with three distinct patterns:
 │ process      │ lifecycle    │ readiness    │ watcher        │
 │ (handles)    │ (signals)    │ (checks)     │ (hot-reload)   │
 ├──────────────┼──────────────┼──────────────┼────────────────┤
-│ worker       │ monitor      │              │                │
-│ (pool)       │ (stats)      │              │                │
+│ worker       │ monitor      │ metrics      │                │
+│ (pool)       │ (stats)      │ (telemetry)  │                │
 └──────────────┴──────────────┴──────────────┴────────────────┘
                               │
                               ▼
               ┌──────────────────────┐
               │   Config Package     │
               │  (internal/config)   │
+              │  ├─ config           │
+              │  ├─ logger           │
+              │  └─ sentry           │
               └──────────────────────┘
 ```
 
@@ -83,11 +86,13 @@ The Bus implements a unified pub/sub pattern for both events and commands:
 
 Events:
 ```
+EventCommandStarted    → CLI command execution started
 EventProfileResolved   → Profile and tier structure resolved
 EventPhaseChanged      → Application phase transition
 EventTierStarting      → Tier startup begins
 EventTierReady         → All services in tier are ready
 EventServiceStarting   → Service process started
+EventReadinessComplete → Readiness check completed for a service
 EventServiceReady      → Service passed readiness check
 EventServiceFailed     → Service failed to start/run
 EventServiceStopping   → Service shutdown initiated
@@ -98,6 +103,8 @@ EventPreflightKill     → Orphaned process being killed
 EventPreflightComplete → Preflight cleanup finished
 EventSignal            → OS signal received (SIGINT/SIGTERM)
 EventWatchTriggered    → File change detected for hot-reload
+EventWatchStarted      → File watcher started for a service
+EventWatchStopped      → File watcher stopped for a service
 ```
 
 Commands:
@@ -194,27 +201,36 @@ The runner package manages actual OS processes using event-driven patterns rathe
 
 ```go
 func (r *runner) Run(ctx context.Context, profile string) error {
+    startupStart := time.Now()
+
     // 1. Publish startup phase
     r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStartup}})
 
-    // 2. Resolve profile into tier structure
+    // 2. Resolve profile into tier structure (timed)
+    discoveryStart := time.Now()
     tiers, _ := r.discovery.Resolve(profile)
-    r.bus.Publish(Message{Type: EventProfileResolved, Data: ProfileResolved{Tiers: tiers}})
+    r.bus.Publish(Message{Type: EventProfileResolved, Data: ProfileResolved{
+        Tiers: tiers, Duration: time.Since(discoveryStart),
+    }})
 
     // 3. Preflight cleanup — kill orphaned processes in service directories
     dirs := r.resolveServiceDirs(services)
     r.preflight.Cleanup(ctx, dirs)
 
-    // 4. Start tiers sequentially
+    // 4. Start tiers sequentially (each tier timed)
     for _, tier := range tiers {
+        tierStart := time.Now()
         r.bus.Publish(Message{Type: EventTierStarting})
-        // Start services concurrently within tier
         r.startTier(ctx, tier)
-        r.bus.Publish(Message{Type: EventTierReady})
+        r.bus.Publish(Message{Type: EventTierReady, Data: TierReady{
+            Name: tier.Name, Duration: time.Since(tierStart), ServiceCount: len(tier.Services),
+        }})
     }
 
-    // 5. Transition to running phase
-    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseRunning}})
+    // 5. Transition to running phase (with total startup duration)
+    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{
+        Phase: PhaseRunning, Duration: time.Since(startupStart), ServiceCount: len(services),
+    }})
 
     // 6. Wait for signals or commands (including watch events for hot-reload)
     for {
@@ -226,10 +242,13 @@ func (r *runner) Run(ctx context.Context, profile string) error {
         }
     }
 
-    // 7. Graceful shutdown
+    // 7. Graceful shutdown (timed)
     r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStopping}})
-    r.shutdown()
-    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseStopped}})
+    shutdownStart := time.Now()
+    serviceCount := r.shutdown()
+    r.bus.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{
+        Phase: PhaseStopped, Duration: time.Since(shutdownStart), ServiceCount: serviceCount,
+    }})
 }
 ```
 
@@ -683,17 +702,72 @@ var Module = fx.Options(
 func NewLogFormatter(cfg *config.Config) *LogFormatter
 ```
 
+## 5. Bus-Driven Metrics
+
+**Package**: `internal/app/metrics`
+
+The metrics collector subscribes to bus events and emits Sentry metrics from a single location. This keeps metric instrumentation out of business logic.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Business Logic                            │
+│  runner, service, discovery, preflight, readiness, cli       │
+│                                                              │
+│           bus.Publish(Event{...})                             │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Event Bus                               │
+│                   (internal/app/bus)                          │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+              ┌──────────┼──────────┐
+              ▼          ▼          ▼
+         ┌─────────┐ ┌──────┐ ┌──────────┐
+         │ Metrics │ │  UI  │ │  Logs    │
+         │Collector│ │      │ │ Server   │
+         └─────────┘ └──────┘ └──────────┘
+```
+
+### Event → Metric Mapping
+
+| Event                              | Metrics Emitted                                     | Type                       |
+|------------------------------------|-----------------------------------------------------|----------------------------|
+| `EventCommandStarted`              | `app_run`                                           | Counter                    |
+| `EventProfileResolved`             | `service_count`, `tier_count`, `discovery_duration` | Gauge, Gauge, Distribution |
+| `EventTierReady`                   | `tier_startup_duration`                             | Distribution               |
+| `EventReadinessComplete`           | `readiness_duration`                                | Distribution               |
+| `EventServiceReady`                | `service_startup_duration`                          | Distribution               |
+| `EventServiceFailed`               | `service_failed`                                    | Counter                    |
+| `EventServiceRestarting`           | `service_restart`                                   | Counter                    |
+| `EventWatchTriggered`              | `watch_restart`                                     | Counter                    |
+| `EventPreflightComplete`           | `preflight_killed`, `preflight_duration`            | Gauge, Distribution        |
+| `EventServiceStopped` (unexpected) | `unexpected_exit`                                   | Counter                    |
+| `EventPhaseChanged` (running)      | `startup_duration`                                  | Distribution               |
+| `EventPhaseChanged` (stopped)      | `shutdown_duration`                                 | Distribution               |
+
+### Design Principles
+
+1. **Single subscriber** — all metrics flow through one collector, never scattered across packages
+2. **No callbacks into publishers** — event structs carry all needed data (Duration, ServiceCount, etc.)
+3. **No-op when disabled** — Sentry SDK is a no-op when DSN is empty; no conditional logic needed
+4. **Lifecycle via FX** — collector goroutine starts and stops with the application lifecycle
+
 ## Separation of Concerns
 
 The key insight is **source of truth separation**:
 
-| Aspect | Package | Pattern | Why |
-|--------|---------|---------|-----|
-| Process lifecycle | Runner | Event-driven | OS manages reality |
-| User actions | Bus | Command messages | Decoupled control |
-| System events | Bus | Event messages | Observable history |
-| Visual state | UI | FSM | Consistent UX |
-| File changes | Watcher | Debounced events | Hot-reload |
+| Aspect            | Package  | Pattern          | Why                     |
+|-------------------|----------|------------------|-------------------------|
+| Process lifecycle | Runner   | Event-driven     | OS manages reality      |
+| User actions      | Bus      | Command messages | Decoupled control       |
+| System events     | Bus      | Event messages   | Observable history      |
+| Visual state      | UI       | FSM              | Consistent UX           |
+| File changes      | Watcher  | Debounced events | Hot-reload              |
+| Telemetry         | Metrics  | Bus subscriber   | Single collection point |
 
 ### Data Flow Example: Restart Service
 

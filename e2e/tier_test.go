@@ -22,11 +22,11 @@ func Test_Tier_StartsInOrder(t *testing.T) {
 
 	// Tier sequence: foundation -> platform -> edge
 	foundationStartIdx := indexOf(output, "tier_starting {tier: foundation")
-	foundationReadyIdx := indexOf(output, "tier_ready {name: foundation}")
+	foundationReadyIdx := indexOf(output, "tier_ready {tier: foundation")
 	platformStartIdx := indexOf(output, "tier_starting {tier: platform")
-	platformReadyIdx := indexOf(output, "tier_ready {name: platform}")
+	platformReadyIdx := indexOf(output, "tier_ready {tier: platform")
 	edgeStartIdx := indexOf(output, "tier_starting {tier: edge")
-	edgeReadyIdx := indexOf(output, "tier_ready {name: edge}")
+	edgeReadyIdx := indexOf(output, "tier_ready {tier: edge")
 
 	// All tiers should be present
 	assert.Greater(t, foundationStartIdx, -1, "foundation tier_starting should be present")

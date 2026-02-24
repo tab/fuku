@@ -14,7 +14,9 @@ builds:
       - arm64
     dir: cmd
     main: ./main.go
-    ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
+    ldflags: >-
+      -s -w
+      -X main.sentryDSN={{.Env.SENTRY_DSN}}
 
 archives:
   - id: fuku

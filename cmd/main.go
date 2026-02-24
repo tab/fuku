@@ -12,29 +12,40 @@ import (
 	"fuku/internal/app/logs"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
+	"fuku/internal/config/sentry"
 )
+
+var sentryDSN string
 
 // main is the entry point for the application
 func main() {
-	runApp()
+	os.Exit(runApp())
 }
 
 // runApp contains the main application logic
-func runApp() {
+func runApp() (exitCode int) {
 	cmd, err := cli.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+
+		return 1
 	}
 
 	cfg, topology, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+
+		return 1
+	}
+
+	if cfg.Telemetry && cfg.SentryDSN == "" {
+		cfg.SentryDSN = sentryDSN
 	}
 
 	application := createApp(cfg, topology, cmd)
 	application.Run()
+
+	return 0
 }
 
 // loadConfig wraps config.Load for easier testing
@@ -56,6 +67,7 @@ func createApp(cfg *config.Config, topology *config.Topology, cmd *cli.Options) 
 		fx.Provide(func() logger.Logger {
 			return logger.NewLoggerWithOutput(cfg, formatter)
 		}),
+		sentry.Module,
 		app.Module,
 	)
 }

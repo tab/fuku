@@ -10,6 +10,145 @@ import (
 	"fuku/internal/app/errors"
 )
 
+func Test_ResolveEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		goEnv    string
+		expected string
+	}{
+		{
+			name:     "Returns GO_ENV when set",
+			goEnv:    "production",
+			expected: "production",
+		},
+		{
+			name:     "Defaults to development when empty",
+			goEnv:    "",
+			expected: EnvDevelopment,
+		},
+		{
+			name:     "Returns test when set to test",
+			goEnv:    EnvTest,
+			expected: EnvTest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GO_ENV", tt.goEnv)
+
+			result := ResolveEnv()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_LoadEnv(t *testing.T) {
+	t.Run("Does not fail when no .env files exist", func(t *testing.T) {
+		t.Setenv("GO_ENV", "")
+
+		LoadEnv()
+	})
+
+	t.Run("Loads .env file", func(t *testing.T) {
+		err := os.WriteFile(".env", []byte("TEST_LOAD_ENV_VAR=from_dotenv\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(".env")
+
+		t.Setenv("GO_ENV", "")
+		os.Unsetenv("TEST_LOAD_ENV_VAR")
+
+		LoadEnv()
+
+		assert.Equal(t, "from_dotenv", os.Getenv("TEST_LOAD_ENV_VAR"))
+		os.Unsetenv("TEST_LOAD_ENV_VAR")
+	})
+
+	t.Run("Loads environment-specific .env file", func(t *testing.T) {
+		err := os.WriteFile(".env.staging", []byte("TEST_LOAD_ENV_SPECIFIC=from_staging\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(".env.staging")
+
+		t.Setenv("GO_ENV", "staging")
+		os.Unsetenv("TEST_LOAD_ENV_SPECIFIC")
+
+		LoadEnv()
+
+		assert.Equal(t, "from_staging", os.Getenv("TEST_LOAD_ENV_SPECIFIC"))
+		os.Unsetenv("TEST_LOAD_ENV_SPECIFIC")
+	})
+
+	t.Run("Loads .env.local file with highest priority", func(t *testing.T) {
+		err := os.WriteFile(".env.staging", []byte("TEST_LOCAL_PRIORITY=from_env\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(".env.staging")
+
+		err = os.WriteFile(".env.staging.local", []byte("TEST_LOCAL_PRIORITY=from_local\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(".env.staging.local")
+
+		t.Setenv("GO_ENV", "staging")
+		os.Unsetenv("TEST_LOCAL_PRIORITY")
+
+		LoadEnv()
+
+		assert.Equal(t, "from_local", os.Getenv("TEST_LOCAL_PRIORITY"))
+		os.Unsetenv("TEST_LOCAL_PRIORITY")
+	})
+
+	t.Run("Environment-specific overrides base .env", func(t *testing.T) {
+		err := os.WriteFile(".env", []byte("TEST_OVERRIDE=from_base\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(".env")
+
+		err = os.WriteFile(".env.staging", []byte("TEST_OVERRIDE=from_staging\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(".env.staging")
+
+		t.Setenv("GO_ENV", "staging")
+		os.Unsetenv("TEST_OVERRIDE")
+
+		LoadEnv()
+
+		assert.Equal(t, "from_staging", os.Getenv("TEST_OVERRIDE"))
+		os.Unsetenv("TEST_OVERRIDE")
+	})
+
+	t.Run("Does not override existing env vars", func(t *testing.T) {
+		err := os.WriteFile(".env", []byte("TEST_EXISTING_VAR=from_dotenv\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(".env")
+
+		t.Setenv("GO_ENV", "")
+		t.Setenv("TEST_EXISTING_VAR", "already_set")
+
+		LoadEnv()
+
+		assert.Equal(t, "already_set", os.Getenv("TEST_EXISTING_VAR"))
+	})
+}
+
 func Test_DefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -170,6 +309,46 @@ services: "this should be a map not a string"
 			}
 		})
 	}
+}
+
+func Test_Load_SentryDSN(t *testing.T) {
+	t.Run("Reads SENTRY_DSN from environment", func(t *testing.T) {
+		t.Setenv("SENTRY_DSN", "https://key@sentry.io/123")
+
+		cfg, _, err := Load()
+		assert.NoError(t, err)
+		assert.Equal(t, "https://key@sentry.io/123", cfg.SentryDSN)
+	})
+
+	t.Run("Empty when SENTRY_DSN not set", func(t *testing.T) {
+		cfg, _, err := Load()
+		assert.NoError(t, err)
+		assert.Empty(t, cfg.SentryDSN)
+	})
+}
+
+func Test_Load_Telemetry(t *testing.T) {
+	t.Run("Disabled when FUKU_TELEMETRY_DISABLED=1", func(t *testing.T) {
+		t.Setenv("FUKU_TELEMETRY_DISABLED", "1")
+
+		cfg, _, err := Load()
+		assert.NoError(t, err)
+		assert.False(t, cfg.Telemetry)
+	})
+
+	t.Run("Enabled when FUKU_TELEMETRY_DISABLED not set", func(t *testing.T) {
+		cfg, _, err := Load()
+		assert.NoError(t, err)
+		assert.True(t, cfg.Telemetry)
+	})
+
+	t.Run("Enabled when FUKU_TELEMETRY_DISABLED is not 1", func(t *testing.T) {
+		t.Setenv("FUKU_TELEMETRY_DISABLED", "false")
+
+		cfg, _, err := Load()
+		assert.NoError(t, err)
+		assert.True(t, cfg.Telemetry)
+	})
 }
 
 func Test_LoadConcurrencyConfig(t *testing.T) {

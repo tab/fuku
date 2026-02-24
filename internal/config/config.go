@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v3"
 
@@ -16,10 +17,13 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Services map[string]*Service    `yaml:"services"`
-	Defaults *ServiceDefaults       `yaml:"defaults"`
-	Profiles map[string]interface{} `yaml:"profiles"`
-	Logging  struct {
+	AppEnv    string
+	SentryDSN string
+	Telemetry bool
+	Services  map[string]*Service    `yaml:"services"`
+	Defaults  *ServiceDefaults       `yaml:"defaults"`
+	Profiles  map[string]interface{} `yaml:"profiles"`
+	Logging   struct {
 		Level  string `yaml:"level"`
 		Format string `yaml:"format"`
 	}
@@ -114,9 +118,41 @@ func DefaultTopology() *Topology {
 	}
 }
 
+// LoadEnv loads environment variables from .env files in priority order.
+// Files loaded first take precedence (godotenv does not override existing vars):
+//
+//	.env.<GO_ENV>.local  (highest priority)
+//	.env.<GO_ENV>        (environment-specific)
+//	.env                 (lowest priority)
+func LoadEnv() {
+	goEnv := os.Getenv("GO_ENV")
+	if goEnv != "" {
+		_ = godotenv.Load(".env." + goEnv + ".local")
+		_ = godotenv.Load(".env." + goEnv)
+	}
+
+	_ = godotenv.Load()
+}
+
+// ResolveEnv returns the current environment name from GO_ENV, defaulting to EnvDevelopment
+func ResolveEnv() string {
+	env := os.Getenv("GO_ENV")
+	if env == "" {
+		return EnvDevelopment
+	}
+
+	return env
+}
+
 // Load loads the configuration from file and returns read-only config with derived topology
 func Load() (*Config, *Topology, error) {
+	LoadEnv()
+
 	cfg := DefaultConfig()
+	cfg.AppEnv = ResolveEnv()
+	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
+	cfg.Telemetry = os.Getenv("FUKU_TELEMETRY_DISABLED") != "1"
+
 	defaultTopology := DefaultTopology()
 
 	data, err := os.ReadFile(ConfigFile)

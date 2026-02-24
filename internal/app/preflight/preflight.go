@@ -70,6 +70,8 @@ func (p *preflight) Cleanup(ctx context.Context, dirs map[string]string) ([]Resu
 		return nil, nil
 	}
 
+	startTime := time.Now()
+
 	p.bus.Publish(bus.Message{
 		Type:     bus.EventPreflightStarted,
 		Data:     bus.PreflightStarted{Services: sortedKeys(dirs)},
@@ -81,7 +83,7 @@ func (p *preflight) Cleanup(ctx context.Context, dirs map[string]string) ([]Resu
 		p.log.Warn().Err(err).Msg("Failed to scan processes")
 		p.bus.Publish(bus.Message{
 			Type:     bus.EventPreflightComplete,
-			Data:     bus.PreflightComplete{Killed: 0},
+			Data:     bus.PreflightComplete{Killed: 0, Duration: time.Since(startTime)},
 			Critical: true,
 		})
 
@@ -92,7 +94,7 @@ func (p *preflight) Cleanup(ctx context.Context, dirs map[string]string) ([]Resu
 
 	p.bus.Publish(bus.Message{
 		Type:     bus.EventPreflightComplete,
-		Data:     bus.PreflightComplete{Killed: len(results)},
+		Data:     bus.PreflightComplete{Killed: len(results), Duration: time.Since(startTime)},
 		Critical: true,
 	})
 

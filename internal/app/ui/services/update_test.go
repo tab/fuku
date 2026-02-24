@@ -217,7 +217,7 @@ func Test_HandleTierReady(t *testing.T) {
 		{Name: "tier2", Ready: false},
 	}
 
-	event := bus.Message{Type: bus.EventTierReady, Data: bus.Payload{Name: "tier2"}}
+	event := bus.Message{Type: bus.EventTierReady, Data: bus.TierReady{Name: "tier2"}}
 	result := m.handleTierReady(event)
 
 	assert.False(t, result.state.tiers[0].Ready)

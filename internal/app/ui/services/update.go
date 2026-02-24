@@ -317,7 +317,7 @@ func (m Model) handleTierStarting(msg bus.Message) Model {
 
 // handleTierReady marks a tier as ready
 func (m Model) handleTierReady(msg bus.Message) Model {
-	data, ok := msg.Data.(bus.Payload)
+	data, ok := msg.Data.(bus.TierReady)
 	if !ok {
 		return m
 	}

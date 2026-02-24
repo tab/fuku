@@ -26,6 +26,7 @@
    - **app/discovery/** - Profile resolution to tiers and services
    - **app/lifecycle/** - Process termination with SIGTERM/SIGKILL handling
    - **app/logs/** - Log streaming via Unix sockets (server, hub, client, formatter)
+   - **app/metrics/** - Bus-driven metrics collector (subscribes to events, emits Sentry metrics)
    - **app/process/** - Process interface and handle implementation
    - **app/readiness/** - HTTP, TCP, and log-based health checks
    - **app/registry/** - Running process tracking with detach support
@@ -35,6 +36,7 @@
    - **app/watcher/** - File change detection with debouncing for hot-reload
    - **app/worker/** - Shared bounded worker pool for concurrent task execution
    - **config/** - Configuration loading, parsing, and data structures
+   - **config/sentry/** - Sentry SDK wrapper with metrics API, scope tags, and telemetry opt-out
    - **errors/** - Application-specific error definitions
 
 ### Key Interfaces and Abstractions
@@ -96,18 +98,37 @@
    }
    ```
 
+9. **sentry.Sentry** - Sentry SDK lifecycle management:
+   ```go
+   type Sentry interface {
+       Flush()
+   }
+   ```
+
+10. **metrics.Collector** - Bus-driven metrics collector:
+    ```go
+    type Collector interface {
+        Run(ctx context.Context)
+    }
+    ```
+
 ### Execution Flow
 
 1. **CLI Entry Point** (`cmd/main.go`)
+   - Loads environment files via godotenv (`.env.<GO_ENV>.local` > `.env.<GO_ENV>` > `.env`)
+   - Checks `FUKU_TELEMETRY_DISABLED` env var for telemetry opt-out
    - Parses command-line arguments using cobra via `cli.Parse()`
    - Loads configuration from `fuku.yaml` using Viper
-   - Initializes FX container with all dependencies
+   - Injects Sentry DSN via build-time ldflags (`-X main.sentryDSN=...`)
+   - Initializes FX container with all dependencies (including `sentry.Module`)
    - Starts application lifecycle
 
 2. **Application Container** (`internal/app/app.go`)
    - Manages application lifecycle with FX hooks
+   - Initializes Sentry client and metrics collector before command execution
    - Calls `cli.Execute()` to run the parsed command
-   - Handles graceful shutdown
+   - Recovers from panics and reports to Sentry
+   - Flushes Sentry events on shutdown
 
 3. **Command Processing** (`internal/app/cli/`)
    - `commands.go` - Cobra-based argument parsing with `Parse()` function
@@ -244,6 +265,7 @@
 - `internal/app/logs/hub_test.go` - Log hub connection testing
 - `internal/app/logs/runner_test.go` - Log streaming runner testing
 - `internal/app/logs/server_test.go` - Log server testing
+- `internal/app/metrics/metrics_test.go` - Bus-driven metrics collector testing
 - `internal/app/monitor/monitor_test.go` - Process monitoring testing
 - `internal/app/preflight/preflight_test.go` - Preflight process cleanup testing
 - `internal/app/process/process_test.go` - Process handle testing
@@ -270,6 +292,8 @@
 - `internal/app/watcher/watcher_test.go` - File watcher testing
 - `internal/config/config_test.go` - Configuration loading and parsing
 - `internal/config/logger/logger_test.go` - Logger implementation testing
+- `internal/config/sentry/sentry_test.go` - Sentry client initialization testing
+- `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
 - `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command)
 
@@ -301,6 +325,15 @@
   ```
 - every interface should have a corresponding mock file for testing
 - mocks are stored alongside source files (e.g., `foo.go` → `foo_mock.go`)
+
+### Event Bus as the Communication Backbone
+- **all cross-cutting concerns must subscribe to the bus, never inline into business logic** — this is non-negotiable
+- the event bus (`app/bus`) is the single source of truth for what happened in the system; business logic publishes events, observers react to them
+- when adding a new feature that needs to react to something happening elsewhere (metrics, logging, UI updates, notifications), create a bus subscriber — never add the logic directly to the code that triggers the event
+- when adding new functionality to the system, first check whether an existing bus event already carries the data you need; extend an existing event struct before inventing a new event type
+- every bus event struct must carry enough data for any subscriber to act without calling back into the publisher
+- the metrics collector (`app/metrics`) is the canonical example: it subscribes to bus events and emits all metrics from one place instead of scattering `sentry.NewMeter` calls across runner, service, discovery, and preflight
+- only inline cross-cutting calls when no bus exists yet at that point in the lifecycle (e.g., CLI commands that run before the bus is created) or when the data is purely local and has no corresponding event (e.g., per-goroutine readiness check durations)
 
 ### Keep It Simple
 - **do not create abstractions unless they are needed** - YAGNI (You Aren't Gonna Need It)
@@ -526,7 +559,9 @@ git branch -D feature-branch-name
 - dependency injection: `go.uber.org/fx`
 - CLI framework: `github.com/spf13/cobra`
 - configuration: `github.com/spf13/viper`
+- environment files: `github.com/joho/godotenv`
 - logging: `github.com/rs/zerolog`
+- error tracking: `github.com/getsentry/sentry-go`
 - testing: `github.com/stretchr/testify`
 - mock generation: `go.uber.org/mock`
 - TUI framework: `github.com/charmbracelet/bubbletea`

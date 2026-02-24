@@ -21,7 +21,7 @@ vet:
 .PHONY: test
 test:
 	@echo "Running tests..."
-	go test -cover $$(go list ./... | grep -v /e2e)
+	GO_ENV=test go test -cover $$(go list ./... | grep -v /e2e)
 
 .PHONY: test\:e2e
 test\:e2e:
@@ -31,9 +31,9 @@ test\:e2e:
 .PHONY: test\:race
 test\:race:
 	@echo "Running tests with race detector..."
-	go test -race -cover -coverprofile=coverage.out -covermode=atomic $$(go list ./... | grep -v /e2e)
+	GO_ENV=test go test -race -cover -coverprofile=coverage.out -covermode=atomic $$(go list ./... | grep -v /e2e)
 
 .PHONY: coverage
 coverage:
 	@echo "Generating test coverage report..."
-	go test $$(go list ./... | grep -v /e2e) -coverprofile=coverage.out && go tool cover -html=coverage.out
+	GO_ENV=test go test $$(go list ./... | grep -v /e2e) -coverprofile=coverage.out && go tool cover -html=coverage.out

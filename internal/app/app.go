@@ -3,23 +3,27 @@ package app
 import (
 	"context"
 	"os"
+	"time"
 
 	"go.uber.org/fx"
 
 	"fuku/internal/app/cli"
+	"fuku/internal/config/sentry"
 )
 
 // App represents the main application container
 type App struct {
-	cli  cli.CLI
-	done chan struct{}
+	cli    cli.CLI
+	sentry sentry.Sentry
+	done   chan struct{}
 }
 
 // NewApp creates a new application instance with its dependencies
-func NewApp(cli cli.CLI) *App {
+func NewApp(cli cli.CLI, s sentry.Sentry) *App {
 	return &App{
-		cli:  cli,
-		done: make(chan struct{}),
+		cli:    cli,
+		sentry: s,
+		done:   make(chan struct{}),
 	}
 }
 
@@ -28,11 +32,21 @@ func (a *App) Run() {
 	exitCode := a.execute()
 	close(a.done)
 
+	a.sentry.Flush()
+
 	os.Exit(exitCode)
 }
 
 // execute runs the CLI and returns exit code - extracted for testing
 func (a *App) execute() int {
+	defer func() {
+		if r := recover(); r != nil {
+			sentry.CurrentHub().Recover(r)
+			sentry.FlushSDK(5 * time.Second)
+			panic(r)
+		}
+	}()
+
 	exitCode, _ := a.cli.Execute()
 
 	return exitCode

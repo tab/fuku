@@ -49,9 +49,7 @@ func (d *discovery) Resolve(profile string) ([]Tier, error) {
 		return []Tier{}, nil
 	}
 
-	tiers := d.groupServicesByTier(services)
-
-	return tiers, nil
+	return d.groupServicesByTier(services), nil
 }
 
 // getServicesForProfile returns the list of services for a given profile

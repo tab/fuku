@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"time"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/process"
 	"fuku/internal/config"
@@ -26,12 +27,14 @@ type Readiness interface {
 
 // readiness implements the Readiness interface
 type readiness struct {
+	bus bus.Bus
 	log logger.Logger
 }
 
 // NewReadiness creates a new readiness checker instance
-func NewReadiness(log logger.Logger) Readiness {
+func NewReadiness(b bus.Bus, log logger.Logger) Readiness {
 	return &readiness{
+		bus: b,
 		log: log.WithComponent("READINESS"),
 	}
 }
@@ -157,6 +160,8 @@ func (r *readiness) CheckTCP(ctx context.Context, address string, timeout, inter
 
 // Check performs the appropriate readiness check for a service
 func (r *readiness) Check(ctx context.Context, name string, service *config.Service, proc process.Process) {
+	startTime := time.Now()
+
 	options := service.Readiness
 	r.log.Info().Msgf("Starting %s readiness check for service '%s'", options.Type, name)
 
@@ -179,6 +184,15 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 		r.log.Error().Err(err).Msgf("Readiness check failed for service '%s'", name)
 	} else {
 		r.log.Info().Msgf("Service '%s' is ready", name)
+
+		r.bus.Publish(bus.Message{
+			Type: bus.EventReadinessComplete,
+			Data: bus.ReadinessComplete{
+				Service:  name,
+				Type:     options.Type,
+				Duration: time.Since(startTime),
+			},
+		})
 	}
 
 	proc.SignalReady(err)

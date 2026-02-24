@@ -15,6 +15,12 @@ const (
 	Default = "default"
 )
 
+// Environment names
+const (
+	EnvDevelopment = "development"
+	EnvTest        = "test"
+)
+
 // Logging defaults
 const (
 	LogLevel  = "info"
