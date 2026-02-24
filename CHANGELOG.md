@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## v0.15.0
+
+### Features
+- **feat:** Add Sentry integration with configuration, scope tagging, and metrics
+- **feat:** Add environment variable loading with priority files (`.env.local`, `.env.<GO_ENV>.local`, `.env`)
+
+### Chore
+- **chore:** Add Sentry release integration to CI
+- **chore:** Update goreleaser configuration
+
+### Documentation
+- **docs:** Add metrics and Sentry integration details to documentation
+
 ## v0.14.0
 
 ### Features
