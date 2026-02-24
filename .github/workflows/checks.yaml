@@ -24,9 +24,8 @@ jobs:
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20
         with:
           version: v2.8.0
-
   vet:
-    name: Go Vet
+    name: Vet
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -37,9 +36,8 @@ jobs:
           go-version: '1.25'
       - name: go vet
         run: make vet
-
   static-check:
-    name: Static-check
+    name: Staticcheck
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -53,7 +51,6 @@ jobs:
         uses: dominikh/staticcheck-action@024238d2898c874f26d723e7d0ff4308c35589a2
         with:
           install-go: false
-
   tests:
     name: Tests
     permissions:
@@ -79,7 +76,6 @@ jobs:
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-
   e2e:
     name: E2E
     permissions:
