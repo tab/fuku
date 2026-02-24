@@ -9,7 +9,9 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/getsentry/sentry-go v0.43.0
 	github.com/gobwas/glob v0.2.3
+	github.com/joho/godotenv v1.5.1
 	github.com/looplab/fsm v1.0.3
 	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v4 v4.26.1

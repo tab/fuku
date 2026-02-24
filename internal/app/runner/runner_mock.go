@@ -55,15 +55,15 @@ func (mr *MockRunnerMockRecorder) Run(ctx, profile any) *gomock.Call {
 }
 
 // Stop mocks base method.
-func (m *MockRunner) Stop(profile string) error {
+func (m *MockRunner) Stop(ctx context.Context, profile string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop", profile)
+	ret := m.ctrl.Call(m, "Stop", ctx, profile)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockRunnerMockRecorder) Stop(profile any) *gomock.Call {
+func (mr *MockRunnerMockRecorder) Stop(ctx, profile any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRunner)(nil).Stop), profile)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRunner)(nil).Stop), ctx, profile)
 }

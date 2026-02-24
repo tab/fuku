@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
@@ -36,13 +37,15 @@ func Test_NewCLI(t *testing.T) {
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("CLI").Return(componentLogger)
 
-	cliInstance := NewCLI(cmd, mockRunner, mockWatcher, mockLogsRunner, mockUI, mockLogger)
+	b := bus.NoOp()
+	cliInstance := NewCLI(cmd, b, mockRunner, mockWatcher, mockLogsRunner, mockUI, mockLogger)
 	assert.NotNil(t, cliInstance)
 
 	instance, ok := cliInstance.(*cli)
 	assert.True(t, ok)
 	assert.NotNil(t, instance)
 	assert.Equal(t, cmd, instance.cmd)
+	assert.Equal(t, b, instance.bus)
 	assert.Equal(t, mockRunner, instance.runner)
 	assert.Equal(t, mockWatcher, instance.watcher)
 	assert.Equal(t, mockLogsRunner, instance.streamer)
@@ -78,7 +81,7 @@ func Test_Execute(t *testing.T) {
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), config.Default).Return(nil)
+				mockRunner.EXPECT().Run(gomock.Any(), config.Default).Return(nil)
 				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
@@ -133,7 +136,7 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Stop(config.Default).Return(nil)
+				mockRunner.EXPECT().Stop(gomock.Any(), config.Default).Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -148,7 +151,7 @@ func Test_Execute(t *testing.T) {
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+				mockRunner.EXPECT().Run(gomock.Any(), "test-profile").Return(nil)
 				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
@@ -164,7 +167,7 @@ func Test_Execute(t *testing.T) {
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockRunner.EXPECT().Run(gomock.Any(), "failed-profile").Return(errors.New("runner failed"))
 				mockWatcher.EXPECT().Close()
 				mockLogger.EXPECT().Error().Return(nil)
 			},
@@ -177,6 +180,7 @@ func Test_Execute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cli{
 				cmd:     tt.cmd,
+				bus:     bus.NoOp(),
 				runner:  mockRunner,
 				watcher: mockWatcher,
 				ui:      mockUI,
@@ -249,6 +253,7 @@ func Test_Execute_LogsMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cli{
 				cmd:      tt.cmd,
+				bus:      bus.NoOp(),
 				streamer: mockLogsRunner,
 				log:      mockLogger,
 			}
@@ -284,7 +289,7 @@ func Test_handleRun(t *testing.T) {
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "test-profile").Return(nil)
+				mockRunner.EXPECT().Run(gomock.Any(), "test-profile").Return(nil)
 				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
@@ -296,7 +301,7 @@ func Test_handleRun(t *testing.T) {
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
 				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.AssignableToTypeOf(context.Background()), "failed-profile").Return(errors.New("runner failed"))
+				mockRunner.EXPECT().Run(gomock.Any(), "failed-profile").Return(errors.New("runner failed"))
 				mockWatcher.EXPECT().Close()
 				mockLogger.EXPECT().Error().Return(nil)
 			},
@@ -319,7 +324,7 @@ func Test_handleRun(t *testing.T) {
 			os.Stdout = w
 
 			tt.before()
-			exitCode, err := c.handleRun(tt.profile)
+			exitCode, err := c.handleRun(context.Background(), tt.profile)
 
 			w.Close()
 
@@ -629,7 +634,7 @@ func Test_handleStop(t *testing.T) {
 			profile: "test-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Stop("test-profile").Return(nil)
+				mockRunner.EXPECT().Stop(gomock.Any(), "test-profile").Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -639,7 +644,7 @@ func Test_handleStop(t *testing.T) {
 			profile: "failed-profile",
 			before: func() {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Stop("failed-profile").Return(errors.New("stop failed"))
+				mockRunner.EXPECT().Stop(gomock.Any(), "failed-profile").Return(errors.New("stop failed"))
 				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedExit:  1,
@@ -656,7 +661,7 @@ func Test_handleStop(t *testing.T) {
 			}
 
 			tt.before()
-			exitCode, err := c.handleStop(tt.profile)
+			exitCode, err := c.handleStop(context.Background(), tt.profile)
 
 			assert.Equal(t, tt.expectedExit, exitCode)
 

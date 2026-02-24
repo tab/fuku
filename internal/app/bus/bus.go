@@ -16,6 +16,7 @@ type MessageType string
 
 // Event types
 const (
+	EventCommandStarted    MessageType = "command_started"
 	EventPhaseChanged      MessageType = "phase_changed"
 	EventProfileResolved   MessageType = "profile_resolved"
 	EventPreflightStarted  MessageType = "preflight_started"
@@ -24,6 +25,7 @@ const (
 	EventTierStarting      MessageType = "tier_starting"
 	EventTierReady         MessageType = "tier_ready"
 	EventServiceStarting   MessageType = "service_starting"
+	EventReadinessComplete MessageType = "readiness_complete"
 	EventServiceReady      MessageType = "service_ready"
 	EventServiceFailed     MessageType = "service_failed"
 	EventServiceStopping   MessageType = "service_stopping"
@@ -60,15 +62,25 @@ type Message struct {
 	Critical  bool
 }
 
+// CommandStarted indicates a CLI command has begun execution
+type CommandStarted struct {
+	Command string
+	Profile string
+	UI      bool
+}
+
 // ProfileResolved contains the resolved profile with its tier structure
 type ProfileResolved struct {
-	Profile string
-	Tiers   []Tier
+	Profile  string
+	Tiers    []Tier
+	Duration time.Duration
 }
 
 // PhaseChanged indicates an application phase transition
 type PhaseChanged struct {
-	Phase Phase
+	Phase        Phase
+	Duration     time.Duration
+	ServiceCount int
 }
 
 // PreflightStarted indicates the preflight scan has begun
@@ -85,7 +97,8 @@ type PreflightKill struct {
 
 // PreflightComplete indicates the preflight scan has finished
 type PreflightComplete struct {
-	Killed int
+	Killed   int
+	Duration time.Duration
 }
 
 // Tier represents a group of services that start together
@@ -106,6 +119,13 @@ type Payload struct {
 	Name string
 }
 
+// TierReady indicates a tier has completed startup
+type TierReady struct {
+	Name         string
+	Duration     time.Duration
+	ServiceCount int
+}
+
 // ServiceEvent is the base struct for service-related events
 type ServiceEvent struct {
 	Service string
@@ -117,6 +137,13 @@ type ServiceStarting struct {
 	ServiceEvent
 	Attempt int
 	PID     int
+}
+
+// ReadinessComplete indicates a readiness check has finished successfully
+type ReadinessComplete struct {
+	Service  string
+	Type     string
+	Duration time.Duration
 }
 
 // ServiceReady indicates a service has completed startup and is ready
@@ -139,6 +166,7 @@ type ServiceStopping struct {
 // ServiceStopped indicates a service has stopped
 type ServiceStopped struct {
 	ServiceEvent
+	Unexpected bool
 }
 
 // ServiceRestarting indicates a service is being restarted
@@ -271,22 +299,28 @@ func (b *bus) unsubscribe(ch chan Message) {
 
 func formatData(data interface{}) string {
 	switch d := data.(type) {
+	case CommandStarted:
+		return fmt.Sprintf("{command: %s, profile: %s, ui: %t}", d.Command, d.Profile, d.UI)
 	case ProfileResolved:
 		return fmt.Sprintf("{profile: %s}", d.Profile)
 	case PhaseChanged:
-		return fmt.Sprintf("{phase: %s}", d.Phase)
+		return fmt.Sprintf("{phase: %s, duration: %s, services: %d}", d.Phase, d.Duration, d.ServiceCount)
 	case PreflightStarted:
 		return fmt.Sprintf("{services: %v}", d.Services)
 	case PreflightKill:
 		return fmt.Sprintf("{service: %s, pid: %d, name: %s}", d.Service, d.PID, d.Name)
 	case PreflightComplete:
-		return fmt.Sprintf("{killed: %d}", d.Killed)
+		return fmt.Sprintf("{killed: %d, duration: %s}", d.Killed, d.Duration)
 	case TierStarting:
 		return fmt.Sprintf("{tier: %s, %d/%d}", d.Name, d.Index, d.Total)
 	case Payload:
 		return fmt.Sprintf("{name: %s}", d.Name)
+	case TierReady:
+		return fmt.Sprintf("{tier: %s, duration: %s, services: %d}", d.Name, d.Duration, d.ServiceCount)
 	case ServiceStarting:
 		return fmt.Sprintf("{service: %s, tier: %s, pid: %d}", d.Service, d.Tier, d.PID)
+	case ReadinessComplete:
+		return fmt.Sprintf("{service: %s, type: %s, duration: %s}", d.Service, d.Type, d.Duration)
 	case ServiceReady:
 		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
 	case ServiceFailed:

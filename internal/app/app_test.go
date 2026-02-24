@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/cli"
+	"fuku/internal/config/sentry"
 )
 
 func Test_NewApp(t *testing.T) {
@@ -17,11 +18,13 @@ func Test_NewApp(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
+	mockSentry := sentry.NewMockSentry(ctrl)
 
-	application := NewApp(mockCLI)
+	application := NewApp(mockCLI, mockSentry)
 
 	assert.NotNil(t, application)
 	assert.Equal(t, mockCLI, application.cli)
+	assert.Equal(t, mockSentry, application.sentry)
 	assert.NotNil(t, application.done)
 }
 
@@ -30,10 +33,12 @@ func Test_execute(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
+	mockSentry := sentry.NewMockSentry(ctrl)
 
 	app := &App{
-		cli:  mockCLI,
-		done: make(chan struct{}),
+		cli:    mockCLI,
+		sentry: mockSentry,
+		done:   make(chan struct{}),
 	}
 
 	tests := []struct {
@@ -72,7 +77,8 @@ func Test_Register(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
-	app := NewApp(mockCLI)
+	mockSentry := sentry.NewMockSentry(ctrl)
+	app := NewApp(mockCLI, mockSentry)
 
 	var (
 		registered   bool
@@ -98,7 +104,8 @@ func Test_Register_OnStop_ReturnsWhenDoneClosed(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
-	app := NewApp(mockCLI)
+	mockSentry := sentry.NewMockSentry(ctrl)
+	app := NewApp(mockCLI, mockSentry)
 	close(app.done)
 
 	var capturedHook fx.Hook
@@ -121,7 +128,8 @@ func Test_Register_OnStop_RespectsContext(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockCLI := cli.NewMockCLI(ctrl)
-	app := NewApp(mockCLI)
+	mockSentry := sentry.NewMockSentry(ctrl)
+	app := NewApp(mockCLI, mockSentry)
 
 	var capturedHook fx.Hook
 

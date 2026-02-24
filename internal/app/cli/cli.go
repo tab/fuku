@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/logs"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
@@ -58,6 +59,7 @@ type CLI interface {
 // cli represents the command-line interface for the application
 type cli struct {
 	cmd      *Options
+	bus      bus.Bus
 	runner   runner.Runner
 	watcher  watcher.Watcher
 	streamer logs.Runner
@@ -68,6 +70,7 @@ type cli struct {
 // NewCLI creates a new cli instance
 func NewCLI(
 	cmd *Options,
+	b bus.Bus,
 	runner runner.Runner,
 	watcher watcher.Watcher,
 	streamer logs.Runner,
@@ -76,6 +79,7 @@ func NewCLI(
 ) CLI {
 	return &cli{
 		cmd:      cmd,
+		bus:      b,
 		runner:   runner,
 		watcher:  watcher,
 		streamer: streamer,
@@ -86,27 +90,36 @@ func NewCLI(
 
 // Execute processes the parsed command and executes the appropriate handler
 func (c *cli) Execute() (int, error) {
+	ctx := context.Background()
+
+	c.bus.Publish(bus.Message{
+		Type: bus.EventCommandStarted,
+		Data: bus.CommandStarted{
+			Command: c.cmd.Type.String(),
+			Profile: c.cmd.Profile,
+			UI:      !c.cmd.NoUI,
+		},
+	})
+
 	switch c.cmd.Type {
 	case CommandHelp:
 		return c.handleHelp()
 	case CommandInit:
 		return c.handleInit()
 	case CommandStop:
-		return c.handleStop(c.cmd.Profile)
+		return c.handleStop(ctx, c.cmd.Profile)
 	case CommandVersion:
 		return c.handleVersion()
 	case CommandLogs:
 		return c.handleLogs()
 	default:
-		return c.handleRun(c.cmd.Profile)
+		return c.handleRun(ctx, c.cmd.Profile)
 	}
 }
 
 // handleRun executes the run command with the specified profile
-func (c *cli) handleRun(profile string) (int, error) {
+func (c *cli) handleRun(ctx context.Context, profile string) (int, error) {
 	c.log.Debug().Msgf("Running with profile: %s", profile)
-
-	ctx := context.Background()
 
 	c.watcher.Start(ctx)
 	defer c.watcher.Close()
@@ -124,10 +137,10 @@ func (c *cli) handleRun(profile string) (int, error) {
 }
 
 // handleStop kills processes in service directories for the given profile
-func (c *cli) handleStop(profile string) (int, error) {
+func (c *cli) handleStop(ctx context.Context, profile string) (int, error) {
 	c.log.Debug().Msgf("Stopping services for profile: %s", profile)
 
-	if err := c.runner.Stop(profile); err != nil {
+	if err := c.runner.Stop(ctx, profile); err != nil {
 		c.log.Error().Err(err).Msgf("Failed to stop profile '%s'", profile)
 
 		return 1, err
@@ -194,12 +207,12 @@ func (c *cli) handleInit() (int, error) {
 }
 
 // handleLogs streams logs from a running fuku instance
-func (c *cli) handleLogs() (int, error) {
+func (c *cli) handleLogs() (int, error) { //nolint:unparam // error kept for consistent handler signature
 	return c.streamer.Run(c.cmd.Profile, c.cmd.Services), nil
 }
 
 // handleHelp displays help information
-func (c *cli) handleHelp() (int, error) {
+func (c *cli) handleHelp() (int, error) { //nolint:unparam // error kept for consistent handler signature
 	c.log.Debug().Msg("Displaying help information")
 	fmt.Println(Usage)
 
@@ -207,7 +220,7 @@ func (c *cli) handleHelp() (int, error) {
 }
 
 // handleVersion displays version information
-func (c *cli) handleVersion() (int, error) {
+func (c *cli) handleVersion() (int, error) { //nolint:unparam // error kept for consistent handler signature
 	c.log.Debug().Msg("Displaying version information")
 	fmt.Printf("Version: %s\n", config.Version)
 

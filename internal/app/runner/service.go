@@ -173,6 +173,7 @@ func (s *service) Restart(ctx context.Context, name string) {
 	}
 
 	s.log.Info().Msgf("Restarting service '%s'", name)
+
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceRestarting,
 		Data: bus.ServiceRestarting{
@@ -414,6 +415,7 @@ func (s *service) watchForExit(proc process.Process) {
 				Type: bus.EventServiceStopped,
 				Data: bus.ServiceStopped{
 					ServiceEvent: bus.ServiceEvent{Service: proc.Name(), Tier: result.Tier},
+					Unexpected:   true,
 				},
 				Critical: true,
 			})

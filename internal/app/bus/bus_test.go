@@ -316,8 +316,13 @@ func Test_FormatData(t *testing.T) {
 		contains string
 	}{
 		{
+			name:     "CommandStarted",
+			data:     CommandStarted{Command: "run", Profile: "default", UI: true},
+			contains: "run",
+		},
+		{
 			name:     "PhaseChanged",
-			data:     PhaseChanged{Phase: PhaseRunning},
+			data:     PhaseChanged{Phase: PhaseRunning, Duration: time.Second, ServiceCount: 3},
 			contains: "running",
 		},
 		{
@@ -351,8 +356,18 @@ func Test_FormatData(t *testing.T) {
 			contains: "api",
 		},
 		{
+			name:     "TierReady",
+			data:     TierReady{Name: "platform", Duration: time.Second, ServiceCount: 3},
+			contains: "platform",
+		},
+		{
 			name:     "ServiceStarting",
 			data:     ServiceStarting{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}, PID: 123},
+			contains: "api",
+		},
+		{
+			name:     "ReadinessComplete",
+			data:     ReadinessComplete{Service: "api", Type: "http", Duration: time.Second},
 			contains: "api",
 		},
 		{

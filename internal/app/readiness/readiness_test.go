@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/process"
 	"fuku/internal/config"
@@ -27,7 +28,7 @@ func Test_CheckHTTP_Success(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -47,7 +48,7 @@ func Test_CheckHTTP_Timeout(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -68,7 +69,7 @@ func Test_CheckHTTP_ContextCanceled(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -91,7 +92,7 @@ func Test_CheckHTTP_InvalidURL(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	done := make(chan struct{})
 	ctx := context.Background()
@@ -107,7 +108,7 @@ func Test_CheckLog_Success(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -139,7 +140,7 @@ func Test_CheckLog_Timeout(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -171,7 +172,7 @@ func Test_CheckLog_InvalidPattern(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, _ := io.Pipe()
 	stderrReader, _ := io.Pipe()
@@ -193,7 +194,7 @@ func Test_CheckLog_MatchInStderr(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -223,7 +224,7 @@ func Test_CheckLog_ContextCanceled(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -269,7 +270,7 @@ func Test_CheckLog_NegativeDuration(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -298,7 +299,7 @@ func Test_Check_HTTP(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -336,7 +337,7 @@ func Test_Check_Log(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -383,7 +384,7 @@ func Test_Check_InvalidType(t *testing.T) {
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Error().Return(nil).AnyTimes()
 
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	srv := &config.Service{
 		Readiness: &config.Readiness{
@@ -413,7 +414,7 @@ func Test_CheckHTTP_ProcessExited(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -436,7 +437,7 @@ func Test_CheckLog_ProcessExited(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
@@ -465,7 +466,7 @@ func Test_CheckTCP_Success(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -485,7 +486,7 @@ func Test_CheckTCP_Timeout(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	done := make(chan struct{})
 	ctx := context.Background()
@@ -501,7 +502,7 @@ func Test_CheckTCP_ContextCanceled(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -519,7 +520,7 @@ func Test_CheckTCP_ProcessExited(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	done := make(chan struct{})
 	close(done)
@@ -539,7 +540,7 @@ func Test_Check_TCP(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("READINESS").Return(componentLogger)
 	componentLogger.EXPECT().Info().Return(nil).AnyTimes()
 
-	checker := NewReadiness(mockLogger)
+	checker := NewReadiness(bus.NoOp(), mockLogger)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)

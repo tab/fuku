@@ -969,7 +969,7 @@ func Test_Stop(t *testing.T) {
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
-	err := r.Stop("test")
+	err := r.Stop(context.Background(), "test")
 
 	assert.NoError(t, err)
 }
@@ -996,7 +996,7 @@ func Test_Stop_ProfileNotFound(t *testing.T) {
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
-	err := r.Stop("nonexistent")
+	err := r.Stop(context.Background(), "nonexistent")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve profile")
@@ -1024,7 +1024,7 @@ func Test_Stop_NoServices(t *testing.T) {
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
-	err := r.Stop("empty")
+	err := r.Stop(context.Background(), "empty")
 
 	assert.NoError(t, err)
 }

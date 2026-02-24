@@ -19,6 +19,26 @@ const (
 	CommandHelp
 )
 
+// String returns the string representation of a CommandType
+func (c CommandType) String() string {
+	switch c {
+	case CommandRun:
+		return "run"
+	case CommandStop:
+		return "stop"
+	case CommandInit:
+		return "init"
+	case CommandLogs:
+		return "logs"
+	case CommandVersion:
+		return "version"
+	case CommandHelp:
+		return "help"
+	default:
+		return "unknown"
+	}
+}
+
 // Options contains the parsed command-line arguments
 type Options struct {
 	Type     CommandType
