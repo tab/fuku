@@ -154,20 +154,24 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	program, err := c.ui(ctx, profile)
+	if err != nil {
+		c.log.Error().Err(err).Msg("Failed to create UI")
+		return 1, err
+	}
+
 	runnerErrChan := make(chan error, 1)
 
 	go func() {
 		runnerErrChan <- c.runner.Run(ctx, profile)
 	}()
 
-	p, err := c.ui(ctx, profile)
-	if err != nil {
-		c.log.Error().Err(err).Msg("Failed to create UI")
-		return 1, err
-	}
-
-	if _, err := p.Run(); err != nil {
+	if _, err := program.Run(); err != nil {
 		c.log.Error().Err(err).Msg("UI error")
+
+		cancel()
+		<-runnerErrChan
+
 		return 1, err
 	}
 
