@@ -3,9 +3,11 @@ package services
 import (
 	"testing"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/viewport"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -14,6 +16,10 @@ import (
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config/logger"
 )
+
+func layoutForWidth(rowWidth int) components.TableLayout {
+	return components.ComputeTableLayout(rowWidth - components.RowHorizontalPadding)
+}
 
 func setupViewTestLogger(ctrl *gomock.Controller) logger.Logger {
 	mockLogger := logger.NewMockLogger(ctrl)
@@ -30,7 +36,7 @@ func Test_View_NotReady(t *testing.T) {
 	m.state.ready = false
 
 	result := m.View()
-	assert.Equal(t, "initializing…", result)
+	assert.Equal(t, tea.NewView("initializing…"), result)
 }
 
 func Test_View_RendersWhileShuttingDown(t *testing.T) {
@@ -43,14 +49,17 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
 	m.ui.width = 100
 	m.ui.height = 50
+	m.ui.layout = layoutForWidth(100 - components.PanelInnerPadding)
 	m.ui.help = help.New()
 	m.ui.servicesKeys = DefaultKeyMap()
-	m.ui.servicesViewport = viewport.New(80, 30)
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(80), viewport.WithHeight(30))
+	m.theme = components.DefaultTheme()
 
 	result := m.View()
 
-	assert.NotEmpty(t, result)
-	assert.Contains(t, result, "shutting down")
+	assert.NotEmpty(t, result.Content)
+	assert.Contains(t, result.Content, "shutting down")
+	assert.True(t, result.AltScreen)
 }
 
 func Test_RenderTitle_ServicesView(t *testing.T) {
@@ -108,7 +117,7 @@ func Test_RenderStatus_PhaseColors(t *testing.T) {
 func Test_RenderServices_Empty(t *testing.T) {
 	m := Model{}
 	m.state.tiers = []Tier{}
-	m.ui.servicesViewport = viewport.New(80, 20)
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 
 	result := m.renderServices()
 	assert.Contains(t, result, "no services configured")
@@ -150,6 +159,7 @@ func Test_GetStyledAndPaddedStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
+			m.ui.layout = layoutForWidth(78)
 			service := &ServiceState{Status: tt.status}
 
 			result := m.getStyledAndPaddedStatus(service, tt.isSelected)
@@ -188,6 +198,7 @@ func Test_GetStyledAndPaddedStatus_NoWatchIndicator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
+			m.ui.layout = layoutForWidth(78)
 			service := &ServiceState{Status: tt.status, Watching: tt.watching}
 
 			result := m.getStyledAndPaddedStatus(service, tt.isSelected)
@@ -201,7 +212,6 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 	tests := []struct {
 		name          string
 		serviceName   string
-		maxNameLen    int
 		viewportWidth int
 		wantTruncated bool
 		wantNameInRow string
@@ -209,23 +219,20 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 		{
 			name:          "short name no truncation",
 			serviceName:   "api",
-			maxNameLen:    20,
 			viewportWidth: 100,
 			wantTruncated: false,
 			wantNameInRow: "api",
 		},
 		{
-			name:          "long name truncated",
+			name:          "long name truncated on narrow viewport",
 			serviceName:   "action-confirmation-management-service",
-			maxNameLen:    38,
-			viewportWidth: 60,
+			viewportWidth: 78,
 			wantTruncated: true,
-			wantNameInRow: "action-confirmation…",
+			wantNameInRow: "action-confirmation-managemen…",
 		},
 		{
 			name:          "name fits exactly",
 			serviceName:   "user-service",
-			maxNameLen:    12,
 			viewportWidth: 100,
 			wantTruncated: false,
 			wantNameInRow: "user-service",
@@ -236,10 +243,11 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
 			m.ui.width = tt.viewportWidth + 8
-			m.ui.servicesViewport.Width = tt.viewportWidth
+			m.ui.layout = layoutForWidth(tt.viewportWidth)
+			m.ui.servicesViewport.SetWidth(tt.viewportWidth)
 			service := &ServiceState{Name: tt.serviceName, Status: StatusRunning}
 
-			result := m.renderServiceRow(service, false, tt.maxNameLen)
+			result := m.renderServiceRow(service, false)
 
 			assert.Contains(t, result, tt.wantNameInRow)
 
@@ -250,16 +258,76 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 	}
 }
 
+func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
+	tests := []struct {
+		name        string
+		panelWidth  int
+		serviceName string
+	}{
+		{
+			name:        "72-col terminal",
+			panelWidth:  72,
+			serviceName: "test-service",
+		},
+		{
+			name:        "104-col terminal",
+			panelWidth:  104,
+			serviceName: "long-service-name-xx",
+		},
+		{
+			name:        "120-col terminal",
+			panelWidth:  120,
+			serviceName: "long-service-name-xx",
+		},
+		{
+			name:        "200-col terminal",
+			panelWidth:  200,
+			serviceName: "long-service-name-xx",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rowWidth := tt.panelWidth - components.PanelInnerPadding
+
+			m := Model{}
+			m.ui.width = tt.panelWidth
+			m.ui.layout = layoutForWidth(rowWidth)
+			m.ui.servicesViewport.SetWidth(rowWidth)
+			m.theme = components.DefaultTheme()
+
+			service := &ServiceState{
+				Name:   tt.serviceName,
+				Status: StatusRunning,
+				Monitor: ServiceMonitor{
+					PID: 12345,
+					CPU: 99.9,
+					MEM: 512,
+				},
+			}
+
+			header := m.renderColumnHeaders()
+			row := m.renderServiceRow(service, false)
+
+			assert.NotContains(t, header, "\n", "header wraps")
+			assert.NotContains(t, row, "\n", "service row wraps")
+			assert.Equal(t, rowWidth, lipgloss.Width(header), "header width must equal rowWidth")
+			assert.Equal(t, rowWidth, lipgloss.Width(row), "service row width must equal rowWidth")
+		})
+	}
+}
+
 func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
 	m := Model{}
 	m.ui.width = 120
-	m.ui.servicesViewport.Width = 112
+	m.ui.layout = layoutForWidth(112)
+	m.ui.servicesViewport.SetWidth(112)
 
 	service1 := &ServiceState{Name: "api", Status: StatusRunning}
 	service2 := &ServiceState{Name: "user-management-service", Status: StatusStarting}
 
-	row1 := m.renderServiceRow(service1, false, 25)
-	row2 := m.renderServiceRow(service2, false, 25)
+	row1 := m.renderServiceRow(service1, false)
+	row2 := m.renderServiceRow(service2, false)
 
 	assert.Contains(t, row1, "api")
 	assert.Contains(t, row1, "running")
@@ -270,12 +338,13 @@ func Test_RenderServiceRow_ColumnAlignment(t *testing.T) {
 func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 	m := Model{}
 	m.ui.width = 100
-	m.ui.servicesViewport.Width = 92
+	m.ui.layout = layoutForWidth(92)
+	m.ui.servicesViewport.SetWidth(92)
 
 	service := &ServiceState{Name: "api", Status: StatusRunning}
 
-	notSelected := m.renderServiceRow(service, false, 20)
-	selected := m.renderServiceRow(service, true, 20)
+	notSelected := m.renderServiceRow(service, false)
+	selected := m.renderServiceRow(service, true)
 
 	assert.Contains(t, notSelected, "  ")
 	assert.Contains(t, selected, components.IndicatorSelected+" ")
@@ -323,6 +392,7 @@ func Test_GetServiceDetails_WithError(t *testing.T) {
 
 func Test_GetServiceDetails_WithMetrics(t *testing.T) {
 	m := Model{}
+	m.ui.layout = layoutForWidth(78)
 
 	service := &ServiceState{
 		Name:   "api",
@@ -343,6 +413,7 @@ func Test_GetServiceDetails_WithMetrics(t *testing.T) {
 
 func Test_GetServiceDetails_NoMetricsWhenStopped(t *testing.T) {
 	m := Model{}
+	m.ui.layout = layoutForWidth(78)
 
 	service := &ServiceState{
 		Name:   "api",
@@ -362,12 +433,13 @@ func Test_RenderTier_Spacing(t *testing.T) {
 		"db":  {Name: "db", Status: StatusRunning},
 	}
 	m.ui.width = 100
-	m.ui.servicesViewport.Width = 92
+	m.ui.layout = layoutForWidth(92)
+	m.ui.servicesViewport.SetWidth(92)
 
 	tier := Tier{Name: "platform", Services: []string{"api", "db"}}
 	currentIdx := 0
 
-	result := m.renderTier(tier, &currentIdx, 20)
+	result := m.renderTier(tier, &currentIdx)
 
 	assert.Contains(t, result, "platform")
 	assert.Contains(t, result, "api")
@@ -382,12 +454,13 @@ func Test_RenderTier_ServiceCount(t *testing.T) {
 		"web": {Name: "web", Status: StatusRunning},
 	}
 	m.ui.width = 100
-	m.ui.servicesViewport.Width = 92
+	m.ui.layout = layoutForWidth(92)
+	m.ui.servicesViewport.SetWidth(92)
 
 	tier := Tier{Name: "platform", Services: []string{"api", "db", "web"}}
 	currentIdx := 0
 
-	result := m.renderTier(tier, &currentIdx, 20)
+	result := m.renderTier(tier, &currentIdx)
 
 	assert.Equal(t, 3, currentIdx)
 	assert.Contains(t, result, "api")
@@ -412,7 +485,9 @@ func Test_GetServiceIndicator_DefaultSelected(t *testing.T) {
 }
 
 func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
+	theme := components.DefaultTheme()
 	m := Model{}
+	m.theme = theme
 
 	tests := []struct {
 		name       string
@@ -440,7 +515,7 @@ func Test_GetServiceIndicator_GuardFSMNil(t *testing.T) {
 			status:     StatusRunning,
 			watching:   true,
 			isSelected: false,
-			want:       components.IndicatorWatchStyle.Render(components.IndicatorWatch),
+			want:       theme.IndicatorWatchStyle.Render(components.IndicatorWatch),
 		},
 		{
 			name:       "FSM nil watching running selected shows watch indicator unstyled",
@@ -474,7 +549,7 @@ func Test_GetServiceIndicator_GuardNonTransitionalState(t *testing.T) {
 
 	m := Model{}
 	service := &ServiceState{Name: "api", Status: StatusRunning}
-	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
+	service.FSM = newServiceFSM(service, &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name       string
@@ -522,9 +597,11 @@ func Test_GetServiceIndicator_WatchingWithFSM(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	theme := components.DefaultTheme()
 	m := Model{}
+	m.theme = theme
 	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: true}
-	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
+	service.FSM = newServiceFSM(service, &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name       string
@@ -536,7 +613,7 @@ func Test_GetServiceIndicator_WatchingWithFSM(t *testing.T) {
 			name:       "Running state watching not selected shows watch indicator",
 			state:      Running,
 			isSelected: false,
-			want:       components.IndicatorWatchStyle.Render(components.IndicatorWatch),
+			want:       theme.IndicatorWatchStyle.Render(components.IndicatorWatch),
 		},
 		{
 			name:       "Running state watching selected shows unstyled watch indicator",
@@ -557,7 +634,9 @@ func Test_GetServiceIndicator_WatchingWithFSM(t *testing.T) {
 }
 
 func Test_GetWatchIndicator(t *testing.T) {
+	theme := components.DefaultTheme()
 	m := Model{}
+	m.theme = theme
 
 	tests := []struct {
 		name       string
@@ -567,7 +646,7 @@ func Test_GetWatchIndicator(t *testing.T) {
 		{
 			name:       "not selected returns styled indicator",
 			isSelected: false,
-			want:       components.IndicatorWatchStyle.Render(components.IndicatorWatch),
+			want:       theme.IndicatorWatchStyle.Render(components.IndicatorWatch),
 		},
 		{
 			name:       "selected returns unstyled indicator",
@@ -590,7 +669,7 @@ func Test_GetServiceIndicator_GuardBlinkNil(t *testing.T) {
 
 	m := Model{}
 	service := &ServiceState{Name: "api", Status: StatusRunning, Blink: nil}
-	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
+	service.FSM = newServiceFSM(service, &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name       string
@@ -635,7 +714,7 @@ func Test_GetServiceIndicator_BlinkIndicatorNotSelected(t *testing.T) {
 	m := Model{}
 	blink := components.NewBlink()
 	service := &ServiceState{Name: "api", Status: StatusRunning, Blink: blink}
-	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
+	service.FSM = newServiceFSM(service, &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name  string
@@ -673,7 +752,7 @@ func Test_GetServiceIndicator_BlinkIndicatorSelected(t *testing.T) {
 	m := Model{}
 	blink := components.NewBlink()
 	service := &ServiceState{Name: "api", Status: StatusRunning, Blink: blink}
-	service.FSM = newServiceFSM(service, newTestLoader(), setupViewTestLogger(ctrl))
+	service.FSM = newServiceFSM(service, &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, setupViewTestLogger(ctrl))
 
 	tests := []struct {
 		name  string
@@ -741,13 +820,15 @@ func Test_RenderTip_RotatesOverTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			theme := components.DefaultTheme()
 			m := Model{}
+			m.theme = theme
 			m.ui.tipOffset = tt.tipOffset
 			m.ui.tickCounter = tt.tickCounter
 			m.ui.showTips = true
 
 			result := m.renderTip()
-			assert.Equal(t, components.Tips[tt.wantIndex], result)
+			assert.Equal(t, components.Tips[tt.wantIndex].Render(theme), result)
 		})
 	}
 }

@@ -1,6 +1,9 @@
 package components
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
+
+// Fixed colors (theme-independent, same in light and dark)
+var FgPrimary = lipgloss.Color("#7D56F4")
 
 // App layout styles
 var (
@@ -13,54 +16,20 @@ var (
 // Panel styles
 var (
 	PanelBorderStyle = lipgloss.NewStyle().Foreground(FgPrimary)
-	PanelMutedStyle  = lipgloss.NewStyle().Foreground(FgMuted)
 	PanelTitleStyle  = lipgloss.NewStyle().Foreground(FgPrimary).Bold(true)
 	PanelTitleSpacer = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1)
 )
 
 // Service list styles
 var (
-	TierContainerStyle      = lipgloss.NewStyle().MarginBottom(1)
-	TierHeaderStyle         = lipgloss.NewStyle().Bold(true).Foreground(FgPrimary).Padding(0, 1)
-	ServiceHeaderStyle      = lipgloss.NewStyle().Foreground(FgMuted).Padding(0, 2)
-	ServiceRowStyle         = lipgloss.NewStyle().Padding(0, 2)
-	SelectedServiceRowStyle = lipgloss.NewStyle().Background(BgSelection).Padding(0, 2)
-)
-
-// Status styles
-var (
-	StatusRunningStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning)
-	StatusStartingStyle = lipgloss.NewStyle().Foreground(FgStatusWarning)
-	StatusFailedStyle   = lipgloss.NewStyle().Foreground(FgStatusError)
-	StatusStoppedStyle  = lipgloss.NewStyle().Foreground(FgStatusStopped)
-)
-
-// Phase styles
-var (
-	PhaseStartingStyle = lipgloss.NewStyle().Foreground(FgStatusWarning)
-	PhaseRunningStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning)
-	PhaseStoppingStyle = lipgloss.NewStyle().Foreground(FgStatusError)
-	PhaseMutedStyle    = lipgloss.NewStyle().Foreground(FgMuted)
+	TierContainerStyle = lipgloss.NewStyle().MarginBottom(1)
+	TierHeaderStyle    = lipgloss.NewStyle().Bold(true).Foreground(FgPrimary).Padding(0, 1)
+	ServiceRowStyle    = lipgloss.NewStyle().Padding(0, 2)
 )
 
 // Text styles
 var (
-	BoldStyle = lipgloss.NewStyle().Bold(true)
-)
-
-// Help key/desc styles (matches bubbles/help defaults)
-var (
-	HelpKeyStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#909090", Dark: "#626262"})
-	HelpDescStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B2B2B2", Dark: "#4A4A4A"})
-)
-
-// Common styles
-var (
-	HelpStyle            = lipgloss.NewStyle().Foreground(FgBorder)
-	ErrorStyle           = lipgloss.NewStyle().Foreground(FgStatusError)
-	EmptyStateStyle      = lipgloss.NewStyle().Foreground(FgMuted).Padding(0, 1)
-	SpinnerStyle         = lipgloss.NewStyle().Foreground(FgPrimary)
-	IndicatorActiveStyle = lipgloss.NewStyle().Foreground(FgStatusWarning)
-	IndicatorWatchStyle  = lipgloss.NewStyle().Foreground(FgStatusRunning)
-	LoaderSpacerStyle    = lipgloss.NewStyle().PaddingLeft(1)
+	BoldStyle         = lipgloss.NewStyle().Bold(true)
+	SpinnerStyle      = lipgloss.NewStyle().Foreground(FgPrimary)
+	LoaderSpacerStyle = lipgloss.NewStyle().PaddingLeft(1)
 )

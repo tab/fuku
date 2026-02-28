@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
 
 	"fuku/internal/app/ui/components"
@@ -19,24 +19,25 @@ import (
 
 // LogFormatter formats log output based on configuration
 type LogFormatter struct {
-	mu             sync.RWMutex
-	format         string
-	enabled        bool
-	maxServiceLen  int
-	separatorStyle lipgloss.Style
-	messageStyle   lipgloss.Style
-	serviceStyles  map[string]lipgloss.Style
+	mu            sync.RWMutex
+	format        string
+	enabled       bool
+	maxServiceLen int
+	theme         components.Theme
+	serviceStyles map[string]lipgloss.Style
 }
 
 // NewLogFormatter creates a new LogFormatter
 func NewLogFormatter(cfg *config.Config) *LogFormatter {
+	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	theme := components.NewTheme(isDark)
+
 	return &LogFormatter{
-		format:         cfg.Logging.Format,
-		enabled:        false,
-		maxServiceLen:  components.DefaultMaxServiceLen,
-		separatorStyle: lipgloss.NewStyle().Foreground(components.LogSeparatorColor),
-		messageStyle:   lipgloss.NewStyle(),
-		serviceStyles:  make(map[string]lipgloss.Style),
+		format:        cfg.Logging.Format,
+		enabled:       false,
+		maxServiceLen: components.DefaultMaxServiceLen,
+		theme:         theme,
+		serviceStyles: make(map[string]lipgloss.Style),
 	}
 }
 
@@ -115,7 +116,7 @@ func (f *LogFormatter) RenderBanner(w io.Writer, status StatusMessage, subscribe
 	innerWidth := termWidth - components.PanelInnerPadding
 	border := func(s string) string { return components.PanelBorderStyle.Render(s) }
 
-	muted := components.PanelMutedStyle.Render
+	muted := f.theme.PanelMutedStyle.Render
 	bold := components.BoldStyle.Render
 
 	field := func(label, value string) string {
@@ -134,10 +135,11 @@ func (f *LogFormatter) RenderBanner(w io.Writer, status StatusMessage, subscribe
 	lines := []string{topBorder}
 	lines = components.AppendContentLines(lines, contentLines, innerWidth, border)
 
-	bottomBorder := components.BuildBottomBorder(border, "", "v"+status.Version, innerWidth)
+	versionText := f.theme.PanelMutedStyle.Render("v" + status.Version)
+	bottomBorder := components.BuildBottomBorder(border, "", versionText, innerWidth)
 	lines = append(lines, bottomBorder)
 
-	footer := " " + components.HelpKeyStyle.Render("ctrl+c") + " " + components.HelpDescStyle.Render("exit")
+	footer := " " + f.theme.HelpKeyStyle.Render("ctrl+c") + " " + f.theme.HelpDescStyle.Render("exit")
 	lines = append(lines, footer, "")
 
 	for _, line := range lines {
@@ -196,8 +198,8 @@ func (f *LogFormatter) formatLine(service, message string) string {
 	paddedName := service + strings.Repeat(" ", padding)
 
 	return style.Render(paddedName) + " " +
-		f.separatorStyle.Render("|") + " " +
-		f.messageStyle.Render(message) + "\n"
+		f.theme.LogsSeparatorStyle.Render("|") + " " +
+		message + "\n"
 }
 
 // getServiceStyle returns a consistent style for a service name
@@ -206,9 +208,9 @@ func (f *LogFormatter) getServiceStyle(service string) lipgloss.Style {
 		return style
 	}
 
-	colorIndex := hashString(service) % len(components.ServiceColorPalette)
-	color := components.ServiceColorPalette[colorIndex]
-	style := lipgloss.NewStyle().Foreground(color).Bold(true)
+	colorIndex := hashString(service) % len(f.theme.ServiceColorPalette)
+	c := f.theme.ServiceColorPalette[colorIndex]
+	style := f.theme.NewLogsServiceNameStyle(c)
 	f.serviceStyles[service] = style
 
 	return style

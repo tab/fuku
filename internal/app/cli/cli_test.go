@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -509,7 +509,7 @@ type quitModel struct{}
 
 func (m quitModel) Init() tea.Cmd                       { return tea.Quit }
 func (m quitModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return m, tea.Quit }
-func (m quitModel) View() string                        { return "" }
+func (m quitModel) View() tea.View                      { return tea.NewView("") }
 
 func Test_runWithUI(t *testing.T) {
 	t.Run("UI creation error", func(t *testing.T) {

@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/ui/components"
@@ -12,9 +13,9 @@ import (
 )
 
 // View renders the UI
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	if !m.state.ready {
-		return "initializing…"
+		return tea.NewView("initializing…")
 	}
 
 	panelWidth := m.ui.width
@@ -32,7 +33,10 @@ func (m Model) View() string {
 		Width:   panelWidth,
 	})
 
-	return components.AppContainerStyle.Render(panel)
+	v := tea.NewView(components.AppContainerStyle.Render(panel))
+	v.AltScreen = true
+
+	return v
 }
 
 // renderStatus renders the status bar with phase and service counts
@@ -41,18 +45,18 @@ func (m Model) renderStatus() string {
 	total := m.getTotalServices()
 
 	phaseStr := string(m.state.phase)
-	phaseStyle := components.PhaseMutedStyle
+	phaseStyle := m.theme.PhaseMutedStyle
 
 	switch m.state.phase {
 	case bus.PhaseStartup:
 		phaseStr = "starting…"
-		phaseStyle = components.PhaseStartingStyle
+		phaseStyle = m.theme.PhaseStartingStyle
 	case bus.PhaseRunning:
 		phaseStr = "running"
-		phaseStyle = components.PhaseRunningStyle
+		phaseStyle = m.theme.PhaseRunningStyle
 	case bus.PhaseStopping:
 		phaseStr = "stopping"
-		phaseStyle = components.PhaseStoppingStyle
+		phaseStyle = m.theme.PhaseStoppingStyle
 	}
 
 	return fmt.Sprintf("%s %d/%d ready",
@@ -64,7 +68,7 @@ func (m Model) renderStatus() string {
 
 // renderVersion renders the version string
 func (m Model) renderVersion() string {
-	return fmt.Sprintf("v%s", config.Version)
+	return m.theme.PanelMutedStyle.Render(fmt.Sprintf("v%s", config.Version))
 }
 
 // renderAppStats renders fuku's own CPU and memory usage
@@ -73,12 +77,14 @@ func (m Model) renderAppStats() string {
 		return ""
 	}
 
-	return fmt.Sprintf("cpu %s • mem %s", formatCPU(m.state.appCPU), formatMEM(m.state.appMEM))
+	return m.theme.PanelMutedStyle.Render(
+		fmt.Sprintf("cpu %s • mem %s", formatCPU(m.state.appCPU), formatMEM(m.state.appMEM)),
+	)
 }
 
 // renderHelp renders the help text with keybindings
 func (m Model) renderHelp() string {
-	return components.HelpStyle.Render(m.ui.help.View(m.ui.servicesKeys))
+	return m.theme.HelpStyle.Render(m.ui.help.View(m.ui.servicesKeys))
 }
 
 // renderTip returns the current rotating tip or empty string if tips disabled
@@ -90,7 +96,7 @@ func (m Model) renderTip() string {
 	rotation := m.ui.tickCounter / components.TipRotationTicks
 	tipIndex := (m.ui.tipOffset + rotation) % len(components.Tips)
 
-	return components.Tips[tipIndex]
+	return components.Tips[tipIndex].Render(m.theme)
 }
 
 // renderTitle renders the title with optional loading spinner
@@ -109,7 +115,7 @@ func (m Model) renderTitle() string {
 // renderServices renders the services list or empty state
 func (m Model) renderServices() string {
 	if len(m.state.tiers) == 0 {
-		return components.EmptyStateStyle.Render("no services configured")
+		return m.theme.EmptyStateStyle.Render("no services configured")
 	}
 
 	return m.ui.servicesViewport.View()
@@ -117,7 +123,7 @@ func (m Model) renderServices() string {
 
 // getRowWidth returns the available width for service rows
 func (m Model) getRowWidth() int {
-	rowWidth := m.ui.servicesViewport.Width
+	rowWidth := m.ui.servicesViewport.Width()
 	if rowWidth < 1 {
 		rowWidth = m.ui.width - components.RowWidthPadding
 	}
@@ -125,41 +131,20 @@ func (m Model) getRowWidth() int {
 	return rowWidth
 }
 
-// clampNameWidth constrains service name width to available space
-func (m Model) clampNameWidth(maxNameLen int) int {
-	availableWidth := m.getRowWidth() - components.FixedColumnsWidth
-	if availableWidth < components.ServiceNameMinWidth {
-		availableWidth = components.ServiceNameMinWidth
-	}
-
-	if maxNameLen > availableWidth {
-		return availableWidth
-	}
-
-	return maxNameLen
-}
-
 // renderColumnHeaders renders the column headers row
-func (m Model) renderColumnHeaders(maxNameLen int) string {
-	rowWidth := m.getRowWidth()
-	maxNameLen = m.clampNameWidth(maxNameLen)
-	prefixWidth := components.ColWidthIndicator + 1 + maxNameLen
+func (m Model) renderColumnHeaders() string {
+	nameCol := strings.Repeat(" ", m.ui.layout.ServiceNameWidth)
+	statusCol := fmt.Sprintf("%-*s", m.ui.layout.StatusWidth, "status")
+	w := m.ui.layout.MetricWidth
+	metricsCol := fmt.Sprintf("%*s%*s%*s%*s", w, "cpu", w, "mem", w, "pid", w, "uptime")
 
-	header := fmt.Sprintf(
-		"%*s  %-*s  %*s  %*s  %*s  %*s",
-		prefixWidth, "",
-		components.ColWidthStatus, "status",
-		components.ColWidthCPU, "cpu",
-		components.ColWidthMem, "mem",
-		components.ColWidthPID, "pid",
-		components.ColWidthUptime, "uptime",
-	)
+	header := nameCol + statusCol + metricsCol
 
-	return components.ServiceHeaderStyle.Width(rowWidth).Render(header)
+	return m.theme.ServiceHeaderStyle.Width(m.getRowWidth()).Render(header)
 }
 
 // renderTier renders a tier header and its service rows
-func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
+func (m Model) renderTier(tier Tier, currentIdx *int) string {
 	rowWidth := m.getRowWidth()
 	rows := make([]string, 0, len(tier.Services)+1)
 
@@ -172,7 +157,7 @@ func (m Model) renderTier(tier Tier, currentIdx *int, maxNameLen int) string {
 		}
 
 		isSelected := *currentIdx == m.state.selected
-		rows = append(rows, m.renderServiceRow(service, isSelected, maxNameLen))
+		rows = append(rows, m.renderServiceRow(service, isSelected))
 
 		*currentIdx++
 	}
@@ -215,7 +200,7 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 		return service.Blink.Frame()
 	}
 
-	return service.Blink.Render(components.IndicatorActiveStyle)
+	return service.Blink.Render(m.theme.IndicatorActiveStyle)
 }
 
 // getWatchIndicator returns the styled watch indicator
@@ -224,26 +209,39 @@ func (m Model) getWatchIndicator(isSelected bool) string {
 		return components.IndicatorWatch
 	}
 
-	return components.IndicatorWatchStyle.Render(components.IndicatorWatch)
+	return m.theme.IndicatorWatchStyle.Render(components.IndicatorWatch)
 }
 
 // renderServiceRow renders a single service row with all columns
-func (m Model) renderServiceRow(service *ServiceState, isSelected bool, maxNameLen int) string {
+func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 	rowWidth := m.getRowWidth()
 	indicator := m.getServiceIndicator(service, isSelected)
-	name := components.TruncateAndPad(service.Name, m.clampNameWidth(maxNameLen))
-	status := m.getStyledAndPaddedStatus(service, isSelected)
-	details := m.getServiceDetails(service, isSelected)
 
-	row := fmt.Sprintf("%s %s  %s  %s", indicator, name, status, details)
-	row = components.PadRight(row, rowWidth)
+	nameTextWidth := m.ui.layout.ServiceNameWidth - components.IndicatorColumnWidth
+	name := components.TruncateAndPad(service.Name, nameTextWidth)
+	nameCol := fmt.Sprintf("%s %s", indicator, name)
+
+	statusCol := m.getStyledAndPaddedStatus(service, isSelected)
+	details := m.getServiceDetails(service, isSelected)
 
 	style := components.ServiceRowStyle
 	if isSelected {
-		style = components.SelectedServiceRowStyle
+		style = m.theme.SelectedRowStyle
 	}
 
+	row := m.buildServiceRow(nameCol, statusCol, details, service.Error != nil, rowWidth)
+
 	return style.Width(rowWidth).Render(row)
+}
+
+// buildServiceRow positions details: errors left-aligned after status, metrics right-aligned to edge
+func (m Model) buildServiceRow(nameCol, statusCol, details string, hasError bool, rowWidth int) string {
+	row := nameCol + statusCol + details
+	if hasError {
+		return components.PadRight(row, rowWidth)
+	}
+
+	return row
 }
 
 // getServiceDetails returns either error message or metrics columns
@@ -251,17 +249,17 @@ func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string 
 	if service.Error != nil {
 		errorMsg := fmt.Sprintf("%s%s", components.ErrorPadding, renderError(service.Error))
 		if !isSelected {
-			return components.ErrorStyle.Render(errorMsg)
+			return m.theme.ErrorStyle.Render(errorMsg)
 		}
 
 		return errorMsg
 	}
 
-	return fmt.Sprintf("%*s  %*s  %*s  %*s",
-		components.ColWidthCPU, m.getCPU(service),
-		components.ColWidthMem, m.getMem(service),
-		components.ColWidthPID, m.getPID(service),
-		components.ColWidthUptime, m.getUptime(service),
+	return fmt.Sprintf("%*s%*s%*s%*s",
+		m.ui.layout.MetricWidth, m.getCPU(service),
+		m.ui.layout.MetricWidth, m.getMem(service),
+		m.ui.layout.MetricWidth, m.getPID(service),
+		m.ui.layout.MetricWidth, m.getUptime(service),
 	)
 }
 
@@ -269,7 +267,7 @@ func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string 
 func (m Model) getStyledAndPaddedStatus(service *ServiceState, isSelected bool) string {
 	statusStr := string(service.Status)
 
-	paddingLen := components.ColWidthStatus - len(statusStr)
+	paddingLen := m.ui.layout.StatusWidth - len(statusStr)
 	if paddingLen < 0 {
 		paddingLen = 0
 	}
@@ -284,13 +282,13 @@ func (m Model) getStyledAndPaddedStatus(service *ServiceState, isSelected bool) 
 
 	switch service.Status {
 	case StatusRunning:
-		styledStatus = components.StatusRunningStyle.Render(statusStr)
+		styledStatus = m.theme.StatusRunningStyle.Render(statusStr)
 	case StatusStarting:
-		styledStatus = components.StatusStartingStyle.Render(statusStr)
+		styledStatus = m.theme.StatusStartingStyle.Render(statusStr)
 	case StatusFailed:
-		styledStatus = components.StatusFailedStyle.Render(statusStr)
+		styledStatus = m.theme.StatusFailedStyle.Render(statusStr)
 	case StatusStopped:
-		styledStatus = components.StatusStoppedStyle.Render(statusStr)
+		styledStatus = m.theme.StatusStoppedStyle.Render(statusStr)
 	default:
 		styledStatus = statusStr
 	}

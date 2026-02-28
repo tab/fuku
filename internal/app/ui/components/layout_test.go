@@ -7,6 +7,67 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_ComputeTableLayout(t *testing.T) {
+	tests := []struct {
+		name         string
+		contentWidth int
+		want         TableLayout
+	}{
+		{
+			name:         "negative contentWidth clamped to zero",
+			contentWidth: -5,
+			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, StatusWidth: 0, MetricWidth: 0},
+		},
+		{
+			name:         "zero contentWidth",
+			contentWidth: 0,
+			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, StatusWidth: 0, MetricWidth: 0},
+		},
+		{
+			name:         "narrow terminal (72 cols)",
+			contentWidth: 66,
+			want:         TableLayout{ContentWidth: 66, ServiceNameWidth: 29, StatusWidth: 13, MetricWidth: 6},
+		},
+		{
+			name:         "just below wide breakpoint",
+			contentWidth: 97,
+			want:         TableLayout{ContentWidth: 97, ServiceNameWidth: 42, StatusWidth: 19, MetricWidth: 9},
+		},
+		{
+			name:         "at wide breakpoint (104 cols)",
+			contentWidth: 98,
+			want:         TableLayout{ContentWidth: 98, ServiceNameWidth: 43, StatusWidth: 19, MetricWidth: 9},
+		},
+		{
+			name:         "exact 100 width",
+			contentWidth: 100,
+			want:         TableLayout{ContentWidth: 100, ServiceNameWidth: 40, StatusWidth: 20, MetricWidth: 10},
+		},
+		{
+			name:         "at 114 width (status capped)",
+			contentWidth: 114,
+			want:         TableLayout{ContentWidth: 114, ServiceNameWidth: 50, StatusWidth: 20, MetricWidth: 11},
+		},
+		{
+			name:         "at 120 width (both capped)",
+			contentWidth: 120,
+			want:         TableLayout{ContentWidth: 120, ServiceNameWidth: 52, StatusWidth: 20, MetricWidth: 12},
+		},
+		{
+			name:         "ultra-wide terminal (name absorbs extra)",
+			contentWidth: 200,
+			want:         TableLayout{ContentWidth: 200, ServiceNameWidth: 132, StatusWidth: 20, MetricWidth: 12},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ComputeTableLayout(tt.contentWidth)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func Test_RenderPanel(t *testing.T) {
 	t.Run("renders basic panel", func(t *testing.T) {
 		opts := PanelOptions{

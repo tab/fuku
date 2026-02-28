@@ -14,7 +14,7 @@ const (
 	StatsMaxConcurrency  = 50
 )
 
-// Layout constants
+// Panel layout constants
 const (
 	PanelHeightPadding = 4
 	PanelInnerPadding  = 2
@@ -41,22 +41,14 @@ const (
 	IndicatorWatch    = "◉"
 )
 
-// Services view constants
+// Table layout constants
 const (
-	FixedColumnsWidth   = 50
-	ServiceNameMinWidth = 20
-	RowWidthPadding     = 8
-	ErrorPadding        = "  "
-)
-
-// Column widths for services table
-const (
-	ColWidthIndicator = 1
-	ColWidthStatus    = 10
-	ColWidthCPU       = 6
-	ColWidthMem       = 6
-	ColWidthPID       = 8
-	ColWidthUptime    = 8
+	MaxMetricWidth       = 12
+	MaxStatusWidth       = 20
+	IndicatorColumnWidth = 2
+	RowWidthPadding      = 8
+	RowHorizontalPadding = 4
+	ErrorPadding         = "  "
 )
 
 // Unit conversion constants

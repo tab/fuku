@@ -3,12 +3,13 @@ package services
 import (
 	"context"
 	"math/rand"
+	"os"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/looplab/fsm"
 
 	"fuku/internal/app/bus"
@@ -98,6 +99,8 @@ type Model struct {
 	loader     *Loader
 	msgChan    <-chan bus.Message
 
+	theme components.Theme
+
 	state struct {
 		profile      string
 		phase        bus.Phase
@@ -113,6 +116,7 @@ type Model struct {
 	ui struct {
 		height           int
 		width            int
+		layout           components.TableLayout
 		servicesKeys     KeyMap
 		tickCounter      int
 		showTips         bool
@@ -139,6 +143,9 @@ func NewModel(
 
 	log.Debug().Msg("Created model and subscribed to events")
 
+	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	theme := components.NewTheme(isDark)
+
 	m := Model{
 		ctx:        ctx,
 		bus:        b,
@@ -147,6 +154,7 @@ func NewModel(
 		loader:     loader,
 		msgChan:    msgChan,
 		log:        log,
+		theme:      theme,
 	}
 
 	m.state.profile = profile
@@ -163,7 +171,8 @@ func NewModel(
 	m.ui.showTips = true
 	m.ui.tipOffset = rand.Intn(len(components.Tips)) //nolint:gosec // not security-critical
 	m.ui.help = help.New()
-	m.ui.servicesViewport = viewport.New(0, 0)
+	m.ui.help.Styles = help.DefaultStyles(isDark)
+	m.ui.servicesViewport = viewport.New()
 
 	return m
 }
@@ -175,7 +184,13 @@ func (m Model) Init() tea.Cmd {
 		waitForMsgCmd(m.msgChan),
 		tickCmd(),
 		statsWorkerCmd(m.ctx, &m),
+		requestBackgroundColorCmd,
 	)
+}
+
+// requestBackgroundColorCmd asks the terminal for its background color
+func requestBackgroundColorCmd() tea.Msg {
+	return tea.RequestBackgroundColor()
 }
 
 // getSelectedService returns the currently selected service state
@@ -222,24 +237,10 @@ func (m Model) getReadyServices() int {
 	return count
 }
 
-// getMaxServiceNameLength returns the maximum service name length for formatting
-func (m Model) getMaxServiceNameLength() int {
-	maxLen := components.ServiceNameMinWidth
-
-	for _, service := range m.state.services {
-		nameWidth := lipgloss.Width(service.Name)
-		if nameWidth > maxLen {
-			maxLen = nameWidth
-		}
-	}
-
-	return maxLen
-}
-
 // calculateScrollOffset calculates the scroll offset to ensure the selected service is visible
 func (m Model) calculateScrollOffset() int {
-	if m.ui.servicesViewport.Height == 0 {
-		return m.ui.servicesViewport.YOffset
+	if m.ui.servicesViewport.Height() == 0 {
+		return m.ui.servicesViewport.YOffset()
 	}
 
 	lineNumber := 1
@@ -265,8 +266,8 @@ func (m Model) calculateScrollOffset() int {
 				continue
 			}
 
-			viewportTop := m.ui.servicesViewport.YOffset
-			viewportBottom := viewportTop + m.ui.servicesViewport.Height - 1
+			viewportTop := m.ui.servicesViewport.YOffset()
+			viewportBottom := viewportTop + m.ui.servicesViewport.Height() - 1
 
 			switch {
 			case lineNumber < viewportTop && serviceIndexInTier == 0:
@@ -274,14 +275,14 @@ func (m Model) calculateScrollOffset() int {
 			case lineNumber < viewportTop:
 				return lineNumber
 			case lineNumber > viewportBottom:
-				return lineNumber - m.ui.servicesViewport.Height + 1
+				return lineNumber - m.ui.servicesViewport.Height() + 1
 			default:
-				return m.ui.servicesViewport.YOffset
+				return m.ui.servicesViewport.YOffset()
 			}
 		}
 	}
 
-	return m.ui.servicesViewport.YOffset
+	return m.ui.servicesViewport.YOffset()
 }
 
 // updateServicesContent builds the full services content and sets it in the viewport
@@ -292,15 +293,13 @@ func (m *Model) updateServicesContent() {
 		return
 	}
 
-	maxNameLen := m.getMaxServiceNameLength()
-
 	sections := make([]string, 0, len(m.state.tiers)+1)
-	sections = append(sections, m.renderColumnHeaders(maxNameLen))
+	sections = append(sections, m.renderColumnHeaders())
 
 	currentIdx := 0
 
 	for _, tier := range m.state.tiers {
-		sections = append(sections, m.renderTier(tier, &currentIdx, maxNameLen))
+		sections = append(sections, m.renderTier(tier, &currentIdx))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)

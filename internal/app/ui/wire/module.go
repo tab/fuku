@@ -3,7 +3,7 @@ package wire
 import (
 	"context"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"go.uber.org/fx"
 
 	"fuku/internal/app/bus"
@@ -47,7 +47,6 @@ func NewUI(params UIParams) UI {
 
 		p := tea.NewProgram(
 			model,
-			tea.WithAltScreen(),
 			tea.WithContext(ctx),
 		)
 

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -16,23 +16,18 @@ import (
 	"fuku/internal/config/logger"
 )
 
-func newTestLogger(ctrl *gomock.Controller) *logger.MockLogger {
-	mockLog := logger.NewMockLogger(ctrl)
-	noopLogger := zerolog.New(io.Discard)
-	noopEvent := noopLogger.Debug()
-	mockLog.EXPECT().Debug().Return(noopEvent).AnyTimes()
-	mockLog.EXPECT().Info().Return(noopEvent).AnyTimes()
-	mockLog.EXPECT().Warn().Return(noopEvent).AnyTimes()
-	mockLog.EXPECT().Error().Return(noopEvent).AnyTimes()
-
-	return mockLog
-}
-
 func Test_HandleProfileResolved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
@@ -65,7 +60,14 @@ func Test_HandleProfileResolved_InvalidData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 	event := bus.Message{Type: bus.EventProfileResolved, Data: "invalid"}
@@ -77,7 +79,14 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
@@ -120,7 +129,14 @@ func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 	m.state.selected = 5
@@ -141,7 +157,14 @@ func Test_HandleProfileResolved_PreservesReadyState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	m := Model{log: newTestLogger(ctrl), loader: NewLoader()}
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 	m.state.ready = true
@@ -166,7 +189,14 @@ func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
 	loader.Start("old-service-1", "starting old-service-1")
 	loader.Start("old-service-2", "starting old-service-2")
 
-	m := Model{log: newTestLogger(ctrl), loader: loader}
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: loader}
 	m.state.services = make(map[string]*ServiceState)
 	m.state.tiers = make([]Tier, 0)
 
@@ -238,7 +268,13 @@ func Test_HandleServiceStarting(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	mockController := NewMockController(ctrl)
-	mockLog := newTestLogger(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	service := &ServiceState{Name: "api", Status: StatusStopped}
 	m := Model{
@@ -511,7 +547,7 @@ func Test_HandleKeyPress_ForceQuitWithCtrlC(t *testing.T) {
 	m.state.shuttingDown = false
 	m.ui.servicesKeys = DefaultKeyMap()
 
-	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	msg := tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	teaModel, cmd := m.handleKeyPress(msg)
 	result := teaModel.(Model)
 
@@ -595,7 +631,7 @@ func Test_HandleKeyPress_CtrlCForcesImmediateQuit(t *testing.T) {
 	m.state.shuttingDown = false
 	m.ui.servicesKeys = DefaultKeyMap()
 
-	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	msg := tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	_, cmd := m.handleKeyPress(msg)
 
 	assert.NotNil(t, cmd)
@@ -615,7 +651,7 @@ func Test_Update_KeyMsg_CtrlCForceQuitsDuringShutdown(t *testing.T) {
 	m.state.shuttingDown = true
 	m.ui.servicesKeys = DefaultKeyMap()
 
-	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	msg := tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	_, cmd := m.Update(msg)
 
 	assert.NotNil(t, cmd)
@@ -717,6 +753,6 @@ func Test_HandleSignal(t *testing.T) {
 	assert.Equal(t, "shutting down all services…", result.loader.Message())
 }
 
-func toKeyMsg(s string) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+func toKeyMsg(s string) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: rune(s[0]), Text: s}
 }

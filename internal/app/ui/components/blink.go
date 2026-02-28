@@ -3,8 +3,8 @@ package components
 import (
 	"math/rand/v2"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/harmonica"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // Blink animation constants

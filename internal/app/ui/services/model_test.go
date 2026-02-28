@@ -211,60 +211,13 @@ func Test_GetSelectedService(t *testing.T) {
 	}
 }
 
-func Test_GetMaxServiceNameLength(t *testing.T) {
-	tests := []struct {
-		name     string
-		services map[string]*ServiceState
-		want     int
-	}{
-		{
-			name:     "empty services returns default",
-			services: map[string]*ServiceState{},
-			want:     20,
-		},
-		{
-			name:     "short names return default",
-			services: map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}},
-			want:     20,
-		},
-		{
-			name:     "long name exceeds default",
-			services: map[string]*ServiceState{"action-confirmation-management-service": {Name: "action-confirmation-management-service"}},
-			want:     38,
-		},
-		{
-			name:     "mixed lengths uses longest",
-			services: map[string]*ServiceState{"api": {Name: "api"}, "user-management-service": {Name: "user-management-service"}},
-			want:     23,
-		},
-		{
-			name:     "emoji display width",
-			services: map[string]*ServiceState{"api-🔥": {Name: "api-🔥"}},
-			want:     20,
-		},
-		{
-			name:     "CJK double-width characters",
-			services: map[string]*ServiceState{"测试服务": {Name: "测试服务"}},
-			want:     20,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := Model{}
-			m.state.services = tt.services
-			assert.Equal(t, tt.want, m.getMaxServiceNameLength())
-		})
-	}
-}
-
 func Test_CalculateScrollOffset(t *testing.T) {
 	t.Run("zero height viewport returns current offset", func(t *testing.T) {
 		m := Model{}
 		m.state.tiers = []Tier{{Services: []string{"api"}}}
 		m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
 		m.state.selected = 0
-		m.ui.servicesViewport.Height = 0
+		m.ui.servicesViewport.SetHeight(0)
 
 		offset := m.calculateScrollOffset()
 
@@ -276,7 +229,7 @@ func Test_CalculateScrollOffset(t *testing.T) {
 		m.state.tiers = []Tier{{Services: []string{"api", "db"}}}
 		m.state.services = map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}}
 		m.state.selected = 0
-		m.ui.servicesViewport.Height = 10
+		m.ui.servicesViewport.SetHeight(10)
 
 		offset := m.calculateScrollOffset()
 
@@ -294,7 +247,7 @@ func Test_CalculateScrollOffset(t *testing.T) {
 			"c": {Name: "c"}, "d": {Name: "d"},
 		}
 		m.state.selected = 3
-		m.ui.servicesViewport.Height = 20
+		m.ui.servicesViewport.SetHeight(20)
 
 		offset := m.calculateScrollOffset()
 
@@ -306,8 +259,8 @@ func Test_CalculateScrollOffset(t *testing.T) {
 		m.state.tiers = []Tier{{Services: []string{"a", "b", "c", "d", "e", "f"}}}
 		m.state.services = map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}}
 		m.state.selected = 5
-		m.ui.servicesViewport.Height = 3
-		m.ui.servicesViewport.YOffset = 0
+		m.ui.servicesViewport.SetHeight(3)
+		m.ui.servicesViewport.SetYOffset(0)
 
 		offset := m.calculateScrollOffset()
 
@@ -319,8 +272,8 @@ func Test_CalculateScrollOffset(t *testing.T) {
 		m.state.tiers = []Tier{{Services: []string{"a", "b", "c", "d", "e"}}}
 		m.state.services = map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}}
 		m.state.selected = 0
-		m.ui.servicesViewport.Height = 3
-		m.ui.servicesViewport.YOffset = 10
+		m.ui.servicesViewport.SetHeight(3)
+		m.ui.servicesViewport.SetYOffset(10)
 
 		offset := m.calculateScrollOffset()
 

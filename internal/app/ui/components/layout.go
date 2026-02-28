@@ -3,7 +3,7 @@ package components
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // PanelOptions contains options for rendering a panel
@@ -46,6 +46,40 @@ func RenderPanel(opts PanelOptions) string {
 	footer := renderFooter(opts.Help, opts.Tips, opts.Width)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panel, footer)
+}
+
+// TableLayout holds computed column widths for the services table
+type TableLayout struct {
+	ContentWidth     int
+	ServiceNameWidth int
+	StatusWidth      int
+	MetricWidth      int
+}
+
+// ComputeTableLayout returns column widths based on the available content width
+func ComputeTableLayout(contentWidth int) TableLayout {
+	if contentWidth < 0 {
+		contentWidth = 0
+	}
+
+	metricWidth := contentWidth / 10
+	if metricWidth > MaxMetricWidth {
+		metricWidth = MaxMetricWidth
+	}
+
+	statusWidth := contentWidth / 5
+	if statusWidth > MaxStatusWidth {
+		statusWidth = MaxStatusWidth
+	}
+
+	serviceNameWidth := contentWidth - statusWidth - 4*metricWidth
+
+	return TableLayout{
+		ContentWidth:     contentWidth,
+		ServiceNameWidth: serviceNameWidth,
+		StatusWidth:      statusWidth,
+		MetricWidth:      metricWidth,
+	}
 }
 
 // PadRight pads text to width using display width (not rune count)
@@ -130,15 +164,12 @@ func BuildBottomBorder(border func(string) string, bottomLeftText, bottomRightTe
 	spacer := PanelTitleSpacer.Render("")
 	leftSpacer, rightSpacer := SplitAtDisplayWidth(spacer)
 
-	rightText := PanelMutedStyle.Render(bottomRightText)
-	rightLen := lipgloss.Width(rightText) + SpacerWidth + BorderEdgeWidth
+	rightLen := lipgloss.Width(bottomRightText) + SpacerWidth + BorderEdgeWidth
 
 	leftLen := 0
-	leftText := ""
 
 	if bottomLeftText != "" {
-		leftText = PanelMutedStyle.Render(bottomLeftText)
-		leftLen = lipgloss.Width(leftText) + SpacerWidth + BorderEdgeWidth
+		leftLen = lipgloss.Width(bottomLeftText) + SpacerWidth + BorderEdgeWidth
 	}
 
 	middleWidth := innerWidth - leftLen - rightLen
@@ -148,15 +179,15 @@ func BuildBottomBorder(border func(string) string, bottomLeftText, bottomRightTe
 
 	var result string
 
-	if leftText != "" {
+	if bottomLeftText != "" {
 		result = border(BorderBottomLeft + hLine(BorderEdgeWidth))
-		result += leftSpacer + leftText + rightSpacer
+		result += leftSpacer + bottomLeftText + rightSpacer
 		result += border(hLine(middleWidth))
 	} else {
 		result = border(BorderBottomLeft + hLine(middleWidth+leftLen))
 	}
 
-	result += leftSpacer + rightText + rightSpacer
+	result += leftSpacer + bottomRightText + rightSpacer
 	result += border(hLine(BorderEdgeWidth))
 	result += border(BorderBottomRight)
 
