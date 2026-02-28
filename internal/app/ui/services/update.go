@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/ui/components"
@@ -14,7 +15,6 @@ import (
 
 // Tick timing constants
 const (
-	tickInterval       = components.UITickInterval
 	tickCounterMaximum = 1000000
 )
 
@@ -36,26 +36,40 @@ type channelClosedMsg struct{}
 // Update handles messages and updates the model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 
 	case tea.WindowSizeMsg:
 		m.ui.width = msg.Width
 		m.ui.height = msg.Height
-		m.ui.help.Width = msg.Width
+		m.ui.help.SetWidth(msg.Width)
+
+		contentWidth := msg.Width - components.PanelInnerPadding - components.RowHorizontalPadding
+		m.ui.layout = components.ComputeTableLayout(contentWidth)
 
 		panelHeight := msg.Height - components.PanelHeightPadding
 		if panelHeight < components.MinPanelHeight {
 			panelHeight = components.MinPanelHeight
 		}
 
-		m.ui.servicesViewport.Width = msg.Width - components.PanelInnerPadding
-		m.ui.servicesViewport.Height = panelHeight - components.PanelBorderHeight
+		m.ui.servicesViewport.SetWidth(msg.Width - components.PanelInnerPadding)
+		m.ui.servicesViewport.SetHeight(panelHeight - components.PanelBorderHeight)
 
 		if !m.state.ready {
 			m.state.ready = true
 		}
 
+		m.updateServicesContent()
+
+		return m, nil
+
+	case tea.BackgroundColorMsg:
+		isDark := msg.IsDark()
+
+		m.log.Debug().Bool("isDark", isDark).Str("color", msg.String()).Msg("TUI: Background color detected")
+
+		m.theme = components.NewTheme(isDark)
+		m.ui.help.Styles = help.DefaultStyles(isDark)
 		m.updateServicesContent()
 
 		return m, nil
@@ -101,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyPress processes keyboard input
-func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, m.ui.servicesKeys.ForceQuit) {
 		m.log.Warn().Msg("TUI: Force quit requested, exiting immediately")
 		m.loader.StopAll()
@@ -155,7 +169,7 @@ func (m Model) handleUpKey() (tea.Model, tea.Cmd) {
 	if m.state.selected > 0 {
 		m.state.selected--
 		m.updateServicesContent()
-		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
+		m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
 	}
 
 	return m, nil
@@ -167,7 +181,7 @@ func (m Model) handleDownKey() (tea.Model, tea.Cmd) {
 	if m.state.selected < total-1 {
 		m.state.selected++
 		m.updateServicesContent()
-		m.ui.servicesViewport.YOffset = m.calculateScrollOffset()
+		m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
 	}
 
 	return m, nil
@@ -509,7 +523,7 @@ func waitForMsgCmd(msgChan <-chan bus.Message) tea.Cmd {
 
 // tickCmd returns a command that sends a tick after the interval
 func tickCmd() tea.Cmd {
-	return tea.Tick(tickInterval, func(t time.Time) tea.Msg {
+	return tea.Tick(components.UITickInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

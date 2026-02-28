@@ -4,23 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	"charm.land/bubbles/v2/spinner"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
 	"fuku/internal/config/logger"
 )
-
-func setupTestLogger(ctrl *gomock.Controller) logger.Logger {
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
-	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
-
-	return mockLogger
-}
 
 func Test_NewController(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -41,7 +31,12 @@ func Test_Controller_Start(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -129,7 +124,12 @@ func Test_Controller_Stop(t *testing.T) {
 
 	noopCmd := bus.NoOp()
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(noopCmd)
 	ctx := context.Background()
 
@@ -181,7 +181,12 @@ func Test_Controller_Restart(t *testing.T) {
 
 	noopCmd := bus.NoOp()
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(noopCmd)
 	ctx := context.Background()
 
@@ -256,7 +261,12 @@ func Test_Controller_Stop_PublishesCommand(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -281,7 +291,12 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -372,7 +387,12 @@ func Test_Controller_HandleStarting(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -426,7 +446,12 @@ func Test_Controller_HandleReady(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -467,7 +492,12 @@ func Test_Controller_HandleFailed(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -508,7 +538,12 @@ func Test_Controller_HandleStopping(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -550,7 +585,12 @@ func Test_Controller_HandleRestarting(t *testing.T) {
 
 	mockCmd := bus.NewMockBus(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
@@ -614,7 +654,12 @@ func Test_Controller_HandleStopped(t *testing.T) {
 
 	noopCmd := bus.NoOp()
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	log := setupTestLogger(ctrl)
+	log := logger.NewMockLogger(ctrl)
+	log.EXPECT().Debug().Return(nil).AnyTimes()
+	log.EXPECT().Info().Return(nil).AnyTimes()
+	log.EXPECT().Warn().Return(nil).AnyTimes()
+	log.EXPECT().Error().Return(nil).AnyTimes()
+
 	c := NewController(noopCmd)
 	ctx := context.Background()
 
