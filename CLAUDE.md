@@ -295,7 +295,7 @@
 - `internal/config/sentry/sentry_test.go` - Sentry client initialization testing
 - `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
-- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command)
+- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management)
 
 ## Primary Guidelines
 
@@ -564,9 +564,9 @@ git branch -D feature-branch-name
 - error tracking: `github.com/getsentry/sentry-go`
 - testing: `github.com/stretchr/testify`
 - mock generation: `go.uber.org/mock`
-- TUI framework: `github.com/charmbracelet/bubbletea`
-- TUI components: `github.com/charmbracelet/bubbles`
-- TUI styling: `github.com/charmbracelet/lipgloss`
+- TUI framework: `charm.land/bubbletea/v2`
+- TUI components: `charm.land/bubbles/v2`
+- TUI styling: `charm.land/lipgloss/v2`
 - FSM: `github.com/looplab/fsm`
 - process monitoring: `github.com/shirou/gopsutil/v4`
 

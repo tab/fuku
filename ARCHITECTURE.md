@@ -452,12 +452,18 @@ registry.Add(serviceName, newProc, tier)
 
 ### Context Management
 
-The CLI creates a single cancellable context that coordinates both the runner and UI lifecycles:
+The CLI creates a single cancellable context that coordinates both the runner and UI lifecycles. The UI program is created first to avoid a race condition, then the runner starts in a background goroutine:
 
 ```go
 func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
     ctx, cancel := context.WithCancel(ctx)
     defer cancel()
+
+    // UI program is created first to ensure it's ready before runner starts
+    program, err := c.ui(ctx, profile)
+    if err != nil {
+        return 1, err
+    }
 
     // Runner runs in background goroutine
     go func() {
@@ -465,14 +471,17 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
     }()
 
     // UI runs in foreground, blocks until user quits
-    p, _ := c.ui(ctx, profile)
-    p.Run()
+    if _, err := program.Run(); err != nil {
+        cancel()
+        <-runnerErrChan
+        return 1, err
+    }
 
     // When UI exits, cancel context to stop runner
     cancel()
 
     // Wait for runner to finish
-    err := <-runnerErrChan
+    err = <-runnerErrChan
 }
 ```
 
