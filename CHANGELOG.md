@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## v0.15.2
+
+### Fixes
+- **fix:** Fix UI initialization sequence
+
+### Refactor
+- **refactor:** Update to bubbletea v2.0.0
+
+### Tests
+- **test:** Add lifecycle management e2e tests
+
 ## v0.15.1
 
 ### Fixes
