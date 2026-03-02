@@ -1,0 +1,224 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/features/`;
+---
+
+<DocsLayout
+  title="Features - Fuku"
+  description="Detailed feature documentation for fuku."
+  current={current}
+>
+  <h1>Features</h1>
+  <p class="lead">Service orchestration, readiness checks, hot-reload, log streaming, and more.</p>
+
+  <h2>Service Orchestration &amp; Tiers</h2>
+
+  <p>
+    Fuku starts services in tier order — earlier tiers fully start (and pass readiness checks) before later tiers begin. Within a tier, services start concurrently up to the configured worker limit.
+  </p>
+
+  <p>Example tier setup:</p>
+  <div class="code-block">
+    <pre><code>services:
+  postgres:
+    dir: infrastructure/postgres
+    tier: foundation            # Starts first
+
+  redis:
+    dir: infrastructure/redis
+    tier: foundation            # Same tier — starts with postgres
+
+  api:
+    dir: backend/api
+    tier: platform              # Starts after foundation is ready
+
+  web:
+    dir: frontend
+    tier: edge                  # Starts after platform is ready</code></pre>
+  </div>
+
+  <p>On shutdown, services stop in reverse tier order — edge first, then platform, then foundation.</p>
+
+  <hr />
+
+  <h2>Readiness Checks</h2>
+
+  <p>
+    Readiness checks confirm a service is truly ready before the next tier starts. Three check types are supported:
+  </p>
+
+  <h3>HTTP</h3>
+  <p>Wait for an HTTP endpoint to respond with a 2xx status:</p>
+  <div class="code-block">
+    <pre><code>readiness:
+  type: http
+  url: http://localhost:8080/health
+  timeout: 30s
+  interval: 1s</code></pre>
+  </div>
+
+  <h3>TCP</h3>
+  <p>Wait for a TCP port to accept connections:</p>
+  <div class="code-block">
+    <pre><code>readiness:
+  type: tcp
+  address: localhost:6379
+  timeout: 10s
+  interval: 1s</code></pre>
+  </div>
+
+  <h3>Log</h3>
+  <p>Wait for a pattern to appear in service output:</p>
+  <div class="code-block">
+    <pre><code>readiness:
+  type: log
+  pattern: "gRPC server started"
+  timeout: 30s</code></pre>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>type</code></td>
+        <td><code>http</code>, <code>tcp</code>, or <code>log</code></td>
+      </tr>
+      <tr>
+        <td><code>url</code></td>
+        <td>HTTP endpoint to check (http type only)</td>
+      </tr>
+      <tr>
+        <td><code>address</code></td>
+        <td>Host:port to connect to (tcp type only)</td>
+      </tr>
+      <tr>
+        <td><code>pattern</code></td>
+        <td>String to match in log output (log type only)</td>
+      </tr>
+      <tr>
+        <td><code>timeout</code></td>
+        <td>Maximum time to wait before failing</td>
+      </tr>
+      <tr>
+        <td><code>interval</code></td>
+        <td>Time between check attempts (http/tcp only)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr />
+
+  <h2>Hot-Reload</h2>
+
+  <p>
+    Fuku watches for file changes and automatically restarts the affected service. A debounce timer prevents restart storms when multiple files change at once.
+  </p>
+
+  <div class="code-block">
+    <pre><code>services:
+  api:
+    dir: ./api
+    watch:
+      include: ["**/*.go"]           # Glob patterns to watch
+      ignore: ["**/*_test.go"]       # Patterns to ignore
+      shared: ["pkg/common"]         # Shared paths (triggers restart)
+      debounce: 300ms                # Debounce duration (default: 300ms)</code></pre>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>include</code></td>
+        <td>Glob patterns for files to watch</td>
+      </tr>
+      <tr>
+        <td><code>ignore</code></td>
+        <td>Glob patterns for files to exclude</td>
+      </tr>
+      <tr>
+        <td><code>shared</code></td>
+        <td>Paths shared across services — changes trigger a restart for this service</td>
+      </tr>
+      <tr>
+        <td><code>debounce</code></td>
+        <td>Wait time after last change before restarting (default: 300ms)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr />
+
+  <h2>Log Streaming</h2>
+
+  <p>
+    While fuku is running, you can stream logs from a separate terminal using <code>fuku logs</code>. Logs are streamed over Unix sockets with service name prefixes.
+  </p>
+
+  <div class="code-block">
+    <pre><code># All services
+fuku logs
+
+# Specific services
+fuku logs api auth
+
+# Filter by profile
+fuku logs --profile core api</code></pre>
+  </div>
+
+  <h3>Per-Service Log Output</h3>
+
+  <p>Control which output streams are captured per service:</p>
+
+  <div class="code-block">
+    <pre><code>services:
+  api:
+    dir: ./api
+    logs:
+      output: [stdout]              # Only capture stdout
+  worker:
+    dir: ./worker
+    logs:
+      output: [stdout, stderr]      # Capture both (default)</code></pre>
+  </div>
+
+  <p>Valid values: <code>stdout</code>, <code>stderr</code>. When omitted, both streams are captured.</p>
+
+  <hr />
+
+  <h2>Pre-flight Cleanup</h2>
+
+  <p>
+    Before starting services, fuku automatically detects and terminates orphaned processes from previous runs. This prevents port conflicts and zombie processes.
+  </p>
+
+  <p>
+    Pre-flight checks each service directory for leftover PID files and kills any stale processes before starting fresh.
+  </p>
+
+  <hr />
+
+  <h2>Graceful Shutdown</h2>
+
+  <p>
+    When you press <code>q</code> in the TUI or send SIGINT/SIGTERM, fuku performs a graceful shutdown:
+  </p>
+
+  <ol>
+    <li>Services are stopped in reverse tier order (edge &rarr; platform &rarr; foundation)</li>
+    <li>Each service receives SIGTERM first</li>
+    <li>If the service doesn't exit within the timeout, SIGKILL is sent</li>
+  </ol>
+</DocsLayout>

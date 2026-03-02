@@ -1,0 +1,168 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/cli/`;
+---
+
+<DocsLayout
+  title="CLI Commands - Fuku"
+  description="Command reference for the fuku CLI."
+  current={current}
+>
+  <h1>CLI Commands</h1>
+  <p class="lead">Command reference, flags, TUI controls, and environment file loading.</p>
+
+  <h2>Commands</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Command</th>
+        <th>Alias</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>fuku run [profile]</code></td>
+        <td><code>r</code></td>
+        <td>Run services for a profile (default if omitted)</td>
+      </tr>
+      <tr>
+        <td><code>fuku logs [services...]</code></td>
+        <td><code>l</code></td>
+        <td>Stream logs from a running fuku instance</td>
+      </tr>
+      <tr>
+        <td><code>fuku init</code></td>
+        <td><code>i</code></td>
+        <td>Generate a <code>fuku.yaml</code> template</td>
+      </tr>
+      <tr>
+        <td><code>fuku version</code></td>
+        <td><code>-v</code>, <code>--version</code></td>
+        <td>Show version</td>
+      </tr>
+      <tr>
+        <td><code>fuku help</code></td>
+        <td><code>-h</code>, <code>--help</code></td>
+        <td>Show help</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr />
+
+  <h2>Flags</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Flag</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>--no-ui</code></td>
+        <td>Run without the interactive TUI (log-only mode)</td>
+      </tr>
+      <tr>
+        <td><code>--profile</code></td>
+        <td>Filter by profile (used with <code>logs</code> command)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Flags can be placed in any position:</p>
+  <div class="code-block">
+    <pre><code>fuku run core --no-ui
+fuku --no-ui run core        # Same result</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>Usage Examples</h2>
+
+  <div class="code-block">
+    <pre><code># Run with TUI (default profile)
+fuku
+
+# Run a specific profile without TUI
+fuku run core --no-ui
+
+# Use short aliases
+fuku r core
+
+# Stream logs from running instance (separate terminal)
+fuku logs                       # All services
+fuku logs api auth              # Specific services
+fuku logs --profile core api    # Filter by profile
+fuku l api db                   # Short alias
+
+# Generate config template
+fuku init
+
+# Show help / version
+fuku help
+fuku version</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>TUI Controls</h2>
+
+  <p>When running with the interactive TUI (default), use these keyboard shortcuts:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>&uarr;</code> / <code>&darr;</code> or <code>k</code> / <code>j</code></td>
+        <td>Navigate services</td>
+      </tr>
+      <tr>
+        <td><code>PgUp</code> / <code>PgDn</code></td>
+        <td>Scroll viewport</td>
+      </tr>
+      <tr>
+        <td><code>Home</code> / <code>End</code></td>
+        <td>Jump to start / end</td>
+      </tr>
+      <tr>
+        <td><code>r</code></td>
+        <td>Restart selected service</td>
+      </tr>
+      <tr>
+        <td><code>s</code></td>
+        <td>Stop / start selected service</td>
+      </tr>
+      <tr>
+        <td><code>q</code></td>
+        <td>Quit (stops all services)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr />
+
+  <h2>Environment File Loading</h2>
+
+  <p>Fuku automatically loads environment files using <a href="https://github.com/joho/godotenv" target="_blank" rel="noopener">godotenv</a>, in this order (later files take precedence):</p>
+
+  <ol>
+    <li><code>.env</code></li>
+    <li><code>.env.&lt;GO_ENV&gt;</code></li>
+    <li><code>.env.&lt;GO_ENV&gt;.local</code></li>
+  </ol>
+
+  <p>
+    If a service directory contains a <code>.env.development</code> file, it is automatically detected and passed to the service via the <code>ENV_FILE</code> variable.
+  </p>
+</DocsLayout>

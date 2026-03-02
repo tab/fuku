@@ -31,3 +31,8 @@ go.work.sum
 # env files
 .env
 .env.*.local
+
+# Docs
+docs/node_modules/
+docs/dist/
+docs/.astro/

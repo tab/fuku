@@ -1,0 +1,91 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<section class="screenshot">
+  <div class="container">
+    <div class="frame">
+      <div class="titlebar">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+      <img
+        src={`${base}screenshot.png`}
+        alt="Fuku interactive TUI showing running services"
+        loading="lazy"
+      />
+    </div>
+  </div>
+</section>
+
+<style>
+  .screenshot {
+    padding: 0 0 80px;
+  }
+
+  .frame {
+    position: relative;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: 0 0 80px rgba(91, 140, 254, 0.1),
+      0 0 32px rgba(139, 92, 246, 0.08),
+      0 16px 48px rgba(0, 0, 0, 0.3);
+  }
+
+  .frame::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+    padding: 1px;
+    background: linear-gradient(
+      180deg,
+      var(--glass-shine) 0%,
+      transparent 40%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .titlebar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(14, 14, 22, 0.6);
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .red {
+    background: #ff5f57;
+  }
+
+  .yellow {
+    background: #febc2e;
+  }
+
+  .green {
+    background: #28c840;
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+</style>

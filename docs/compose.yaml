@@ -1,0 +1,7 @@
+services:
+  landing:
+    build:
+      context: ..
+      dockerfile: docs/Dockerfile
+    ports:
+      - "8080:80"
