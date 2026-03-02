@@ -1,0 +1,266 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/configuration/`;
+---
+
+<DocsLayout
+  title="Configuration - Fuku"
+  description="Complete reference for fuku.yaml configuration."
+  current={current}
+>
+  <h1>Configuration</h1>
+  <p class="lead">Complete reference for <code>fuku.yaml</code> — services, tiers, profiles, and more.</p>
+
+  <p>
+    Generate a config template with <code>fuku init</code>, or create <code>fuku.yaml</code> manually in your project root.
+  </p>
+
+  <h2>Services</h2>
+
+  <p>Each service is defined with a name, directory, and optional settings:</p>
+
+  <div class="code-block">
+    <pre><code>services:
+  backend:
+    dir: backend               # Path to service directory
+    tier: platform              # Startup tier (optional)
+    readiness:                  # Health check (optional)
+      type: http
+      url: http://localhost:8080/health
+      timeout: 30s
+      interval: 500ms
+    logs:                       # Log output filter (optional)
+      output: [stdout, stderr]
+    watch:                      # Hot-reload config (optional)
+      include: ["**/*.go"]
+      ignore: ["**/*_test.go"]
+      shared: ["pkg/common"]
+      debounce: 1s</code></pre>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>dir</code></td>
+        <td>Path to the service directory (must contain a Makefile with a <code>run</code> target)</td>
+      </tr>
+      <tr>
+        <td><code>tier</code></td>
+        <td>Startup tier for ordering. Services without a tier go to the <code>default</code> tier (runs last)</td>
+      </tr>
+      <tr>
+        <td><code>readiness</code></td>
+        <td>Health check configuration (see <a href={`${base}docs/features/`}>Features</a>)</td>
+      </tr>
+      <tr>
+        <td><code>logs.output</code></td>
+        <td>Output streams to capture: <code>stdout</code>, <code>stderr</code>, or both (default: both)</td>
+      </tr>
+      <tr>
+        <td><code>watch</code></td>
+        <td>Hot-reload file watching configuration (see <a href={`${base}docs/features/`}>Features</a>)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr />
+
+  <h2>Tiers</h2>
+
+  <p>
+    Tiers control startup ordering. Services in earlier tiers start (and become ready) before later tiers begin. The order is determined by the first occurrence of each tier name in your config.
+  </p>
+
+  <p>Common tier naming pattern:</p>
+  <ul>
+    <li><strong>foundation</strong> — base infrastructure (databases, message queues)</li>
+    <li><strong>platform</strong> — business logic services</li>
+    <li><strong>edge</strong> — client-facing services</li>
+  </ul>
+
+  <p>Key points:</p>
+  <ul>
+    <li>Tier order is defined by first appearance in the YAML file</li>
+    <li>Services within each tier are sorted alphabetically by name</li>
+    <li>Services without a tier are placed in a <code>default</code> tier that runs last</li>
+    <li>Tier names are case-insensitive and whitespace is trimmed</li>
+    <li>You can use any tier names you want — <code>infrastructure</code>, <code>middleware</code>, <code>api</code>, <code>frontend</code>, etc.</li>
+  </ul>
+
+  <hr />
+
+  <h2>Profiles</h2>
+
+  <p>Profiles group services for batch operations:</p>
+
+  <div class="code-block">
+    <pre><code>defaults:
+  profiles: [default]           # Profiles used when no profile is specified
+
+profiles:
+  default: "*"                  # All services
+  backend: [postgres, backend]      # Named list of services</code></pre>
+  </div>
+
+  <ul>
+    <li><code>"*"</code> — selects all defined services</li>
+    <li>A list of service names — selects only those services</li>
+    <li>The <code>defaults.profiles</code> array controls which profiles run when you just type <code>fuku</code></li>
+  </ul>
+
+  <hr />
+
+  <h2>Concurrency</h2>
+
+  <div class="code-block">
+    <pre><code>concurrency:
+  workers: 5                    # Max concurrent service starts (default: 5)</code></pre>
+  </div>
+
+  <p>Controls how many services can start in parallel within a single tier.</p>
+
+  <hr />
+
+  <h2>Retry</h2>
+
+  <div class="code-block">
+    <pre><code>retry:
+  attempts: 3                   # Max retry attempts (default: 3)
+  backoff: 500ms                # Initial backoff duration (default: 500ms)</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>Log Streaming Buffer</h2>
+
+  <div class="code-block">
+    <pre><code>logs:
+  buffer: 100                   # Socket log streaming buffer size (default: 100)</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>Logging</h2>
+
+  <div class="code-block">
+    <pre><code>logging:
+  format: console               # "console" or "json"
+  level: info                   # debug, info, warn, error</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>YAML Anchors</h2>
+
+  <p>
+    Use YAML anchors (<code>&amp;</code>) and merge keys (<code>&lt;&lt;: *</code>) to avoid repeating common configuration. Top-level keys prefixed with <code>x-</code> are ignored by fuku and serve as anchor definitions.
+  </p>
+
+  <div class="code-block">
+    <pre><code>x-readiness-http: &readiness-http
+  type: http
+  timeout: 30s
+  interval: 500ms
+
+x-watch: &watch
+  include: ["**/*.go"]
+  ignore: ["**/*_test.go"]
+  debounce: 1s
+
+services:
+  api:
+    dir: ./api
+    readiness:
+      <<: *readiness-http
+      url: http://localhost:8080/health
+    watch:
+      <<: *watch</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>Full Example</h2>
+
+  <div class="code-block">
+    <pre><code>version: 1
+
+x-readiness-http: &readiness-http
+  type: http
+  timeout: 30s
+  interval: 500ms
+
+x-readiness-tcp: &readiness-tcp
+  type: tcp
+  timeout: 30s
+  interval: 500ms
+
+x-readiness-log: &readiness-log
+  type: log
+  pattern: "Service ready"
+  timeout: 30s
+
+x-logs: &logs
+  output: [stdout, stderr]
+
+x-watch: &watch
+  include: ["**/*.go"]
+  ignore: ["**/*_test.go"]
+  shared: ["pkg/common"]
+  debounce: 1s
+
+services:
+  postgres:
+    dir: infrastructure/postgres
+    tier: foundation
+    readiness:
+      <<: *readiness-tcp
+      address: localhost:5432
+
+  backend:
+    dir: backend
+    tier: platform
+    readiness:
+      <<: *readiness-http
+      url: http://localhost:8080/health
+    logs:
+      <<: *logs
+    watch:
+      <<: *watch
+
+  web:
+    dir: frontend
+    tier: edge
+    readiness:
+      <<: *readiness-http
+      url: http://localhost:3000/health
+
+defaults:
+  profiles: [default]
+
+profiles:
+  default: "*"
+  backend: [postgres, backend]
+
+concurrency:
+  workers: 5
+
+retry:
+  attempts: 3
+  backoff: 500ms
+
+logs:
+  buffer: 100
+
+logging:
+  format: console
+  level: info</code></pre>
+  </div>
+</DocsLayout>

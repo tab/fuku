@@ -1,0 +1,57 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/privacy/`;
+---
+
+<DocsLayout
+  title="Privacy & Telemetry - Fuku"
+  description="What fuku collects and how to opt out."
+  current={current}
+>
+  <h1>Privacy &amp; Telemetry</h1>
+  <p class="lead">What fuku collects and how to opt out.</p>
+
+  <p>
+    Official release binaries include <a href="https://sentry.io" target="_blank" rel="noopener">Sentry</a> error tracking to help identify and fix bugs. This is completely transparent and can be disabled.
+  </p>
+
+  <h2>What Is Collected</h2>
+
+  <ul>
+    <li>Error types and stack traces (no file paths with usernames)</li>
+    <li>Performance timing for startup, shutdown, and readiness checks</li>
+    <li>Environment metadata: OS, architecture, Go version, fuku version</li>
+    <li>Command and profile names, service/tier counts</li>
+  </ul>
+
+  <h2>What Is NOT Collected</h2>
+
+  <ul>
+    <li>Hostnames, IP addresses, or usernames</li>
+    <li>Service names, <code>fuku.yaml</code> contents, or log output</li>
+    <li>Environment variable values or file paths</li>
+    <li>Any personally identifiable information</li>
+  </ul>
+
+  <hr />
+
+  <h2>How to Opt Out</h2>
+
+  <h3>Set an environment variable</h3>
+  <p>Disables all telemetry regardless of DSN:</p>
+  <div class="code-block">
+    <pre><code>export FUKU_TELEMETRY_DISABLED=1</code></pre>
+  </div>
+
+  <h3>Build from source</h3>
+  <p>
+    When you build from source, no Sentry DSN is compiled in and telemetry is disabled by default.
+  </p>
+  <div class="code-block">
+    <pre><code>git clone https://github.com/tab/fuku.git
+cd fuku
+go build -o cmd/fuku cmd/main.go</code></pre>
+  </div>
+</DocsLayout>

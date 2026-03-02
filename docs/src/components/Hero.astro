@@ -1,0 +1,201 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<section class="hero">
+  <div class="container">
+    <h1 class="title">fuku</h1>
+    <p class="subtitle">Service orchestrator for local development</p>
+    <p class="description">
+      Lightweight CLI tool for running and managing multiple local services.
+      Tier-based startup ordering, interactive TUI, hot-reload, and readiness
+      checks — all from a single YAML config.
+    </p>
+    <div class="actions">
+      <a href={`${base}docs/getting-started/`} class="btn btn-primary">Get Started</a>
+      <a
+        href="https://github.com/tab/fuku"
+        target="_blank"
+        rel="noopener"
+        class="btn btn-secondary"
+      >
+        GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding: 80px 0 80px;
+    text-align: center;
+  }
+
+  .title {
+    font-size: 5rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    background: linear-gradient(
+      135deg,
+      #bfe4ff 0%,
+      #5b8cfe 25%,
+      #8b5cf6 50%,
+      #5b8cfe 75%,
+      #bfe4ff 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.1;
+    animation: gradient-shift 6s ease-in-out infinite,
+      fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .subtitle {
+    font-size: 1.5rem;
+    color: var(--text);
+    margin-top: 16px;
+    font-weight: 500;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+  }
+
+  .description {
+    max-width: 600px;
+    margin: 20px auto 0;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1.7;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+  }
+
+  .actions {
+    margin-top: 40px;
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
+  }
+
+  @keyframes gradient-shift {
+    0% {
+      background-position: 0% center;
+    }
+    50% {
+      background-position: 100% center;
+    }
+    100% {
+      background-position: 0% center;
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 160px;
+    padding: 12px 28px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.3s;
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--gradient);
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(91, 140, 254, 0.25),
+      0 2px 8px rgba(139, 92, 246, 0.15);
+  }
+
+  .btn-primary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 1px;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      transparent 60%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 6px 32px rgba(91, 140, 254, 0.35),
+      0 4px 12px rgba(139, 92, 246, 0.2);
+  }
+
+  .btn-secondary {
+    background: var(--glass-bg);
+    color: var(--text);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-glow);
+  }
+
+  .btn-secondary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 1px;
+    background: linear-gradient(
+      180deg,
+      var(--glass-shine) 0%,
+      transparent 50%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .btn-secondary:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 40px rgba(91, 140, 254, 0.12),
+      0 4px 16px rgba(139, 92, 246, 0.08);
+  }
+
+  @media (max-width: 768px) {
+    .hero {
+      padding: 48px 0 48px;
+    }
+
+    .title {
+      font-size: 3.5rem;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+    }
+  }
+</style>

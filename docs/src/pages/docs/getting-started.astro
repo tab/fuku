@@ -1,0 +1,105 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/getting-started/`;
+---
+
+<DocsLayout
+  title="Getting Started - Fuku"
+  description="Install fuku and get your services running in minutes."
+  current={current}
+>
+  <h1>Getting Started</h1>
+  <p class="lead">Install fuku and get your services running in minutes.</p>
+
+  <h2>Installation</h2>
+
+  <h3>Download from Releases</h3>
+  <p>
+    Download the latest binary from
+    <a href="https://github.com/tab/fuku/releases" target="_blank" rel="noopener">GitHub Releases</a>.
+  </p>
+
+  <h3>macOS (Apple Silicon)</h3>
+  <div class="code-block">
+    <pre><code>cd ~/Downloads
+tar -xzf fuku_v0.15.2_macos_arm64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.15.2_macos_arm64/fuku
+sudo mv ~/Downloads/fuku_v0.15.2_macos_arm64/fuku /usr/local/bin/fuku</code></pre>
+  </div>
+
+  <h3>macOS (Intel)</h3>
+  <div class="code-block">
+    <pre><code>cd ~/Downloads
+tar -xzf fuku_v0.15.2_macos_amd64.tar.gz
+sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.15.2_macos_amd64/fuku
+sudo mv ~/Downloads/fuku_v0.15.2_macos_amd64/fuku /usr/local/bin/fuku</code></pre>
+  </div>
+
+  <h3>Linux</h3>
+  <div class="code-block">
+    <pre><code>cd ~/Downloads
+tar -xzf fuku_v0.15.2_linux_amd64.tar.gz
+sudo mv ~/Downloads/fuku_v0.15.2_linux_amd64/fuku /usr/local/bin/fuku</code></pre>
+  </div>
+
+  <h3>Build from Source</h3>
+  <div class="code-block">
+    <pre><code>git clone https://github.com/tab/fuku.git
+cd fuku
+go build -o cmd/fuku cmd/main.go
+sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>Quick Start</h2>
+
+  <ol>
+    <li><strong>Generate a config file</strong> in your project root:</li>
+  </ol>
+  <div class="code-block">
+    <pre><code>fuku init</code></pre>
+  </div>
+
+  <ol start="2">
+    <li><strong>Edit <code>fuku.yaml</code></strong> to define your services, tiers, and profiles. See the <a href={`${base}docs/configuration/`}>Configuration</a> page for the full reference.</li>
+  </ol>
+
+  <ol start="3">
+    <li><strong>Run your services:</strong></li>
+  </ol>
+  <div class="code-block">
+    <pre><code># Run with the default profile (interactive TUI)
+fuku
+
+# Run a specific profile
+fuku run core
+
+# Run without TUI
+fuku run core --no-ui</code></pre>
+  </div>
+
+  <hr />
+
+  <h2>Service Requirements</h2>
+
+  <p>
+    Each service directory must contain a <code>Makefile</code> with a <code>run</code> target. Fuku executes <code>make run</code> inside each service's directory.
+  </p>
+
+  <div class="code-block">
+    <pre><code># Makefile
+run:
+	npm start</code></pre>
+  </div>
+
+  <p>
+    If a <code>.env.development</code> file exists in the service directory, fuku automatically detects it and passes it via the <code>ENV_FILE</code> variable.
+  </p>
+
+  <p>
+    Check the <a href="https://github.com/tab/fuku/tree/master/examples/bookstore" target="_blank" rel="noopener">examples directory</a> for reference configurations.
+  </p>
+</DocsLayout>
