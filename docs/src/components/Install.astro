@@ -6,6 +6,13 @@
   <div class="container">
     <h2 class="section-title">Install</h2>
 
+    <div class="homebrew">
+      <h3>Homebrew</h3>
+      <div class="code-block">
+        <pre><code>brew install tab/apps/fuku</code></pre>
+      </div>
+    </div>
+
     <div class="download">
       <a
         href="https://github.com/tab/fuku/releases/latest"
@@ -83,6 +90,11 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku</code></pre>
     text-decoration: none;
     box-shadow: 0 6px 32px rgba(91, 140, 254, 0.35),
       0 4px 12px rgba(139, 92, 246, 0.2);
+  }
+
+  .homebrew {
+    max-width: 600px;
+    margin: 0 auto 48px;
   }
 
   .source {

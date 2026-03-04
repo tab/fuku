@@ -22,6 +22,12 @@
 
 ## Installation
 
+### Homebrew
+
+```bash
+brew install tab/apps/fuku
+```
+
 ### Download from Releases
 
 Download the latest binary from [GitHub Releases](https://github.com/tab/fuku/releases)
