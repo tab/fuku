@@ -31,3 +31,17 @@ archives:
     files:
       - LICENSE
       - README.md
+
+brew:
+  - repository:
+      owner: tab
+      name: homebrew-apps
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://tab.github.io/fuku/"
+    description: "Lightweight CLI orchestrator for running and managing multiple local services"
+    license: "MIT"
+    install: |
+      bin.install "fuku"
+    test: |
+      system "#{bin}/fuku", "version"
