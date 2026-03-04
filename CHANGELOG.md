@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.15.4
+
+### Build
+- **build:** Add Homebrew tap support via goreleaser
+
 ## v0.15.3
 
 ### Fixes
