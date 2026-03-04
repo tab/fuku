@@ -9,9 +9,8 @@ const (
 	TipRotationTicks = 10 * UITicksPerSecond
 
 	StatsPollingInterval = 1 * time.Second
-	StatsCallTimeout     = 500 * time.Millisecond
+	StatsCallTimeout     = 100 * time.Millisecond
 	StatsBatchTimeout    = 900 * time.Millisecond
-	StatsMaxConcurrency  = 50
 )
 
 // Panel layout constants

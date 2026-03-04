@@ -99,7 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyStatsUpdate(msg)
 		m.updateServicesContent()
 
-		return m, statsWorkerCmd(m.ctx, &m)
+		return m, statsWorkerCmd(m.ctx, m.monitor, m.buildMonitoredList(), msg.NextOffset)
 
 	case msgMsg:
 		return m.handleMessage(bus.Message(msg))

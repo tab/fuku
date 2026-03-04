@@ -305,67 +305,6 @@ func Test_FormatMEM(t *testing.T) {
 	}
 }
 
-func Test_GetStatsWithContext_Timeout(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockMonitor := monitor.NewMockMonitor(ctrl)
-	m := &Model{monitor: mockMonitor}
-
-	tests := []struct {
-		name        string
-		timeout     time.Duration
-		before      func()
-		expectError bool
-	}{
-		{
-			name:    "fast call completes successfully",
-			timeout: 100 * time.Millisecond,
-			before: func() {
-				mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).Return(monitor.Stats{CPU: 25.5, MEM: 512.0}, nil)
-			},
-			expectError: false,
-		},
-		{
-			name:    "context timeout cancels slow call",
-			timeout: 50 * time.Millisecond,
-			before: func() {
-				mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).DoAndReturn(
-					func(ctx context.Context, pid int) (monitor.Stats, error) {
-						select {
-						case <-ctx.Done():
-							return monitor.Stats{}, ctx.Err()
-						case <-time.After(200 * time.Millisecond):
-							return monitor.Stats{CPU: 25.5, MEM: 512.0}, nil
-						}
-					},
-				)
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.before()
-
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
-			defer cancel()
-
-			stats, err := m.getStatsWithContext(ctx, 1234)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Equal(t, context.DeadlineExceeded, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, 25.5, stats.CPU)
-				assert.Equal(t, 512.0, stats.MEM)
-			}
-		})
-	}
-}
-
 func Test_ApplyStatsUpdate(t *testing.T) {
 	m := &Model{}
 	m.state.services = map[string]*ServiceState{
@@ -504,16 +443,12 @@ func newTestFSM(initialState string) *fsm.FSM {
 	return fsm.NewFSM(initialState, fsm.Events{}, fsm.Callbacks{})
 }
 
-func Test_CollectStats_NoJobs(t *testing.T) {
-	m := &Model{}
-	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusStopped, Monitor: ServiceMonitor{PID: 0}},
-	}
-
+func Test_CollectStats_NoMonitoredServices(t *testing.T) {
 	ctx := context.Background()
-	stats := m.collectStats(ctx)
+	stats, nextOffset := collectStats(ctx, nil, nil, 0)
 
 	assert.Nil(t, stats)
+	assert.Equal(t, 0, nextOffset)
 }
 
 func Test_CollectStats_Success(t *testing.T) {
@@ -524,14 +459,13 @@ func Test_CollectStats_Success(t *testing.T) {
 	mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).Return(monitor.Stats{CPU: 25.5, MEM: 512.0}, nil)
 	mockMonitor.EXPECT().GetStats(gomock.Any(), 5678).Return(monitor.Stats{CPU: 10.0, MEM: 256.0}, nil)
 
-	m := &Model{monitor: mockMonitor}
-	m.state.services = map[string]*ServiceState{
-		"api":      {Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}},
-		"database": {Name: "database", Status: StatusRunning, Monitor: ServiceMonitor{PID: 5678}},
+	services := []monitoredService{
+		{name: "api", pid: 1234},
+		{name: "database", pid: 5678},
 	}
 
 	ctx := context.Background()
-	stats := m.collectStats(ctx)
+	stats, _ := collectStats(ctx, mockMonitor, services, 0)
 
 	assert.Len(t, stats, 2)
 	assert.Equal(t, 25.5, stats["api"].CPU)
@@ -541,20 +475,14 @@ func Test_CollectStats_Success(t *testing.T) {
 }
 
 func Test_CollectStats_ContextCancelled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockMonitor := monitor.NewMockMonitor(ctrl)
-
-	m := &Model{monitor: mockMonitor}
-	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}},
+	services := []monitoredService{
+		{name: "api", pid: 1234},
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	stats := m.collectStats(ctx)
+	stats, _ := collectStats(ctx, nil, services, 0)
 
 	assert.Empty(t, stats)
 }
@@ -566,49 +494,109 @@ func Test_CollectStats_MonitorError(t *testing.T) {
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).Return(monitor.Stats{}, assert.AnError)
 
-	m := &Model{monitor: mockMonitor}
-	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}},
+	services := []monitoredService{
+		{name: "api", pid: 1234},
 	}
 
 	ctx := context.Background()
-	stats := m.collectStats(ctx)
+	stats, _ := collectStats(ctx, mockMonitor, services, 0)
 
 	assert.Empty(t, stats)
 }
 
-func Test_LaunchStatsWorkers_ContextCancelledBeforeLoop(t *testing.T) {
-	m := &Model{}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	jobs := []job{{name: "api", pid: 1234}}
-	sem := make(chan struct{}, 1)
-	results := make(chan result, 1)
-
-	launched := m.launchStatsWorkers(ctx, jobs, sem, results)
-
-	assert.Equal(t, 0, launched)
-}
-
-func Test_LaunchStatsWorkers_ContextCancelledDuringSelect(t *testing.T) {
+func Test_CollectStats_RoundRobin(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockMonitor := monitor.NewMockMonitor(ctrl)
-	m := &Model{monitor: mockMonitor}
+	first := mockMonitor.EXPECT().GetStats(gomock.Any(), 5678).Return(monitor.Stats{CPU: 10.0, MEM: 256.0}, nil)
+	mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).Return(monitor.Stats{CPU: 25.5, MEM: 512.0}, nil).After(first)
+
+	services := []monitoredService{
+		{name: "api", pid: 1234},
+		{name: "database", pid: 5678},
+	}
+
+	ctx := context.Background()
+	stats, nextOffset := collectStats(ctx, mockMonitor, services, 1)
+
+	assert.Len(t, stats, 2)
+	assert.Equal(t, 25.5, stats["api"].CPU)
+	assert.Equal(t, 10.0, stats["database"].CPU)
+	assert.Equal(t, 1, nextOffset)
+}
+
+func Test_CollectStats_OffsetWraps(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockMonitor.EXPECT().GetStats(gomock.Any(), gomock.Any()).Return(monitor.Stats{CPU: 1.0, MEM: 10.0}, nil).Times(2)
+
+	services := []monitoredService{
+		{name: "api", pid: 1234},
+		{name: "database", pid: 5678},
+	}
+
+	ctx := context.Background()
+	_, nextOffset := collectStats(ctx, mockMonitor, services, 99)
+
+	assert.Equal(t, 0, nextOffset)
+}
+
+func Test_CollectStats_BatchBudgetExpired(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
 
-	jobs := []job{{name: "api", pid: 1234}, {name: "db", pid: 5678}}
-	sem := make(chan struct{})
-	results := make(chan result, 2)
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockMonitor.EXPECT().GetStats(gomock.Any(), 1234).DoAndReturn(
+		func(_ context.Context, _ int) (monitor.Stats, error) {
+			cancel()
 
-	launched := m.launchStatsWorkers(ctx, jobs, sem, results)
+			return monitor.Stats{CPU: 25.5, MEM: 512.0}, nil
+		},
+	)
 
-	assert.Equal(t, 0, launched)
+	services := []monitoredService{
+		{name: "api", pid: 1234},
+		{name: "database", pid: 5678},
+		{name: "cache", pid: 9012},
+	}
+
+	stats, nextOffset := collectStats(ctx, mockMonitor, services, 0)
+
+	assert.Contains(t, stats, "api")
+	assert.Len(t, stats, 1)
+	assert.Equal(t, 1, nextOffset)
+}
+
+func Test_CollectStats_BatchBudgetExpiredDuringCall(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockMonitor.EXPECT().GetStats(gomock.Any(), 5678).DoAndReturn(
+		func(_ context.Context, _ int) (monitor.Stats, error) {
+			cancel()
+
+			return monitor.Stats{}, context.Canceled
+		},
+	)
+
+	services := []monitoredService{
+		{name: "api", pid: 1234},
+		{name: "database", pid: 5678},
+		{name: "cache", pid: 9012},
+	}
+
+	stats, nextOffset := collectStats(ctx, mockMonitor, services, 1)
+
+	assert.Empty(t, stats)
+	assert.Equal(t, 1, nextOffset)
 }
 
 func Test_StatsWorkerCmd_ReturnsCmd(t *testing.T) {
@@ -618,13 +606,12 @@ func Test_StatsWorkerCmd_ReturnsCmd(t *testing.T) {
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockMonitor.EXPECT().GetStats(gomock.Any(), gomock.Any()).Return(monitor.Stats{CPU: 25.5, MEM: 512.0}, nil).AnyTimes()
 
-	m := &Model{monitor: mockMonitor}
-	m.state.services = map[string]*ServiceState{
-		"api": {Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}},
+	services := []monitoredService{
+		{name: "api", pid: 1234},
 	}
 
 	ctx := context.Background()
-	cmd := statsWorkerCmd(ctx, m)
+	cmd := statsWorkerCmd(ctx, mockMonitor, services, 0)
 
 	assert.NotNil(t, cmd)
 
@@ -632,39 +619,26 @@ func Test_StatsWorkerCmd_ReturnsCmd(t *testing.T) {
 	assert.NotNil(t, msg)
 }
 
-func Test_CollectStats_ContextCancelledDuringResultCollection(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	statsStarted := make(chan struct{}, 2)
-	cancelStats := make(chan struct{})
-
-	mockMonitor := monitor.NewMockMonitor(ctrl)
-	mockMonitor.EXPECT().GetStats(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, pid int) (monitor.Stats, error) {
-			statsStarted <- struct{}{}
-
-			<-cancelStats
-
-			return monitor.Stats{CPU: 25.5, MEM: 512.0}, nil
-		},
-	).AnyTimes()
-
-	m := &Model{monitor: mockMonitor}
+func Test_BuildMonitoredList(t *testing.T) {
+	m := &Model{}
+	m.state.tiers = []Tier{
+		{Name: "foundation", Services: []string{"db", "cache"}},
+		{Name: "app", Services: []string{"api", "web"}},
+	}
 	m.state.services = map[string]*ServiceState{
-		"api":      {Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}},
-		"database": {Name: "database", Status: StatusRunning, Monitor: ServiceMonitor{PID: 5678}},
+		"db":    {Name: "db", Status: StatusRunning, Monitor: ServiceMonitor{PID: 100}},
+		"cache": {Name: "cache", Status: StatusStopped, Monitor: ServiceMonitor{PID: 0}},
+		"api":   {Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 200}},
+		"web":   {Name: "web", Status: StatusRunning, Monitor: ServiceMonitor{PID: 300}},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	list := m.buildMonitoredList()
 
-	go func() {
-		<-statsStarted
-		cancel()
-		close(cancelStats)
-	}()
-
-	stats := m.collectStats(ctx)
-
-	assert.NotNil(t, stats)
+	assert.Len(t, list, 3)
+	assert.Equal(t, "db", list[0].name)
+	assert.Equal(t, 100, list[0].pid)
+	assert.Equal(t, "api", list[1].name)
+	assert.Equal(t, 200, list[1].pid)
+	assert.Equal(t, "web", list[2].name)
+	assert.Equal(t, 300, list[2].pid)
 }

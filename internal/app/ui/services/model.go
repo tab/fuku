@@ -80,9 +80,10 @@ func (s *ServiceState) MarkStopped() {
 	s.Monitor.PID = 0
 }
 
-// MarkFailed sets the service status to failed
+// MarkFailed sets the service status to failed and clears PID
 func (s *ServiceState) MarkFailed() {
 	s.Status = StatusFailed
+	s.Monitor.PID = 0
 }
 
 // IsNil returns true if the service or its FSM is nil (handles nil receiver)
@@ -183,7 +184,7 @@ func (m Model) Init() tea.Cmd {
 		m.loader.Model.Tick,
 		waitForMsgCmd(m.msgChan),
 		tickCmd(),
-		statsWorkerCmd(m.ctx, &m),
+		statsWorkerCmd(m.ctx, m.monitor, m.buildMonitoredList(), 0),
 		requestBackgroundColorCmd,
 	)
 }

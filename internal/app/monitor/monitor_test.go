@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,8 +23,14 @@ func TestGetStats_InvalidPID(t *testing.T) {
 		name string
 		pid  int
 	}{
-		{name: "zero PID", pid: 0},
-		{name: "negative PID", pid: -1},
+		{
+			name: "zero PID",
+			pid:  0,
+		},
+		{
+			name: "negative PID",
+			pid:  -1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -69,16 +74,16 @@ func TestGetStats_MaxInt32PID(t *testing.T) {
 	assert.Equal(t, Stats{}, stats)
 }
 
-func TestGetStats_ContextTimeout(t *testing.T) {
+func TestGetStats_CancelledContext(t *testing.T) {
 	m := NewMonitor()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
 	stats, err := m.GetStats(ctx, os.Getpid())
 	if err != nil {
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
 	} else {
-		assert.NotNil(t, stats)
+		assert.GreaterOrEqual(t, stats.CPU, 0.0)
 	}
 }
