@@ -176,7 +176,7 @@ func Test_FSM_Failed_From_Starting(t *testing.T) {
 	noopLogger := zerolog.New(io.Discard)
 	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
 
-	service := &ServiceState{Name: "api", Status: StatusStarting}
+	service := &ServiceState{Name: "api", Status: StatusStarting, Monitor: ServiceMonitor{PID: 1234}}
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	fsm := newServiceFSM(service, loader, mockLog)
 	_ = fsm.Event(context.Background(), Start)
@@ -186,6 +186,7 @@ func Test_FSM_Failed_From_Starting(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, Failed, fsm.Current())
 	assert.Equal(t, StatusFailed, service.Status)
+	assert.Equal(t, 0, service.Monitor.PID)
 }
 
 func Test_FSM_Failed_From_Running(t *testing.T) {
@@ -196,7 +197,7 @@ func Test_FSM_Failed_From_Running(t *testing.T) {
 	noopLogger := zerolog.New(io.Discard)
 	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
 
-	service := &ServiceState{Name: "api", Status: StatusRunning}
+	service := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 5678}}
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	fsm := newServiceFSM(service, loader, mockLog)
 	_ = fsm.Event(context.Background(), Start)
@@ -207,6 +208,7 @@ func Test_FSM_Failed_From_Running(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, Failed, fsm.Current())
 	assert.Equal(t, StatusFailed, service.Status)
+	assert.Equal(t, 0, service.Monitor.PID)
 }
 
 func Test_FSM_Failed_From_Restarting(t *testing.T) {
@@ -217,7 +219,7 @@ func Test_FSM_Failed_From_Restarting(t *testing.T) {
 	noopLogger := zerolog.New(io.Discard)
 	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
 
-	service := &ServiceState{Name: "api", Status: StatusRunning}
+	service := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 3456}}
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	fsm := newServiceFSM(service, loader, mockLog)
 	_ = fsm.Event(context.Background(), Start)
@@ -229,6 +231,7 @@ func Test_FSM_Failed_From_Restarting(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, Failed, fsm.Current())
 	assert.Equal(t, StatusFailed, service.Status)
+	assert.Equal(t, 0, service.Monitor.PID)
 }
 
 func Test_FSM_Start_From_Restarting(t *testing.T) {

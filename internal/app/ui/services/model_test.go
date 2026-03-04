@@ -35,9 +35,10 @@ func Test_ServiceState_MarkStopped(t *testing.T) {
 }
 
 func Test_ServiceState_MarkFailed(t *testing.T) {
-	service := &ServiceState{Status: StatusStarting}
+	service := &ServiceState{Status: StatusStarting, Monitor: ServiceMonitor{PID: 1234}}
 	service.MarkFailed()
 	assert.Equal(t, StatusFailed, service.Status)
+	assert.Equal(t, 0, service.Monitor.PID)
 }
 
 func Test_ServiceState_IsNil(t *testing.T) {

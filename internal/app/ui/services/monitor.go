@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"fuku/internal/app/monitor"
 	"fuku/internal/app/ui/components"
 )
 
@@ -19,9 +20,10 @@ type ServiceStats struct {
 
 // statsUpdateMsg is sent by the background worker with batched stats
 type statsUpdateMsg struct {
-	Stats  map[string]ServiceStats
-	AppCPU float64
-	AppMEM float64
+	Stats      map[string]ServiceStats
+	AppCPU     float64
+	AppMEM     float64
+	NextOffset int
 }
 
 // applyStatsUpdate applies batched stats to service monitors
@@ -99,25 +101,25 @@ func formatMEM(mem float64) string {
 
 // getCPU returns formatted CPU usage for a service
 func (m *Model) getCPU(service *ServiceState) string {
-	if !m.isServiceMonitored(service) {
-		return ""
+	if m.isServiceMonitored(service) {
+		return formatCPU(service.Monitor.CPU)
 	}
 
-	return formatCPU(service.Monitor.CPU)
+	return ""
 }
 
 // getMem returns formatted memory usage for a service
 func (m *Model) getMem(service *ServiceState) string {
-	if !m.isServiceMonitored(service) {
-		return ""
+	if m.isServiceMonitored(service) {
+		return formatMEM(service.Monitor.MEM)
 	}
 
-	return formatMEM(service.Monitor.MEM)
+	return ""
 }
 
 // getPID returns the process ID string for a running service
 func (m *Model) getPID(service *ServiceState) string {
-	if service.Status == StatusRunning && service.Monitor.PID != 0 {
+	if m.isServiceMonitored(service) {
 		return fmt.Sprintf("%d", service.Monitor.PID)
 	}
 
@@ -126,7 +128,7 @@ func (m *Model) getPID(service *ServiceState) string {
 
 // isServiceMonitored returns true if service has valid monitoring data
 func (m *Model) isServiceMonitored(service *ServiceState) bool {
-	return service.Status != StatusStopped && service.Status != StatusFailed && service.Monitor.PID != 0
+	return service.Status == StatusRunning && service.Monitor.PID != 0
 }
 
 // pad formats a number with leading zero
@@ -134,111 +136,92 @@ func pad(n int) string {
 	return fmt.Sprintf("%02d", n)
 }
 
-// statsWorkerCmd schedules a single stats collection and returns the result
-func statsWorkerCmd(ctx context.Context, m *Model) tea.Cmd {
-	return tea.Tick(components.StatsPollingInterval, func(t time.Time) tea.Msg {
-		batchCtx, cancel := context.WithTimeout(ctx, components.StatsBatchTimeout)
-		defer cancel()
-
-		stats := m.collectStats(batchCtx)
-		appCPU, appMEM := m.collectAppStats(batchCtx)
-
-		return statsUpdateMsg{Stats: stats, AppCPU: appCPU, AppMEM: appMEM}
-	})
-}
-
-// job represents a stats collection task
-type job struct {
+// monitoredService holds a name+PID pair for stats collection
+type monitoredService struct {
 	name string
 	pid  int
 }
 
-// result holds stats collection output
-type result struct {
-	name  string
-	stats ServiceStats
-	err   error
+// statsWorkerCmd schedules a single stats collection and returns the result
+func statsWorkerCmd(ctx context.Context, mon monitor.Monitor, services []monitoredService, offset int) tea.Cmd {
+	return tea.Tick(components.StatsPollingInterval, func(t time.Time) tea.Msg {
+		batchCtx, cancel := context.WithTimeout(ctx, components.StatsBatchTimeout)
+		defer cancel()
+
+		stats, nextOffset := collectStats(batchCtx, mon, services, offset)
+		appCPU, appMEM := collectAppStats(batchCtx, mon)
+
+		return statsUpdateMsg{
+			Stats:      stats,
+			AppCPU:     appCPU,
+			AppMEM:     appMEM,
+			NextOffset: nextOffset,
+		}
+	})
 }
 
-// collectStats polls all services and returns batched stats with per-call timeouts
-func (m *Model) collectStats(ctx context.Context) map[string]ServiceStats {
-	jobs := make([]job, 0, len(m.state.services))
-
-	for name, service := range m.state.services {
-		if service.Monitor.PID > 0 && service.Status != StatusStopped {
-			jobs = append(jobs, job{name: name, pid: service.Monitor.PID})
-		}
+// collectStats polls services serially with round-robin from offset
+func collectStats(ctx context.Context, mon monitor.Monitor, services []monitoredService, offset int) (map[string]ServiceStats, int) {
+	if len(services) == 0 {
+		return nil, 0
 	}
-
-	if len(jobs) == 0 {
-		return nil
-	}
-
-	sem := make(chan struct{}, components.StatsMaxConcurrency)
-	results := make(chan result, len(jobs))
-
-	launched := m.launchStatsWorkers(ctx, jobs, sem, results)
 
 	stats := make(map[string]ServiceStats)
 
-	for i := 0; i < launched; i++ {
-		select {
-		case <-ctx.Done():
-			return stats
-		case result := <-results:
-			if result.err == nil {
-				stats[result.name] = result.stats
+	if offset >= len(services) {
+		offset = 0
+	}
+
+	for i := 0; i < len(services); i++ {
+		if ctx.Err() != nil {
+			return stats, (offset + i) % len(services)
+		}
+
+		idx := (offset + i) % len(services)
+		svc := services[idx]
+
+		callCtx, cancel := context.WithTimeout(ctx, components.StatsCallTimeout)
+		result, err := mon.GetStats(callCtx, svc.pid)
+
+		cancel()
+
+		if err != nil && ctx.Err() != nil {
+			return stats, idx
+		}
+
+		if err != nil {
+			continue
+		}
+
+		stats[svc.name] = ServiceStats{CPU: result.CPU, MEM: result.MEM}
+	}
+
+	return stats, (offset + len(services)) % len(services)
+}
+
+// buildMonitoredList builds a deterministic list of monitored services using tier order
+func (m *Model) buildMonitoredList() []monitoredService {
+	services := make([]monitoredService, 0, len(m.state.services))
+
+	for _, tier := range m.state.tiers {
+		for _, name := range tier.Services {
+			service, exists := m.state.services[name]
+			if !exists {
+				continue
+			}
+
+			if m.isServiceMonitored(service) {
+				services = append(services, monitoredService{name: name, pid: service.Monitor.PID})
 			}
 		}
 	}
 
-	return stats
-}
-
-// launchStatsWorkers spawns goroutines to collect stats concurrently
-func (m *Model) launchStatsWorkers(ctx context.Context, jobs []job, sem chan struct{}, results chan result) int {
-	launched := 0
-
-	for _, j := range jobs {
-		if ctx.Err() != nil {
-			return launched
-		}
-
-		select {
-		case <-ctx.Done():
-			return launched
-		case sem <- struct{}{}:
-			launched++
-
-			go func(j job) {
-				defer func() { <-sem }()
-
-				callCtx, cancel := context.WithTimeout(ctx, components.StatsCallTimeout)
-				stats, err := m.getStatsWithContext(callCtx, j.pid)
-
-				cancel()
-
-				results <- result{name: j.name, stats: stats, err: err}
-			}(j)
-		}
-	}
-
-	return launched
-}
-
-// getStatsWithContext calls monitor.GetStats with context for cancellation support
-func (m *Model) getStatsWithContext(ctx context.Context, pid int) (ServiceStats, error) {
-	stats, err := m.monitor.GetStats(ctx, pid)
-	if err != nil {
-		return ServiceStats{}, err
-	}
-
-	return ServiceStats{CPU: stats.CPU, MEM: stats.MEM}, nil
+	return services
 }
 
 // collectAppStats collects CPU and memory stats for the fuku process itself
-func (m *Model) collectAppStats(ctx context.Context) (cpu float64, mem float64) {
-	stats, err := m.monitor.GetStats(ctx, os.Getpid())
+func collectAppStats(ctx context.Context, mon monitor.Monitor) (cpu float64, mem float64) {
+	stats, err := mon.GetStats(ctx, os.Getpid())
 	if err != nil {
 		return 0, 0
 	}
