@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## v0.15.3
+
+### Fixes
+- **fix:** Replace concurrent stats collection with serial collector in monitor
+
+### Build
+- **build:** Bump github.com/shirou/gopsutil/v4 from 4.26.1 to 4.26.2
+
+### Chore
+- **chore:** Update Go version to 1.25
+
 ## v0.15.2
 
 ### Fixes

@@ -5,7 +5,7 @@ import "time"
 // Application metadata
 const (
 	AppName = "fuku"
-	Version = "0.15.2"
+	Version = "0.15.3"
 
 	ConfigFile = "fuku.yaml"
 )
