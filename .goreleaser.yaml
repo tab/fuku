@@ -1,3 +1,4 @@
+version: 2
 project_name: fuku
 dist: .bin
 builds:
@@ -32,11 +33,10 @@ archives:
       - LICENSE
       - README.md
 
-brew:
+brews:
   - repository:
       owner: tab
       name: homebrew-apps
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
     homepage: "https://tab.github.io/fuku/"
     description: "Lightweight CLI orchestrator for running and managing multiple local services"
