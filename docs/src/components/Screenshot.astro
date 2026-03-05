@@ -1,20 +1,116 @@
 ---
-const base = import.meta.env.BASE_URL;
 ---
 
 <section class="screenshot">
   <div class="container">
-    <div class="frame">
-      <div class="titlebar">
+    <div class="terminal">
+      <div class="terminal-header">
         <span class="dot red"></span>
         <span class="dot yellow"></span>
         <span class="dot green"></span>
+        <span class="terminal-title">fuku</span>
       </div>
-      <img
-        src={`${base}screenshot.png`}
-        alt="Fuku interactive TUI showing running services"
-        loading="lazy"
-      />
+      <div class="terminal-body">
+        <div class="panel">
+          <div class="panel-border">
+            <!-- Top border labels -->
+            <div class="border-top">
+              <span class="panel-title">services</span>
+              <span class="border-spacer"></span>
+              <span class="status-text"><span class="starting">starting…</span> 4/5 ready</span>
+            </div>
+
+            <!-- Content area -->
+            <div class="panel-content">
+              <!-- Column headers -->
+              <div class="row header-row">
+                <span class="col-name"></span>
+                <span class="col-status">status</span>
+                <span class="col-cpu">cpu</span>
+                <span class="col-mem">mem</span>
+                <span class="col-pid">pid</span>
+                <span class="col-uptime">uptime</span>
+              </div>
+
+              <!-- foundation -->
+              <div class="tier">foundation</div>
+              <div class="row">
+                <span class="col-name"><span class="indicator">◉</span> auth</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">0.1%</span>
+                <span class="col-mem dim">2MB</span>
+                <span class="col-pid dim">76741</span>
+                <span class="col-uptime dim">00:11</span>
+              </div>
+              <div class="row">
+                <span class="col-name"><span class="indicator">◉</span> storage</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">0.1%</span>
+                <span class="col-mem dim">2MB</span>
+                <span class="col-pid dim">76742</span>
+                <span class="col-uptime dim">00:11</span>
+              </div>
+
+              <!-- platform -->
+              <div class="tier">platform</div>
+              <div class="row">
+                <span class="col-name"><span class="indicator">◉</span> api</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">0.1%</span>
+                <span class="col-mem dim">2MB</span>
+                <span class="col-pid dim">76758</span>
+                <span class="col-uptime dim">00:09</span>
+              </div>
+              <div class="row">
+                <span class="col-name"><span class="indicator">◉</span> user</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">0.1%</span>
+                <span class="col-mem dim">2MB</span>
+                <span class="col-pid dim">76759</span>
+                <span class="col-uptime dim">00:09</span>
+              </div>
+
+              <!-- edge -->
+              <div class="tier">edge</div>
+              <div class="row">
+                <span class="col-name"><span class="indicator-blink"><span class="blink-glyph blink-a">◉</span><span class="blink-glyph blink-b">◯</span></span> frontend</span>
+                <span class="col-status starting">starting</span>
+                <span class="col-cpu dim"></span>
+                <span class="col-mem dim"></span>
+                <span class="col-pid dim"></span>
+                <span class="col-uptime dim"></span>
+              </div>
+            </div>
+
+            <!-- Bottom border labels -->
+            <div class="border-bottom">
+              <span class="stats">cpu 6.2% • mem 25MB</span>
+              <span class="border-spacer"></span>
+              <span class="version">v0.15.4</span>
+            </div>
+          </div>
+
+          <!-- Help footer -->
+          <div class="help-footer">
+            <span class="help-left">
+              <span class="help-key">↑/k</span> <span class="help-desc">up</span>
+              <span class="help-sep">•</span>
+              <span class="help-key">↓/j</span> <span class="help-desc">down</span>
+              <span class="help-sep">•</span>
+              <span class="help-key">s</span> <span class="help-desc">stop/start</span>
+              <span class="help-sep">•</span>
+              <span class="help-key">r</span> <span class="help-desc">restart</span>
+              <span class="help-sep">•</span>
+              <span class="help-key">t</span> <span class="help-desc">tips</span>
+              <span class="help-sep">•</span>
+              <span class="help-key">q</span> <span class="help-desc">quit</span>
+            </span>
+            <span class="help-right">
+              <span class="help-desc">press</span> <span class="help-key">s</span> <span class="help-desc">to stop or start a service</span>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -24,45 +120,21 @@ const base = import.meta.env.BASE_URL;
     padding: 0 0 80px;
   }
 
-  .frame {
-    position: relative;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
+  .terminal {
+    background: #1e1e2e;
+    border: 1px solid var(--border);
+    border-radius: 12px;
     overflow: hidden;
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    box-shadow: 0 0 80px rgba(91, 140, 254, 0.1),
-      0 0 32px rgba(139, 92, 246, 0.08),
-      0 16px 48px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
   }
 
-  .frame::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius);
-    padding: 1px;
-    background: linear-gradient(
-      180deg,
-      var(--glass-shine) 0%,
-      transparent 40%
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  .titlebar {
+  .terminal-header {
     display: flex;
+    align-items: center;
     gap: 8px;
     padding: 12px 16px;
     background: rgba(14, 14, 22, 0.6);
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--border);
   }
 
   .dot {
@@ -71,21 +143,204 @@ const base = import.meta.env.BASE_URL;
     border-radius: 50%;
   }
 
-  .red {
-    background: #ff5f57;
+  .red { background: #ff5f57; }
+  .yellow { background: #febc2e; }
+  .green { background: #28c840; }
+
+  .terminal-title {
+    flex: 1;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #6c7086;
+    font-family: var(--mono);
   }
 
-  .yellow {
-    background: #febc2e;
+  .terminal-body {
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: #cdd6f4;
   }
 
-  .green {
-    background: #28c840;
+  /* Panel border system */
+  .panel-border {
+    position: relative;
+    border: 1px solid #7D56F4;
+    border-radius: 8px;
   }
 
-  img {
-    display: block;
-    width: 100%;
-    height: auto;
+  .border-top,
+  .border-bottom {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    height: 0;
+  }
+
+  .border-top {
+    top: 0;
+    transform: translateY(-50%);
+  }
+
+  .border-bottom {
+    bottom: 0;
+    transform: translateY(50%);
+  }
+
+  .border-top > span,
+  .border-bottom > span {
+    background: #1e1e2e;
+    padding: 0 8px;
+  }
+
+  .border-spacer {
+    flex: 1;
+    padding: 0 !important;
+  }
+
+  .panel-title {
+    color: #7D56F4;
+    font-weight: bold;
+  }
+
+  .panel-content {
+    padding: 16px 14px;
+    min-height: 380px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Status in top border */
+  .status-text {
+    color: #cdd6f4;
+    padding: 0 2px;
+  }
+
+  .running {
+    color: #5af78e;
+  }
+
+  .version {
+    color: #cdd6f4;
+    padding: 0 2px;
+  }
+
+  .stats {
+    color: #6c7086;
+    padding: 0 2px;
+  }
+
+  /* Table layout */
+  .row:not(.header-row) {
+    padding-left: 12px;
+  }
+
+  .row {
+    display: flex;
+    white-space: nowrap;
+  }
+
+  .header-row {
+    color: #6c7086;
+  }
+
+  .col-name { width: 40%; position: relative; }
+  .col-status { width: 16%; position: relative; }
+  .col-cpu { width: 10%; text-align: right; }
+  .col-mem { width: 10%; text-align: right; }
+  .col-pid { width: 12%; text-align: right; }
+  .col-uptime { width: 12%; text-align: right; }
+
+  .tier {
+    color: #7D56F4;
+    font-weight: bold;
+    margin-top: 6px;
+    padding-left: 4px;
+  }
+
+  .indicator {
+    color: #5af78e;
+    font-size: 1em;
+    margin-right: 4px;
+  }
+
+  .dim { color: #a6adc8; }
+
+  /* Heartbeat blink — two glyphs stacked, toggling opacity */
+  .indicator-blink {
+    display: inline-grid;
+    width: 1ch;
+    margin-right: 4px;
+    color: #f9e2af;
+    font-size: 1em;
+    vertical-align: baseline;
+  }
+
+  .blink-glyph {
+    grid-area: 1 / 1;
+  }
+
+  .blink-a {
+    animation: blink-full 1.6s step-end infinite;
+  }
+
+  .blink-b {
+    animation: blink-empty 1.6s step-end infinite;
+  }
+
+  /* ◉ visible during beats only */
+  @keyframes blink-full {
+    0%       { opacity: 0; }
+    25%      { opacity: 1; }
+    37.5%    { opacity: 0; }
+    50%      { opacity: 1; }
+    62.5%    { opacity: 0; }
+  }
+
+  /* ◯ visible during settle, gap, recovery */
+  @keyframes blink-empty {
+    0%       { opacity: 1; }
+    25%      { opacity: 0; }
+    37.5%    { opacity: 1; }
+    50%      { opacity: 0; }
+    62.5%    { opacity: 1; }
+  }
+
+  .starting {
+    color: #f9e2af;
+  }
+
+  /* Help footer */
+  .help-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding: 10px 0 6px;
+    font-size: 0.78rem;
+  }
+
+  .help-key { color: #6c7086; }
+  .help-desc { color: #a6adc8; }
+  .help-sep { color: #6c7086; margin: 0 2px; }
+
+  @media (max-width: 768px) {
+    .terminal-body {
+      font-size: 0.7rem;
+      padding: 10px;
+      overflow-x: auto;
+    }
+
+    .panel-content {
+      min-height: 240px;
+    }
+
+    .help-footer {
+      flex-direction: column;
+      gap: 4px;
+    }
   }
 </style>

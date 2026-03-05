@@ -13,17 +13,6 @@
       </div>
     </div>
 
-    <div class="download">
-      <a
-        href="https://github.com/tab/fuku/releases/latest"
-        target="_blank"
-        rel="noopener"
-        class="btn btn-primary"
-      >
-        Download Latest Release
-      </a>
-    </div>
-
     <div class="source">
       <h3>Build from source</h3>
       <div class="code-block">
@@ -43,53 +32,6 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku</code></pre>
     font-weight: 700;
     text-align: center;
     margin-bottom: 48px;
-  }
-
-  .download {
-    text-align: center;
-    margin-bottom: 48px;
-  }
-
-  .btn-primary {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    padding: 14px 32px;
-    border-radius: 12px;
-    font-size: 1.05rem;
-    font-weight: 600;
-    text-decoration: none;
-    background: var(--gradient);
-    color: #fff;
-    transition: transform 0.2s, box-shadow 0.3s;
-    box-shadow: 0 4px 24px rgba(91, 140, 254, 0.25),
-      0 2px 8px rgba(139, 92, 246, 0.15);
-  }
-
-  .btn-primary::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    padding: 1px;
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.3) 0%,
-      transparent 60%
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-1px);
-    text-decoration: none;
-    box-shadow: 0 6px 32px rgba(91, 140, 254, 0.35),
-      0 4px 12px rgba(139, 92, 246, 0.2);
   }
 
   .homebrew {
