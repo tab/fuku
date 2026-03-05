@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5b8cfe;stop-opacity:0.08"/>
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:0.08"/>
+    </linearGradient>
+    <style>
+      .mono { font-family: 'Menlo', 'Monaco', 'Courier New', monospace; }
+      .sans { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    </style>
+  </defs>
+
+  <!-- Light background -->
+  <rect width="1200" height="630" fill="#f8f9fc"/>
+  <rect width="1200" height="630" fill="url(#grad)"/>
+
+  <!-- Terminal window with shadow -->
+  <rect x="78" y="58" width="1044" height="444" rx="14" fill="rgba(0,0,0,0.08)"/>
+  <rect x="80" y="56" width="1040" height="440" rx="12" fill="#1e1e2e" stroke="#2a2a3e" stroke-width="1"/>
+
+  <!-- Title bar -->
+  <rect x="80" y="56" width="1040" height="40" rx="12" fill="#16161e"/>
+  <rect x="80" y="84" width="1040" height="12" fill="#16161e"/>
+  <circle cx="108" cy="76" r="7" fill="#ff5f57"/>
+  <circle cx="132" cy="76" r="7" fill="#febc2e"/>
+  <circle cx="156" cy="76" r="7" fill="#28c840"/>
+  <text class="mono" x="600" y="81" text-anchor="middle" fill="#6c7086" font-size="13">fuku</text>
+
+  <!-- Panel border -->
+  <rect x="100" y="110" width="1000" height="340" rx="8" fill="none" stroke="#7D56F4" stroke-width="1.5"/>
+
+  <!-- "services" title knockout -->
+  <rect x="112" y="102" width="82" height="17" fill="#1e1e2e"/>
+  <text class="mono" x="116" y="115" fill="#7D56F4" font-weight="bold" font-size="14">services</text>
+
+  <!-- "running 5/5 ready" knockout -->
+  <rect x="928" y="102" width="156" height="17" fill="#1e1e2e"/>
+  <text class="mono" x="936" y="115" fill="#5af78e" font-size="14">running</text>
+  <text class="mono" x="1000" y="115" fill="#cdd6f4" font-size="14"> 5/5 ready</text>
+
+  <!-- Column headers -->
+  <text class="mono" x="520" y="144" fill="#6c7086" font-size="13">status</text>
+  <text class="mono" x="680" y="144" fill="#6c7086" font-size="13">cpu</text>
+  <text class="mono" x="770" y="144" fill="#6c7086" font-size="13">mem</text>
+  <text class="mono" x="860" y="144" fill="#6c7086" font-size="13">pid</text>
+  <text class="mono" x="960" y="144" fill="#6c7086" font-size="13">uptime</text>
+
+  <!-- foundation -->
+  <text class="mono" x="120" y="174" fill="#7D56F4" font-weight="bold" font-size="14">foundation</text>
+  <text class="mono" x="136" y="196" fill="#5af78e" font-size="10">◉</text>
+  <text class="mono" x="150" y="196" fill="#cdd6f4" font-size="14">auth</text>
+  <text class="mono" x="520" y="196" fill="#5af78e" font-size="14">running</text>
+  <text class="mono" x="680" y="196" fill="#a6adc8" font-size="14">0.1%</text>
+  <text class="mono" x="778" y="196" fill="#a6adc8" font-size="14">2MB</text>
+  <text class="mono" x="856" y="196" fill="#a6adc8" font-size="14">76741</text>
+  <text class="mono" x="960" y="196" fill="#a6adc8" font-size="14">00:11</text>
+
+  <text class="mono" x="136" y="218" fill="#5af78e" font-size="10">◉</text>
+  <text class="mono" x="150" y="218" fill="#cdd6f4" font-size="14">storage</text>
+  <text class="mono" x="520" y="218" fill="#5af78e" font-size="14">running</text>
+  <text class="mono" x="680" y="218" fill="#a6adc8" font-size="14">0.1%</text>
+  <text class="mono" x="778" y="218" fill="#a6adc8" font-size="14">2MB</text>
+  <text class="mono" x="856" y="218" fill="#a6adc8" font-size="14">76742</text>
+  <text class="mono" x="960" y="218" fill="#a6adc8" font-size="14">00:11</text>
+
+  <!-- platform -->
+  <text class="mono" x="120" y="252" fill="#7D56F4" font-weight="bold" font-size="14">platform</text>
+  <text class="mono" x="136" y="274" fill="#5af78e" font-size="10">◉</text>
+  <text class="mono" x="150" y="274" fill="#cdd6f4" font-size="14">api</text>
+  <text class="mono" x="520" y="274" fill="#5af78e" font-size="14">running</text>
+  <text class="mono" x="680" y="274" fill="#a6adc8" font-size="14">0.1%</text>
+  <text class="mono" x="778" y="274" fill="#a6adc8" font-size="14">2MB</text>
+  <text class="mono" x="856" y="274" fill="#a6adc8" font-size="14">76758</text>
+  <text class="mono" x="960" y="274" fill="#a6adc8" font-size="14">00:09</text>
+
+  <text class="mono" x="136" y="296" fill="#5af78e" font-size="10">◉</text>
+  <text class="mono" x="150" y="296" fill="#cdd6f4" font-size="14">user</text>
+  <text class="mono" x="520" y="296" fill="#5af78e" font-size="14">running</text>
+  <text class="mono" x="680" y="296" fill="#a6adc8" font-size="14">0.1%</text>
+  <text class="mono" x="778" y="296" fill="#a6adc8" font-size="14">2MB</text>
+  <text class="mono" x="856" y="296" fill="#a6adc8" font-size="14">76759</text>
+  <text class="mono" x="960" y="296" fill="#a6adc8" font-size="14">00:09</text>
+
+  <!-- edge -->
+  <text class="mono" x="120" y="330" fill="#7D56F4" font-weight="bold" font-size="14">edge</text>
+  <text class="mono" x="136" y="352" fill="#5af78e" font-size="10">◉</text>
+  <text class="mono" x="150" y="352" fill="#cdd6f4" font-size="14">frontend</text>
+  <text class="mono" x="520" y="352" fill="#5af78e" font-size="14">running</text>
+  <text class="mono" x="680" y="352" fill="#a6adc8" font-size="14">0.1%</text>
+  <text class="mono" x="778" y="352" fill="#a6adc8" font-size="14">2MB</text>
+  <text class="mono" x="856" y="352" fill="#a6adc8" font-size="14">76772</text>
+  <text class="mono" x="960" y="352" fill="#a6adc8" font-size="14">00:09</text>
+
+  <!-- Bottom border stats knockout -->
+  <rect x="112" y="443" width="170" height="17" fill="#1e1e2e"/>
+  <text class="mono" x="118" y="456" fill="#6c7086" font-size="14">cpu 6.2% • mem 25MB</text>
+
+  <rect x="1010" y="443" width="72" height="17" fill="#1e1e2e"/>
+  <text class="mono" x="1016" y="456" fill="#cdd6f4" font-size="14">v0.15.4</text>
+
+  <!-- Title and tagline below terminal -->
+  <text class="sans" x="600" y="546" text-anchor="middle" fill="#1a1a2e" font-size="42" font-weight="700">fuku</text>
+  <text class="sans" x="600" y="581" text-anchor="middle" fill="#64648a" font-size="20">Lightweight CLI orchestrator for local services</text>
+
+  <!-- URL -->
+  <text class="mono" x="600" y="614" text-anchor="middle" fill="#5b8cfe" font-size="15">getfuku.sh</text>
+</svg>
