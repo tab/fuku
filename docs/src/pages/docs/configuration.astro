@@ -24,7 +24,8 @@ const current = `${base}docs/configuration/`;
   <div class="code-block">
     <pre><code>services:
   backend:
-    dir: backend               # Path to service directory
+    dir: backend                # Path to service directory
+    command: go run cmd/main.go # Custom start command (optional)
     tier: platform              # Startup tier (optional)
     readiness:                  # Health check (optional)
       type: http
@@ -50,7 +51,11 @@ const current = `${base}docs/configuration/`;
     <tbody>
       <tr>
         <td><code>dir</code></td>
-        <td>Path to the service directory (must contain a Makefile with a <code>run</code> target)</td>
+        <td>Path to the service directory</td>
+      </tr>
+      <tr>
+        <td><code>command</code></td>
+        <td>Custom start command (default: <code>make run</code>). Runs via <code>sh -c</code>, so shell features like pipes and env vars work</td>
       </tr>
       <tr>
         <td><code>tier</code></td>
@@ -227,6 +232,7 @@ services:
   backend:
     dir: backend
     tier: platform
+    command: go run cmd/main.go
     readiness:
       <<: *readiness-http
       url: http://localhost:8080/health

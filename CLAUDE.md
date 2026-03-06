@@ -158,7 +158,7 @@
    - Directory-based service configuration
    - Tier-based startup ordering
    - Automatic environment file detection (`.env.development`)
-   - Makefile-based service execution (`make run`)
+   - Makefile-based service execution (`make run`) with optional custom command override
 
 2. **Profile Management**
    - Logical grouping of services for batch execution
@@ -295,7 +295,7 @@
 - `internal/config/sentry/sentry_test.go` - Sentry client initialization testing
 - `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
-- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management)
+- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management, custom command)
 
 ## Primary Guidelines
 
@@ -595,6 +595,7 @@ services:
   service-name:
     dir: path/to/service
     tier: foundation
+    command: go run cmd/main.go  # optional, defaults to "make run"
     logs:
       output: [stdout, stderr]
 
@@ -612,8 +613,9 @@ logging:
 - services are defined with a directory path and optional tier
 - profiles allow grouping services for batch operations
 - tiers determine startup ordering (services in earlier tiers start first)
-- each service runs `make run` in its specified directory
-- services must have a Makefile with a `run` target
+- each service runs `make run` in its specified directory by default
+- services can override the start command with `command` field (e.g., `command: go run cmd/main.go`)
+- services without a custom command must have a Makefile with a `run` target
 - environment files (`.env.development`) are automatically detected and passed via ENV_FILE
 
 ## Example Configuration
