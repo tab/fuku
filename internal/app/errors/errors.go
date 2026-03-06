@@ -30,6 +30,7 @@ var (
 	ErrInvalidRegexPattern      = errors.New("invalid regex pattern")
 	ErrPortAlreadyInUse         = errors.New("port already in use")
 
+	ErrInvalidCommand       = errors.New("command must not be empty or whitespace-only")
 	ErrWatchIncludeRequired = errors.New("watch configuration requires include field")
 	ErrInvalidLogsOutput    = errors.New("invalid service logs output value (must be 'stdout' or 'stderr')")
 
