@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/spinner"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
@@ -725,9 +726,9 @@ func Test_Controller_HandleStopped(t *testing.T) {
 				}
 
 				assert.Equal(t, tt.expectedPID, tt.service.Monitor.PID)
-				assert.Equal(t, tt.expectedCPU, tt.service.Monitor.CPU)
-				assert.Equal(t, tt.expectedMEM, tt.service.Monitor.MEM)
-				assert.Nil(t, tt.service.Error)
+				assert.InDelta(t, tt.expectedCPU, tt.service.Monitor.CPU, 0.001)
+				assert.InDelta(t, tt.expectedMEM, tt.service.Monitor.MEM, 0.001)
+				require.NoError(t, tt.service.Error)
 			}
 		})
 	}

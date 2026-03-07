@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"fuku/internal/app/errors"
 	"fuku/internal/config"
@@ -41,7 +42,7 @@ func Test_Connect(t *testing.T) {
 	socketPath := filepath.Join("/tmp", "fuku-test-connect.sock")
 
 	listener, err := net.Listen("unix", socketPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer listener.Close()
 	defer os.Remove(socketPath)
@@ -49,7 +50,7 @@ func Test_Connect(t *testing.T) {
 	c := NewClient(createTestFormatter())
 
 	err = c.Connect(socketPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer c.Close()
 
@@ -61,7 +62,7 @@ func Test_Connect_SocketNotFound(t *testing.T) {
 	c := NewClient(createTestFormatter())
 
 	err := c.Connect("/nonexistent/path/test.sock")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.ErrorIs(t, err, errors.ErrFailedToConnectSocket)
 }
 
@@ -80,7 +81,7 @@ func Test_Subscribe(t *testing.T) {
 				var req SubscribeRequest
 
 				err := json.Unmarshal(bytes.TrimSuffix(data, []byte("\n")), &req)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, MessageSubscribe, req.Type)
 				assert.Equal(t, []string{"api", "db"}, req.Services)
 			},
@@ -92,7 +93,7 @@ func Test_Subscribe(t *testing.T) {
 				var req SubscribeRequest
 
 				err := json.Unmarshal(bytes.TrimSuffix(data, []byte("\n")), &req)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, MessageSubscribe, req.Type)
 				assert.Nil(t, req.Services)
 			},
@@ -136,10 +137,10 @@ func Test_Subscribe(t *testing.T) {
 
 			err := c.Subscribe(tt.services)
 			if tt.expectedError != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.expectedError)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				<-done
 				tt.checkRequest(t, receivedData)
 			}
@@ -168,7 +169,7 @@ func Test_Stream_ReceivesLogMessages(t *testing.T) {
 	var output bytes.Buffer
 
 	err := c.Stream(context.Background(), &output)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, output.String(), "Hello World")
 }
 
@@ -193,7 +194,7 @@ func Test_Stream_ContextCancellation(t *testing.T) {
 
 	select {
 	case err := <-done:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	case <-time.After(time.Second):
 		t.Fatal("Stream did not exit after context cancellation")
 	}
@@ -210,7 +211,7 @@ func Test_Stream_EOFReturnsNil(t *testing.T) {
 	var output bytes.Buffer
 
 	err := c.Stream(context.Background(), &output)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	clientConn.Close()
 }
@@ -236,7 +237,7 @@ func Test_Stream_SkipsInvalidJSON(t *testing.T) {
 	var output bytes.Buffer
 
 	err := c.Stream(context.Background(), &output)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, output.String(), "Valid")
 }
 
@@ -270,7 +271,7 @@ func Test_Stream_ReceivesStatusMessage(t *testing.T) {
 	var output bytes.Buffer
 
 	err := c.Stream(context.Background(), &output)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, output.String(), "logs")
 	assert.Contains(t, output.String(), config.Version)
 	assert.Contains(t, output.String(), "Hello")
@@ -300,7 +301,7 @@ func Test_Stream_SkipsNonLogMessages(t *testing.T) {
 	var output bytes.Buffer
 
 	err := c.Stream(context.Background(), &output)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, output.String(), "Log")
 	assert.NotContains(t, output.String(), "Subscribe")
 }
@@ -333,7 +334,7 @@ func Test_Close(t *testing.T) {
 			}
 
 			err := c.Close()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -403,10 +404,10 @@ func Test_FindSocket(t *testing.T) {
 			found, err := FindSocket(tmpDir, tt.profile)
 
 			if tt.expectedError != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.expectedError)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, expectedPath, found)
 			}
 		})

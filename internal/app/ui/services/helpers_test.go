@@ -57,7 +57,7 @@ func Test_renderError(t *testing.T) {
 		},
 		{
 			name:     "unknown error returns message",
-			err:      fmt.Errorf("custom error"),
+			err:      errors.New("custom error"),
 			expected: "custom error",
 		},
 		{

@@ -2,30 +2,84 @@ version: "2"
 linters:
   default: none
   enable:
+    - asciicheck
+    - bidichk
     - bodyclose
+    - containedctx
     - copyloopvar
     - dupl
+    - dupword
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
     - forbidigo
+    - forcetypeassert
     - gochecknoinits
+    - goconst
     - gocritic
+    - godoclint
     - gocyclo
     - gosec
     - govet
     - ineffassign
+    - intrange
+    - makezero
+    - mirror
     - misspell
-    - nestif
+    - modernize
     - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - nolintlint
+    - perfsprint
+    - predeclared
     - prealloc
+    - reassign
+    - recvcheck
+    - revive
+    - sqlclosecheck
     - staticcheck
+    - testifylint
     - unconvert
     - unparam
     - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
     - wsl_v5
+    - zerologlint
   settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    goconst:
+      min-len: 2
+      min-occurrences: 7
     forbidigo:
       forbid:
         - pattern: ^time\.Sleep$
-          msg: "time.Sleep in tests is a code smell. Use channel-based synchronization instead."
+          msg: "time.Sleep is a code smell. Use channel-based synchronization instead."
+        - pattern: ^fmt\.Print$
+          msg: "Use structured logging with zerolog instead of fmt.Print."
+        - pattern: ^fmt\.Printf$
+          msg: "Use structured logging with zerolog instead of fmt.Printf."
+        - pattern: ^fmt\.Println$
+          msg: "Use structured logging with zerolog instead of fmt.Println."
+    revive:
+      rules:
+        - name: early-return
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: empty-block
+        - name: redefines-builtin-id
+    nolintlint:
+      require-explanation: true
+      require-specific: true
     nestif:
       min-complexity: 2
     wsl_v5:
@@ -42,21 +96,65 @@ linters:
     rules:
       - linters:
           - dupl
+          - errcheck
           - gosec
+          - nilnil
         path: _test\.go
       - linters:
+          - usestdlibvars
+        path: _test\.go
+      - linters:
+          - errcheck
+        text: "Error return value of .*.Close.*is not checked"
+      - linters:
+          - errcheck
+        text: "Error return value of .*.Fprintf.*is not checked"
+      - linters:
+          - errcheck
+        text: "Error return value of .*.Printf.*is not checked"
+      - linters:
+          - errcheck
+        text: "Error return value of .*.Println.*is not checked"
+      - linters:
+          - errcheck
+        text: "Error return value of .*.Fprintln.*is not checked"
+      - linters:
+          - revive
+        text: should have a package comment
+      - linters:
+          - revive
+        path: _test\.go$
+        text: unused-parameter
+      - linters:
+          - errcheck
+        path: ^e2e/
+      - linters:
           - forbidigo
-        path-except: _test\.go
+        path: ^internal/app/cli/
+      - linters:
+          - containedctx
+          - recvcheck
+        path: ^internal/app/ui/
+      - linters:
+          - forcetypeassert
+          - zerologlint
+        path: _test\.go
+      - linters:
+          - dupword
+        path: ^internal/app/cli/
+      - linters:
+          - zerologlint
+        path: ^internal/config/logger/
     paths:
       - docs
       - vendor
       - third_party$
       - builtin$
-      - examples$
+      - ^examples/
 formatters:
   exclusions:
     generated: lax
     paths:
       - third_party$
       - builtin$
-      - examples$
+      - ^examples/

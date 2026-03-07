@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/config/logger"
@@ -41,7 +42,7 @@ func Test_FSM_Start_Transition(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Start)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Starting, fsm.Current())
 	assert.Equal(t, StatusStarting, service.Status)
 }
@@ -61,7 +62,7 @@ func Test_FSM_Started_Transition(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Started)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Running, fsm.Current())
 	assert.Equal(t, StatusRunning, service.Status)
 }
@@ -82,7 +83,7 @@ func Test_FSM_Stop_Transition(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Stop)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Stopping, fsm.Current())
 	assert.Equal(t, StatusStopping, service.Status)
 }
@@ -104,7 +105,7 @@ func Test_FSM_Stopped_Transition(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Stopped)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Stopped, fsm.Current())
 	assert.Equal(t, StatusStopped, service.Status)
 	assert.Equal(t, 0, service.Monitor.PID)
@@ -126,7 +127,7 @@ func Test_FSM_Restart_From_Running(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Restart)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Restarting, fsm.Current())
 }
 
@@ -146,7 +147,7 @@ func Test_FSM_Restart_From_Failed(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Restart)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Restarting, fsm.Current())
 }
 
@@ -164,7 +165,7 @@ func Test_FSM_Restart_From_Stopped(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Restart)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Restarting, fsm.Current())
 }
 
@@ -183,7 +184,7 @@ func Test_FSM_Failed_From_Starting(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Failed)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Failed, fsm.Current())
 	assert.Equal(t, StatusFailed, service.Status)
 	assert.Equal(t, 0, service.Monitor.PID)
@@ -205,7 +206,7 @@ func Test_FSM_Failed_From_Running(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Failed)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Failed, fsm.Current())
 	assert.Equal(t, StatusFailed, service.Status)
 	assert.Equal(t, 0, service.Monitor.PID)
@@ -228,7 +229,7 @@ func Test_FSM_Failed_From_Restarting(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Failed)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Failed, fsm.Current())
 	assert.Equal(t, StatusFailed, service.Status)
 	assert.Equal(t, 0, service.Monitor.PID)
@@ -250,7 +251,7 @@ func Test_FSM_Start_From_Restarting(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Start)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Starting, fsm.Current())
 }
 
@@ -268,6 +269,6 @@ func Test_FSM_Invalid_Transition(t *testing.T) {
 
 	err := fsm.Event(context.Background(), Stop)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, Stopped, fsm.Current())
 }

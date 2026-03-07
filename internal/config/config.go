@@ -20,9 +20,9 @@ type Config struct {
 	AppEnv    string
 	SentryDSN string
 	Telemetry bool
-	Services  map[string]*Service    `yaml:"services"`
-	Defaults  *ServiceDefaults       `yaml:"defaults"`
-	Profiles  map[string]interface{} `yaml:"profiles"`
+	Services  map[string]*Service `yaml:"services"`
+	Defaults  *ServiceDefaults    `yaml:"defaults"`
+	Profiles  map[string]any      `yaml:"profiles"`
 	Logging   struct {
 		Level  string `yaml:"level"`
 		Format string `yaml:"format"`
@@ -91,7 +91,7 @@ type ServiceDefaults struct {
 func DefaultConfig() *Config {
 	cfg := &Config{
 		Services: make(map[string]*Service),
-		Profiles: make(map[string]interface{}),
+		Profiles: make(map[string]any),
 		Version:  1,
 	}
 

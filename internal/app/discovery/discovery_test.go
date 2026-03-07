@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"fuku/internal/config"
 )
@@ -17,42 +18,42 @@ func Test_Resolve(t *testing.T) {
 	tests := []struct {
 		name     string
 		services map[string]*config.Service
-		profiles map[string]interface{}
+		profiles map[string]any
 		profile  string
 		expected result
 	}{
 		{
 			name:     "Empty services returns empty tiers",
 			services: map[string]*config.Service{},
-			profiles: map[string]interface{}{"empty": "*"},
+			profiles: map[string]any{"empty": "*"},
 			profile:  "empty",
 			expected: result{tiers: []Tier{}, error: false},
 		},
 		{
 			name:     "Profile not found",
 			services: map[string]*config.Service{"api": {Dir: "api"}},
-			profiles: map[string]interface{}{},
+			profiles: map[string]any{},
 			profile:  "nonexistent",
 			expected: result{tiers: nil, error: true},
 		},
 		{
 			name:     "Service not found in profile",
 			services: map[string]*config.Service{"api": {Dir: "api"}},
-			profiles: map[string]interface{}{"backend": []interface{}{"api", "nonexistent"}},
+			profiles: map[string]any{"backend": []any{"api", "nonexistent"}},
 			profile:  "backend",
 			expected: result{tiers: nil, error: true},
 		},
 		{
 			name:     "Profile with non-string entry",
 			services: map[string]*config.Service{"api": {Dir: "api"}, "web": {Dir: "web"}},
-			profiles: map[string]interface{}{"invalid": []interface{}{"api", 123, "web"}},
+			profiles: map[string]any{"invalid": []any{"api", 123, "web"}},
 			profile:  "invalid",
 			expected: result{tiers: nil, error: true},
 		},
 		{
 			name:     "Single service with default tier",
 			services: map[string]*config.Service{"api": {Dir: "api"}},
-			profiles: map[string]interface{}{"api-only": []interface{}{"api"}},
+			profiles: map[string]any{"api-only": []any{"api"}},
 			profile:  "api-only",
 			expected: result{
 				tiers: []Tier{
@@ -68,7 +69,7 @@ func Test_Resolve(t *testing.T) {
 				"api":          {Dir: "api", Tier: "platform"},
 				"frontend-api": {Dir: "frontend", Tier: "edge"},
 			},
-			profiles: map[string]interface{}{"all": []interface{}{"storage", "api", "frontend-api"}},
+			profiles: map[string]any{"all": []any{"storage", "api", "frontend-api"}},
 			profile:  "all",
 			expected: result{
 				tiers: []Tier{
@@ -86,7 +87,7 @@ func Test_Resolve(t *testing.T) {
 				"database": {Dir: "database", Tier: "foundation"},
 				"api":      {Dir: "api", Tier: "platform"},
 			},
-			profiles: map[string]interface{}{"backend": []interface{}{"storage", "database", "api"}},
+			profiles: map[string]any{"backend": []any{"storage", "database", "api"}},
 			profile:  "backend",
 			expected: result{
 				tiers: []Tier{
@@ -102,7 +103,7 @@ func Test_Resolve(t *testing.T) {
 				"storage": {Dir: "storage", Tier: "foundation"},
 				"api":     {Dir: "api", Tier: "platform"},
 			},
-			profiles: map[string]interface{}{"all": "*"},
+			profiles: map[string]any{"all": "*"},
 			profile:  "all",
 			expected: result{
 				tiers: []Tier{
@@ -118,7 +119,7 @@ func Test_Resolve(t *testing.T) {
 				"api": {Dir: "api", Tier: "platform"},
 				"web": {Dir: "web", Tier: "edge"},
 			},
-			profiles: map[string]interface{}{"duplicate": []interface{}{"api", "web", "api"}},
+			profiles: map[string]any{"duplicate": []any{"api", "web", "api"}},
 			profile:  "duplicate",
 			expected: result{
 				tiers: []Tier{
@@ -138,7 +139,7 @@ func Test_Resolve(t *testing.T) {
 				"api":      {Dir: "api", Tier: "edge"},
 				"frontend": {Dir: "frontend", Tier: "edge"},
 			},
-			profiles: map[string]interface{}{"mixed": []interface{}{"zebra", "web", "alpha", "api", "beta", "frontend"}},
+			profiles: map[string]any{"mixed": []any{"zebra", "web", "alpha", "api", "beta", "frontend"}},
 			profile:  "mixed",
 			expected: result{
 				tiers: []Tier{
@@ -157,7 +158,7 @@ func Test_Resolve(t *testing.T) {
 				"backend-api":  {Dir: "backend", Tier: "platform"},
 				"frontend":     {Dir: "frontend", Tier: "edge"},
 			},
-			profiles: map[string]interface{}{"all": "*"},
+			profiles: map[string]any{"all": "*"},
 			profile:  "all",
 			expected: result{
 				tiers: []Tier{
@@ -175,7 +176,7 @@ func Test_Resolve(t *testing.T) {
 				"service-a": {Dir: "a"},
 				"service-b": {Dir: "b"},
 			},
-			profiles: map[string]interface{}{"default-tier": []interface{}{"service-c", "service-a", "service-b"}},
+			profiles: map[string]any{"default-tier": []any{"service-c", "service-a", "service-b"}},
 			profile:  "default-tier",
 			expected: result{
 				tiers: []Tier{
@@ -191,7 +192,7 @@ func Test_Resolve(t *testing.T) {
 				"alpha": {Dir: "alpha", Tier: "platform"},
 				"beta":  {Dir: "beta", Tier: "platform"},
 			},
-			profiles: map[string]interface{}{"dup": []interface{}{"zebra", "alpha", "zebra", "beta", "alpha"}},
+			profiles: map[string]any{"dup": []any{"zebra", "alpha", "zebra", "beta", "alpha"}},
 			profile:  "dup",
 			expected: result{
 				tiers: []Tier{
@@ -207,7 +208,7 @@ func Test_Resolve(t *testing.T) {
 				"api":      {Dir: "api", Tier: "backend"},
 				"frontend": {Dir: "frontend", Tier: "ui"},
 			},
-			profiles: map[string]interface{}{"custom": []interface{}{"cache", "api", "frontend"}},
+			profiles: map[string]any{"custom": []any{"cache", "api", "frontend"}},
 			profile:  "custom",
 			expected: result{
 				tiers: []Tier{
@@ -225,7 +226,7 @@ func Test_Resolve(t *testing.T) {
 				"middleware": {Dir: "middleware", Tier: "custom-layer"},
 				"api":        {Dir: "api", Tier: "platform"},
 			},
-			profiles: map[string]interface{}{"mixed": []interface{}{"db", "middleware", "api"}},
+			profiles: map[string]any{"mixed": []any{"db", "middleware", "api"}},
 			profile:  "mixed",
 			expected: result{
 				tiers: []Tier{
@@ -243,7 +244,7 @@ func Test_Resolve(t *testing.T) {
 				"api":      {Dir: "api", Tier: "platform"},
 				"web":      {Dir: "web", Tier: "edge"},
 			},
-			profiles: map[string]interface{}{"classic": []interface{}{"postgres", "api", "web"}},
+			profiles: map[string]any{"classic": []any{"postgres", "api", "web"}},
 			profile:  "classic",
 			expected: result{
 				tiers: []Tier{
@@ -260,7 +261,7 @@ func Test_Resolve(t *testing.T) {
 				"api": {Dir: "api", Tier: "platform"},
 				"web": {Dir: "web", Tier: "platform"},
 			},
-			profiles: map[string]interface{}{"inherited": []interface{}{"api", "web"}},
+			profiles: map[string]any{"inherited": []any{"api", "web"}},
 			profile:  "inherited",
 			expected: result{
 				tiers: []Tier{
@@ -276,7 +277,7 @@ func Test_Resolve(t *testing.T) {
 				"unknown1": {Dir: "unknown1", Tier: "mystery-tier"},
 				"unknown2": {Dir: "unknown2", Tier: "another-unknown"},
 			},
-			profiles: map[string]interface{}{"with-unknown": []interface{}{"db", "unknown1", "unknown2"}},
+			profiles: map[string]any{"with-unknown": []any{"db", "unknown1", "unknown2"}},
 			profile:  "with-unknown",
 			expected: result{
 				tiers: []Tier{
@@ -302,13 +303,13 @@ func Test_Resolve(t *testing.T) {
 			tiers, err := instance.Resolve(tt.profile)
 
 			if tt.expected.error {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, tiers)
 
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected.tiers, tiers)
 		})
 	}
@@ -317,47 +318,47 @@ func Test_Resolve(t *testing.T) {
 func Test_getServicesForProfile(t *testing.T) {
 	tests := []struct {
 		name            string
-		profiles        map[string]interface{}
+		profiles        map[string]any
 		profile         string
 		expectedError   bool
 		expectedService []string
 	}{
 		{
 			name:          "Profile not found",
-			profiles:      map[string]interface{}{},
+			profiles:      map[string]any{},
 			profile:       "nonexistent",
 			expectedError: true,
 		},
 		{
 			name:            "Wildcard profile",
-			profiles:        map[string]interface{}{"all": "*"},
+			profiles:        map[string]any{"all": "*"},
 			profile:         "all",
 			expectedError:   false,
 			expectedService: []string{"api", "web"},
 		},
 		{
 			name:            "Single service as string",
-			profiles:        map[string]interface{}{"single": "api"},
+			profiles:        map[string]any{"single": "api"},
 			profile:         "single",
 			expectedError:   false,
 			expectedService: []string{"api"},
 		},
 		{
 			name:            "Multiple services as array",
-			profiles:        map[string]interface{}{"multi": []interface{}{"api", "web"}},
+			profiles:        map[string]any{"multi": []any{"api", "web"}},
 			profile:         "multi",
 			expectedError:   false,
 			expectedService: []string{"api", "web"},
 		},
 		{
 			name:          "Non-string entry in profile",
-			profiles:      map[string]interface{}{"invalid": []interface{}{"api", 123}},
+			profiles:      map[string]any{"invalid": []any{"api", 123}},
 			profile:       "invalid",
 			expectedError: true,
 		},
 		{
 			name:          "Unsupported profile format",
-			profiles:      map[string]interface{}{"bad": 123},
+			profiles:      map[string]any{"bad": 123},
 			profile:       "bad",
 			expectedError: true,
 		},
@@ -378,11 +379,11 @@ func Test_getServicesForProfile(t *testing.T) {
 			services, err := d.getServicesForProfile(tt.profile)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			if tt.profile == "all" {
 				assert.ElementsMatch(t, tt.expectedService, services)
@@ -459,11 +460,11 @@ func Test_resolveServiceOrder(t *testing.T) {
 			result, err := d.resolveServiceOrder(tt.input)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

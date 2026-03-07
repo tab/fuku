@@ -322,10 +322,10 @@ func Test_ApplyStatsUpdate(t *testing.T) {
 
 	m.applyStatsUpdate(msg)
 
-	assert.Equal(t, 25.5, m.state.services["api"].Monitor.CPU)
-	assert.Equal(t, 512.0, m.state.services["api"].Monitor.MEM)
-	assert.Equal(t, 10.0, m.state.services["database"].Monitor.CPU)
-	assert.Equal(t, 1024.0, m.state.services["database"].Monitor.MEM)
+	assert.InDelta(t, 25.5, m.state.services["api"].Monitor.CPU, 0.001)
+	assert.InDelta(t, 512.0, m.state.services["api"].Monitor.MEM, 0.001)
+	assert.InDelta(t, 10.0, m.state.services["database"].Monitor.CPU, 0.001)
+	assert.InDelta(t, 1024.0, m.state.services["database"].Monitor.MEM, 0.001)
 }
 
 func Test_ApplyStatsUpdate_EmptyServices(t *testing.T) {
@@ -468,10 +468,10 @@ func Test_CollectStats_Success(t *testing.T) {
 	stats, _ := collectStats(ctx, mockMonitor, services, 0)
 
 	assert.Len(t, stats, 2)
-	assert.Equal(t, 25.5, stats["api"].CPU)
-	assert.Equal(t, 512.0, stats["api"].MEM)
-	assert.Equal(t, 10.0, stats["database"].CPU)
-	assert.Equal(t, 256.0, stats["database"].MEM)
+	assert.InDelta(t, 25.5, stats["api"].CPU, 0.001)
+	assert.InDelta(t, 512.0, stats["api"].MEM, 0.001)
+	assert.InDelta(t, 10.0, stats["database"].CPU, 0.001)
+	assert.InDelta(t, 256.0, stats["database"].MEM, 0.001)
 }
 
 func Test_CollectStats_ContextCancelled(t *testing.T) {
@@ -521,8 +521,8 @@ func Test_CollectStats_RoundRobin(t *testing.T) {
 	stats, nextOffset := collectStats(ctx, mockMonitor, services, 1)
 
 	assert.Len(t, stats, 2)
-	assert.Equal(t, 25.5, stats["api"].CPU)
-	assert.Equal(t, 10.0, stats["database"].CPU)
+	assert.InDelta(t, 25.5, stats["api"].CPU, 0.001)
+	assert.InDelta(t, 10.0, stats["database"].CPU, 0.001)
 	assert.Equal(t, 1, nextOffset)
 }
 

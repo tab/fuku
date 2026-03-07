@@ -47,10 +47,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		contentWidth := msg.Width - components.PanelInnerPadding - components.RowHorizontalPadding
 		m.ui.layout = components.ComputeTableLayout(contentWidth)
 
-		panelHeight := msg.Height - components.PanelHeightPadding
-		if panelHeight < components.MinPanelHeight {
-			panelHeight = components.MinPanelHeight
-		}
+		panelHeight := max(msg.Height-components.PanelHeightPadding, components.MinPanelHeight)
 
 		m.ui.servicesViewport.SetWidth(msg.Width - components.PanelInnerPadding)
 		m.ui.servicesViewport.SetHeight(panelHeight - components.PanelBorderHeight)
@@ -221,6 +218,7 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 
 // handleMessage dispatches bus messages to specific handlers
 func (m Model) handleMessage(msg bus.Message) (tea.Model, tea.Cmd) {
+	//nolint:exhaustive // only handling events relevant to UI
 	switch msg.Type {
 	case bus.EventProfileResolved:
 		m = m.handleProfileResolved(msg)

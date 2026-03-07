@@ -83,7 +83,7 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 
 	err := r.Run(ctx, "nonexistent")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve profile")
 }
 
@@ -115,7 +115,7 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 
 	err := r.Run(ctx, "test")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve profile")
 }
 
@@ -168,7 +168,7 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	defer cancel()
 
 	err := r.Run(ctx, "test")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
@@ -656,7 +656,7 @@ func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
 	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "startup interrupted")
 }
 
@@ -717,7 +717,7 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
 	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
@@ -778,7 +778,7 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
 	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.ErrorIs(t, err, errors.ErrCommandChannelClosed)
 }
 
@@ -842,7 +842,7 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	tiers := []discovery.Tier{{Name: "platform", Services: []string{"api"}}}
 	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "startup interrupted")
 }
 
@@ -971,7 +971,7 @@ func Test_Stop(t *testing.T) {
 
 	err := r.Stop(context.Background(), "test")
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Stop_ProfileNotFound(t *testing.T) {
@@ -998,7 +998,7 @@ func Test_Stop_ProfileNotFound(t *testing.T) {
 
 	err := r.Stop(context.Background(), "nonexistent")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve profile")
 }
 
@@ -1026,7 +1026,7 @@ func Test_Stop_NoServices(t *testing.T) {
 
 	err := r.Stop(context.Background(), "empty")
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_ResolveServiceDirs(t *testing.T) {

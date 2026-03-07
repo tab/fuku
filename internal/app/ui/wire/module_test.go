@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
@@ -64,7 +65,7 @@ func Test_UI_CreateProgram(t *testing.T) {
 	factory := NewUI(params)
 	program, err := factory(ctx, "test-profile")
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, program)
 }
 
@@ -109,7 +110,7 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 			factory := NewUI(params)
 			program, err := factory(ctx, tt.profile)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, program)
 		})
 	}

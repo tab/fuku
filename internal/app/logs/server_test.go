@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/config"
@@ -53,7 +54,7 @@ func Test_Server_SocketPath(t *testing.T) {
 
 	ctx := context.Background()
 	err := s.Start(ctx, "my-profile", []string{"api", "db"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer s.Stop()
 
@@ -81,12 +82,12 @@ func Test_Server_StartAndStop(t *testing.T) {
 	}
 
 	err := s.Start(ctx, "test-start", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, s.running.Load())
 	assert.FileExists(t, s.socketPath)
 
 	err = s.Stop()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, s.running.Load())
 	assert.NoFileExists(t, s.socketPath)
 }
@@ -102,7 +103,7 @@ func Test_Server_StopWhenNotRunning(t *testing.T) {
 	}
 
 	err := s.Stop()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Server_Broadcast(t *testing.T) {
@@ -155,7 +156,7 @@ func Test_Server_cleanupStaleSocket_NoSocketExists(t *testing.T) {
 	}
 
 	err := s.cleanupStaleSocket()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Server_cleanupStaleSocket_StaleSocketIsRemoved(t *testing.T) {
@@ -168,7 +169,7 @@ func Test_Server_cleanupStaleSocket_StaleSocketIsRemoved(t *testing.T) {
 	mockLogger.EXPECT().Info().Return(nil)
 
 	f, err := os.Create(socketPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	f.Close()
 
 	s := &server{
@@ -177,7 +178,7 @@ func Test_Server_cleanupStaleSocket_StaleSocketIsRemoved(t *testing.T) {
 	}
 
 	err = s.cleanupStaleSocket()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NoFileExists(t, socketPath)
 }
 
@@ -203,7 +204,7 @@ func Test_Server_cleanupStaleSocket_ActiveSocketReturnsError(t *testing.T) {
 	}
 
 	err = s.cleanupStaleSocket()
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
@@ -227,29 +228,29 @@ func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
 	}
 
 	err := s.Start(ctx, "test-conn1", []string{"api", "db"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer os.Remove(s.SocketPath())
 
 	conn, err := net.Dial("unix", s.SocketPath())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	subscribeReq := SubscribeRequest{Type: MessageSubscribe, Services: []string{"api"}}
 	data, _ := json.Marshal(subscribeReq)
 	data = append(data, '\n')
 
 	_, err = conn.Write(data)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	reader := bufio.NewReader(conn)
 
 	statusLine, err := reader.ReadBytes('\n')
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var status StatusMessage
 
 	err = json.Unmarshal(statusLine, &status)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, MessageStatus, status.Type)
 	assert.NotEmpty(t, status.Version)
 	assert.Equal(t, "test-conn1", status.Profile)
@@ -310,15 +311,15 @@ func Test_Server_handleConnection_InvalidSubscribeRequest(t *testing.T) {
 	}
 
 	err := s.Start(ctx, "test-conn2", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer os.Remove(s.SocketPath())
 
 	conn, err := net.Dial("unix", s.SocketPath())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = conn.Write([]byte("invalid json\n"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	conn.Close()
 	cancel()
@@ -346,19 +347,19 @@ func Test_Server_handleConnection_WrongMessageType(t *testing.T) {
 	}
 
 	err := s.Start(ctx, "test-conn3", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer os.Remove(s.SocketPath())
 
 	conn, err := net.Dial("unix", s.SocketPath())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	wrongReq := SubscribeRequest{Type: MessageLog, Services: []string{"api"}}
 	data, _ := json.Marshal(wrongReq)
 	data = append(data, '\n')
 
 	_, err = conn.Write(data)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	conn.Close()
 	cancel()

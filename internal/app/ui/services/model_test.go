@@ -265,7 +265,7 @@ func Test_CalculateScrollOffset(t *testing.T) {
 
 		offset := m.calculateScrollOffset()
 
-		assert.True(t, offset > 0)
+		assert.Positive(t, offset)
 	})
 
 	t.Run("scrolls up when selection above viewport", func(t *testing.T) {
@@ -278,6 +278,6 @@ func Test_CalculateScrollOffset(t *testing.T) {
 
 		offset := m.calculateScrollOffset()
 
-		assert.True(t, offset < 10)
+		assert.Less(t, offset, 10)
 	})
 }

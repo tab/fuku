@@ -56,7 +56,7 @@ func Test_Loader_Start(t *testing.T) {
 			tt.setup(loader)
 			loader.Start(tt.service, tt.msg)
 
-			assert.Equal(t, tt.wantLen, len(loader.queue))
+			assert.Len(t, loader.queue, tt.wantLen)
 			assert.Equal(t, tt.wantMsg, loader.Message())
 			assert.Equal(t, tt.wantActive, loader.Active)
 		})
@@ -132,7 +132,7 @@ func Test_Loader_Stop(t *testing.T) {
 			tt.setup(loader)
 			loader.Stop(tt.service)
 
-			assert.Equal(t, tt.wantLen, len(loader.queue))
+			assert.Len(t, loader.queue, tt.wantLen)
 			assert.Equal(t, tt.wantMsg, loader.Message())
 			assert.Equal(t, tt.wantActive, loader.Active)
 		})
@@ -145,14 +145,14 @@ func Test_Loader_StopAll(t *testing.T) {
 	loader.Start("api", "starting api…")
 	loader.Start("user", "starting user…")
 
-	assert.Equal(t, 3, len(loader.queue))
+	assert.Len(t, loader.queue, 3)
 	assert.True(t, loader.Active)
 
 	loader.StopAll()
 
-	assert.Equal(t, 0, len(loader.queue))
+	assert.Empty(t, loader.queue)
 	assert.False(t, loader.Active)
-	assert.Equal(t, "", loader.Message())
+	assert.Empty(t, loader.Message())
 }
 
 func Test_Loader_Message(t *testing.T) {
@@ -208,6 +208,6 @@ func Test_Loader_FIFO_Order(t *testing.T) {
 	assert.Equal(t, "starting user…", loader.Message())
 
 	loader.Stop("user")
-	assert.Equal(t, "", loader.Message())
+	assert.Empty(t, loader.Message())
 	assert.False(t, loader.Active)
 }

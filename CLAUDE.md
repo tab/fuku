@@ -417,6 +417,7 @@ make build && make test:e2e
 - never nest if blocks — `if { if { } }` is forbidden; use guard clauses (early return/continue) to flatten
 - never use goto
 - prefer early returns to reduce nesting; else/else if are acceptable when they improve readability
+- `//nolint` directives must always be placed on the line above the code they apply to, never inline
 - never inline table test cases; always use multi-line format with each field on its own line
 - before any significant refactoring, ensure all tests pass and consider creating a new branch
 - when refactoring, editing, or fixing failed tests:

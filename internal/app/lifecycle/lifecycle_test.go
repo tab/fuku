@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/process"
@@ -63,7 +64,7 @@ func Test_Terminate_NilProcess(t *testing.T) {
 	mockProcess.EXPECT().Cmd().Return(mockCmd)
 
 	err := lc.Terminate(mockProcess, time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Terminate_ProcessExitsGracefully(t *testing.T) {
@@ -98,7 +99,7 @@ func Test_Terminate_ProcessExitsGracefully(t *testing.T) {
 	mockProcess.EXPECT().Done().Return(done).AnyTimes()
 
 	err = lc.Terminate(mockProcess, 5*time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	select {
 	case <-done:
@@ -152,7 +153,7 @@ func Test_Terminate_ProcessRequiresForceKill(t *testing.T) {
 	mockProcess.EXPECT().Done().Return(done).AnyTimes()
 
 	err = lc.Terminate(mockProcess, 100*time.Millisecond)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	select {
 	case <-done:
@@ -193,7 +194,7 @@ func Test_Terminate_SignalGroupFailsFallbackToDirectSignal(t *testing.T) {
 	mockProcess.EXPECT().Done().Return(done).AnyTimes()
 
 	err = lc.Terminate(mockProcess, 5*time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Terminate_ProcessAlreadyExited(t *testing.T) {
@@ -231,5 +232,5 @@ func Test_Terminate_ProcessAlreadyExited(t *testing.T) {
 	mockProcess.EXPECT().Done().Return(done).AnyTimes()
 
 	err = lc.Terminate(mockProcess, time.Second)
-	assert.Error(t, err)
+	require.Error(t, err)
 }

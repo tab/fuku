@@ -40,6 +40,7 @@ func (c *collector) Run(ctx context.Context) {
 }
 
 func (c *collector) handle(ctx context.Context, msg bus.Message) {
+	//nolint:exhaustive // only handling events relevant to metrics
 	switch msg.Type {
 	case bus.EventProfileResolved:
 		c.handleProfileResolved(ctx, msg)
@@ -186,6 +187,7 @@ func (c *collector) handlePhaseChanged(ctx context.Context, msg bus.Message) {
 		return
 	}
 
+	//nolint:exhaustive // only emitting metrics for running and stopped phases
 	switch data.Phase {
 	case bus.PhaseRunning:
 		sentry.NewMeter(ctx).Distribution(sentry.MetricStartupDuration, float64(data.Duration.Milliseconds()),

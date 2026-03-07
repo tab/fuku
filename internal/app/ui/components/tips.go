@@ -1,5 +1,7 @@
 package components
 
+import "strings"
+
 // Tip holds a structured tip with styled and unstyled segments
 type Tip struct {
 	Segments []TipSegment
@@ -16,17 +18,17 @@ func (t Tip) Render(theme Theme) string {
 	keyStyle := theme.HelpKeyStyle
 	descStyle := theme.HelpDescStyle
 
-	var result string
+	var b strings.Builder
 
 	for _, seg := range t.Segments {
 		if seg.IsKey {
-			result += keyStyle.Render(seg.Text)
+			b.WriteString(keyStyle.Render(seg.Text))
 		} else {
-			result += descStyle.Render(seg.Text)
+			b.WriteString(descStyle.Render(seg.Text))
 		}
 	}
 
-	return result
+	return b.String()
 }
 
 func desc(text string) TipSegment { return TipSegment{Text: text, IsKey: false} }

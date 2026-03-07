@@ -2,7 +2,7 @@ package preflight
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"sync/atomic"
@@ -111,7 +111,7 @@ func Test_Cleanup(t *testing.T) {
 			dirs: map[string]string{
 				"api": "/project/api",
 			},
-			scanErr:         fmt.Errorf("permission denied"),
+			scanErr:         errors.New("permission denied"),
 			expectedResults: 0,
 			expectedKills:   0,
 		},
@@ -125,7 +125,7 @@ func Test_Cleanup(t *testing.T) {
 				{pid: 100, dir: "/project/api", name: "node"},
 				{pid: 200, dir: "/project/web", name: "go"},
 			},
-			killErr:         fmt.Errorf("operation not permitted"),
+			killErr:         errors.New("operation not permitted"),
 			expectedResults: 2,
 			expectedKills:   2,
 		},
@@ -159,7 +159,7 @@ func Test_Cleanup(t *testing.T) {
 
 			results, err := p.Cleanup(context.Background(), tt.dirs)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(t, results, tt.expectedResults)
 			assert.Equal(t, int32(tt.expectedKills), killCount.Load())
 		})
@@ -199,7 +199,7 @@ func Test_Cleanup_ResultFields(t *testing.T) {
 		"api": "/project/api",
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, "api", results[0].Service)
 	assert.Equal(t, int32(100), results[0].PID)
@@ -240,7 +240,7 @@ func Test_Cleanup_MatchesExactDirectory(t *testing.T) {
 		"api": "/project/api",
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, int32(200), results[0].PID)
 }
@@ -289,7 +289,7 @@ func Test_Cleanup_ContextCancellationStopsKills(t *testing.T) {
 		"db":  "/project/db",
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Less(t, len(results), 3)
 	assert.Equal(t, killCount.Load(), int32(len(results)))
 }
@@ -297,7 +297,7 @@ func Test_Cleanup_ContextCancellationStopsKills(t *testing.T) {
 func Test_Scan(t *testing.T) {
 	entries, err := scan()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, entries)
 
 	ownPID := int32(os.Getpid())
@@ -321,17 +321,17 @@ func Test_Kill_ProcessExitsOnSIGTERM(t *testing.T) {
 	pid := int32(cmd.Process.Pid) // #nosec G115 -- PID fits in int32
 
 	// Reap the child when it exits so kill() can detect termination via signal 0
-	go cmd.Wait() //nolint:errcheck
+	go cmd.Wait()
 
 	err := kill(pid)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Kill_ProcessNotFound(t *testing.T) {
 	err := kill(2147483647)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_SortedKeys(t *testing.T) {

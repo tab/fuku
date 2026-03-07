@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"fuku/internal/app/errors"
 )
@@ -298,12 +299,12 @@ services: "this should be a map not a string"
 			cfg, topology, err := Load()
 
 			if tt.error != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.True(t, errors.Is(err, tt.error), "expected error %v, got %v", tt.error, err)
 				assert.Nil(t, cfg)
 				assert.Nil(t, topology)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, cfg)
 				assert.NotNil(t, topology)
 			}
@@ -316,13 +317,13 @@ func Test_Load_SentryDSN(t *testing.T) {
 		t.Setenv("SENTRY_DSN", "https://key@sentry.io/123")
 
 		cfg, _, err := Load()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "https://key@sentry.io/123", cfg.SentryDSN)
 	})
 
 	t.Run("Empty when SENTRY_DSN not set", func(t *testing.T) {
 		cfg, _, err := Load()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, cfg.SentryDSN)
 	})
 }
@@ -332,13 +333,13 @@ func Test_Load_Telemetry(t *testing.T) {
 		t.Setenv("FUKU_TELEMETRY_DISABLED", "1")
 
 		cfg, _, err := Load()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, cfg.Telemetry)
 	})
 
 	t.Run("Enabled when FUKU_TELEMETRY_DISABLED not set", func(t *testing.T) {
 		cfg, _, err := Load()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, cfg.Telemetry)
 	})
 
@@ -346,7 +347,7 @@ func Test_Load_Telemetry(t *testing.T) {
 		t.Setenv("FUKU_TELEMETRY_DISABLED", "false")
 
 		cfg, _, err := Load()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, cfg.Telemetry)
 	})
 }
@@ -388,7 +389,7 @@ concurrency:
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedWorkers, cfg.Concurrency.Workers)
 		})
 	}
@@ -437,7 +438,7 @@ retry:
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedAttempts, cfg.Retry.Attempts)
 			assert.Equal(t, tt.expectedBackoff, cfg.Retry.Backoff)
 		})
@@ -474,7 +475,7 @@ logs:
 			defer os.Remove("fuku.yaml")
 
 			cfg, _, err := Load()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedBuffer, cfg.Logs.Buffer)
 		})
 	}
@@ -758,10 +759,10 @@ func Test_Validate(t *testing.T) {
 			err := tt.config.Validate()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -806,10 +807,10 @@ func Test_ValidateCommand(t *testing.T) {
 			err := service.validateCommand()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorIs(t, err, errors.ErrInvalidCommand)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -908,10 +909,10 @@ func Test_ValidateReadiness(t *testing.T) {
 			err := service.validateReadiness()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.expectedErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1045,7 +1046,7 @@ defaults:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			topology, err := parseTierOrder([]byte(tt.yaml))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedTierOrder, topology.Order)
 			assert.Equal(t, tt.expectedServices, topology.TierServices)
 		})
@@ -1107,7 +1108,7 @@ func Test_ParseTierOrder_HasDefaultOnly(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			topology, err := parseTierOrder([]byte(tt.yaml))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedHasDefaultOnly, topology.HasDefaultOnly)
 		})
 	}
@@ -1219,10 +1220,10 @@ func Test_ValidateWatch(t *testing.T) {
 			err := service.validateWatch()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.expectedErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1290,10 +1291,10 @@ func Test_ValidateServiceLogs(t *testing.T) {
 			err := service.validateLogs()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.expectedErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1380,9 +1381,9 @@ services:
 			cfg, _, err := Load()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				for name, expectedLogs := range tt.expectedLogs {
 					service, ok := cfg.Services[name]
@@ -1472,9 +1473,9 @@ services:
 			cfg, _, err := Load()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				for name, expectedWatch := range tt.expectedWatch {
 					service, ok := cfg.Services[name]

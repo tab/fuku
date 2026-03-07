@@ -2,7 +2,7 @@ package components
 
 import "charm.land/lipgloss/v2"
 
-// Fixed colors (theme-independent, same in light and dark)
+// FgPrimary is a fixed color (theme-independent, same in light and dark)
 var FgPrimary = lipgloss.Color("#7D56F4")
 
 // App layout styles

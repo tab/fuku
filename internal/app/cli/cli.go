@@ -211,12 +211,12 @@ func (c *cli) handleInit() (int, error) {
 }
 
 // handleLogs streams logs from a running fuku instance
-func (c *cli) handleLogs() (int, error) { //nolint:unparam // error kept for consistent handler signature
+func (c *cli) handleLogs() (int, error) {
 	return c.streamer.Run(c.cmd.Profile, c.cmd.Services), nil
 }
 
 // handleHelp displays help information
-func (c *cli) handleHelp() (int, error) { //nolint:unparam // error kept for consistent handler signature
+func (c *cli) handleHelp() (int, error) {
 	c.log.Debug().Msg("Displaying help information")
 	fmt.Println(Usage)
 
@@ -224,7 +224,7 @@ func (c *cli) handleHelp() (int, error) { //nolint:unparam // error kept for con
 }
 
 // handleVersion displays version information
-func (c *cli) handleVersion() (int, error) { //nolint:unparam // error kept for consistent handler signature
+func (c *cli) handleVersion() (int, error) {
 	c.log.Debug().Msg("Displaying version information")
 	fmt.Printf("Version: %s\n", config.Version)
 

@@ -43,7 +43,7 @@ func Test_Registry_Get_NotFound(t *testing.T) {
 
 	lookup := reg.Get("nonexistent")
 	assert.False(t, lookup.Exists)
-	assert.Equal(t, "", lookup.Tier)
+	assert.Empty(t, lookup.Tier)
 }
 
 func Test_Registry_Snapshot(t *testing.T) {
@@ -170,7 +170,7 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 
 	var addWg sync.WaitGroup
 
-	for i := 0; i < numServices; i++ {
+	for i := range numServices {
 		mockProc := process.NewMockProcess(ctrl)
 		procs[i] = mockProc
 
@@ -189,7 +189,7 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 
 	var accessWg sync.WaitGroup
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		accessWg.Add(2)
 
 		go func() {
@@ -207,7 +207,7 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 
 	accessWg.Wait()
 
-	for i := 0; i < numServices; i++ {
+	for i := range numServices {
 		serviceName := fmt.Sprintf("service-%d", i)
 		reg.Remove(serviceName, procs[i])
 	}

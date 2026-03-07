@@ -44,10 +44,7 @@ func Test_Bus_PublishSubscribe(t *testing.T) {
 	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ch := b.Subscribe(ctx)
+	ch := b.Subscribe(t.Context())
 
 	b.Publish(Message{
 		Type: EventServiceReady,
@@ -81,11 +78,8 @@ func Test_Bus_MultipleSubscribers(t *testing.T) {
 	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ch1 := b.Subscribe(ctx)
-	ch2 := b.Subscribe(ctx)
+	ch1 := b.Subscribe(t.Context())
+	ch2 := b.Subscribe(t.Context())
 
 	b.Publish(Message{Type: EventPhaseChanged, Data: PhaseChanged{Phase: PhaseRunning}})
 
@@ -162,10 +156,7 @@ func Test_Bus_CriticalMessage_BlockingSubscriber(t *testing.T) {
 	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ch := b.Subscribe(ctx)
+	ch := b.Subscribe(t.Context())
 
 	b.Publish(Message{Type: EventPhaseChanged, Critical: false})
 
@@ -206,10 +197,7 @@ func Test_Bus_Command(t *testing.T) {
 	b := New(cfg, mockServer, mockLog)
 	defer b.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ch := b.Subscribe(ctx)
+	ch := b.Subscribe(t.Context())
 
 	b.Publish(Message{
 		Type: CommandStopService,
@@ -275,10 +263,7 @@ func Test_Bus_Publish_WithLoggerAndBroadcaster(t *testing.T) {
 	b := New(cfg, mockServer, log)
 	defer b.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	b.Subscribe(ctx)
+	b.Subscribe(t.Context())
 
 	b.Publish(Message{
 		Type: EventServiceReady,
@@ -312,7 +297,7 @@ func Test_NoOp_Methods(t *testing.T) {
 func Test_FormatData(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     interface{}
+		data     any
 		contains string
 	}{
 		{

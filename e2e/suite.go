@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -105,7 +106,7 @@ func (r *Runner) Stop() error {
 		r.cmd.Process.Kill()
 		<-done
 
-		return fmt.Errorf("process did not exit gracefully, killed")
+		return errors.New("process did not exit gracefully, killed")
 	}
 }
 

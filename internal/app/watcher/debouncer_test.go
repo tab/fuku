@@ -62,9 +62,10 @@ func Test_Debouncer_CoalescesRapidEvents(t *testing.T) {
 
 	// Trigger rapidly - each trigger resets the 50ms timer
 	// Total time: 10 * 10ms = 100ms of triggering, then 50ms debounce = ~150ms
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		d.Trigger("file.go")
-		time.Sleep(10 * time.Millisecond) //nolint:forbidigo // intentional - testing debounce coalescing
+		//nolint:forbidigo // intentional - testing debounce coalescing
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	select {

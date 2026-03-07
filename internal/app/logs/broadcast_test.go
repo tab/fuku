@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_MessageType_Constants(t *testing.T) {
-	assert.Equal(t, MessageType("subscribe"), MessageSubscribe)
-	assert.Equal(t, MessageType("log"), MessageLog)
+	assert.Equal(t, MessageSubscribe, MessageType("subscribe"))
+	assert.Equal(t, MessageLog, MessageType("log"))
 }
 
 func Test_SubscribeRequest_Marshal(t *testing.T) {
@@ -33,7 +34,7 @@ func Test_SubscribeRequest_Marshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data, err := json.Marshal(tt.request)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			for _, c := range tt.contains {
 				assert.Contains(t, string(data), c)
@@ -48,7 +49,7 @@ func Test_SubscribeRequest_Unmarshal(t *testing.T) {
 	var req SubscribeRequest
 
 	err := json.Unmarshal([]byte(data), &req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, MessageSubscribe, req.Type)
 	assert.Equal(t, []string{"api"}, req.Services)
 }
@@ -57,7 +58,7 @@ func Test_LogMessage_Marshal(t *testing.T) {
 	msg := LogMessage{Type: MessageLog, Service: "api", Message: "Hello World"}
 
 	data, err := json.Marshal(msg)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, string(data), `"type":"log"`)
 	assert.Contains(t, string(data), `"service":"api"`)
 	assert.Contains(t, string(data), `"message":"Hello World"`)
@@ -69,7 +70,7 @@ func Test_LogMessage_Unmarshal(t *testing.T) {
 	var msg LogMessage
 
 	err := json.Unmarshal([]byte(data), &msg)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, MessageLog, msg.Type)
 	assert.Equal(t, "db", msg.Service)
 	assert.Equal(t, "Connected", msg.Message)

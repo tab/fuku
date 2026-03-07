@@ -47,6 +47,7 @@ func (m Model) renderStatus() string {
 	phaseStr := string(m.state.phase)
 	phaseStyle := m.theme.PhaseMutedStyle
 
+	//nolint:exhaustive // stopped phase uses default styling
 	switch m.state.phase {
 	case bus.PhaseStartup:
 		phaseStr = "starting…"
@@ -68,7 +69,7 @@ func (m Model) renderStatus() string {
 
 // renderVersion renders the version string
 func (m Model) renderVersion() string {
-	return m.theme.PanelMutedStyle.Render(fmt.Sprintf("v%s", config.Version))
+	return m.theme.PanelMutedStyle.Render("v" + config.Version)
 }
 
 // renderAppStats renders fuku's own CPU and memory usage
@@ -267,10 +268,7 @@ func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string 
 func (m Model) getStyledAndPaddedStatus(service *ServiceState, isSelected bool) string {
 	statusStr := string(service.Status)
 
-	paddingLen := m.ui.layout.StatusWidth - len(statusStr)
-	if paddingLen < 0 {
-		paddingLen = 0
-	}
+	paddingLen := max(m.ui.layout.StatusWidth-len(statusStr), 0)
 
 	padding := strings.Repeat(components.IndicatorEmpty, paddingLen)
 
