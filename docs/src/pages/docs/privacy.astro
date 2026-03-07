@@ -21,7 +21,9 @@ const current = `${base}docs/privacy/`;
 
   <ul>
     <li>Error types and stack traces (no file paths with usernames)</li>
-    <li>Performance timing for startup, shutdown, and readiness checks</li>
+    <li>Performance traces for startup phases, tier sequencing, and shutdown</li>
+    <li>Fuku process CPU and RSS memory samples (process-level only, no service names or machine identity)</li>
+    <li>Anonymous random ID for unique-user counting (stored locally, not linked to any real identity)</li>
     <li>Environment metadata: OS, architecture, Go version, fuku version</li>
     <li>Command and profile names, service/tier counts</li>
   </ul>
@@ -53,5 +55,17 @@ const current = `${base}docs/privacy/`;
     <pre><code>git clone https://github.com/tab/fuku.git
 cd fuku
 go build -o cmd/fuku cmd/main.go</code></pre>
+  </div>
+
+  <h3>Reset anonymous identity</h3>
+  <p>
+    Delete the telemetry ID file to reset your anonymous identity. A new random ID is generated on next run.
+  </p>
+  <div class="code-block">
+    <pre><code># macOS
+rm ~/Library/Application\ Support/fuku/telemetry.id
+
+# Linux
+rm ~/.config/fuku/telemetry.id</code></pre>
   </div>
 </DocsLayout>

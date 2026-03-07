@@ -6,5 +6,9 @@ import "go.uber.org/fx"
 var Module = fx.Options(
 	fx.Provide(
 		NewMonitor,
+		fx.Annotate(
+			NewMonitor,
+			fx.ResultTags(`name:"sampler"`),
+		),
 	),
 )

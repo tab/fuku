@@ -87,6 +87,16 @@ type ServiceDefaults struct {
 	Tier     string   `yaml:"tier"`
 }
 
+// TelemetryEnabled reports whether telemetry is active (opted in and DSN configured)
+func (c *Config) TelemetryEnabled() bool {
+	return c.Telemetry && c.SentryDSN != ""
+}
+
+// TelemetryDisabled reports whether telemetry is inactive (opted out or DSN missing)
+func (c *Config) TelemetryDisabled() bool {
+	return !c.TelemetryEnabled()
+}
+
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	cfg := &Config{

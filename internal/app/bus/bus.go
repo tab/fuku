@@ -35,6 +35,7 @@ const (
 	EventWatchTriggered    MessageType = "watch_triggered"
 	EventWatchStarted      MessageType = "watch_started"
 	EventWatchStopped      MessageType = "watch_stopped"
+	EventResourceSample    MessageType = "resource_sample"
 )
 
 // Command types
@@ -109,9 +110,7 @@ type Tier struct {
 
 // TierStarting indicates a tier is beginning its startup sequence
 type TierStarting struct {
-	Name  string
-	Index int
-	Total int
+	Name string
 }
 
 // Payload contains a simple name identifier for events
@@ -183,6 +182,12 @@ type Signal struct {
 type WatchTriggered struct {
 	Service      string
 	ChangedFiles []string
+}
+
+// ResourceSample contains fuku process CPU and memory readings
+type ResourceSample struct {
+	CPU float64
+	MEM float64
 }
 
 // Bus handles pub/sub messaging
@@ -315,7 +320,7 @@ func formatData(data any) string {
 	case PreflightComplete:
 		return fmt.Sprintf("{killed: %d, duration: %s}", d.Killed, d.Duration)
 	case TierStarting:
-		return fmt.Sprintf("{tier: %s, %d/%d}", d.Name, d.Index, d.Total)
+		return fmt.Sprintf("{tier: %s}", d.Name)
 	case Payload:
 		return fmt.Sprintf("{name: %s}", d.Name)
 	case TierReady:
@@ -338,6 +343,8 @@ func formatData(data any) string {
 		return fmt.Sprintf("{signal: %s}", d.Name)
 	case WatchTriggered:
 		return fmt.Sprintf("{service: %s, files: %v}", d.Service, d.ChangedFiles)
+	case ResourceSample:
+		return fmt.Sprintf("{cpu: %.1f%%, mem: %.1fMB}", d.CPU, d.MEM)
 	default:
 		return fmt.Sprintf("%+v", data)
 	}

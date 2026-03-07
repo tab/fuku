@@ -22,6 +22,8 @@ var (
 const (
 	UnitMillisecond = gosentry.UnitMillisecond
 	UnitSecond      = gosentry.UnitSecond
+	UnitPercent     = gosentry.UnitPercent
+	UnitMegabyte    = gosentry.UnitMegabyte
 )
 
 // Re-exported attribute builders from sentry-go/attribute
@@ -57,6 +59,12 @@ const (
 	MetricShutdownDuration       = "shutdown_duration"
 	MetricStartupDuration        = "startup_duration"
 	MetricTierStartupDuration    = "tier_startup_duration"
+)
+
+// Distribution metrics for fuku process resource usage
+const (
+	MetricFukuCPU    = "fuku_cpu"
+	MetricFukuMemory = "fuku_memory"
 )
 
 // Tag and attribute keys for Sentry scope tags and metric annotations

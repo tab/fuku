@@ -332,7 +332,7 @@ func Test_FormatData(t *testing.T) {
 		},
 		{
 			name:     "TierStarting",
-			data:     TierStarting{Name: "platform", Index: 1, Total: 3},
+			data:     TierStarting{Name: "platform"},
 			contains: "platform",
 		},
 		{
@@ -389,6 +389,11 @@ func Test_FormatData(t *testing.T) {
 			name:     "WatchTriggered",
 			data:     WatchTriggered{Service: "api", ChangedFiles: []string{"main.go"}},
 			contains: "api",
+		},
+		{
+			name:     "ResourceSample",
+			data:     ResourceSample{CPU: 2.5, MEM: 64.0},
+			contains: "2.5%",
 		},
 		{
 			name:     "Unknown",

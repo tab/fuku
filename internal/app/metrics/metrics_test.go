@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
 )
@@ -35,6 +36,39 @@ func Test_Collector_Run_StopsOnContextCancel(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("collector did not stop after context cancel")
+	}
+}
+
+func Test_Collector_Run_HandlesMessagesAndChannelClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ch := make(chan bus.Message, 10)
+	mockBus := bus.NewMockBus(ctrl)
+	mockBus.EXPECT().Subscribe(gomock.Any()).Return((<-chan bus.Message)(ch))
+
+	c := NewCollector(mockBus)
+
+	ch <- bus.Message{
+		Type: bus.EventServiceFailed,
+		Data: bus.ServiceFailed{
+			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+		},
+	}
+
+	close(ch)
+
+	done := make(chan struct{})
+
+	go func() {
+		c.Run(context.Background())
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("collector did not stop after channel close")
 	}
 }
 
@@ -298,6 +332,29 @@ func Test_Handle_CommandStarted_InvalidData(t *testing.T) {
 
 	c.handle(ctx, bus.Message{
 		Type: bus.EventCommandStarted,
+		Data: "invalid",
+	})
+}
+
+func Test_Handle_ResourceSample(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventResourceSample,
+		Data: bus.ResourceSample{
+			CPU: 2.5,
+			MEM: 64.0,
+		},
+	})
+}
+
+func Test_Handle_ResourceSample_InvalidData(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventResourceSample,
 		Data: "invalid",
 	})
 }

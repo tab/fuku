@@ -332,7 +332,7 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []discovery.Tier) {
 		r.log.Info().Msgf("Starting tier '%s' (%d/%d) with services: %v", tier.Name, tierIdx+1, len(tiers), tier.Services)
 		r.bus.Publish(bus.Message{
 			Type:     bus.EventTierStarting,
-			Data:     bus.TierStarting{Name: tier.Name, Index: tierIdx + 1, Total: len(tiers)},
+			Data:     bus.TierStarting{Name: tier.Name},
 			Critical: true,
 		})
 

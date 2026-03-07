@@ -352,6 +352,76 @@ func Test_Load_Telemetry(t *testing.T) {
 	})
 }
 
+func Test_TelemetryEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "enabled when telemetry true and DSN set",
+			cfg:      &Config{Telemetry: true, SentryDSN: "https://key@sentry.io/123"},
+			expected: true,
+		},
+		{
+			name:     "disabled when telemetry false",
+			cfg:      &Config{Telemetry: false, SentryDSN: "https://key@sentry.io/123"},
+			expected: false,
+		},
+		{
+			name:     "disabled when DSN empty",
+			cfg:      &Config{Telemetry: true, SentryDSN: ""},
+			expected: false,
+		},
+		{
+			name:     "disabled when both false and empty",
+			cfg:      &Config{Telemetry: false, SentryDSN: ""},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.cfg.TelemetryEnabled())
+		})
+	}
+}
+
+func Test_TelemetryDisabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "disabled when telemetry false",
+			cfg:      &Config{Telemetry: false, SentryDSN: "https://key@sentry.io/123"},
+			expected: true,
+		},
+		{
+			name:     "disabled when DSN empty",
+			cfg:      &Config{Telemetry: true, SentryDSN: ""},
+			expected: true,
+		},
+		{
+			name:     "disabled when both false and empty",
+			cfg:      &Config{Telemetry: false, SentryDSN: ""},
+			expected: true,
+		},
+		{
+			name:     "not disabled when telemetry true and DSN set",
+			cfg:      &Config{Telemetry: true, SentryDSN: "https://key@sentry.io/123"},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.cfg.TelemetryDisabled())
+		})
+	}
+}
+
 func Test_LoadConcurrencyConfig(t *testing.T) {
 	tests := []struct {
 		name            string

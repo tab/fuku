@@ -32,6 +32,8 @@
    - **app/registry/** - Running process tracking with detach support
    - **app/preflight/** - Pre-start cleanup of orphaned processes in service directories
    - **app/runner/** - Service orchestration and startup coordination
+   - **app/sampler/** - Periodic fuku process resource sampling (CPU/MEM) published as bus events
+   - **app/tracer/** - Bus-driven Sentry transaction and span management
    - **app/ui/services/** - Interactive TUI with Bubble Tea framework
    - **app/watcher/** - File change detection with debouncing for hot-reload
    - **app/worker/** - Shared bounded worker pool for concurrent task execution
@@ -274,6 +276,8 @@
 - `internal/app/runner/guard_test.go` - Restart guard testing
 - `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
 - `internal/app/runner/service_test.go` - Service start/stop/restart testing
+- `internal/app/sampler/sampler_test.go` - Resource sampler testing
+- `internal/app/tracer/tracer_test.go` - Sentry tracer testing
 - `internal/app/worker/worker_test.go` - Worker pool testing
 - `internal/app/ui/components/blink_test.go` - Blink animation testing
 - `internal/app/ui/components/layout_test.go` - Layout component testing
@@ -294,6 +298,8 @@
 - `internal/config/logger/logger_test.go` - Logger implementation testing
 - `internal/config/sentry/sentry_test.go` - Sentry client initialization testing
 - `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing
+- `internal/config/sentry/trace_test.go` - Trace types and operation constants testing
+- `internal/config/sentry/identity_test.go` - Anonymous telemetry ID testing
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
 - `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management, custom command)
 

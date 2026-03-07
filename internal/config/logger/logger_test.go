@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"fuku/internal/config"
 )
@@ -276,6 +277,46 @@ func Test_getLogLevel(t *testing.T) {
 			assert.Equal(t, tt.expected, level)
 		})
 	}
+}
+
+func Test_NewConsoleWriter(t *testing.T) {
+	w := newConsoleWriter()
+
+	assert.NotNil(t, w.FormatFieldName)
+	assert.NotNil(t, w.FormatPrepare)
+
+	assert.Empty(t, w.FormatFieldName("component"))
+	assert.Equal(t, "foo=", w.FormatFieldName("foo"))
+
+	m := map[string]any{"component": "runner"}
+	err := w.FormatPrepare(m)
+	require.NoError(t, err)
+	assert.Equal(t, "[runner]", m["component"])
+
+	m2 := map[string]any{"other": "value"}
+	err = w.FormatPrepare(m2)
+	assert.NoError(t, err)
+}
+
+func Test_WithComponent(t *testing.T) {
+	cfg := &config.Config{
+		Logging: struct {
+			Level  string `yaml:"level"`
+			Format string `yaml:"format"`
+		}{
+			Level:  DebugLevel,
+			Format: JSONFormat,
+		},
+	}
+
+	buf := &bytes.Buffer{}
+	log := NewLoggerWithOutput(cfg, buf)
+
+	child := log.WithComponent("runner")
+	assert.NotNil(t, child)
+
+	child.Info().Msg("test")
+	assert.Contains(t, buf.String(), "runner")
 }
 
 func Test_Module(t *testing.T) {

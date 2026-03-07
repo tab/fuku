@@ -34,7 +34,7 @@ func Test_DefaultTier_StartsConcurrently(t *testing.T) {
 	assert.Contains(t, output, "Starting services in profile 'default': [auth-api user-api]")
 
 	// Tier events
-	assert.Contains(t, output, "tier_starting {tier: default, 1/1}")
+	assert.Contains(t, output, "tier_starting {tier: default}")
 	assert.Contains(t, output, "tier_ready {tier: default")
 
 	// Service events

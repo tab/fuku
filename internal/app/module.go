@@ -9,6 +9,8 @@ import (
 	"fuku/internal/app/metrics"
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/runner"
+	"fuku/internal/app/sampler"
+	"fuku/internal/app/tracer"
 	"fuku/internal/app/ui/wire"
 	"fuku/internal/app/watcher"
 )
@@ -21,6 +23,8 @@ var Module = fx.Options(
 	metrics.Module,
 	monitor.Module,
 	runner.Module,
+	sampler.Module,
+	tracer.Module,
 	watcher.Module,
 	wire.Module,
 	fx.Provide(NewApp),
