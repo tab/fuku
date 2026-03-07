@@ -1,0 +1,15 @@
+version: 1
+
+services:
+  with-makefile:
+    dir: with-makefile
+  with-command:
+    dir: with-command
+    command: go run main.go
+
+profiles:
+  default: "*"
+
+logging:
+  format: console
+  level: debug

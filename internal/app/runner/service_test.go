@@ -1110,6 +1110,63 @@ func Test_PreFlightCheck_NoPort(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func Test_BuildCommand_Default(t *testing.T) {
+	cmd := buildCommand("")
+
+	assert.Equal(t, []string{"make", "run"}, cmd.Args)
+}
+
+func Test_BuildCommand_Custom(t *testing.T) {
+	cmd := buildCommand("go run cmd/main.go")
+
+	assert.Equal(t, []string{"sh", "-c", "go run cmd/main.go"}, cmd.Args)
+}
+
+func Test_DoStart_CustomCommand(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tmpDir := t.TempDir()
+
+	cfg := config.DefaultConfig()
+
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
+	mockLifecycle.EXPECT().Configure(gomock.Any()).AnyTimes()
+	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	mockReadiness := readiness.NewMockReadiness(ctrl)
+	mockServer := logs.NewMockServer(ctrl)
+	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	s := &service{
+		cfg:       cfg,
+		lifecycle: mockLifecycle,
+		readiness: mockReadiness,
+		bus:       bus.NoOp(),
+		server:    mockServer,
+		log:       mockLog,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	svc := &config.Service{Dir: tmpDir, Command: "sleep 60"}
+
+	proc, err := s.doStart(ctx, "test-service", "platform", svc)
+	require.NoError(t, err)
+	require.NotNil(t, proc)
+
+	t.Cleanup(func() {
+		proc.Cmd().Process.Kill()
+		<-proc.Done()
+	})
+}
+
 func Test_ExtractFromURL(t *testing.T) {
 	tests := []struct {
 		name     string

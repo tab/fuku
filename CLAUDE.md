@@ -158,7 +158,7 @@
    - Directory-based service configuration
    - Tier-based startup ordering
    - Automatic environment file detection (`.env.development`)
-   - Makefile-based service execution (`make run`)
+   - Makefile-based service execution (`make run`) with optional custom command override
 
 2. **Profile Management**
    - Logical grouping of services for batch execution
@@ -295,7 +295,7 @@
 - `internal/config/sentry/sentry_test.go` - Sentry client initialization testing
 - `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
-- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management)
+- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management, custom command)
 
 ## Primary Guidelines
 
@@ -347,31 +347,61 @@
 
 ```bash
 # Build binary
-go build -o cmd/fuku ./cmd
+make build
+
+# Lint code (always run from the top level)
+make lint
+
+# Vet code (always run from the top level)
+make vet
 
 # Run all tests (always run from the top level)
 make test
 
-# Lint code (always run from the top level)
-make lint
+# Run tests with race detector
+make test:race
+
+# Run e2e tests (requires build first)
+make build && make test:e2e
 
 # Coverage report (always run from the top level)
 make coverage
 
 # Format code
 go fmt ./...
-
-# Run completion sequence (formatting, linting and testing)
-go fmt ./... && make lint && make vet && make test
 ```
 
-**IMPORTANT:** NEVER commit without running tests, formatter and linters for the entire codebase!
+## Verification Loop
+
+After making changes, run the full verification loop. Fix issues at each step before proceeding:
+
+```bash
+# 1. Format
+go fmt ./...
+
+# 2. Lint — fix any issues, re-run until clean
+make lint
+
+# 3. Vet — fix any issues, re-run until clean
+make vet
+
+# 4. Tests — fix any failures, re-run until clean
+make test
+
+# 5. Race detector — fix any races, re-run until clean
+make test:race
+
+# 6. E2E tests — fix any failures, re-run until clean
+make build && make test:e2e
+```
+
+**IMPORTANT:** NEVER commit without running the full verification loop!
 
 ## Important Workflow Notes
 
-- always run tests, linter BEFORE committing anything
+- always run the full verification loop BEFORE committing anything
 - run formatting, code generation, linting and testing on completion
-- never commit without running completion sequence
+- never commit without passing all verification steps
 - run tests and linter after making significant changes to verify functionality
 - IMPORTANT: never put into commit message any mention of Claude or Claude Code
 - IMPORTANT: never include "Test plan" sections in PR descriptions
@@ -595,6 +625,7 @@ services:
   service-name:
     dir: path/to/service
     tier: foundation
+    command: go run cmd/main.go  # optional, defaults to "make run"
     logs:
       output: [stdout, stderr]
 
@@ -612,8 +643,9 @@ logging:
 - services are defined with a directory path and optional tier
 - profiles allow grouping services for batch operations
 - tiers determine startup ordering (services in earlier tiers start first)
-- each service runs `make run` in its specified directory
-- services must have a Makefile with a `run` target
+- each service runs `make run` in its specified directory by default
+- services can override the start command with `command` field (e.g., `command: go run cmd/main.go`)
+- services without a custom command must have a Makefile with a `run` target
 - environment files (`.env.development`) are automatically detected and passed via ENV_FILE
 
 ## Example Configuration

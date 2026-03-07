@@ -290,9 +290,24 @@ services:
 
 Top-level keys prefixed with `x-` are ignored by fuku and serve as anchor definitions.
 
-### Service Requirements
+### Custom Start Command
 
-Each service directory must have a Makefile with a `run` target:
+By default, each service runs `make run` in its directory. You can override this with a custom command:
+
+```yaml
+services:
+  auth:
+    dir: ./auth
+    command: go run cmd/main.go
+  web:
+    dir: ./frontend
+    command: npm run dev
+  api:
+    dir: ./api
+    # No command — uses "make run" (requires Makefile with run target)
+```
+
+When `command` is omitted, the service directory must have a Makefile with a `run` target:
 
 ```makefile
 run:

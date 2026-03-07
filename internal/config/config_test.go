@@ -738,6 +738,19 @@ func Test_Validate(t *testing.T) {
 			expectError: true,
 			errorMsg:    "service api",
 		},
+		{
+			name: "service with whitespace-only command",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api", Command: "   "},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "service api",
+		},
 	}
 
 	for _, tt := range tests {
@@ -747,6 +760,54 @@ func Test_Validate(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_ValidateCommand(t *testing.T) {
+	tests := []struct {
+		name        string
+		command     string
+		expectError bool
+	}{
+		{
+			name:        "empty command is valid (uses default)",
+			command:     "",
+			expectError: false,
+		},
+		{
+			name:        "valid command",
+			command:     "go run cmd/main.go",
+			expectError: false,
+		},
+		{
+			name:        "whitespace-only command is invalid",
+			command:     "   ",
+			expectError: true,
+		},
+		{
+			name:        "tab-only command is invalid",
+			command:     "\t",
+			expectError: true,
+		},
+		{
+			name:        "newline-only command is invalid",
+			command:     "\n",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &Service{Command: tt.command}
+			err := service.validateCommand()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, errors.ErrInvalidCommand)
 			} else {
 				assert.NoError(t, err)
 			}

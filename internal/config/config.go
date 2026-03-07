@@ -50,6 +50,7 @@ type Topology struct {
 // Service represents a service configuration
 type Service struct {
 	Dir       string     `yaml:"dir"`
+	Command   string     `yaml:"command"`
 	Profiles  []string   `yaml:"profiles"`
 	Tier      string     `yaml:"tier"`
 	Readiness *Readiness `yaml:"readiness"`
@@ -330,6 +331,10 @@ func (c *Config) Validate() error {
 	}
 
 	for name, service := range c.Services {
+		if err := service.validateCommand(); err != nil {
+			return fmt.Errorf("service %s: %w", name, err)
+		}
+
 		if err := service.validateReadiness(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
 		}
@@ -372,6 +377,15 @@ func (c *Config) validateRetry() error {
 func (c *Config) validateLogs() error {
 	if c.Logs.Buffer <= 0 {
 		return errors.ErrInvalidLogsBuffer
+	}
+
+	return nil
+}
+
+// validateCommand validates the command configuration
+func (s *Service) validateCommand() error {
+	if s.Command != "" && strings.TrimSpace(s.Command) == "" {
+		return errors.ErrInvalidCommand
 	}
 
 	return nil

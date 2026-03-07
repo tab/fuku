@@ -219,7 +219,7 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 		return nil, err
 	}
 
-	cmd := exec.Command("make", "run")
+	cmd := buildCommand(cfg.Command)
 	cmd.Dir = serviceDir
 
 	cmd.Env = append(os.Environ(), fmt.Sprintf("ENV_FILE=%s", envFile))
@@ -570,6 +570,15 @@ func (s *service) isWatched(name string) bool {
 	cfg, exists := s.cfg.Services[name]
 
 	return exists && cfg.Watch != nil
+}
+
+// buildCommand creates an exec.Cmd from a command string, defaulting to "make run"
+func buildCommand(command string) *exec.Cmd {
+	if command == "" {
+		return exec.Command("make", "run")
+	}
+
+	return exec.Command("sh", "-c", command)
 }
 
 func drainPipe(reader io.Reader) {

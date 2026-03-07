@@ -62,7 +62,21 @@ fuku run core --no-ui</code></pre>
   <h2>Service Requirements</h2>
 
   <p>
-    Each service directory must contain a <code>Makefile</code> with a <code>run</code> target. Fuku executes <code>make run</code> inside each service's directory.
+    By default, fuku executes <code>make run</code> inside each service's directory. You can override this with a custom <code>command</code>:
+  </p>
+
+  <div class="code-block">
+    <pre><code>services:
+  api:
+    dir: ./api
+    command: go run cmd/main.go    # Custom command (runs via sh -c)
+  worker:
+    dir: ./worker
+    # No command — uses "make run" (requires Makefile)</code></pre>
+  </div>
+
+  <p>
+    When using the default <code>make run</code>, each service directory must contain a <code>Makefile</code> with a <code>run</code> target:
   </p>
 
   <div class="code-block">
