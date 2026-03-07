@@ -2,9 +2,6 @@ name: Checks
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
-  push:
-    branches:
-      - master
 concurrency:
   group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
   cancel-in-progress: true
@@ -70,12 +67,6 @@ jobs:
           go-version: ${{ matrix.version }}
       - name: Run tests
         run: make test:race
-      - name: Upload coverage to Codecov
-        if: matrix.version == '1.25'
-        # NOTE: https://github.com/codecov/codecov-action/releases/v5.5.2
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
   e2e:
     name: E2E
     permissions:

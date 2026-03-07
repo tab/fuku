@@ -3,13 +3,19 @@ on:
   push:
     branches:
       - master
+    paths-ignore:
+      - "docs/**"
+      - "assets/**"
+      - "**.md"
+      - "LICENSE"
+      - ".github/workflows/pages.yaml"
   workflow_dispatch:
 concurrency:
   group: master
   cancel-in-progress: true
 jobs:
-  coverage:
-    name: Codecov
+  linter:
+    name: Linter
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -18,12 +24,86 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.25'
-      - name: Run coverage
+      - name: golangci-lint
+        # NOTE: https://github.com/golangci/golangci-lint-action/releases/tag/v9.2.0
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20
+        with:
+          version: v2.8.0
+  vet:
+    name: Vet
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: go vet
+        run: make vet
+  static-check:
+    name: Staticcheck
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: static-check
+        # NOTE: https://github.com/dominikh/staticcheck-action/releases/tag/v1.4.0
+        uses: dominikh/staticcheck-action@024238d2898c874f26d723e7d0ff4308c35589a2
+        with:
+          install-go: false
+  tests:
+    name: Tests
+    permissions:
+      contents: read
+    env:
+      GO_ENV: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [ '1.25', '1.26' ]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.version }}
+      - name: Run tests
         run: make test:race
+  e2e:
+    name: E2E
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
       - name: Build
         run: make build
       - name: Run e2e tests
         run: make test:e2e
+  coverage:
+    name: Codecov
+    needs: [linter, vet, static-check, tests, e2e]
+    permissions:
+      contents: read
+    env:
+      GO_ENV: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: Run coverage
+        run: make test:race
       - name: Upload coverage to Codecov
         # NOTE: https://github.com/codecov/codecov-action/releases/v5.5.2
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
