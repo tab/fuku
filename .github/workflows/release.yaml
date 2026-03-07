@@ -2,11 +2,30 @@ name: Release
 on:
   release:
     types: [ released ]
-permissions:
-  contents: write
 jobs:
+  verify:
+    name: Verify
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    env:
+      GO_ENV: test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: Run tests
+        run: make test:race
+      - name: Build
+        run: make build
+      - name: Run e2e tests
+        run: make test:e2e
   release:
     name: Release
+    needs: verify
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
