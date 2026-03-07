@@ -351,7 +351,9 @@ Official release binaries include [Sentry](https://sentry.io) error tracking to 
 ### What is collected
 
 - Error types and stack traces (no file paths with usernames)
-- Performance timing for startup, shutdown, and readiness checks
+- Performance traces for startup phases, tier sequencing, and shutdown
+- Fuku process CPU and RSS memory samples (process-level only, no service names or machine identity)
+- Anonymous random ID for unique-user counting (stored locally, not linked to any real identity)
 - Environment metadata: OS, architecture, Go version, fuku version
 - Command and profile names, service/tier counts
 
@@ -366,6 +368,9 @@ Official release binaries include [Sentry](https://sentry.io) error tracking to 
 
 1. **Set `FUKU_TELEMETRY_DISABLED=1`** — disables all telemetry regardless of DSN
 2. **Build from source** — no Sentry DSN compiled in, telemetry is disabled by default
+3. **Delete the telemetry ID file** — resets your anonymous identity; a new random ID is generated on next run
+   - macOS: `~/Library/Application Support/fuku/telemetry.id`
+   - Linux: `~/.config/fuku/telemetry.id`
 
 ## About the Name
 
