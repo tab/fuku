@@ -110,9 +110,7 @@ type Tier struct {
 
 // TierStarting indicates a tier is beginning its startup sequence
 type TierStarting struct {
-	Name  string
-	Index int
-	Total int
+	Name string
 }
 
 // Payload contains a simple name identifier for events
@@ -322,7 +320,7 @@ func formatData(data any) string {
 	case PreflightComplete:
 		return fmt.Sprintf("{killed: %d, duration: %s}", d.Killed, d.Duration)
 	case TierStarting:
-		return fmt.Sprintf("{tier: %s, %d/%d}", d.Name, d.Index, d.Total)
+		return fmt.Sprintf("{tier: %s}", d.Name)
 	case Payload:
 		return fmt.Sprintf("{name: %s}", d.Name)
 	case TierReady:

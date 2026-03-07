@@ -7,7 +7,6 @@ import (
 	"time"
 
 	gosentry "github.com/getsentry/sentry-go"
-	"go.uber.org/fx"
 
 	"fuku/internal/config"
 )
@@ -34,23 +33,21 @@ type sentryClient struct{}
 
 // NewSentry creates a new Sentry client using application configuration
 func NewSentry(cfg *config.Config) Sentry {
-	if cfg.SentryDSN == "" {
+	if cfg.TelemetryDisabled() {
 		return &sentryClient{}
 	}
 
 	err := gosentry.Init(gosentry.ClientOptions{
-		Dsn:              cfg.SentryDSN,
-		Environment:      cfg.AppEnv,
-		Release:          config.Version,
-		AttachStacktrace: true,
-		SampleRate:       1.0,
-		SendDefaultPII:   false,
-		BeforeSend: func(event *gosentry.Event, hint *gosentry.EventHint) *gosentry.Event {
-			event.ServerName = ""
-			event.User = gosentry.User{}
-
-			return event
-		},
+		Dsn:                   cfg.SentryDSN,
+		Environment:           cfg.AppEnv,
+		Release:               config.Version,
+		AttachStacktrace:      true,
+		SampleRate:            1.0,
+		EnableTracing:         true,
+		TracesSampleRate:      0.1,
+		SendDefaultPII:        false,
+		BeforeSend:            stripPII,
+		BeforeSendTransaction: stripPII,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize Sentry: %v\n", err)
@@ -63,6 +60,10 @@ func NewSentry(cfg *config.Config) Sentry {
 		scope.SetTag(TagOS, runtime.GOOS)
 		scope.SetTag(TagArch, runtime.GOARCH)
 		scope.SetTag(TagGoVersion, runtime.Version())
+
+		if id := loadTelemetryID(); id != "" {
+			scope.SetUser(gosentry.User{ID: id})
+		}
 	})
 
 	return &sentryClient{}
@@ -73,7 +74,10 @@ func (s *sentryClient) Flush() {
 	gosentry.Flush(2 * time.Second)
 }
 
-// Module provides the fx dependency injection options for the sentry package
-var Module = fx.Options(
-	fx.Provide(NewSentry),
-)
+// stripPII removes or obfuscates sensitive information from a Sentry event before it's sent
+func stripPII(event *gosentry.Event, _ *gosentry.EventHint) *gosentry.Event {
+	event.ServerName = ""
+	event.User = gosentry.User{ID: event.User.ID}
+
+	return event
+}

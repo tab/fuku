@@ -74,6 +74,21 @@ func TestGetStats_MaxInt32PID(t *testing.T) {
 	assert.Equal(t, Stats{}, stats)
 }
 
+func TestGetStats_DeltaCPU(t *testing.T) {
+	m := NewMonitor()
+	ctx := context.Background()
+	pid := os.Getpid()
+
+	stats1, err := m.GetStats(ctx, pid)
+	require.NoError(t, err)
+	assert.InDelta(t, 0.0, stats1.CPU, 0.001)
+
+	stats2, err := m.GetStats(ctx, pid)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, stats2.CPU, 0.0)
+	assert.Greater(t, stats2.MEM, 0.0)
+}
+
 func TestGetStats_CancelledContext(t *testing.T) {
 	m := NewMonitor()
 

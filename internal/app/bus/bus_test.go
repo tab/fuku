@@ -332,7 +332,7 @@ func Test_FormatData(t *testing.T) {
 		},
 		{
 			name:     "TierStarting",
-			data:     TierStarting{Name: "platform", Index: 1, Total: 3},
+			data:     TierStarting{Name: "platform"},
 			contains: "platform",
 		},
 		{

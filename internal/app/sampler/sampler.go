@@ -9,7 +9,7 @@ import (
 	"fuku/internal/app/monitor"
 )
 
-const sampleInterval = 30 * time.Second
+const sampleInterval = 5 * time.Minute
 
 // Sampler periodically samples fuku process resource usage and publishes events
 type Sampler interface {
@@ -22,15 +22,17 @@ type sampler struct {
 }
 
 // NewSampler creates a new resource sampler
-func NewSampler(b bus.Bus, m monitor.Monitor) Sampler {
+func NewSampler(bus bus.Bus, monitor monitor.Monitor) Sampler {
 	return &sampler{
-		bus:     b,
-		monitor: m,
+		bus:     bus,
+		monitor: monitor,
 	}
 }
 
 // Run samples CPU and memory at a fixed interval until context is cancelled
 func (s *sampler) Run(ctx context.Context) {
+	s.prime(ctx)
+
 	ticker := time.NewTicker(sampleInterval)
 	defer ticker.Stop()
 
@@ -44,9 +46,19 @@ func (s *sampler) Run(ctx context.Context) {
 	}
 }
 
+func (s *sampler) prime(ctx context.Context) {
+	// Warm up CPU accounting so the first tick produces a valid delta
+	//nolint:errcheck // priming call; result is intentionally discarded
+	s.monitor.GetStats(ctx, os.Getpid())
+}
+
 func (s *sampler) sample(ctx context.Context) {
 	stats, err := s.monitor.GetStats(ctx, os.Getpid())
 	if err != nil {
+		return
+	}
+
+	if stats.CPU <= 0 && stats.MEM <= 0 {
 		return
 	}
 

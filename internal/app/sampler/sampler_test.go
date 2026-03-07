@@ -39,7 +39,45 @@ func Test_Sampler_Run_StopsOnContextCancel(t *testing.T) {
 	}
 }
 
-func Test_Sampler_Sample_PublishesEvent(t *testing.T) {
+func Test_Sampler_Prime_WarmsUpCPU(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockBus := bus.NewMockBus(ctrl)
+
+	mockMonitor.EXPECT().
+		GetStats(gomock.Any(), gomock.Any()).
+		Return(monitor.Stats{CPU: 0, MEM: 0}, nil)
+
+	s := &sampler{
+		bus:     mockBus,
+		monitor: mockMonitor,
+	}
+
+	s.prime(context.Background())
+}
+
+func Test_Sampler_Sample_SkipsZeroStats(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockBus := bus.NewMockBus(ctrl)
+
+	mockMonitor.EXPECT().
+		GetStats(gomock.Any(), gomock.Any()).
+		Return(monitor.Stats{CPU: 0, MEM: 0}, nil)
+
+	s := &sampler{
+		bus:     mockBus,
+		monitor: mockMonitor,
+	}
+
+	s.sample(context.Background())
+}
+
+func Test_Sampler_Sample_PublishesAfterWarmup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

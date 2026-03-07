@@ -22,6 +22,8 @@ var (
 const (
 	UnitMillisecond = gosentry.UnitMillisecond
 	UnitSecond      = gosentry.UnitSecond
+	UnitPercent     = gosentry.UnitPercent
+	UnitMegabyte    = gosentry.UnitMegabyte
 )
 
 // Re-exported attribute builders from sentry-go/attribute
