@@ -267,7 +267,7 @@ func Test_DoStart_DirectoryNotExist(t *testing.T) {
 
 	proc, err := s.doStart(ctx, "test-service", "platform", svc)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, proc)
 	assert.ErrorIs(t, err, errors.ErrServiceDirectoryNotExist)
 }
@@ -289,7 +289,7 @@ func Test_DoStart_RelativePathConversion(t *testing.T) {
 
 	proc, err := s.doStart(ctx, "test-service", "platform", svc)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, proc)
 	assert.ErrorIs(t, err, errors.ErrServiceDirectoryNotExist)
 }
@@ -377,7 +377,7 @@ func Test_SetupReadinessCheck_NoReadiness(t *testing.T) {
 
 	select {
 	case err := <-proc.Ready():
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected ready signal")
 	}
@@ -395,7 +395,7 @@ func Test_SetupReadinessCheck_HTTPReadiness(t *testing.T) {
 
 	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
 		Times(1).
-		Do(func(_, _, _, _ interface{}) {
+		Do(func(_, _, _, _ any) {
 			close(checkCalled)
 		})
 
@@ -446,7 +446,7 @@ func Test_SetupReadinessCheck_LogReadiness(t *testing.T) {
 
 	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
 		Times(1).
-		Do(func(_, _, _, _ interface{}) {
+		Do(func(_, _, _, _ any) {
 			close(checkCalled)
 		})
 
@@ -517,7 +517,7 @@ func Test_SetupReadinessCheck_UnknownType(t *testing.T) {
 
 	select {
 	case err := <-proc.Ready():
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown readiness type")
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected ready signal with error")
@@ -891,7 +891,7 @@ func Test_WaitForReady_NoReadiness(t *testing.T) {
 
 	err := s.waitForReady(ctx, nil, cfg)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_WaitForReady_Success(t *testing.T) {
@@ -913,7 +913,7 @@ func Test_WaitForReady_Success(t *testing.T) {
 
 	err := s.waitForReady(ctx, mockProcess, cfg)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_WaitForReady_Failed(t *testing.T) {
@@ -935,7 +935,7 @@ func Test_WaitForReady_Failed(t *testing.T) {
 
 	err := s.waitForReady(ctx, mockProcess, cfg)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "readiness check failed")
 }
 
@@ -958,7 +958,7 @@ func Test_WaitForReady_ContextCancelled(t *testing.T) {
 
 	err := s.waitForReady(ctx, mockProcess, cfg)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
 
@@ -1063,7 +1063,7 @@ func Test_PreFlightCheck_PortFree(t *testing.T) {
 
 	err := s.preFlightCheck("test-service", readiness)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_PreFlightCheck_PortInUse(t *testing.T) {
@@ -1085,7 +1085,7 @@ func Test_PreFlightCheck_PortInUse(t *testing.T) {
 		Address: listener.Addr().String(),
 	})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.True(t, errors.Is(err, errors.ErrPortAlreadyInUse))
 }
 
@@ -1094,7 +1094,7 @@ func Test_PreFlightCheck_NilReadiness(t *testing.T) {
 
 	err := s.preFlightCheck("test-service", nil)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_PreFlightCheck_NoPort(t *testing.T) {
@@ -1107,7 +1107,7 @@ func Test_PreFlightCheck_NoPort(t *testing.T) {
 
 	err := s.preFlightCheck("test-service", readiness)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_BuildCommand_Default(t *testing.T) {
@@ -1152,12 +1152,9 @@ func Test_DoStart_CustomCommand(t *testing.T) {
 		log:       mockLog,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	svc := &config.Service{Dir: tmpDir, Command: "sleep 60"}
 
-	proc, err := s.doStart(ctx, "test-service", "platform", svc)
+	proc, err := s.doStart(t.Context(), "test-service", "platform", svc)
 	require.NoError(t, err)
 	require.NotNil(t, proc)
 

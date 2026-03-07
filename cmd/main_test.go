@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx/fxevent"
 
 	"fuku/internal/app/cli"
@@ -13,7 +14,7 @@ import (
 
 func Test_LoadConfig(t *testing.T) {
 	cfg, topology, err := loadConfig()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, cfg.Services)
@@ -110,8 +111,8 @@ func Test_CreateFxLogger(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         *config.Config
-		expectedType   interface{}
-		expectedLogger interface{}
+		expectedType   any
+		expectedLogger any
 	}{
 		{
 			name: "Debug level returns console logger",

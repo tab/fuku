@@ -72,7 +72,7 @@ func (d *discovery) getServicesForProfile(profile string) ([]string, error) {
 		}
 
 		return []string{v}, nil
-	case []interface{}:
+	case []any:
 		services := make([]string, 0, len(v))
 
 		for _, item := range v {

@@ -54,8 +54,7 @@ func expandPatterns(patterns []string) []string {
 	for _, p := range patterns {
 		expanded = append(expanded, p)
 
-		if strings.HasPrefix(p, "**/") {
-			rootVariant := strings.TrimPrefix(p, "**/")
+		if rootVariant, ok := strings.CutPrefix(p, "**/"); ok {
 			expanded = append(expanded, rootVariant)
 		}
 	}

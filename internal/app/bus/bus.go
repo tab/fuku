@@ -58,7 +58,7 @@ const (
 type Message struct {
 	Type      MessageType
 	Timestamp time.Time
-	Data      interface{}
+	Data      any
 	Critical  bool
 }
 
@@ -255,7 +255,10 @@ func (b *bus) Publish(msg Message) {
 		default:
 			if msg.Critical {
 				go func(c chan Message, m Message) {
-					defer func() { recover() }()
+					defer func() {
+						//nolint:errcheck // recover return value is intentionally unused
+						recover()
+					}()
 
 					c <- m
 				}(ch, msg)
@@ -297,7 +300,7 @@ func (b *bus) unsubscribe(ch chan Message) {
 	}
 }
 
-func formatData(data interface{}) string {
+func formatData(data any) string {
 	switch d := data.(type) {
 	case CommandStarted:
 		return fmt.Sprintf("{command: %s, profile: %s, ui: %t}", d.Command, d.Profile, d.UI)

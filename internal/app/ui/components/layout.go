@@ -30,10 +30,7 @@ func RenderPanel(opts PanelOptions) string {
 	topBorder := BuildTopBorder(border, titleText, opts.Status, innerWidth)
 	bottomBorder := BuildBottomBorder(border, opts.Stats, opts.Version, innerWidth)
 
-	contentHeight := opts.Height - PanelBorderHeight
-	if contentHeight < 1 {
-		contentHeight = 1
-	}
+	contentHeight := max(opts.Height-PanelBorderHeight, 1)
 
 	contentLines := splitAndPadContent(opts.Content, contentHeight)
 
@@ -62,15 +59,9 @@ func ComputeTableLayout(contentWidth int) TableLayout {
 		contentWidth = 0
 	}
 
-	metricWidth := contentWidth / 10
-	if metricWidth > MaxMetricWidth {
-		metricWidth = MaxMetricWidth
-	}
+	metricWidth := min(contentWidth/10, MaxMetricWidth)
 
-	statusWidth := contentWidth / 5
-	if statusWidth > MaxStatusWidth {
-		statusWidth = MaxStatusWidth
-	}
+	statusWidth := min(contentWidth/5, MaxStatusWidth)
 
 	serviceNameWidth := contentWidth - statusWidth - 4*metricWidth
 
@@ -138,10 +129,7 @@ func BuildTopBorder(border func(string) string, titleText, topRightText string, 
 		rightLen = lipgloss.Width(topRightText) + SpacerWidth + BorderEdgeWidth
 	}
 
-	fillWidth := innerWidth - titleLen - rightLen
-	if fillWidth < 1 {
-		fillWidth = 1
-	}
+	fillWidth := max(innerWidth-titleLen-rightLen, 1)
 
 	result := border(BorderTopLeft + hLine(BorderEdgeWidth))
 	result += leftSpacer + titleText + rightSpacer
@@ -172,10 +160,7 @@ func BuildBottomBorder(border func(string) string, bottomLeftText, bottomRightTe
 		leftLen = lipgloss.Width(bottomLeftText) + SpacerWidth + BorderEdgeWidth
 	}
 
-	middleWidth := innerWidth - leftLen - rightLen
-	if middleWidth < 1 {
-		middleWidth = 1
-	}
+	middleWidth := max(innerWidth-leftLen-rightLen, 1)
 
 	var result string
 
@@ -213,11 +198,7 @@ func splitAndPadContent(content string, height int) []string {
 func AppendContentLines(result, contentLines []string, innerWidth int, border func(string) string) []string {
 	for _, line := range contentLines {
 		lineWidth := lipgloss.Width(line)
-		padding := innerWidth - lineWidth
-
-		if padding < 0 {
-			padding = 0
-		}
+		padding := max(innerWidth-lineWidth, 0)
 
 		paddedLine := line + strings.Repeat(IndicatorEmpty, padding)
 		result = append(result, border(BorderVertical)+paddedLine+border(BorderVertical))

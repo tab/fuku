@@ -49,6 +49,7 @@ func NewLogger(cfg *config.Config) Logger {
 
 // NewLoggerWithOutput creates a new logger instance with a custom output writer
 func NewLoggerWithOutput(cfg *config.Config, customOutput io.Writer) Logger {
+	//nolint:reassign // standard zerolog configuration
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339
 
@@ -123,14 +124,14 @@ func newConsoleWriter() zerolog.ConsoleWriter {
 	return zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: TimeFormat,
-		FormatFieldName: func(i interface{}) string {
+		FormatFieldName: func(i any) string {
 			if s, ok := i.(string); ok && s == "component" {
 				return ""
 			}
 
 			return fmt.Sprintf("%s=", i)
 		},
-		FormatPrepare: func(m map[string]interface{}) error {
+		FormatPrepare: func(m map[string]any) error {
 			if component, ok := m["component"].(string); ok {
 				m["component"] = fmt.Sprintf("[%s]", component)
 			}

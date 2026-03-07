@@ -81,21 +81,13 @@ func (s *server) Start(ctx context.Context, profile string, services []string) e
 	serverCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
-	s.wg.Add(1)
-
-	go func() {
-		defer s.wg.Done()
-
+	s.wg.Go(func() {
 		s.hub.Run(serverCtx)
-	}()
+	})
 
-	s.wg.Add(1)
-
-	go func() {
-		defer s.wg.Done()
-
+	s.wg.Go(func() {
 		s.acceptConnections(serverCtx)
-	}()
+	})
 
 	return nil
 }

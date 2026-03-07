@@ -52,7 +52,7 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 			return fmt.Errorf("%w: HTTP check after %v", errors.ErrReadinessTimeout, timeout)
 		}
 
-		req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
 		if err != nil {
 			return fmt.Errorf("%w: %w", errors.ErrFailedToCreateRequest, err)
 		}
@@ -109,10 +109,7 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 	reqCtx, cancel := r.contextWithDone(ctx, done)
 	defer cancel()
 
-	duration := time.Until(deadline)
-	if duration < 0 {
-		duration = 0
-	}
+	duration := max(time.Until(deadline), 0)
 
 	select {
 	case <-matched:

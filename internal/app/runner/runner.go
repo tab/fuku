@@ -121,6 +121,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	if err := r.server.Start(ctx, profile, services); err != nil {
 		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
 	} else {
+		//nolint:errcheck // best-effort cleanup on shutdown
 		defer r.server.Stop()
 	}
 
@@ -310,6 +311,7 @@ func (r *runner) handleCommand(ctx context.Context, msg bus.Message) bool {
 		return false
 	}
 
+	//nolint:exhaustive // only handling command types
 	switch msg.Type {
 	case bus.CommandStopService:
 		r.service.Stop(data.Name)

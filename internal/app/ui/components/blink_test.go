@@ -43,7 +43,7 @@ func Test_Blink_Update_Progression(t *testing.T) {
 
 	initialFrame := b.Frame()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		b.Update()
 	}
 
@@ -69,13 +69,13 @@ func Test_Blink_Frame_Transitions(t *testing.T) {
 
 	frames := make(map[string]bool)
 
-	for i := 0; i < 200; i++ {
+	for range 200 {
 		b.Update()
 		frame := b.Frame()
 		frames[frame] = true
 	}
 
-	assert.True(t, len(frames) > 1, "Should see multiple frames during animation")
+	assert.Greater(t, len(frames), 1, "Should see multiple frames during animation")
 }
 
 func Test_Blink_IsActive(t *testing.T) {
@@ -97,7 +97,7 @@ func Test_Blink_Repeats(t *testing.T) {
 	totalTicks := blinkSettleTicks + blinkBeat1Ticks + blinkMicroGapTicks + blinkBeat2Ticks + blinkRecoveryTicks
 	cycleCount := 3
 
-	for i := 0; i < totalTicks*cycleCount; i++ {
+	for range totalTicks * cycleCount {
 		b.Update()
 	}
 
@@ -114,7 +114,7 @@ func Test_Blink_CyclesMultipleTimes(t *testing.T) {
 	fullFrames := 0
 	stateHistory := make(map[state]int)
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		b.Update()
 
 		stateHistory[b.state]++

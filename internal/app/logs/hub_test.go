@@ -149,14 +149,11 @@ func Test_ShouldReceive(t *testing.T) {
 }
 
 func Test_Register(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	cfg := config.DefaultConfig()
 	log := testLogger()
 	h := NewHub(cfg.Logs.Buffer, log)
 
-	go h.Run(ctx)
+	go h.Run(t.Context())
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
@@ -201,14 +198,11 @@ func Test_Register_AfterDone(t *testing.T) {
 }
 
 func Test_Unregister(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	cfg := config.DefaultConfig()
 	log := testLogger()
 	h := NewHub(cfg.Logs.Buffer, log)
 
-	go h.Run(ctx)
+	go h.Run(t.Context())
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 	h.Register(client)
@@ -237,15 +231,11 @@ func Test_Unregister(t *testing.T) {
 }
 
 func Test_Unregister_NonExistent(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	defer cancel()
-
 	cfg := config.DefaultConfig()
 	log := testLogger()
 	h := NewHub(cfg.Logs.Buffer, log)
 
-	go h.Run(ctx)
+	go h.Run(t.Context())
 
 	client := NewClientConn("test", cfg.Logs.Buffer)
 
@@ -280,14 +270,11 @@ func Test_Unregister_AfterDone(t *testing.T) {
 }
 
 func Test_Broadcast_ToSubscribedClients(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	cfg := config.DefaultConfig()
 	log := testLogger()
 	h := NewHub(cfg.Logs.Buffer, log)
 
-	go h.Run(ctx)
+	go h.Run(t.Context())
 
 	client1 := NewClientConn("client1", cfg.Logs.Buffer)
 	client1.SetSubscription([]string{"api"})
@@ -321,14 +308,11 @@ func Test_Broadcast_ToSubscribedClients(t *testing.T) {
 }
 
 func Test_Broadcast_ToAllWhenNoFilter(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	cfg := config.DefaultConfig()
 	log := testLogger()
 	h := NewHub(cfg.Logs.Buffer, log)
 
-	go h.Run(ctx)
+	go h.Run(t.Context())
 
 	client := NewClientConn("client", cfg.Logs.Buffer)
 	h.Register(client)
@@ -353,7 +337,7 @@ func Test_Broadcast_DropsWhenBufferFull(t *testing.T) {
 	log := testLogger()
 	h := NewHub(cfg.Logs.Buffer, log).(*hub)
 
-	for i := 0; i < cfg.Logs.Buffer+10; i++ {
+	for range cfg.Logs.Buffer + 10 {
 		h.Broadcast("api", "message")
 	}
 

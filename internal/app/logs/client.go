@@ -101,6 +101,7 @@ func (c *client) Stream(ctx context.Context, output io.Writer) error {
 			continue
 		}
 
+		//nolint:exhaustive // only handling known message types
 		switch envelope.Type {
 		case MessageStatus:
 			var status StatusMessage

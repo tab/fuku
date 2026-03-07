@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -120,7 +121,7 @@ func (m *Model) getMem(service *ServiceState) string {
 // getPID returns the process ID string for a running service
 func (m *Model) getPID(service *ServiceState) string {
 	if m.isServiceMonitored(service) {
-		return fmt.Sprintf("%d", service.Monitor.PID)
+		return strconv.Itoa(service.Monitor.PID)
 	}
 
 	return ""
@@ -172,7 +173,7 @@ func collectStats(ctx context.Context, mon monitor.Monitor, services []monitored
 		offset = 0
 	}
 
-	for i := 0; i < len(services); i++ {
+	for i := range services {
 		if ctx.Err() != nil {
 			return stats, (offset + i) % len(services)
 		}

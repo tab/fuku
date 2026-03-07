@@ -222,7 +222,7 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 	cmd := buildCommand(cfg.Command)
 	cmd.Dir = serviceDir
 
-	cmd.Env = append(os.Environ(), fmt.Sprintf("ENV_FILE=%s", envFile))
+	cmd.Env = append(os.Environ(), "ENV_FILE="+envFile)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -427,6 +427,7 @@ func (s *service) watchForExit(proc process.Process) {
 func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, streamType string) {
 	isEnabled := s.shouldLogStream(serviceName, streamType)
 	if !isEnabled {
+		//nolint:errcheck // pipe write errors are handled by the reader
 		io.Copy(dst, src)
 
 		return
@@ -439,6 +440,7 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 	for {
 		line, isPrefix, err := reader.ReadLine()
 		if len(line) > 0 {
+			//nolint:errcheck // pipe write errors are handled by the reader
 			dst.Write(line)
 		}
 
@@ -447,6 +449,7 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 		}
 
 		if !isPrefix && (len(line) > 0 || buf.Len() > 0 || err == nil) {
+			//nolint:errcheck // pipe write errors are handled by the reader
 			dst.Write([]byte{'\n'})
 
 			text := buf.String()
@@ -513,6 +516,7 @@ func (s *service) preFlightCheck(name string, r *config.Readiness) error {
 
 	conn, err := net.DialTimeout("tcp", address, config.PreFlightTimeout)
 	if err != nil {
+		//nolint:nilerr // dial failure means port is free, not an error
 		return nil
 	}
 
@@ -582,5 +586,6 @@ func buildCommand(command string) *exec.Cmd {
 }
 
 func drainPipe(reader io.Reader) {
+	//nolint:errcheck // intentionally draining pipe
 	io.Copy(io.Discard, reader)
 }

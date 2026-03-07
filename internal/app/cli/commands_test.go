@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"fuku/internal/config"
 )
@@ -246,7 +247,7 @@ func Test_Parse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := Parse(tt.args)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, tt.expectedType, result.Type)
 			assert.Equal(t, tt.expectedProfile, result.Profile)
@@ -258,18 +259,18 @@ func Test_Parse(t *testing.T) {
 
 func Test_Parse_InvalidCommand(t *testing.T) {
 	result, err := Parse([]string{"unknown"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
 func Test_Parse_RunWithTooManyArgs(t *testing.T) {
 	result, err := Parse([]string{"run", "profile1", "profile2"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
 func Test_Parse_StopWithTooManyArgs(t *testing.T) {
 	result, err := Parse([]string{"stop", "profile1", "profile2"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }

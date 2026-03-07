@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_NewMatcher(t *testing.T) {
@@ -44,10 +45,10 @@ func Test_NewMatcher(t *testing.T) {
 			m, err := NewMatcher(tt.includes, tt.ignores)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, m)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, m)
 			}
 		})
@@ -144,7 +145,7 @@ func Test_Matcher_Match(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m, err := NewMatcher(tt.includes, tt.ignores)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			result := m.Match(tt.file)
 			assert.Equal(t, tt.expect, result)
@@ -200,7 +201,7 @@ func Test_Matcher_MatchDir(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m, err := NewMatcher([]string{"**/*.go"}, tt.ignores)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			result := m.MatchDir(tt.dir)
 			assert.Equal(t, tt.expect, result)

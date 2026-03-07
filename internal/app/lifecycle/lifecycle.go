@@ -85,7 +85,7 @@ func (l *lifecycle) forceKill(proc process.Process, pid int) error {
 	}
 
 	if killErr != nil {
-		return fmt.Errorf("%w: %v", errors.ErrFailedToTerminateProcess, killErr)
+		return fmt.Errorf("%w: %w", errors.ErrFailedToTerminateProcess, killErr)
 	}
 
 	<-proc.Done()

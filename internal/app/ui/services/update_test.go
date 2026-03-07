@@ -72,7 +72,7 @@ func Test_HandleProfileResolved_InvalidData(t *testing.T) {
 	m.state.tiers = make([]Tier, 0)
 	event := bus.Message{Type: bus.EventProfileResolved, Data: "invalid"}
 	result := m.handleProfileResolved(event)
-	assert.Len(t, result.state.tiers, 0)
+	assert.Empty(t, result.state.tiers)
 }
 
 func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
@@ -390,7 +390,7 @@ func Test_HandleServiceFailed_InvalidData(t *testing.T) {
 	m.state.services = make(map[string]*ServiceState)
 	event := bus.Message{Type: bus.EventServiceFailed, Data: "invalid"}
 	result := m.handleServiceFailed(event)
-	assert.Len(t, result.state.services, 0)
+	assert.Empty(t, result.state.services)
 }
 
 func Test_HandleServiceStopped(t *testing.T) {
@@ -423,7 +423,7 @@ func Test_HandleServiceStopped_InvalidData(t *testing.T) {
 	m.state.services = make(map[string]*ServiceState)
 	event := bus.Message{Type: bus.EventServiceStopped, Data: "invalid"}
 	result := m.handleServiceStopped(event)
-	assert.Len(t, result.state.services, 0)
+	assert.Empty(t, result.state.services)
 }
 
 func Test_HandleWatchStarted(t *testing.T) {
@@ -463,7 +463,7 @@ func Test_HandleWatchStarted_UnknownService(t *testing.T) {
 
 	result := m.handleWatchStarted(event)
 
-	assert.Len(t, result.state.services, 0)
+	assert.Empty(t, result.state.services)
 }
 
 func Test_HandleWatchStopped(t *testing.T) {
@@ -503,7 +503,7 @@ func Test_HandleWatchStopped_UnknownService(t *testing.T) {
 
 	result := m.handleWatchStopped(event)
 
-	assert.Len(t, result.state.services, 0)
+	assert.Empty(t, result.state.services)
 }
 
 func Test_HandlePhaseChanged_PhaseStopped(t *testing.T) {

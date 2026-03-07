@@ -1,7 +1,6 @@
 package watcher
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -80,11 +79,8 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -138,11 +134,8 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -207,11 +200,8 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -284,11 +274,8 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -376,11 +363,8 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -445,11 +429,8 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -510,11 +491,8 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -589,11 +567,8 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -659,11 +634,8 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -737,11 +709,8 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -801,11 +770,8 @@ func Test_Watcher_WatchesNewDirCreatedAtRuntime(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
@@ -898,11 +864,8 @@ func Test_Watcher_NewDirInSharedPathRegistersAllServices(t *testing.T) {
 
 	defer w.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eventCh := b.Subscribe(ctx)
-	w.Start(ctx)
+	eventCh := b.Subscribe(t.Context())
+	w.Start(t.Context())
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,

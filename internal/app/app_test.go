@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/mock/gomock"
 
@@ -120,7 +121,7 @@ func Test_Register_OnStop_ReturnsWhenDoneClosed(t *testing.T) {
 
 	ctx := context.Background()
 	err := capturedHook.OnStop(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func Test_Register_OnStop_RespectsContext(t *testing.T) {
@@ -145,7 +146,7 @@ func Test_Register_OnStop_RespectsContext(t *testing.T) {
 	cancel()
 
 	err := capturedHook.OnStop(ctx)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 }
 

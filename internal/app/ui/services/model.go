@@ -170,7 +170,8 @@ func NewModel(
 	m.ui.width = 0
 	m.ui.servicesKeys = DefaultKeyMap()
 	m.ui.showTips = true
-	m.ui.tipOffset = rand.Intn(len(components.Tips)) //nolint:gosec // not security-critical
+	//nolint:gosec // not security-critical
+	m.ui.tipOffset = rand.Intn(len(components.Tips))
 	m.ui.help = help.New()
 	m.ui.help.Styles = help.DefaultStyles(isDark)
 	m.ui.servicesViewport = viewport.New()

@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
@@ -95,10 +96,7 @@ func Test_Execute(t *testing.T) {
 			},
 			before: func() {
 				dir := t.TempDir()
-				origDir, _ := os.Getwd()
-
-				os.Chdir(dir)
-				t.Cleanup(func() { os.Chdir(origDir) })
+				t.Chdir(dir)
 				mockLogger.EXPECT().Debug().Return(nil)
 			},
 			expectedExit:  0,
@@ -206,9 +204,9 @@ func Test_Execute(t *testing.T) {
 			assert.Equal(t, tt.expectedExit, exitCode)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -263,7 +261,7 @@ func Test_Execute_LogsMode(t *testing.T) {
 			exitCode, err := c.Execute()
 
 			assert.Equal(t, 0, exitCode)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -337,9 +335,9 @@ func Test_handleRun(t *testing.T) {
 			assert.Equal(t, tt.expectedExit, exitCode)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -369,7 +367,7 @@ func Test_handleHelp(t *testing.T) {
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Equal(t, fmt.Sprintf("%s\n", Usage), output)
+	assert.Equal(t, Usage+"\n", output)
 }
 
 func Test_handleInit(t *testing.T) {
@@ -381,10 +379,7 @@ func Test_handleInit(t *testing.T) {
 		mockLogger.EXPECT().Debug().Return(nil)
 
 		dir := t.TempDir()
-		origDir, _ := os.Getwd()
-
-		os.Chdir(dir)
-		defer os.Chdir(origDir)
+		t.Chdir(dir)
 
 		os.WriteFile(config.ConfigFile, []byte("existing"), 0600)
 
@@ -406,7 +401,7 @@ func Test_handleInit(t *testing.T) {
 		_, _ = io.Copy(&buf, r)
 
 		assert.Equal(t, 0, exitCode)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "already exists")
 
 		content, _ := os.ReadFile(config.ConfigFile)
@@ -421,10 +416,7 @@ func Test_handleInit(t *testing.T) {
 		mockLogger.EXPECT().Debug().Return(nil)
 
 		dir := t.TempDir()
-		origDir, _ := os.Getwd()
-
-		os.Chdir(dir)
-		defer os.Chdir(origDir)
+		t.Chdir(dir)
 
 		c := &cli{log: mockLogger}
 
@@ -444,11 +436,11 @@ func Test_handleInit(t *testing.T) {
 		_, _ = io.Copy(&buf, r)
 
 		assert.Equal(t, 0, exitCode)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "Created")
 
 		content, readErr := os.ReadFile(config.ConfigFile)
-		assert.NoError(t, readErr)
+		require.NoError(t, readErr)
 		assert.Contains(t, string(content), "version: 1")
 		assert.Contains(t, string(content), "services:")
 	})
@@ -461,10 +453,7 @@ func Test_handleInit(t *testing.T) {
 		mockLogger.EXPECT().Debug().Return(nil)
 
 		dir := t.TempDir()
-		origDir, _ := os.Getwd()
-
-		os.Chdir(dir)
-		defer os.Chdir(origDir)
+		t.Chdir(dir)
 
 		os.Chmod(dir, 0444)
 		defer os.Chmod(dir, 0755)
@@ -474,7 +463,7 @@ func Test_handleInit(t *testing.T) {
 		exitCode, err := c.handleInit()
 
 		assert.Equal(t, 1, exitCode)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -534,7 +523,7 @@ func Test_runWithUI(t *testing.T) {
 		exitCode, err := c.runWithUI(context.Background(), "test")
 
 		assert.Equal(t, 1, exitCode)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Runner error after UI exits", func(t *testing.T) {
@@ -579,7 +568,7 @@ func Test_runWithUI(t *testing.T) {
 		_, _ = io.Copy(&buf, r)
 
 		assert.Equal(t, 1, exitCode)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -611,7 +600,7 @@ func Test_runWithUI(t *testing.T) {
 		inputR.Close()
 
 		assert.Equal(t, 0, exitCode)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -666,9 +655,9 @@ func Test_handleStop(t *testing.T) {
 			assert.Equal(t, tt.expectedExit, exitCode)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

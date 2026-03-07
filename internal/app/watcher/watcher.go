@@ -77,6 +77,7 @@ func (m *manager) Start(ctx context.Context) {
 
 // handleServiceEvent processes bus messages to start/stop watching
 func (m *manager) handleServiceEvent(ctx context.Context, msg bus.Message) {
+	//nolint:exhaustive // only handling service ready/stopped events
 	switch msg.Type {
 	case bus.EventServiceReady:
 		if data, ok := msg.Data.(bus.ServiceReady); ok {
@@ -86,8 +87,8 @@ func (m *manager) handleServiceEvent(ctx context.Context, msg bus.Message) {
 		if data, ok := msg.Data.(bus.ServiceStopped); ok {
 			m.stopWatching(data.Service)
 		}
-		// Note: We intentionally don't stop watching on EventServiceFailed.
-		// This allows the next file change to trigger a restart attempt.
+		// NOTE: We intentionally don't stop watching on EventServiceFailed
+		// This allows the next file change to trigger a restart attempt
 	}
 }
 
@@ -413,6 +414,7 @@ func shouldSkipDir(dir, path string, matcher Matcher) error {
 
 	relPath, err := filepath.Rel(dir, path)
 	if err != nil {
+		//nolint:nilerr // skip filtering if relative path cannot be computed
 		return nil
 	}
 

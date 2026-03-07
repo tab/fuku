@@ -37,7 +37,7 @@ func TestGetStats_InvalidPID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			stats, err := m.GetStats(ctx, tt.pid)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, Stats{}, stats)
 		})
 	}
@@ -61,7 +61,7 @@ func TestGetStats_NonExistentProcess(t *testing.T) {
 
 	_, err := m.GetStats(ctx, 999999999)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetStats_MaxInt32PID(t *testing.T) {
@@ -70,7 +70,7 @@ func TestGetStats_MaxInt32PID(t *testing.T) {
 
 	stats, err := m.GetStats(ctx, 2147483648)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Stats{}, stats)
 }
 

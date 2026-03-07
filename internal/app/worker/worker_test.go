@@ -17,7 +17,7 @@ func Test_AcquireRelease(t *testing.T) {
 	cfg := config.DefaultConfig()
 	worker := NewWorkerPool(cfg)
 
-	for i := 0; i < cfg.Concurrency.Workers; i++ {
+	for range cfg.Concurrency.Workers {
 		err := worker.Acquire(ctx)
 		require.NoError(t, err)
 	}
@@ -26,7 +26,7 @@ func Test_AcquireRelease(t *testing.T) {
 
 	go func() {
 		err := worker.Acquire(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		done <- true
 	}()
@@ -45,7 +45,7 @@ func Test_AcquireRelease(t *testing.T) {
 		t.Fatal("Should have acquired worker slot after release")
 	}
 
-	for i := 0; i < cfg.Concurrency.Workers; i++ {
+	for range cfg.Concurrency.Workers {
 		worker.Release()
 	}
 }
@@ -65,12 +65,8 @@ func Test_ConcurrentWorkers(t *testing.T) {
 	workersCanFinish := make(chan struct{})
 
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+	for range 10 {
+		wg.Go(func() {
 			err := worker.Acquire(ctx)
 			require.NoError(t, err)
 
@@ -94,10 +90,10 @@ func Test_ConcurrentWorkers(t *testing.T) {
 			activeWorkers--
 
 			mu.Unlock()
-		}()
+		})
 	}
 
-	for i := 0; i < cfg.Concurrency.Workers; i++ {
+	for range cfg.Concurrency.Workers {
 		<-workersStarted
 	}
 
@@ -106,7 +102,7 @@ func Test_ConcurrentWorkers(t *testing.T) {
 
 	assert.Equal(t, 0, activeWorkers)
 	assert.LessOrEqual(t, maxActive, cfg.Concurrency.Workers)
-	assert.Greater(t, maxActive, 0)
+	assert.Positive(t, maxActive)
 }
 
 func Test_AcquireContextCancelled(t *testing.T) {
@@ -114,7 +110,7 @@ func Test_AcquireContextCancelled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	worker := NewWorkerPool(cfg)
 
-	for i := 0; i < cfg.Concurrency.Workers; i++ {
+	for range cfg.Concurrency.Workers {
 		err := worker.Acquire(ctx)
 		require.NoError(t, err)
 	}
@@ -131,13 +127,13 @@ func Test_AcquireContextCancelled(t *testing.T) {
 
 	select {
 	case err := <-done:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, context.Canceled, err)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Should have received context cancellation error")
 	}
 
-	for i := 0; i < cfg.Concurrency.Workers; i++ {
+	for range cfg.Concurrency.Workers {
 		worker.Release()
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -87,7 +88,7 @@ func Test_LogFormatter_Write_Disabled(t *testing.T) {
 
 	n, err := f.Write([]byte("test message"))
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 12, n)
 }
 
