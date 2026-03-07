@@ -1155,21 +1155,16 @@ func Test_DoStart_CustomCommand(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	svc := &config.Service{Dir: tmpDir, Command: "echo hello"}
+	svc := &config.Service{Dir: tmpDir, Command: "sleep 60"}
 
 	proc, err := s.doStart(ctx, "test-service", "platform", svc)
-	if err != nil {
-		assert.Contains(t, err.Error(), "failed to start command")
+	require.NoError(t, err)
+	require.NotNil(t, proc)
 
-		return
-	}
-
-	assert.NotNil(t, proc)
-	cancel()
-
-	if proc != nil {
-		_ = s.lifecycle.Terminate(proc, config.ShutdownTimeout)
-	}
+	t.Cleanup(func() {
+		proc.Cmd().Process.Kill()
+		<-proc.Done()
+	})
 }
 
 func Test_ExtractFromURL(t *testing.T) {
