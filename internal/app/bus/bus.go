@@ -35,6 +35,7 @@ const (
 	EventWatchTriggered    MessageType = "watch_triggered"
 	EventWatchStarted      MessageType = "watch_started"
 	EventWatchStopped      MessageType = "watch_stopped"
+	EventResourceSample    MessageType = "resource_sample"
 )
 
 // Command types
@@ -183,6 +184,12 @@ type Signal struct {
 type WatchTriggered struct {
 	Service      string
 	ChangedFiles []string
+}
+
+// ResourceSample contains fuku process CPU and memory readings
+type ResourceSample struct {
+	CPU float64
+	MEM float64
 }
 
 // Bus handles pub/sub messaging
@@ -338,6 +345,8 @@ func formatData(data any) string {
 		return fmt.Sprintf("{signal: %s}", d.Name)
 	case WatchTriggered:
 		return fmt.Sprintf("{service: %s, files: %v}", d.Service, d.ChangedFiles)
+	case ResourceSample:
+		return fmt.Sprintf("{cpu: %.1f%%, mem: %.1fMB}", d.CPU, d.MEM)
 	default:
 		return fmt.Sprintf("%+v", data)
 	}

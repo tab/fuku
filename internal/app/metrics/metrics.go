@@ -64,6 +64,8 @@ func (c *collector) handle(ctx context.Context, msg bus.Message) {
 		c.handleCommandStarted(ctx, msg)
 	case bus.EventPhaseChanged:
 		c.handlePhaseChanged(ctx, msg)
+	case bus.EventResourceSample:
+		c.handleResourceSample(ctx, msg)
 	}
 }
 
@@ -175,6 +177,17 @@ func (c *collector) handleServiceStopped(ctx context.Context, msg bus.Message) {
 	if data.Unexpected {
 		sentry.NewMeter(ctx).Count(sentry.MetricUnexpectedExit, 1)
 	}
+}
+
+func (c *collector) handleResourceSample(ctx context.Context, msg bus.Message) {
+	data, ok := msg.Data.(bus.ResourceSample)
+	if !ok {
+		return
+	}
+
+	meter := sentry.NewMeter(ctx)
+	meter.Distribution(sentry.MetricFukuCPU, data.CPU, sentry.WithUnit("percent"))
+	meter.Distribution(sentry.MetricFukuMemory, data.MEM, sentry.WithUnit("megabyte"))
 }
 
 func (c *collector) handlePhaseChanged(ctx context.Context, msg bus.Message) {

@@ -302,6 +302,29 @@ func Test_Handle_CommandStarted_InvalidData(t *testing.T) {
 	})
 }
 
+func Test_Handle_ResourceSample(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventResourceSample,
+		Data: bus.ResourceSample{
+			CPU: 2.5,
+			MEM: 64.0,
+		},
+	})
+}
+
+func Test_Handle_ResourceSample_InvalidData(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventResourceSample,
+		Data: "invalid",
+	})
+}
+
 func Test_Handle_UnhandledEvent(t *testing.T) {
 	c := &collector{}
 	ctx := context.Background()

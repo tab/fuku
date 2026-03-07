@@ -391,6 +391,11 @@ func Test_FormatData(t *testing.T) {
 			contains: "api",
 		},
 		{
+			name:     "ResourceSample",
+			data:     ResourceSample{CPU: 2.5, MEM: 64.0},
+			contains: "2.5%",
+		},
+		{
 			name:     "Unknown",
 			data:     struct{ Foo string }{Foo: "bar"},
 			contains: "bar",

@@ -59,6 +59,12 @@ const (
 	MetricTierStartupDuration    = "tier_startup_duration"
 )
 
+// Distribution metrics for fuku process resource usage
+const (
+	MetricFukuCPU    = "fuku_cpu"
+	MetricFukuMemory = "fuku_memory"
+)
+
 // Tag and attribute keys for Sentry scope tags and metric annotations
 const (
 	TagArch         = "arch"

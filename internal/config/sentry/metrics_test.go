@@ -48,6 +48,8 @@ func Test_MeterReExports(t *testing.T) {
 			MetricPreflightKilled,
 			MetricPreflightDuration,
 			MetricStartupDuration,
+			MetricFukuCPU,
+			MetricFukuMemory,
 		}
 
 		for _, name := range metrics {
