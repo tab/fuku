@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## v0.16.0
+
+### Features
+- **feat:** Add custom command option for services (`command` field)
+- **feat:** Add resource sampling for CPU/memory monitoring and telemetry
+
+### Chore
+- **chore:** Add linters to golangci-lint configuration
+- **chore:** Update CI workflows
+
+### Tests
+- **test:** Add custom command e2e tests
+
+### Documentation
+- **docs:** Add new feature and about pages
+- **docs:** Update documentation
+
 ## v0.15.4
 
 ### Build

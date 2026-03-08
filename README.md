@@ -32,29 +32,6 @@ brew install tab/apps/fuku
 
 Download the latest binary from [GitHub Releases](https://github.com/tab/fuku/releases)
 
-**macOS (Apple Silicon):**
-```bash
-cd ~/Downloads
-tar -xzf fuku_v0.15.4_macos_arm64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.15.4_macos_arm64/fuku
-sudo mv ~/Downloads/fuku_v0.15.4_macos_arm64/fuku /usr/local/bin/fuku
-```
-
-**macOS (Intel):**
-```bash
-cd ~/Downloads
-tar -xzf fuku_v0.15.4_macos_amd64.tar.gz
-sudo xattr -rd com.apple.quarantine ~/Downloads/fuku_v0.15.4_macos_amd64/fuku
-sudo mv ~/Downloads/fuku_v0.15.4_macos_amd64/fuku /usr/local/bin/fuku
-```
-
-**Linux:**
-```bash
-cd ~/Downloads
-tar -xzf fuku_v0.15.4_linux_amd64.tar.gz
-sudo mv ~/Downloads/fuku_v0.15.4_linux_amd64/fuku /usr/local/bin/fuku
-```
-
 ### Build from Source
 
 ```bash
