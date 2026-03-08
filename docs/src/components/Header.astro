@@ -1,20 +1,39 @@
 ---
+import ThemeToggle from "./ThemeToggle.astro";
+import type { NavItem } from "../data/nav";
+
 interface Props {
-  label?: string;
+  section?: "features" | "docs" | "about";
+  sectionNav?: NavItem[];
+  current?: string;
 }
 
-const { label } = Astro.props;
+const { section, sectionNav, current } = Astro.props;
 const base = import.meta.env.BASE_URL;
+
+const mainLinks = [
+  { label: "Home", href: `${base}`, key: undefined as string | undefined },
+  { label: "Features", href: `${base}features/`, key: "features" },
+  { label: "Docs", href: `${base}docs/`, key: "docs" },
+  { label: "About", href: `${base}about/`, key: "about" },
+];
 ---
 
 <header class="topbar">
+  <input type="checkbox" id="mobile-toggle" class="mobile-toggle" aria-label="Toggle menu" />
+
   <div class="topbar-inner">
     <div class="topbar-left">
       <a href={`${base}`} class="logo">fuku</a>
-      {label && <span class="label">{label}</span>}
+
+      <nav class="topbar-nav">
+        <a href={`${base}features/`} class:list={["nav-link", { active: section === "features" }]}>Features</a>
+        <a href={`${base}docs/`} class:list={["nav-link", { active: section === "docs" }]}>Docs</a>
+        <a href={`${base}about/`} class:list={["nav-link", { active: section === "about" }]}>About</a>
+      </nav>
     </div>
     <div class="topbar-right">
-      {!label && <a href={`${base}docs/getting-started/`} class="docs-link">Docs</a>}
+      <ThemeToggle />
       <a
         href="https://github.com/tab/fuku"
         target="_blank"
@@ -25,8 +44,41 @@ const base = import.meta.env.BASE_URL;
           <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
         </svg>
       </a>
-      <slot />
+      <label for="mobile-toggle" class="mobile-menu-btn">
+        <svg class="icon-menu" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+        <svg class="icon-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </label>
     </div>
+  </div>
+
+  <div class="mobile-menu">
+    <nav>
+      {mainLinks.map((link) => (
+        <>
+          <a
+            href={link.href}
+            class:list={["mobile-link", { active: section === link.key }]}
+          >
+            {link.label}
+          </a>
+          {link.key === section && sectionNav && sectionNav.map((item) => (
+            <a
+              href={item.href}
+              class:list={["mobile-link nested", { active: current === item.href }]}
+            >
+              {item.label}
+            </a>
+          ))}
+        </>
+      ))}
+    </nav>
   </div>
 </header>
 
@@ -35,18 +87,17 @@ const base = import.meta.env.BASE_URL;
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(10, 10, 15, 0.85);
+    background: var(--header-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
-    height: 56px;
   }
 
   .topbar-inner {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 24px;
-    height: 100%;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -72,41 +123,147 @@ const base = import.meta.env.BASE_URL;
     text-decoration: none;
   }
 
-  .label {
-    font-size: 0.8rem;
-    font-weight: 500;
+  .topbar-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .nav-link {
+    font-size: 0.875rem;
+    font-weight: 600;
     color: var(--text-muted);
-    padding: 2px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .nav-link:hover {
+    color: var(--text);
+    background: var(--nav-hover-bg);
+    text-decoration: none;
+  }
+
+  .nav-link.active {
+    color: var(--text);
   }
 
   .topbar-right {
     display: flex;
     align-items: center;
-    gap: 16px;
-  }
-
-  .docs-link {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    text-decoration: none;
-    transition: color 0.2s;
-  }
-
-  .docs-link:hover {
-    color: var(--text);
-    text-decoration: none;
+    gap: 12px;
   }
 
   .github-link {
     color: var(--text-muted);
     transition: color 0.2s;
     display: flex;
+    padding: 6px;
+    border-radius: 8px;
   }
 
   .github-link:hover {
     color: var(--text);
+    background: var(--nav-hover-bg);
     text-decoration: none;
+  }
+
+  /* Hidden checkbox drives the menu */
+  .mobile-toggle {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 4px;
+  }
+
+  .icon-close {
+    display: none;
+  }
+
+  .mobile-toggle:checked ~ .topbar-inner .mobile-menu-btn .icon-menu {
+    display: none;
+  }
+
+  .mobile-toggle:checked ~ .topbar-inner .mobile-menu-btn .icon-close {
+    display: block;
+  }
+
+  .mobile-menu {
+    display: none;
+    overflow: hidden;
+    border-top: 1px solid var(--border);
+  }
+
+  .mobile-menu nav {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 24px;
+    gap: 2px;
+  }
+
+  .mobile-link {
+    display: block;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .mobile-link:hover {
+    color: var(--text);
+    background: var(--nav-hover-bg);
+    text-decoration: none;
+  }
+
+  .mobile-link.active {
+    color: var(--text);
+  }
+
+  .mobile-link.nested {
+    padding-left: 28px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .mobile-link.nested.active {
+    color: var(--blue);
+  }
+
+  @media (max-width: 768px) {
+    .topbar-nav {
+      display: none;
+    }
+
+    .github-link {
+      display: none;
+    }
+
+    .mobile-menu-btn {
+      display: flex;
+    }
+
+    .mobile-toggle:checked ~ .mobile-menu {
+      display: block;
+      animation: slideDown 0.25s ease-out;
+    }
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 </style>

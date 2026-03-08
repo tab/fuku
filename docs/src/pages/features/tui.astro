@@ -1,0 +1,355 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getFeaturesNav } from "../../data/nav";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}features/tui/`;
+const nav = getFeaturesNav(base);
+---
+
+<DocsLayout
+  title="Interactive TUI - Fuku"
+  description="Real-time service dashboard with monitoring and keyboard controls."
+  current={current}
+  nav={nav}
+  section="features"
+  breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Interactive TUI", href: current }]}
+>
+  <h1>Interactive TUI</h1>
+  <p class="lead">A terminal dashboard for managing your services in real time.</p>
+
+  <h2>Service Dashboard</h2>
+
+  <p>
+    When you run <code>fuku</code> (or <code>fuku run</code>), it launches an interactive terminal UI showing all services, their status, resource usage, and uptime.
+  </p>
+
+  <div class="tui-demo">
+    <div class="terminal-window">
+      <div class="terminal-chrome">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+        <span class="terminal-title">fuku</span>
+      </div>
+      <div class="terminal-body">
+        <div class="panel">
+          <div class="panel-border">
+            <div class="border-top">
+              <span class="panel-title">services</span>
+              <span class="border-spacer"></span>
+              <span class="status-text">4/4 ready</span>
+            </div>
+
+            <div class="panel-content">
+              <div class="row header-row">
+                <span class="col-name"></span>
+                <span class="col-status">status</span>
+                <span class="col-cpu">cpu</span>
+                <span class="col-mem">mem</span>
+                <span class="col-pid">pid</span>
+                <span class="col-uptime">uptime</span>
+              </div>
+
+              <div class="tier">foundation</div>
+              <div class="row selected">
+                <span class="col-name"><span class="indicator">&#9673;</span> auth</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">0.3%</span>
+                <span class="col-mem dim">24MB</span>
+                <span class="col-pid dim">76741</span>
+                <span class="col-uptime dim">05:23</span>
+              </div>
+
+              <div class="tier">platform</div>
+              <div class="row">
+                <span class="col-name"><span class="indicator">&#9673;</span> api</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">1.2%</span>
+                <span class="col-mem dim">32MB</span>
+                <span class="col-pid dim">76758</span>
+                <span class="col-uptime dim">05:19</span>
+              </div>
+              <div class="row">
+                <span class="col-name"><span class="indicator">&#9673;</span> worker</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">0.4%</span>
+                <span class="col-mem dim">28MB</span>
+                <span class="col-pid dim">76759</span>
+                <span class="col-uptime dim">05:19</span>
+              </div>
+
+              <div class="tier">edge</div>
+              <div class="row">
+                <span class="col-name"><span class="indicator">&#9673;</span> web</span>
+                <span class="col-status running">running</span>
+                <span class="col-cpu dim">4.2%</span>
+                <span class="col-mem dim">120MB</span>
+                <span class="col-pid dim">76780</span>
+                <span class="col-uptime dim">05:14</span>
+              </div>
+            </div>
+
+            <div class="border-bottom">
+              <span class="stats">cpu 6.1% &bull; mem 204MB</span>
+              <span class="border-spacer"></span>
+              <span class="version">v0.15.4</span>
+            </div>
+          </div>
+
+          <div class="help-footer">
+            <span class="help-left">
+              <span class="help-key">&uarr;/k</span> <span class="help-desc">up</span>
+              <span class="help-sep">&bull;</span>
+              <span class="help-key">&darr;/j</span> <span class="help-desc">down</span>
+              <span class="help-sep">&bull;</span>
+              <span class="help-key">s</span> <span class="help-desc">stop/start</span>
+              <span class="help-sep">&bull;</span>
+              <span class="help-key">r</span> <span class="help-desc">restart</span>
+              <span class="help-sep">&bull;</span>
+              <span class="help-key">l</span> <span class="help-desc">logs</span>
+              <span class="help-sep">&bull;</span>
+              <span class="help-key">q</span> <span class="help-desc">quit</span>
+            </span>
+            <span class="help-right">
+              <span class="help-desc">press</span> <span class="help-key">s</span> <span class="help-desc">to stop or start a service</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Keyboard Controls</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>&uarr;</code> / <code>&darr;</code> or <code>k</code> / <code>j</code></td>
+        <td>Navigate between services</td>
+      </tr>
+      <tr>
+        <td><code>PgUp</code> / <code>PgDn</code></td>
+        <td>Scroll viewport</td>
+      </tr>
+      <tr>
+        <td><code>Home</code> / <code>End</code></td>
+        <td>Jump to first / last service</td>
+      </tr>
+      <tr>
+        <td><code>s</code></td>
+        <td>Stop or start the selected service</td>
+      </tr>
+      <tr>
+        <td><code>r</code></td>
+        <td>Restart the selected service</td>
+      </tr>
+      <tr>
+        <td><code>l</code></td>
+        <td>View logs for the selected service</td>
+      </tr>
+      <tr>
+        <td><code>q</code></td>
+        <td>Quit and stop all services</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Resource Monitoring</h2>
+
+  <p>
+    The TUI shows real-time CPU and memory usage for each service, sampled periodically via <code>gopsutil</code>. Aggregate CPU and memory are displayed in the bottom border.
+  </p>
+
+  <h2>No-UI Mode</h2>
+
+  <p>
+    If you prefer plain log output without the interactive dashboard, use <code>--no-ui</code>:
+  </p>
+
+  <CodeBlock title="terminal" lang="shell" code={`fuku run core --no-ui`} />
+
+  <p>This streams service logs directly to your terminal with service name prefixes — useful for CI, scripting, or when you want simple output.</p>
+
+  <GetStartedCTA />
+</DocsLayout>
+
+<style>
+  .tui-demo {
+    margin: 24px 0 32px;
+  }
+
+  .terminal-window {
+    background: #1e1e2e;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .terminal-chrome {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(14, 14, 22, 0.6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .red { background: #ff5f57; }
+  .yellow { background: #febc2e; }
+  .green { background: #28c840; }
+
+  .terminal-title {
+    flex: 1;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #6c7086;
+    font-family: var(--mono);
+  }
+
+  .terminal-body {
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: #cdd6f4;
+  }
+
+  .panel-border {
+    position: relative;
+    border: 1px solid #7D56F4;
+    border-radius: 8px;
+  }
+
+  .border-top,
+  .border-bottom {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    height: 0;
+  }
+
+  .border-top { top: 0; transform: translateY(-50%); }
+  .border-bottom { bottom: 0; transform: translateY(50%); }
+
+  .border-top > span,
+  .border-bottom > span {
+    background: #1e1e2e;
+    padding: 0 8px;
+  }
+
+  .border-spacer {
+    flex: 1;
+    padding: 0 !important;
+  }
+
+  .panel-title {
+    color: #7D56F4;
+    font-weight: bold;
+  }
+
+  .panel-content {
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .status-text { color: #cdd6f4; }
+  .version { color: #cdd6f4; }
+  .stats { color: #6c7086; }
+
+  .row:not(.header-row) {
+    padding-left: 12px;
+  }
+
+  .row {
+    display: flex;
+    white-space: nowrap;
+  }
+
+  .row.selected {
+    background: rgba(125, 86, 244, 0.15);
+    border-radius: 4px;
+    margin: 0 -4px;
+    padding-left: 16px;
+    padding-right: 4px;
+  }
+
+  .header-row { color: #6c7086; }
+
+  .col-name { width: 40%; }
+  .col-status { width: 16%; }
+  .col-cpu { width: 10%; text-align: right; }
+  .col-mem { width: 10%; text-align: right; }
+  .col-pid { width: 12%; text-align: right; }
+  .col-uptime { width: 12%; text-align: right; }
+
+  .tier {
+    color: #7D56F4;
+    font-weight: bold;
+    margin-top: 6px;
+    padding-left: 4px;
+  }
+
+  .indicator {
+    color: #5af78e;
+    margin-right: 4px;
+  }
+
+  .running { color: #5af78e; }
+  .dim { color: #a6adc8; }
+
+  .help-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding: 10px 0 6px;
+    font-size: 0.78rem;
+  }
+
+  .help-key { color: #6c7086; }
+  .help-desc { color: #a6adc8; }
+  .help-sep { color: #6c7086; margin: 0 2px; }
+
+  @media (max-width: 768px) {
+    .terminal-body {
+      font-size: 0.7rem;
+      padding: 10px;
+      overflow-x: auto;
+    }
+
+    .col-pid {
+      display: none;
+    }
+
+    .col-cpu,
+    .col-mem,
+    .col-uptime {
+      width: 14%;
+      padding-left: 8px;
+    }
+
+    .help-footer {
+      flex-direction: column;
+      gap: 4px;
+    }
+  }
+</style>

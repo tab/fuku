@@ -117,11 +117,6 @@ x-readiness-http: &readiness-http
   timeout: 30s
   interval: 500ms
 
-x-readiness-tcp: &readiness-tcp
-  type: tcp
-  timeout: 30s
-  interval: 500ms
-
 x-readiness-log: &readiness-log
   type: log
   pattern: "Service ready"
@@ -137,12 +132,13 @@ x-watch: &watch
   debounce: 1s
 
 services:
-  postgres:
-    dir: infrastructure/postgres
+  auth:
+    dir: auth
     tier: foundation
+    command: go run cmd/main.go
     readiness:
-      <<: *readiness-tcp
-      address: localhost:5432
+      <<: *readiness-http
+      url: http://localhost:8081/health
 
   backend:
     dir: backend
@@ -167,7 +163,7 @@ defaults:
 
 profiles:
   default: "*"                    # All services
-  backend: [postgres, api]        # Backend services only
+  backend: [auth, backend]          # Backend services only
 
 concurrency:
   workers: 5                      # Max concurrent service starts
@@ -190,7 +186,7 @@ Services are organized into tiers for startup ordering.
 You can use any tier names you want - the startup order is determined by the first occurrence of each tier name in your `fuku.yaml` file.
 
 Common tier naming pattern:
-- **foundation** - Base infrastructure (databases, message queues)
+- **foundation** - Core services (auth, config, gateway)
 - **platform** - Business logic services
 - **edge** - Client-facing services
 
@@ -217,7 +213,7 @@ readiness:
 ```yaml
 readiness:
   type: tcp
-  address: localhost:6379
+  address: localhost:9000
   timeout: 10s
   interval: 1s
 ```

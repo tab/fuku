@@ -1,0 +1,129 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import Terminal from "../../components/Terminal.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getFeaturesNav } from "../../data/nav";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}features/readiness/`;
+const nav = getFeaturesNav(base);
+---
+
+<DocsLayout
+  title="Readiness Checks - Fuku"
+  description="HTTP, TCP, and log-based health checks for services."
+  current={current}
+  nav={nav}
+  section="features"
+  breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Readiness Checks", href: current }]}
+>
+  <h1>Readiness Checks</h1>
+  <p class="lead">Confirm services are truly ready before starting dependent tiers.</p>
+
+  <h2>How It Works</h2>
+
+  <p>
+    When a service has a readiness check configured, fuku waits for it to pass before marking the service as ready. The next tier only begins after all services in the current tier are ready.
+  </p>
+
+  <Terminal title="fuku run default">
+    <pre><span class="dim">│</span> <span class="purple bold">tier foundation</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> auth        <span class="yellow">checking</span> <span class="dim">http localhost:8081/health...</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> gateway     <span class="yellow">checking</span> <span class="dim">http localhost:8082/health...</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> gateway     <span class="muted">ready</span>    <span class="dim">1.8s</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> auth        <span class="muted">ready</span>    <span class="dim">2.1s</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">tier platform</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> api         <span class="yellow">checking</span> <span class="dim">http localhost:8080/health...</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> api         <span class="muted">ready</span>    <span class="dim">4.5s</span>
+</pre>
+  </Terminal>
+
+  <h2>Check Types</h2>
+
+  <h3>HTTP</h3>
+
+  <p>Wait for an HTTP endpoint to respond with a 2xx status code:</p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  api:
+    dir: ./api
+    readiness:
+      type: http
+      url: http://localhost:8080/health
+      timeout: 30s
+      interval: 1s`} />
+
+  <h3>TCP</h3>
+
+  <p>Wait for a TCP port to accept connections:</p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  gateway:
+    dir: ./gateway
+    readiness:
+      type: tcp
+      address: localhost:9000
+      timeout: 10s
+      interval: 1s`} />
+
+  <h3>Log</h3>
+
+  <p>Wait for a specific pattern to appear in the service's output:</p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  grpc-server:
+    dir: ./grpc
+    readiness:
+      type: log
+      pattern: "gRPC server started"
+      timeout: 30s`} />
+
+  <h2>Configuration Reference</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>type</code></td>
+        <td><code>http</code>, <code>tcp</code>, or <code>log</code></td>
+      </tr>
+      <tr>
+        <td><code>url</code></td>
+        <td>HTTP endpoint to check (http type only)</td>
+      </tr>
+      <tr>
+        <td><code>address</code></td>
+        <td>Host:port to connect to (tcp type only)</td>
+      </tr>
+      <tr>
+        <td><code>pattern</code></td>
+        <td>String to match in log output (log type only)</td>
+      </tr>
+      <tr>
+        <td><code>timeout</code></td>
+        <td>Maximum time to wait before marking as failed</td>
+      </tr>
+      <tr>
+        <td><code>interval</code></td>
+        <td>Time between check attempts (http/tcp only)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Retry on Failure</h2>
+
+  <p>If a readiness check times out, fuku can retry the service start based on your retry configuration:</p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`retry:
+  attempts: 3                   # Max retry attempts (default: 3)
+  backoff: 500ms                # Initial backoff duration (default: 500ms)`} />
+
+  <GetStartedCTA />
+</DocsLayout>
