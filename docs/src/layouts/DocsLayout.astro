@@ -1,70 +1,94 @@
 ---
 import Layout from "./Layout.astro";
 import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import type { NavItem } from "../data/nav";
 
 interface Props {
   title: string;
   description: string;
-  current: string;
+  current?: string;
+  nav?: NavItem[];
+  section?: "features" | "docs" | "about";
+  breadcrumb?: { label: string; href: string }[];
 }
 
-const { title, description, current } = Astro.props;
-const base = import.meta.env.BASE_URL;
+const { title, description, current, nav, section, breadcrumb } = Astro.props;
+const hasNav = nav && nav.length > 0;
 
-const nav = [
-  { label: "Getting Started", href: `${base}docs/getting-started/` },
-  { label: "Configuration", href: `${base}docs/configuration/` },
-  { label: "CLI Commands", href: `${base}docs/cli/` },
-  { label: "Features", href: `${base}docs/features/` },
-  { label: "Privacy", href: `${base}docs/privacy/` },
-];
+let prev: NavItem | undefined;
+let next: NavItem | undefined;
+if (hasNav && current) {
+  const idx = nav.findIndex((item) => item.href === current);
+  if (idx > 0) {
+    prev = nav[idx - 1];
+    if (idx < nav.length - 1) next = nav[idx + 1];
+  }
+}
 ---
 
 <Layout title={title} description={description}>
   <div class="docs-shell">
-    <Header label="Docs">
-      <button class="menu-toggle" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="6" x2="21" y2="6"/>
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-      </button>
-    </Header>
+    <Header section={section} sectionNav={nav} current={current} />
 
-    <div class="docs-body">
-      <aside class="sidebar" id="sidebar">
-        <nav>
-          {nav.map((item) => (
-            <a
-              href={item.href}
-              class:list={["nav-link", { active: current === item.href }]}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-      </aside>
+    <div class:list={["docs-body", { "no-sidebar": !hasNav }]}>
+      {hasNav && (
+        <aside class="sidebar" id="sidebar">
+          <nav>
+            {nav.map((item) => (
+              <a
+                href={item.href}
+                class:list={["nav-link", { active: current === item.href, indent: item.indent }]}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        </aside>
+      )}
 
       <main class="content">
+        {breadcrumb && breadcrumb.length > 0 && (
+          <nav class="breadcrumb" aria-label="Breadcrumb">
+            {breadcrumb.map((item, i) => (
+              <>
+                {i > 0 && <span class="breadcrumb-sep">/</span>}
+                {i < breadcrumb.length - 1 ? (
+                  <a href={item.href} class="breadcrumb-link">{item.label}</a>
+                ) : (
+                  <span class="breadcrumb-current">{item.label}</span>
+                )}
+              </>
+            ))}
+          </nav>
+        )}
+
         <article class="prose">
           <slot />
         </article>
+
+        {(prev || next) && (
+          <nav class="prev-next" aria-label="Pagination">
+            {prev && (
+              <a href={prev.href} class="prev-next-link prev">
+                <span class="prev-next-label">Previous</span>
+                <span class="prev-next-title">{prev.label}</span>
+              </a>
+            )}
+            {next && (
+              <a href={next.href} class="prev-next-link next">
+                <span class="prev-next-label">Next</span>
+                <span class="prev-next-title">{next.label}</span>
+              </a>
+            )}
+          </nav>
+        )}
       </main>
     </div>
+
+    <Footer />
   </div>
 
-  <script>
-    const toggle = document.querySelector('.menu-toggle');
-    const sidebar = document.getElementById('sidebar');
-    if (toggle && sidebar) {
-      toggle.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
-        const expanded = sidebar.classList.contains('open');
-        toggle.setAttribute('aria-expanded', String(expanded));
-      });
-    }
-  </script>
 </Layout>
 
 <style>
@@ -74,21 +98,16 @@ const nav = [
     flex-direction: column;
   }
 
-  .menu-toggle {
-    display: none;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px;
-  }
-
   .docs-body {
     display: flex;
     flex: 1;
     max-width: 1200px;
     margin: 0 auto;
     width: 100%;
+  }
+
+  .docs-body.no-sidebar {
+    justify-content: center;
   }
 
   .sidebar {
@@ -118,9 +137,14 @@ const nav = [
     transition: color 0.2s, background 0.2s;
   }
 
+  .nav-link.indent {
+    padding-left: 28px;
+    font-size: 0.85rem;
+  }
+
   .nav-link:hover {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--nav-hover-bg);
     text-decoration: none;
   }
 
@@ -134,6 +158,85 @@ const nav = [
     flex: 1;
     min-width: 0;
     padding: 48px 48px 80px;
+  }
+
+  .no-sidebar .content {
+    max-width: 800px;
+  }
+
+  /* Breadcrumb */
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    font-size: 0.85rem;
+  }
+
+  .breadcrumb-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .breadcrumb-link:hover {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .breadcrumb-sep {
+    color: var(--border);
+  }
+
+  .breadcrumb-current {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Prev / Next */
+  .prev-next {
+    display: flex;
+    gap: 16px;
+    margin-top: 64px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+
+  .prev-next-link {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    text-decoration: none;
+    transition: border-color 0.2s, background 0.2s;
+    width: 50%;
+  }
+
+  .prev-next-link:hover {
+    border-color: var(--blue);
+    background: rgba(91, 140, 254, 0.04);
+    text-decoration: none;
+  }
+
+  .prev-next-link.next {
+    text-align: right;
+    margin-left: auto;
+  }
+
+  .prev-next-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .prev-next-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--blue);
   }
 
   .prose {
@@ -197,54 +300,11 @@ const nav = [
   .prose :global(td code) {
     font-family: var(--mono);
     font-size: 0.85em;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
     padding: 2px 6px;
     border-radius: 4px;
     color: var(--text);
-  }
-
-  .prose :global(.code-block) {
-    position: relative;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
-    padding: 20px 24px;
-    overflow-x: auto;
-    margin-bottom: 24px;
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    box-shadow: var(--glass-glow);
-  }
-
-  .prose :global(.code-block)::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius);
-    padding: 1px;
-    background: linear-gradient(
-      180deg,
-      var(--glass-shine) 0%,
-      transparent 50%
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .prose :global(.code-block pre) {
-    margin: 0;
-  }
-
-  .prose :global(.code-block code) {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    line-height: 1.8;
   }
 
   .prose :global(table) {
@@ -267,7 +327,7 @@ const nav = [
 
   .prose :global(td) {
     padding: 10px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--table-border);
     color: var(--text-muted);
   }
 
@@ -282,34 +342,16 @@ const nav = [
   }
 
   @media (max-width: 768px) {
-    .menu-toggle {
-      display: flex;
-    }
-
     .sidebar {
       display: none;
-      position: fixed;
-      top: 56px;
-      left: 0;
-      right: 0;
-      width: 100%;
-      height: auto;
-      max-height: calc(100vh - 56px);
-      border-right: none;
-      border-bottom: 1px solid var(--border);
-      background: rgba(10, 10, 15, 0.95);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      z-index: 99;
-      padding: 16px 24px;
-    }
-
-    .sidebar.open {
-      display: block;
     }
 
     .content {
       padding: 32px 24px 64px;
+    }
+
+    .prev-next-link {
+      padding: 12px 16px;
     }
   }
 </style>

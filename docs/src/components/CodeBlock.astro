@@ -1,0 +1,253 @@
+---
+interface Props {
+  title?: string;
+  lang?: string;
+  code: string;
+}
+
+const { title, lang, code } = Astro.props;
+const lines = code.split('\n');
+const showLineNumbers = lines.length >= 3;
+const lineDigits = String(lines.length).length;
+
+function esc(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function hlYaml(line: string): string {
+  const raw = line;
+  const trimmed = raw.trimStart();
+
+  if (trimmed.startsWith('#')) {
+    return `<span class="hl-comment">${esc(raw)}</span>`;
+  }
+
+  const kv = raw.match(/^(\s*)([\w\-.*&<>]+)(:)(.*)/);
+  if (kv) {
+    const [, indent, key, colon, rest] = kv;
+    const cm = rest.match(/^(.*?)\s+(#.*)$/);
+    if (cm) {
+      return `${esc(indent)}<span class="hl-key">${esc(key)}</span><span class="hl-punct">${colon}</span>${esc(cm[1])} <span class="hl-comment">${esc(cm[2])}</span>`;
+    }
+
+    const strMatch = rest.match(/^(\s*)"([^"]*)"(.*)$/);
+    if (strMatch) {
+      return `${esc(indent)}<span class="hl-key">${esc(key)}</span><span class="hl-punct">${colon}</span>${esc(strMatch[1])}<span class="hl-str">"${esc(strMatch[2])}"</span>${esc(strMatch[3])}`;
+    }
+
+    return `${esc(indent)}<span class="hl-key">${esc(key)}</span><span class="hl-punct">${colon}</span>${esc(rest)}`;
+  }
+
+  const listMatch = raw.match(/^(\s*)(-)(\s+)(.*)/);
+  if (listMatch) {
+    const [, indent, dash, sp, val] = listMatch;
+    return `${esc(indent)}<span class="hl-punct">${dash}</span>${esc(sp)}${esc(val)}`;
+  }
+
+  return esc(raw);
+}
+
+function hlShell(line: string): string {
+  const trimmed = line.trimStart();
+
+  if (trimmed.startsWith('#')) {
+    return `<span class="hl-comment">${esc(line)}</span>`;
+  }
+
+  return esc(line)
+    .replace(/^(\s*)(fuku|brew|git|go|cd|sudo|npm|make|curl|ln)(\s|$)/, '$1<span class="hl-cmd">$2</span>$3')
+    .replace(/(--[\w-]+)/g, '<span class="hl-flag">$1</span>')
+    .replace(/(\$\()/g, '<span class="hl-punct">$1</span>')
+    .replace(/(\))/g, '<span class="hl-punct">$1</span>');
+}
+
+function hlMakefile(line: string): string {
+  if (line.trimStart().startsWith('#')) {
+    return `<span class="hl-comment">${esc(line)}</span>`;
+  }
+  const target = line.match(/^([\w-]+)(:)/);
+  if (target) {
+    return `<span class="hl-key">${esc(target[1])}</span><span class="hl-punct">:</span>${esc(line.slice(target[0].length))}`;
+  }
+  return esc(line);
+}
+
+function highlight(line: string): string {
+  if (lang === 'yaml') return hlYaml(line);
+  if (lang === 'shell') return hlShell(line);
+  if (lang === 'makefile') return hlMakefile(line);
+  return esc(line);
+}
+
+const highlighted = lines.map(highlight).join('\n');
+---
+
+<div class="code-ide">
+  {title && (
+    <div class="code-titlebar">
+      <div class="code-tab">
+        <svg class="file-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span class="tab-name">{title}</span>
+      </div>
+      <button class="copy-btn" aria-label="Copy code" title="Copy code">
+        <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+    </div>
+  )}
+  <div class={`code-body ${!title ? 'no-title' : ''}`}>
+    {showLineNumbers && (
+      <div class="line-numbers" aria-hidden="true">
+        {lines.map((_, i) => (
+          <span>{String(i + 1).padStart(lineDigits, ' ')}</span>
+        ))}
+      </div>
+    )}
+    <pre class={showLineNumbers ? 'has-numbers' : ''}><code set:html={highlighted} /></pre>
+  </div>
+</div>
+
+<style>
+  .code-ide {
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    background: #1e1e2e;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  }
+
+  .code-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    height: 38px;
+    background: #181825;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .code-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #a6adc8;
+    font-size: 0.8rem;
+    font-family: var(--mono);
+  }
+
+  .file-icon {
+    color: #6c7086;
+    flex-shrink: 0;
+  }
+
+  .tab-name {
+    color: #cdd6f4;
+  }
+
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #6c7086;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .copy-btn:hover {
+    color: #cdd6f4;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .copy-btn.copied {
+    color: #a6e3a1;
+  }
+
+  .check-icon {
+    display: none;
+  }
+
+  .copy-btn.copied .copy-icon {
+    display: none;
+  }
+
+  .copy-btn.copied .check-icon {
+    display: block;
+  }
+
+  .code-body {
+    display: flex;
+    padding: 16px 0;
+    overflow-x: auto;
+  }
+
+  .code-body.no-title {
+    padding: 16px 0;
+  }
+
+  .line-numbers {
+    display: flex;
+    flex-direction: column;
+    padding: 0 0 0 16px;
+    text-align: right;
+    user-select: none;
+    color: #45475a;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.7;
+    min-width: fit-content;
+    flex-shrink: 0;
+  }
+
+  .line-numbers span {
+    padding-right: 16px;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  pre {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  pre.has-numbers {
+    padding-left: 16px;
+  }
+
+  pre:not(.has-numbers) {
+    padding-left: 16px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: #cdd6f4;
+  }
+
+  pre {
+    padding-right: 16px;
+  }
+
+  :global(.hl-key) { color: #89b4fa; }
+  :global(.hl-punct) { color: #a6adc8; }
+  :global(.hl-comment) { color: #6c7086; font-style: italic; }
+  :global(.hl-str) { color: #a6e3a1; }
+  :global(.hl-cmd) { color: #89b4fa; }
+  :global(.hl-flag) { color: #f9e2af; }
+</style>

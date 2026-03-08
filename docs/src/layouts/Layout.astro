@@ -42,9 +42,58 @@ const ogImage = `${site}${base}og.png`;
       rel="stylesheet"
     />
     <title>{title}</title>
+    <script is:inline>
+      (function() {
+        var saved = localStorage.getItem('theme');
+        var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
     <slot />
+    <script>
+      const toggle = document.getElementById('theme-toggle');
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme');
+          const next = current === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          try { localStorage.setItem('theme', next); } catch (_) {}
+        });
+      }
+    </script>
+    <script is:inline>
+      document.addEventListener('DOMContentLoaded', () => {
+        function copyText(text) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text);
+          }
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          return Promise.resolve();
+        }
+
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const block = btn.closest('.code-ide');
+            if (!block) return;
+            const code = block.querySelector('code');
+            if (!code) return;
+            copyText(code.textContent || '').then(() => {
+              btn.classList.add('copied');
+              setTimeout(() => btn.classList.remove('copied'), 2000);
+            });
+          });
+        });
+      });
+    </script>
     <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "f98a6e38c43a41b5883c758aa2771fe4"}'></script>
   </body>
 </html>

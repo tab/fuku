@@ -1,14 +1,20 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
 const current = `${base}docs/configuration/`;
+const nav = getDocsNav(base);
 ---
 
 <DocsLayout
   title="Configuration - Fuku"
   description="Complete reference for fuku.yaml configuration."
   current={current}
+  nav={nav}
+  section="docs"
+  breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Configuration", href: current }]}
 >
   <h1>Configuration</h1>
   <p class="lead">Complete reference for <code>fuku.yaml</code> — services, tiers, profiles, and more.</p>
@@ -21,8 +27,7 @@ const current = `${base}docs/configuration/`;
 
   <p>Each service is defined with a name, directory, and optional settings:</p>
 
-  <div class="code-block">
-    <pre><code>services:
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
   backend:
     dir: backend                # Path to service directory
     command: go run cmd/main.go # Custom start command (optional)
@@ -38,8 +43,7 @@ const current = `${base}docs/configuration/`;
       include: ["**/*.go"]
       ignore: ["**/*_test.go"]
       shared: ["pkg/common"]
-      debounce: 1s</code></pre>
-  </div>
+      debounce: 1s`} />
 
   <table>
     <thead>
@@ -63,7 +67,7 @@ const current = `${base}docs/configuration/`;
       </tr>
       <tr>
         <td><code>readiness</code></td>
-        <td>Health check configuration (see <a href={`${base}docs/features/`}>Features</a>)</td>
+        <td>Health check configuration (see <a href={`${base}features/readiness/`}>Readiness Checks</a>)</td>
       </tr>
       <tr>
         <td><code>logs.output</code></td>
@@ -71,7 +75,7 @@ const current = `${base}docs/configuration/`;
       </tr>
       <tr>
         <td><code>watch</code></td>
-        <td>Hot-reload file watching configuration (see <a href={`${base}docs/features/`}>Features</a>)</td>
+        <td>Hot-reload file watching configuration (see <a href={`${base}features/hot-reload/`}>Hot-Reload</a>)</td>
       </tr>
     </tbody>
   </table>
@@ -86,7 +90,7 @@ const current = `${base}docs/configuration/`;
 
   <p>Common tier naming pattern:</p>
   <ul>
-    <li><strong>foundation</strong> — base infrastructure (databases, message queues)</li>
+    <li><strong>foundation</strong> — core services (auth, config, gateway)</li>
     <li><strong>platform</strong> — business logic services</li>
     <li><strong>edge</strong> — client-facing services</li>
   </ul>
@@ -106,14 +110,12 @@ const current = `${base}docs/configuration/`;
 
   <p>Profiles group services for batch operations:</p>
 
-  <div class="code-block">
-    <pre><code>defaults:
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`defaults:
   profiles: [default]           # Profiles used when no profile is specified
 
 profiles:
   default: "*"                  # All services
-  backend: [postgres, backend]      # Named list of services</code></pre>
-  </div>
+  backend: [auth, backend]      # Named list of services`} />
 
   <ul>
     <li><code>"*"</code> — selects all defined services</li>
@@ -125,10 +127,8 @@ profiles:
 
   <h2>Concurrency</h2>
 
-  <div class="code-block">
-    <pre><code>concurrency:
-  workers: 5                    # Max concurrent service starts (default: 5)</code></pre>
-  </div>
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`concurrency:
+  workers: 5                    # Max concurrent service starts (default: 5)`} />
 
   <p>Controls how many services can start in parallel within a single tier.</p>
 
@@ -136,30 +136,24 @@ profiles:
 
   <h2>Retry</h2>
 
-  <div class="code-block">
-    <pre><code>retry:
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`retry:
   attempts: 3                   # Max retry attempts (default: 3)
-  backoff: 500ms                # Initial backoff duration (default: 500ms)</code></pre>
-  </div>
+  backoff: 500ms                # Initial backoff duration (default: 500ms)`} />
 
   <hr />
 
   <h2>Log Streaming Buffer</h2>
 
-  <div class="code-block">
-    <pre><code>logs:
-  buffer: 100                   # Socket log streaming buffer size (default: 100)</code></pre>
-  </div>
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`logs:
+  buffer: 1000                  # Socket log streaming buffer size (default: 1000)`} />
 
   <hr />
 
   <h2>Logging</h2>
 
-  <div class="code-block">
-    <pre><code>logging:
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`logging:
   format: console               # "console" or "json"
-  level: info                   # debug, info, warn, error</code></pre>
-  </div>
+  level: info                   # debug, info, warn, error`} />
 
   <hr />
 
@@ -169,8 +163,7 @@ profiles:
     Use YAML anchors (<code>&amp;</code>) and merge keys (<code>&lt;&lt;: *</code>) to avoid repeating common configuration. Top-level keys prefixed with <code>x-</code> are ignored by fuku and serve as anchor definitions.
   </p>
 
-  <div class="code-block">
-    <pre><code>x-readiness-http: &readiness-http
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`x-readiness-http: &readiness-http
   type: http
   timeout: 30s
   interval: 500ms
@@ -187,23 +180,16 @@ services:
       <<: *readiness-http
       url: http://localhost:8080/health
     watch:
-      <<: *watch</code></pre>
-  </div>
+      <<: *watch`} />
 
   <hr />
 
   <h2>Full Example</h2>
 
-  <div class="code-block">
-    <pre><code>version: 1
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`version: 1
 
 x-readiness-http: &readiness-http
   type: http
-  timeout: 30s
-  interval: 500ms
-
-x-readiness-tcp: &readiness-tcp
-  type: tcp
   timeout: 30s
   interval: 500ms
 
@@ -222,12 +208,13 @@ x-watch: &watch
   debounce: 1s
 
 services:
-  postgres:
-    dir: infrastructure/postgres
+  auth:
+    dir: auth
     tier: foundation
+    command: go run cmd/main.go
     readiness:
-      <<: *readiness-tcp
-      address: localhost:5432
+      <<: *readiness-http
+      url: http://localhost:8081/health
 
   backend:
     dir: backend
@@ -253,7 +240,7 @@ defaults:
 
 profiles:
   default: "*"
-  backend: [postgres, backend]
+  backend: [auth, backend]
 
 concurrency:
   workers: 5
@@ -267,6 +254,5 @@ logs:
 
 logging:
   format: console
-  level: info</code></pre>
-  </div>
+  level: info`} />
 </DocsLayout>

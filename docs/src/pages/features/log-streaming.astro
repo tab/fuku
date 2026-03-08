@@ -1,0 +1,81 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import Terminal from "../../components/Terminal.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getFeaturesNav } from "../../data/nav";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}features/log-streaming/`;
+const nav = getFeaturesNav(base);
+---
+
+<DocsLayout
+  title="Log Streaming - Fuku"
+  description="Stream service logs from a separate terminal with filtering."
+  current={current}
+  nav={nav}
+  section="features"
+  breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Log Streaming", href: current }]}
+>
+  <h1>Log Streaming</h1>
+  <p class="lead">Stream service logs from a separate terminal while fuku runs.</p>
+
+  <h2>How It Works</h2>
+
+  <p>
+    While fuku is running (in TUI or no-UI mode), you can open another terminal and stream logs using <code>fuku logs</code>. Logs are streamed over Unix sockets with low latency and service name prefixes for easy filtering.
+  </p>
+
+  <Terminal title="terminal — fuku logs">
+    <pre><span class="dim">$</span> fuku logs api auth
+<span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:01Z</span> <span class="blue">INF</span> server listening on :8080
+<span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:05Z</span> <span class="blue">INF</span> GET /health 200 1ms
+<span class="purple">auth</span>   <span class="dim">│</span> <span class="muted">2024-03-15T10:23:01Z</span> <span class="blue">INF</span> auth service started
+<span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:12Z</span> <span class="blue">INF</span> POST /api/users 201 45ms
+<span class="purple">auth</span>   <span class="dim">│</span> <span class="muted">2024-03-15T10:23:12Z</span> <span class="blue">INF</span> token issued user=john
+<span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:15Z</span> <span class="yellow">WRN</span> rate limit approaching endpoint=/api/users
+<span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:18Z</span> <span class="blue">INF</span> GET /api/users 200 12ms
+</pre>
+  </Terminal>
+
+  <h2>Usage</h2>
+
+  <CodeBlock title="terminal" lang="shell" code={`# Stream logs from all services
+fuku logs
+
+# Stream logs from specific services
+fuku logs api auth
+
+# Filter by profile
+fuku logs --profile backend api
+
+# Short alias
+fuku l api worker`} />
+
+  <h2>Per-Service Output</h2>
+
+  <p>Control which output streams are captured for each service:</p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  api:
+    dir: ./api
+    logs:
+      output: [stdout]              # Only capture stdout
+
+  worker:
+    dir: ./worker
+    logs:
+      output: [stdout, stderr]      # Both streams (default)`} />
+
+  <p>Valid values: <code>stdout</code>, <code>stderr</code>. When omitted, both streams are captured.</p>
+
+  <h2>Buffer Configuration</h2>
+
+  <p>Control the socket log streaming buffer size:</p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`logs:
+  buffer: 1000                  # Buffer size (default: 1000)`} />
+
+  <GetStartedCTA />
+</DocsLayout>

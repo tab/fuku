@@ -1,14 +1,20 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
 const current = `${base}docs/cli/`;
+const nav = getDocsNav(base);
 ---
 
 <DocsLayout
   title="CLI Commands - Fuku"
   description="Command reference for the fuku CLI."
   current={current}
+  nav={nav}
+  section="docs"
+  breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "CLI Commands", href: current }]}
 >
   <h1>CLI Commands</h1>
   <p class="lead">Command reference, flags, TUI controls, and environment file loading.</p>
@@ -76,17 +82,14 @@ const current = `${base}docs/cli/`;
   </table>
 
   <p>Flags can be placed in any position:</p>
-  <div class="code-block">
-    <pre><code>fuku run core --no-ui
-fuku --no-ui run core        # Same result</code></pre>
-  </div>
+  <CodeBlock title="terminal" lang="shell" code={`fuku run core --no-ui
+fuku --no-ui run core        # Same result`} />
 
   <hr />
 
   <h2>Usage Examples</h2>
 
-  <div class="code-block">
-    <pre><code># Run with TUI (default profile)
+  <CodeBlock title="terminal" lang="shell" code={`# Run with TUI (default profile)
 fuku
 
 # Run a specific profile without TUI
@@ -106,8 +109,7 @@ fuku init
 
 # Show help / version
 fuku help
-fuku version</code></pre>
-  </div>
+fuku version`} />
 
   <hr />
 

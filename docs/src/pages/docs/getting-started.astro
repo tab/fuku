@@ -1,14 +1,20 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
 const current = `${base}docs/getting-started/`;
+const nav = getDocsNav(base);
 ---
 
 <DocsLayout
   title="Getting Started - Fuku"
   description="Install fuku and get your services running in minutes."
   current={current}
+  nav={nav}
+  section="docs"
+  breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Getting Started", href: current }]}
 >
   <h1>Getting Started</h1>
   <p class="lead">Install fuku and get your services running in minutes.</p>
@@ -16,17 +22,13 @@ const current = `${base}docs/getting-started/`;
   <h2>Installation</h2>
 
   <h3>Homebrew</h3>
-  <div class="code-block">
-    <pre><code>brew install tab/apps/fuku</code></pre>
-  </div>
+  <CodeBlock title="terminal" lang="shell" code={`brew install tab/apps/fuku`} />
 
   <h3>Build from Source</h3>
-  <div class="code-block">
-    <pre><code>git clone https://github.com/tab/fuku.git
+  <CodeBlock title="terminal" lang="shell" code={`git clone https://github.com/tab/fuku.git
 cd fuku
 go build -o cmd/fuku cmd/main.go
-sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku</code></pre>
-  </div>
+sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />
 
   <hr />
 
@@ -35,9 +37,7 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku</code></pre>
   <ol>
     <li><strong>Generate a config file</strong> in your project root:</li>
   </ol>
-  <div class="code-block">
-    <pre><code>fuku init</code></pre>
-  </div>
+  <CodeBlock title="terminal" lang="shell" code={`fuku init`} />
 
   <ol start="2">
     <li><strong>Edit <code>fuku.yaml</code></strong> to define your services, tiers, and profiles. See the <a href={`${base}docs/configuration/`}>Configuration</a> page for the full reference.</li>
@@ -46,16 +46,14 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku</code></pre>
   <ol start="3">
     <li><strong>Run your services:</strong></li>
   </ol>
-  <div class="code-block">
-    <pre><code># Run with the default profile (interactive TUI)
+  <CodeBlock title="terminal" lang="shell" code={`# Run with the default profile (interactive TUI)
 fuku
 
 # Run a specific profile
 fuku run core
 
 # Run without TUI
-fuku run core --no-ui</code></pre>
-  </div>
+fuku run core --no-ui`} />
 
   <hr />
 
@@ -65,25 +63,20 @@ fuku run core --no-ui</code></pre>
     By default, fuku executes <code>make run</code> inside each service's directory. You can override this with a custom <code>command</code>:
   </p>
 
-  <div class="code-block">
-    <pre><code>services:
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
   api:
     dir: ./api
     command: go run cmd/main.go    # Custom command (runs via sh -c)
   worker:
     dir: ./worker
-    # No command — uses "make run" (requires Makefile)</code></pre>
-  </div>
+    # No command — uses "make run" (requires Makefile)`} />
 
   <p>
     When using the default <code>make run</code>, each service directory must contain a <code>Makefile</code> with a <code>run</code> target:
   </p>
 
-  <div class="code-block">
-    <pre><code># Makefile
-run:
-	npm start</code></pre>
-  </div>
+  <CodeBlock title="Makefile" lang="makefile" code={`run:
+	npm start`} />
 
   <p>
     If a <code>.env.development</code> file exists in the service directory, fuku automatically detects it and passes it via the <code>ENV_FILE</code> variable.

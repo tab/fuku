@@ -1,0 +1,132 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { getDocsNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/`;
+const nav = getDocsNav(base);
+---
+
+<DocsLayout
+  title="Documentation - Fuku"
+  description="Learn how to install, configure, and use fuku."
+  current={current}
+  nav={nav}
+  section="docs"
+>
+  <h1>Documentation</h1>
+  <p class="lead">Learn how to install, configure, and use fuku.</p>
+
+  <div class="doc-grid">
+    <a href={`${base}docs/getting-started/`} class="doc-card">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+      </div>
+      <h3>Getting Started</h3>
+      <p>Install fuku and get your services running in minutes.</p>
+    </a>
+    <a href={`${base}docs/configuration/`} class="doc-card">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </div>
+      <h3>Configuration</h3>
+      <p>Complete reference for fuku.yaml — services, tiers, profiles, and more.</p>
+    </a>
+    <a href={`${base}docs/cli/`} class="doc-card">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <h3>CLI Commands</h3>
+      <p>All available commands, flags, and short aliases.</p>
+    </a>
+    <a href={`${base}docs/privacy/`} class="doc-card">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <h3>Privacy</h3>
+      <p>What fuku collects and how to opt out.</p>
+    </a>
+  </div>
+</DocsLayout>
+
+<style>
+  .doc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+
+  .doc-card {
+    display: block;
+    background: var(--glass-card-bg);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid var(--glass-card-border);
+    border-radius: 16px;
+    padding: 24px;
+    text-decoration: none;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.35s ease;
+  }
+
+  .doc-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    border-radius: 16px 16px 0 0;
+    background: linear-gradient(180deg, var(--glass-card-shine) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .doc-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    border-color: var(--glass-card-hover-border);
+    box-shadow: var(--glass-card-shadow);
+    text-decoration: none;
+  }
+
+  .icon {
+    position: relative;
+    color: var(--blue);
+    margin-bottom: 16px;
+  }
+
+  .doc-card h3 {
+    position: relative;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .doc-card p {
+    position: relative;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  @media (max-width: 768px) {
+    .doc-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

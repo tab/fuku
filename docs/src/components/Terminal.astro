@@ -1,0 +1,79 @@
+---
+interface Props {
+  title?: string;
+}
+
+const { title = "terminal" } = Astro.props;
+---
+
+<div class="terminal-window">
+  <div class="terminal-chrome">
+    <span class="dot red"></span>
+    <span class="dot yellow"></span>
+    <span class="dot green"></span>
+    <span class="terminal-title">{title}</span>
+  </div>
+  <div class="terminal-content">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .terminal-window {
+    background: #1e1e2e;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+    margin-bottom: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .terminal-chrome {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(14, 14, 22, 0.6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .red { background: #ff5f57; }
+  .yellow { background: #febc2e; }
+  .green { background: #28c840; }
+
+  .terminal-title {
+    flex: 1;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #6c7086;
+    font-family: var(--mono);
+  }
+
+  .terminal-content {
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: #cdd6f4;
+    overflow-x: auto;
+  }
+
+  .terminal-content :global(pre) {
+    margin: 0;
+  }
+
+  .terminal-content :global(.green) { color: #5af78e; }
+  .terminal-content :global(.yellow) { color: #f9e2af; }
+  .terminal-content :global(.blue) { color: #89b4fa; }
+  .terminal-content :global(.purple) { color: #cba6f7; }
+  .terminal-content :global(.red) { color: #f38ba8; }
+  .terminal-content :global(.dim) { color: #6c7086; }
+  .terminal-content :global(.muted) { color: #a6adc8; }
+  .terminal-content :global(.bold) { font-weight: bold; }
+</style>

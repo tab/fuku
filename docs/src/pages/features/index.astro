@@ -1,0 +1,43 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import FeatureCard from "../../components/FeatureCard.astro";
+import { getFeatures } from "../../data/features";
+import { getFeaturesNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}features/`;
+const features = getFeatures(base);
+const nav = getFeaturesNav(base);
+---
+
+<DocsLayout
+  title="Features - Fuku"
+  description="Detailed feature documentation for fuku."
+  current={current}
+  nav={nav}
+  section="features"
+>
+  <h1>Features</h1>
+  <p class="lead">Everything fuku does to make local development easier.</p>
+
+  <div class="feature-grid">
+    {features.map((f) => (
+      <FeatureCard feature={f} showIcon />
+    ))}
+  </div>
+</DocsLayout>
+
+<style>
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+
+  @media (max-width: 768px) {
+    .feature-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

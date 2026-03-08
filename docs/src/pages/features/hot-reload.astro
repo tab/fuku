@@ -1,0 +1,114 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import Terminal from "../../components/Terminal.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getFeaturesNav } from "../../data/nav";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}features/hot-reload/`;
+const nav = getFeaturesNav(base);
+---
+
+<DocsLayout
+  title="Hot-Reload - Fuku"
+  description="Automatic service restart on file changes with debouncing."
+  current={current}
+  nav={nav}
+  section="features"
+  breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Hot-Reload", href: current }]}
+>
+  <h1>Hot-Reload</h1>
+  <p class="lead">Automatically restart services when source files change.</p>
+
+  <h2>How It Works</h2>
+
+  <p>
+    Fuku watches file system events in your service directories and restarts the affected service when matching files change. A debounce timer prevents restart storms when multiple files change at once (e.g., during a <code>git checkout</code>).
+  </p>
+
+  <Terminal title="fuku run default">
+    <pre><span class="dim">│</span> <span class="green">&#10003;</span> api         <span class="muted">running</span>  <span class="dim">pid 76758</span>
+<span class="dim">│</span> <span class="green">&#10003;</span> worker      <span class="muted">running</span>  <span class="dim">pid 76759</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="blue">watch</span>  file changed: <span class="muted">api/handlers/users.go</span>
+<span class="dim">│</span> <span class="blue">watch</span>  file changed: <span class="muted">api/handlers/users.go</span>
+<span class="dim">│</span> <span class="blue">watch</span>  debounce <span class="dim">300ms</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="yellow">&#9675;</span> api         <span class="yellow">restarting</span>
+<span class="dim">│</span>   <span class="dim">stopping pid 76758...</span>
+<span class="dim">│</span>   <span class="dim">starting...</span>
+<span class="dim">│</span> <span class="green">&#10003;</span> api         <span class="muted">running</span>  <span class="dim">pid 76801</span>
+</pre>
+  </Terminal>
+
+  <h2>Configuration</h2>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  api:
+    dir: ./api
+    watch:
+      include: ["**/*.go"]           # Glob patterns to watch
+      ignore: ["**/*_test.go"]       # Patterns to ignore
+      shared: ["pkg/common"]         # Shared paths (triggers restart)
+      debounce: 300ms                # Wait time after last change`} />
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>include</code></td>
+        <td>Glob patterns for files to watch within the service directory</td>
+      </tr>
+      <tr>
+        <td><code>ignore</code></td>
+        <td>Glob patterns for files to exclude from watching</td>
+      </tr>
+      <tr>
+        <td><code>shared</code></td>
+        <td>Paths outside the service directory — changes here also trigger a restart</td>
+      </tr>
+      <tr>
+        <td><code>debounce</code></td>
+        <td>Wait time after the last file change before restarting (default: 300ms)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Shared Paths</h2>
+
+  <p>
+    If multiple services depend on a shared library (e.g., <code>pkg/common</code>), add it to <code>shared</code>. When files in that path change, the service restarts — even though the files are outside its own directory.
+  </p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  api:
+    dir: ./api
+    watch:
+      include: ["**/*.go"]
+      shared: ["pkg/common", "pkg/models"]
+
+  worker:
+    dir: ./worker
+    watch:
+      include: ["**/*.go"]
+      shared: ["pkg/common"]`} />
+
+  <Terminal title="fuku run default">
+    <pre><span class="dim">│</span> <span class="blue">watch</span>  file changed: <span class="muted">pkg/common/auth.go</span>
+<span class="dim">│</span> <span class="blue">watch</span>  shared path match <span class="dim">→</span> api, worker
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="yellow">&#9675;</span> api         <span class="yellow">restarting</span>
+<span class="dim">│</span> <span class="yellow">&#9675;</span> worker      <span class="yellow">restarting</span>
+<span class="dim">│</span> <span class="green">&#10003;</span> api         <span class="muted">running</span>  <span class="dim">pid 76820</span>
+<span class="dim">│</span> <span class="green">&#10003;</span> worker      <span class="muted">running</span>  <span class="dim">pid 76821</span>
+</pre>
+  </Terminal>
+
+  <GetStartedCTA />
+</DocsLayout>
