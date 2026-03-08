@@ -112,11 +112,12 @@ const mainLinks = [
   .logo {
     font-size: 1.2rem;
     font-weight: 700;
-    background: var(--gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #e8e8ed;
     text-decoration: none;
+  }
+
+  :global([data-theme="light"]) .logo {
+    color: #1a1a2e;
   }
 
   .logo:hover {

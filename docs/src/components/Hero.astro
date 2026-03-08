@@ -151,6 +151,17 @@ const base = import.meta.env.BASE_URL;
     box-shadow: var(--glass-glow);
   }
 
+  :global([data-theme="light"]) .btn-secondary {
+    background: #1a1a2e;
+    color: #fff;
+    border-color: #1a1a2e;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  :global([data-theme="light"]) .btn-secondary:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  }
+
   .btn-secondary::before {
     content: "";
     position: absolute;
