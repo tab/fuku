@@ -11,7 +11,7 @@ const nav = getFeaturesNav(base);
 ---
 
 <DocsLayout
-  title="Orchestration - Fuku"
+  title="Orchestration - fuku"
   description="Tier-based startup ordering and concurrent service execution."
   current={current}
   nav={nav}
@@ -24,7 +24,7 @@ const nav = getFeaturesNav(base);
   <h2>How It Works</h2>
 
   <p>
-    Services are grouped into tiers. Fuku starts all services in the first tier, waits for them to become ready (via readiness checks or process start), then moves to the next tier. Within each tier, services start concurrently up to the configured worker limit.
+    Services are grouped into tiers. fuku starts all services in the first tier, waits for them to become ready (via readiness checks or process start), then moves to the next tier. Within each tier, services start concurrently up to the configured worker limit.
   </p>
 
   <Terminal title="fuku run default">

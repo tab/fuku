@@ -1,0 +1,157 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getDocsNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/troubleshooting/`;
+const nav = getDocsNav(base);
+---
+
+<DocsLayout
+  title="Troubleshooting - fuku"
+  description="Common issues and workarounds when using fuku."
+  current={current}
+  nav={nav}
+  section="docs"
+  breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Troubleshooting", href: current }]}
+>
+  <h1>Troubleshooting</h1>
+  <p class="lead">Common issues and practical workarounds.</p>
+
+  <h2>Hot-Reload and Branch Switching</h2>
+
+  <p>
+    If you enable <code>watch</code> on all services and frequently switch branches, pull, or merge, fuku will detect hundreds of file changes at once. Even with debouncing, this can cause a cascade of restarts and readiness check timeouts.
+  </p>
+
+  <h3>Recommended workflow</h3>
+
+  <ul>
+    <li><strong>Only watch services you actively modify.</strong> There's no need to watch services you're not changing. Add <code>watch</code> to 3-5 services, not all of them.</li>
+    <li><strong>Stop fuku before git operations.</strong> Before pulling, merging, rebasing, or switching branches, stop fuku first. Start it again after the operation completes.</li>
+    <li><strong>Use profiles to limit scope.</strong> If you're working on the payment flow, run <code>fuku run payments</code> instead of starting all 50 services.</li>
+  </ul>
+
+  <hr />
+
+  <h2>Readiness Check Timeouts</h2>
+
+  <p>
+    If a service fails readiness checks, fuku retries up to the configured limit and then marks it as failed. Common causes:
+  </p>
+
+  <ul>
+    <li><strong>Wrong port or URL.</strong> Double-check the <code>address</code> or <code>url</code> in your readiness config matches what the service actually listens on.</li>
+    <li><strong>Service starts slowly.</strong> Increase the <code>timeout</code> value. Some services (especially Java or Ruby) need more than the default 30 seconds on first start.</li>
+    <li><strong>Database not ready.</strong> If a service depends on a database that's started externally, make sure it's running before starting fuku.</li>
+    <li><strong>Port conflict.</strong> Another process may already be listening on the same port. Check with <code>lsof -i :PORT</code>.</li>
+  </ul>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  slow-service:
+    dir: slow-service
+    tier: core
+    readiness:
+      type: http
+      url: "http://localhost:8080/health"
+      timeout: "60s"     # Give it more time
+      interval: "1s"     # Check less frequently`} />
+
+  <hr />
+
+  <h2>Orphaned Processes</h2>
+
+  <p>
+    If fuku is killed abruptly (e.g., <code>kill -9</code>, terminal crash), child processes may keep running. You can clean them up with:
+  </p>
+
+  <CodeBlock title="terminal" lang="shell" code={`# Stop all services managed by fuku
+fuku stop
+
+# Or find processes manually by port
+lsof -i :3000`} />
+
+  <p>
+    fuku also runs a preflight cleanup automatically on next start, killing orphaned processes in service directories.
+  </p>
+
+  <hr />
+
+  <h2>Port Conflicts</h2>
+
+  <p>
+    If a service fails to start with "address already in use", another process is occupying the port. This often happens after an unclean shutdown.
+  </p>
+
+  <CodeBlock title="terminal" lang="shell" code={`# Find what's using port 8000
+lsof -i :8000
+
+# Kill it
+kill $(lsof -t -i :8000)`} />
+
+  <p>
+    Starting fuku again will run preflight cleanup automatically, which handles most orphaned processes.
+  </p>
+
+  <hr />
+
+  <h2>High CPU from File Watching</h2>
+
+  <p>
+    Watching large directories (e.g., <code>node_modules</code>, <code>vendor</code>) causes high CPU usage from filesystem event processing. Make sure your <code>ignore</code> patterns exclude these:
+  </p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`x-watch: &watch
+  include:
+    - "**/*.go"
+  ignore:
+    - ".git/**"
+    - "vendor/**"
+    - "node_modules/**"
+    - "tmp/**"
+    - "log/**"
+    - "**/*_test.go"
+    - "**/*_mock.go"
+  debounce: 1s`} />
+
+  <hr />
+
+  <h2>Services Starting in Wrong Order</h2>
+
+  <p>
+    If a service tries to connect to a dependency that isn't ready yet, check your tier configuration. Services in earlier tiers start first and must pass readiness checks before the next tier begins.
+  </p>
+
+  <ul>
+    <li>Make sure dependencies are in an <strong>earlier tier</strong> than the services that need them.</li>
+    <li>Add <strong>readiness checks</strong> to dependencies so fuku waits until they're actually accepting connections, not just started.</li>
+    <li>Without readiness checks, fuku only waits for the process to start — which doesn't mean the service is ready.</li>
+  </ul>
+
+  <hr />
+
+  <h2>Log Output is Noisy</h2>
+
+  <p>
+    When running many services, interleaved logs can be hard to read. Options:
+  </p>
+
+  <ul>
+    <li><strong>Use the TUI.</strong> The interactive dashboard lets you filter logs by service.</li>
+    <li><strong>Use <code>fuku logs</code></strong> in a separate terminal to stream logs from specific services:</li>
+  </ul>
+
+  <CodeBlock title="terminal" lang="shell" code={`# Stream logs from specific services only
+fuku logs api auth`} />
+
+  <ul>
+    <li><strong>Limit log output per service.</strong> Some services are noisier than others. You can restrict which streams are captured:</li>
+  </ul>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  noisy-service:
+    dir: noisy-service
+    logs:
+      output: [stderr]   # Only capture stderr, skip stdout`} />
+</DocsLayout>
