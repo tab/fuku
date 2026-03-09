@@ -10,6 +10,8 @@ export function getDocsNav(base: string): NavItem[] {
     { label: "Getting Started", href: `${base}docs/getting-started/` },
     { label: "Configuration", href: `${base}docs/configuration/` },
     { label: "CLI Commands", href: `${base}docs/cli/` },
+    { label: "Examples", href: `${base}docs/examples/` },
+    { label: "Troubleshooting", href: `${base}docs/troubleshooting/` },
     { label: "Privacy", href: `${base}docs/privacy/` },
   ];
 }

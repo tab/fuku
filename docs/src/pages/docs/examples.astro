@@ -1,0 +1,315 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getDocsNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}docs/examples/`;
+const nav = getDocsNav(base);
+---
+
+<DocsLayout
+  title="Examples - fuku"
+  description="Real-world fuku.yaml configuration examples."
+  current={current}
+  nav={nav}
+  section="docs"
+  breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Examples", href: current }]}
+>
+  <h1>Examples</h1>
+  <p class="lead">Real-world configuration patterns for common project setups.</p>
+
+  <h2>E-commerce Platform</h2>
+
+  <p>
+    A Go microservices platform with 5 tiers, readiness checks, hot-reload, and multiple profiles.
+    Uses YAML anchors to keep the config DRY.
+  </p>
+
+  <h3>YAML Anchors</h3>
+
+  <p>
+    Define reusable readiness, logging, and watch blocks at the top of your config. Services reference them with <code>*anchor</code> or merge with <code>&lt;&lt;: *anchor</code> to override specific fields.
+  </p>
+
+  <CodeBlock title="fuku.yaml" lang="yaml" code={`version: 1
+
+# ── Reusable anchors ──
+
+x-readiness-http: &readiness-http
+  type: http
+  timeout: "30s"
+  interval: "500ms"
+
+x-readiness-tcp: &readiness-tcp
+  type: tcp
+  timeout: "30s"
+  interval: "500ms"
+
+x-readiness-log: &readiness-log
+  type: log
+  pattern: "Server started"
+  timeout: "60s"
+
+x-logs: &logs
+  output: [stdout, stderr]
+
+x-watch: &watch
+  include:
+    - "**/*.go"
+    - "**/*.yml"
+    - "**/*.yaml"
+  ignore:
+    - ".git/**"
+    - ".idea/**"
+    - "vendor/**"
+    - "**/*_test.go"
+    - "**/*_mock.go"
+  shared:
+    - "pkg/common/**"
+    - "pkg/rpc/**"
+  debounce: 1s`} />
+
+  <h3>Services</h3>
+
+  <p>
+    Services are organized into tiers. fuku starts all services in a tier, waits for readiness, then moves to the next tier.
+  </p>
+
+  <CodeBlock title="fuku.yaml (continued)" lang="yaml" code={`services:
+  # Foundation — auth, users, shared infrastructure
+  auth-service:
+    dir: auth-service
+    tier: foundation
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3001"
+    logs: *logs
+
+  users-service:
+    dir: users-service
+    tier: foundation
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3002"
+    logs: *logs
+    watch: *watch
+
+  inventory-service:
+    dir: inventory-service
+    tier: foundation
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3003"
+    logs: *logs
+
+  # Core — main business entities
+  catalog-service:
+    dir: catalog-service
+    tier: core
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3004"
+    logs: *logs
+    watch: *watch
+
+  orders-service:
+    dir: orders-service
+    tier: core
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3005"
+    logs: *logs
+
+  cart-service:
+    dir: cart-service
+    tier: core
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3006"
+    logs: *logs
+
+  # Platform — payments, shipping, notifications
+  payments-service:
+    dir: payments-service
+    tier: platform
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3007"
+
+  shipping-service:
+    dir: shipping-service
+    tier: platform
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3008"
+
+  notifications-service:
+    dir: notifications-service
+    tier: platform
+    readiness:
+      <<: *readiness-tcp
+      address: "localhost:3009"
+
+  search-service:
+    dir: search-service
+    tier: platform
+    readiness:
+      <<: *readiness-http
+      url: "http://localhost:3010/health"
+
+  # Background — workers, async processing
+  worker:
+    dir: worker
+    tier: background
+    readiness:
+      <<: *readiness-log
+      pattern: "Worker started"
+    logs: *logs
+
+  # Edge — client-facing API gateways
+  storefront-api:
+    dir: storefront-api
+    tier: edge
+    readiness:
+      <<: *readiness-http
+      url: "http://localhost:3000/health"
+    logs: *logs
+    watch: *watch
+
+  backoffice-api:
+    dir: backoffice-api
+    tier: edge
+    readiness:
+      <<: *readiness-http
+      url: "http://localhost:3100/health"
+    logs: *logs
+
+  storefront-web:
+    dir: storefront-web
+    tier: edge
+    command: npm run dev
+    readiness:
+      <<: *readiness-http
+      url: "http://localhost:4000"
+    logs: *logs
+    watch:
+      include: ["src/**"]
+      debounce: 500ms
+
+  backoffice-web:
+    dir: backoffice-web
+    tier: edge
+    command: npm run dev
+    readiness:
+      <<: *readiness-http
+      url: "http://localhost:4100"
+    logs: *logs`} />
+
+  <h3>Profiles</h3>
+
+  <p>
+    Profiles let you run subsets of services. Use <code>"*"</code> to include everything, or list specific services.
+  </p>
+
+  <CodeBlock title="fuku.yaml (continued)" lang="yaml" code={`profiles:
+  default: "*"
+
+  # Storefront and its direct dependencies
+  storefront:
+    - storefront-web
+    - storefront-api
+    - auth-service
+    - users-service
+    - catalog-service
+    - cart-service
+    - inventory-service
+    - search-service
+
+  # Checkout flow
+  checkout:
+    - storefront-web
+    - storefront-api
+    - auth-service
+    - users-service
+    - cart-service
+    - orders-service
+    - payments-service
+    - shipping-service
+    - inventory-service
+    - notifications-service
+    - worker
+
+  # Backoffice
+  backoffice:
+    - backoffice-web
+    - backoffice-api
+    - auth-service
+    - users-service
+    - orders-service
+    - inventory-service
+    - catalog-service
+
+concurrency:
+  workers: 10
+
+retry:
+  attempts: 5
+  backoff: 1s
+
+logs:
+  buffer: 1024
+
+logging:
+  level: info
+  format: console`} />
+
+  <h3>Running</h3>
+
+  <CodeBlock title="terminal" lang="shell" code={`# Start everything
+fuku
+
+# Start only the storefront profile
+fuku run storefront
+
+# Start checkout without TUI
+fuku run checkout --no-ui`} />
+
+  <hr />
+
+  <h2>Key Patterns</h2>
+
+  <h3>YAML Anchors for DRY Config</h3>
+
+  <p>
+    Prefix anchor names with <code>x-</code> to keep them separate from fuku config keys. Use <code>&lt;&lt;: *anchor</code> to merge and override individual fields like <code>address</code> or <code>url</code>.
+  </p>
+
+  <h3>Tier Ordering</h3>
+
+  <p>
+    Think about which services other services depend on. Put those in earlier tiers. A common pattern:
+  </p>
+
+  <ul>
+    <li><strong>foundation</strong> — auth, users, inventory</li>
+    <li><strong>core</strong> — main business entities (catalog, orders, cart)</li>
+    <li><strong>platform</strong> — payments, shipping, notifications, search</li>
+    <li><strong>background</strong> — workers, async processors</li>
+    <li><strong>edge</strong> — APIs, frontends</li>
+  </ul>
+
+  <h3>Selective Watch</h3>
+
+  <p>
+    Only enable <code>watch</code> on services you actively modify. Watching all services causes unnecessary restarts during branch switches or pulls. See <a href={`${base}docs/troubleshooting/`}>Troubleshooting</a> for details.
+  </p>
+
+  <h3>Readiness Check Types</h3>
+
+  <ul>
+    <li><strong>TCP</strong> — best for gRPC services. Checks if the port is accepting connections.</li>
+    <li><strong>HTTP</strong> — best for REST APIs. Hits a health endpoint.</li>
+    <li><strong>Log</strong> — best for workers and services without a network interface. Matches a log pattern.</li>
+  </ul>
+</DocsLayout>

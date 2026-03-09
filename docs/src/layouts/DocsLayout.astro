@@ -9,11 +9,12 @@ interface Props {
   description: string;
   current?: string;
   nav?: NavItem[];
-  section?: "features" | "docs" | "about";
+  section?: "features" | "docs" | "about" | "why";
   breadcrumb?: { label: string; href: string }[];
+  wide?: boolean;
 }
 
-const { title, description, current, nav, section, breadcrumb } = Astro.props;
+const { title, description, current, nav, section, breadcrumb, wide } = Astro.props;
 const hasNav = nav && nav.length > 0;
 
 let prev: NavItem | undefined;
@@ -31,7 +32,7 @@ if (hasNav && current) {
   <div class="docs-shell">
     <Header section={section} sectionNav={nav} current={current} />
 
-    <div class:list={["docs-body", { "no-sidebar": !hasNav }]}>
+    <div class:list={["docs-body", { "no-sidebar": !hasNav, "wide": wide }]}>
       {hasNav && (
         <aside class="sidebar" id="sidebar">
           <nav>
@@ -164,6 +165,10 @@ if (hasNav && current) {
     max-width: 800px;
   }
 
+  .wide .content {
+    max-width: 1100px;
+  }
+
   /* Breadcrumb */
   .breadcrumb {
     display: flex;
@@ -241,6 +246,10 @@ if (hasNav && current) {
 
   .prose {
     max-width: 800px;
+  }
+
+  .wide .prose {
+    max-width: 1100px;
   }
 
   .prose :global(h1) {

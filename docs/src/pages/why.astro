@@ -1,0 +1,1209 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+const base = import.meta.env.BASE_URL;
+---
+
+<Layout
+  title="Why fuku - fuku"
+  description="When to use fuku, how it compares to Docker Compose, Foreman, and Overmind, and why it exists."
+>
+  <Header section="why" />
+
+  <main>
+    <!-- ─── Hero ─── -->
+    <section class="hero">
+      <div class="container">
+        <p class="hero-eyebrow">Local development orchestrator</p>
+        <h1 class="hero-title">
+          Why fuku
+        </h1>
+        <p class="hero-desc">
+          Run all your services as native processes with proper startup ordering,<br class="hide-mobile"/>
+          readiness checks, and a live dashboard. No Docker required.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── The number ─── -->
+    <section class="bignum-section">
+      <div class="container">
+        <div class="bignum-grid">
+          <div class="bignum-card glass-card reveal" data-delay="0">
+            <span class="bignum gradient-text" data-count="30" data-suffix="x">0x</span>
+            <span class="bignum-label">less memory than Compose</span>
+            <span class="bignum-detail">~60 MB vs ~2 GB for 50 services</span>
+          </div>
+          <div class="bignum-card glass-card reveal" data-delay="100">
+            <span class="bignum gradient-text" data-count="0">0</span>
+            <span class="bignum-label">Docker dependencies</span>
+            <span class="bignum-detail">Native processes, no VM, no daemon</span>
+          </div>
+          <div class="bignum-card glass-card reveal" data-delay="200">
+            <span class="bignum gradient-text" data-count="1">1</span>
+            <span class="bignum-label">command to start everything</span>
+            <span class="bignum-detail">Tier-based ordering with readiness checks</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Memory visual ─── -->
+    <section class="mem-section">
+      <div class="container narrow">
+        <div class="section-header center">
+          <span class="section-label">Resource usage</span>
+          <h2>Memory comparison</h2>
+        </div>
+
+        <div class="mem-visual glass-card reveal" id="mem-visual">
+          <div class="mem-tabs" id="mem-tabs">
+            <button class="mem-tab active" data-runtime="go">Go<span class="mem-tab-count">50 services</span></button>
+            <button class="mem-tab" data-runtime="node">Node.js<span class="mem-tab-count">30 services</span></button>
+            <button class="mem-tab" data-runtime="python">Python<span class="mem-tab-count">20 services</span></button>
+            <button class="mem-tab" data-runtime="ruby">Ruby<span class="mem-tab-count">15 services</span></button>
+          </div>
+
+          <div class="mem-bars">
+            <div class="mem-row">
+              <div class="mem-label">
+                <span class="mem-tool">Docker Compose</span>
+                <span class="mem-val" id="mem-compose-val">0 MB</span>
+              </div>
+              <div class="mem-track">
+                <div class="mem-bar bar-compose bar-paused" id="mem-compose-bar"></div>
+              </div>
+              <span class="mem-footnote" id="mem-compose-note">+ Docker Desktop VM: 2-4 GB</span>
+            </div>
+            <div class="mem-row">
+              <div class="mem-label">
+                <span class="mem-tool highlight">fuku</span>
+                <span class="mem-val highlight" id="mem-fuku-val">0 MB</span>
+              </div>
+              <div class="mem-track">
+                <div class="mem-bar bar-fuku bar-paused" id="mem-fuku-bar"></div>
+              </div>
+              <span class="mem-footnote" id="mem-fuku-note">No VM, no container runtime</span>
+            </div>
+          </div>
+
+          <p class="mem-estimate" id="mem-estimate"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── When to use ─── -->
+    <section class="when-section">
+      <div class="container narrow">
+        <div class="section-header center">
+          <span class="section-label">Use cases</span>
+          <h2>When to use fuku</h2>
+        </div>
+
+        <div class="when-cards">
+          <div class="glass-card when-card reveal-left">
+            <div class="when-stripe stripe-red"></div>
+            <div class="when-body">
+              <span class="when-badge badge-red">Keep it simple</span>
+              <p class="when-quote">A backend and a frontend. Two terminal tabs. Done.</p>
+              <p class="when-verdict">You don't need fuku.</p>
+            </div>
+          </div>
+          <div class="when-arrow reveal" data-delay="150">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div class="glass-card when-card when-card-yes reveal-right">
+            <div class="when-stripe stripe-green"></div>
+            <div class="when-body">
+              <span class="when-badge badge-green">complex configuration</span>
+              <ul class="when-list">
+                <li>Multiple backend services with dependencies</li>
+                <li>BFF layer between APIs and the UI</li>
+                <li>Several frontends — SPA, docs, Swagger</li>
+                <li>Gateways, mock servers, infrastructure</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Problem → Solution ─── -->
+    <section class="vs-section">
+      <div class="container">
+        <div class="section-header center">
+          <span class="section-label">Docker Compose vs fuku</span>
+          <h2>Local development tradeoffs</h2>
+          <p class="section-sub">Compose runs containers. fuku runs native processes. Here's what that means day to day.</p>
+        </div>
+
+        <div class="vs-grid">
+          <div class="vs-pair reveal" data-delay="0">
+            <div class="vs-problem">
+              <div class="vs-icon vs-icon-red">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+              </div>
+              <div>
+                <h3>~2 GB+ container memory</h3>
+                <p>Plus 2-4 GB for the Docker Desktop VM on macOS</p>
+              </div>
+            </div>
+            <div class="vs-solution">
+              <div class="vs-icon vs-icon-blue">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                <h3>~60 MB total</h3>
+                <p>Native processes. No VM, no daemon, no overhead.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="vs-pair reveal" data-delay="80">
+            <div class="vs-problem">
+              <div class="vs-icon vs-icon-red">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div>
+                <h3>Minutes to start</h3>
+                <p>Image pulls, layer extraction, network setup, cgroup init</p>
+              </div>
+            </div>
+            <div class="vs-solution">
+              <div class="vs-icon vs-icon-blue">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                <h3>Seconds to start</h3>
+                <p>Native fork and exec. No container initialization.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="vs-pair reveal" data-delay="160">
+            <div class="vs-problem">
+              <div class="vs-icon vs-icon-red">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+              </div>
+              <div>
+                <h3>Broken file watching</h3>
+                <p>macOS VM proxies FS events. Latency. Missed changes.</p>
+              </div>
+            </div>
+            <div class="vs-solution">
+              <div class="vs-icon vs-icon-blue">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                <h3>Instant hot-reload</h3>
+                <p>Native fsnotify. Debounced. Configurable per-service.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="vs-pair reveal" data-delay="240">
+            <div class="vs-problem">
+              <div class="vs-icon vs-icon-red">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              </div>
+              <div>
+                <h3>depends_on ≠ ready</h3>
+                <p>Container started doesn't mean service is accepting requests</p>
+              </div>
+            </div>
+            <div class="vs-solution">
+              <div class="vs-icon vs-icon-blue">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                <h3>Real readiness gates</h3>
+                <p>HTTP, TCP, and log pattern checks. Tier-based startup ordering.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="vs-pair reveal" data-delay="320">
+            <div class="vs-problem">
+              <div class="vs-icon vs-icon-red">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <div>
+                <h3>Interleaved log noise</h3>
+                <p>No overview. No controls. grep your way through stdout.</p>
+              </div>
+            </div>
+            <div class="vs-solution">
+              <div class="vs-icon vs-icon-blue">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                <h3>Live TUI dashboard</h3>
+                <p>Per-service status, CPU/memory, restart controls, log filtering.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Comparison table ─── -->
+    <section class="table-section">
+      <div class="container">
+        <div class="section-header center">
+          <span class="section-label">Comparison</span>
+          <h2>Feature matrix</h2>
+        </div>
+
+        <div class="table-wrap glass-card reveal">
+          <table class="cmp">
+            <thead>
+              <tr>
+                <th class="fc"></th>
+                <th>Foreman</th>
+                <th>Overmind</th>
+                <th>Compose</th>
+                <th class="hl">fuku</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="fc">Native processes</td><td><span class="ic y"></span></td><td><span class="ic y"></span></td><td><span class="ic n"></span><span class="tn">Containers</span></td><td class="hl"><span class="ic y"></span></td></tr>
+              <tr><td class="fc">Startup ordering</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">depends_on</span></td><td class="hl"><span class="ic y"></span><span class="tn">Tier-based</span></td></tr>
+              <tr><td class="fc">Readiness checks</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">Extra config</span></td><td class="hl"><span class="ic y"></span><span class="tn">HTTP, TCP, log</span></td></tr>
+              <tr><td class="fc">Interactive TUI</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td class="hl"><span class="ic y"></span></td></tr>
+              <tr><td class="fc">CPU/memory monitoring</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">docker stats</span></td><td class="hl"><span class="ic y"></span><span class="tn">Built-in</span></td></tr>
+              <tr><td class="fc">Hot-reload</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">Volume mounts</span></td><td class="hl"><span class="ic y"></span><span class="tn">Built-in</span></td></tr>
+              <tr><td class="fc">Service profiles</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic y"></span></td><td class="hl"><span class="ic y"></span></td></tr>
+              <tr><td class="fc">Per-process terminal</td><td><span class="ic n"></span></td><td><span class="ic y"></span><span class="tn">tmux</span></td><td><span class="ic p"></span><span class="tn">docker exec</span></td><td class="hl"><span class="ic n"></span></td></tr>
+              <tr><td class="fc">Log streaming</td><td><span class="ic p"></span><span class="tn">stdout</span></td><td><span class="ic p"></span><span class="tn">stdout</span></td><td><span class="ic p"></span><span class="tn">docker logs</span></td><td class="hl"><span class="ic y"></span><span class="tn">Socket-based</span></td></tr>
+              <tr><td class="fc">Config format</td><td><span class="tl">Procfile</span></td><td><span class="tl">Procfile</span></td><td><span class="tl">YAML</span></td><td class="hl"><span class="tl">YAML</span></td></tr>
+              <tr><td class="fc">Requires Docker</td><td><span class="ic y"></span><span class="tn">No</span></td><td><span class="ic y"></span><span class="tn">No</span></td><td><span class="ic n"></span><span class="tn">Required</span></td><td class="hl"><span class="ic y"></span><span class="tn">No</span></td></tr>
+            </tbody>
+            <tfoot>
+              <tr><td class="fc">Memory (~50 services)</td><td><span class="mv">~60 MB</span></td><td><span class="mv">~60 MB</span></td><td><span class="mv bad">~2 GB+</span></td><td class="hl"><span class="mv good">~60 MB</span></td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── CTA ─── -->
+    <section class="cta-section">
+      <div class="container narrow">
+        <div class="cta-card glass-card reveal">
+          <h2 class="cta-title">Try it out</h2>
+          <p class="cta-desc">Add a <code>fuku.yaml</code> to your project, list your services, and run <code>fuku</code>.</p>
+          <div class="cta-actions">
+            <a href={`${base}docs/getting-started/`} class="btn btn-primary">Getting started</a>
+            <a href={`${base}docs/configuration/`} class="btn btn-secondary">Configuration</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</Layout>
+
+<style>
+  /* ── Layout ── */
+  .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 860px; }
+
+  .section-header { margin-bottom: 36px; }
+  .section-header.center { text-align: center; }
+
+  .section-label {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--blue);
+    margin-bottom: 10px;
+  }
+
+  .section-header h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .section-sub {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .center .section-sub { max-width: 520px; margin: 0 auto; }
+
+  .hide-mobile { display: inline; }
+
+  /* ── Glass card ── */
+  .glass-card {
+    position: relative;
+    background: var(--glass-card-bg);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid var(--glass-card-border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.35s ease;
+  }
+
+  .glass-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 50%;
+    border-radius: 16px 16px 0 0;
+    background: linear-gradient(180deg, var(--glass-card-shine) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .glass-card::after {
+    content: ""; position: absolute; inset: 0; border-radius: 16px; padding: 1px;
+    background: linear-gradient(180deg, var(--glass-card-ring-top) 0%, transparent 40%, transparent 60%, var(--glass-card-ring-bottom) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
+  }
+
+  .gradient-text {
+    background: var(--gradient);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @keyframes gradient-shift {
+    0% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+    100% { background-position: 0% center; }
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes bar-grow { from { width: 0 !important; } }
+
+  /* ── Scroll reveals ── */
+  .reveal,
+  .reveal-left,
+  .reveal-right {
+    opacity: 0;
+    transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .reveal { transform: translateY(24px); }
+  .reveal-left { transform: translateX(-32px); }
+  .reveal-right { transform: translateX(32px); }
+
+  .reveal.visible,
+  .reveal-left.visible,
+  .reveal-right.visible {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  .bar-paused {
+    width: 0 !important;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 80px 0 48px;
+    text-align: center;
+  }
+
+  .hero-eyebrow {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--blue);
+    margin-bottom: 20px;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .hero-title {
+    font-size: 3.8rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+    margin-bottom: 20px;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+  }
+
+  .hero-desc {
+    font-size: 1.12rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    max-width: 600px;
+    margin: 0 auto 36px;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+  }
+
+  /* ── Big numbers ── */
+  .bignum-section {
+    padding: 0 0 72px;
+  }
+
+  .bignum-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .bignum-card {
+    padding: 32px 24px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .bignum-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    border-color: var(--glass-card-hover-border);
+    box-shadow: var(--glass-card-shadow);
+  }
+
+  .bignum {
+    font-size: 3.2rem;
+    font-weight: 800;
+    font-family: var(--mono);
+    letter-spacing: -0.04em;
+    line-height: 1;
+    position: relative;
+  }
+
+  .bignum-label {
+    font-size: 0.82rem;
+    color: var(--text);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    position: relative;
+    margin-top: 4px;
+  }
+
+  .bignum-detail {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    position: relative;
+  }
+
+  /* ── Memory bars ── */
+  .mem-section {
+    padding: 72px 0;
+    background: var(--bg-elevated);
+  }
+
+  .mem-visual {
+    padding: 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .mem-visual:hover { transform: none; }
+
+  .mem-tabs {
+    display: flex;
+    gap: 6px;
+    position: relative;
+  }
+
+  .mem-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+  }
+
+  .mem-tab:hover {
+    color: var(--text);
+    background: var(--nav-hover-bg);
+  }
+
+  .mem-tab.active {
+    color: var(--blue);
+    background: rgba(91, 140, 254, 0.08);
+    border-color: rgba(91, 140, 254, 0.25);
+  }
+
+  .mem-tab-count {
+    font-size: 0.68rem;
+    font-weight: 500;
+    opacity: 0.7;
+  }
+
+  .mem-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .mem-row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mem-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .mem-tool {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .mem-tool.highlight {
+    color: var(--blue);
+  }
+
+  .mem-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: var(--mono);
+    white-space: nowrap;
+    color: var(--text);
+    transition: opacity 0.15s;
+  }
+
+  .mem-val.highlight {
+    color: var(--blue);
+  }
+
+  .mem-track {
+    height: 36px;
+    border-radius: 10px;
+    background: var(--code-bg);
+    overflow: hidden;
+  }
+
+  .mem-bar {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .bar-compose {
+    width: 100%;
+    background: linear-gradient(90deg, rgba(249, 226, 175, 0.5) 0%, rgba(249, 226, 175, 0.2) 100%);
+    border: 1px solid rgba(249, 226, 175, 0.45);
+  }
+
+  .bar-fuku {
+    width: 5%;
+    min-width: 40px;
+    background: linear-gradient(90deg, rgba(90, 247, 142, 0.3) 0%, rgba(90, 247, 142, 0.1) 100%);
+    border: 1px solid rgba(90, 247, 142, 0.25);
+  }
+
+  .mem-footnote {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  .mem-estimate {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin: 0;
+    font-style: italic;
+  }
+
+  /* ── When ── */
+  .when-section {
+    padding: 72px 0;
+  }
+
+  .when-cards {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .when-card {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .when-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--glass-card-hover-border);
+    box-shadow: var(--glass-card-shadow);
+  }
+
+  .when-stripe {
+    width: 4px;
+    flex-shrink: 0;
+  }
+
+  .stripe-red { background: #ff6b6b; }
+  .stripe-green { background: #50c878; }
+
+  .when-body {
+    padding: 24px;
+    position: relative;
+    flex: 1;
+  }
+
+  .when-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+  }
+
+  .badge-red { background: rgba(255, 100, 100, 0.1); color: #ff6b6b; border: 1px solid rgba(255, 100, 100, 0.2); }
+  .badge-green { background: rgba(80, 200, 120, 0.1); color: #50c878; border: 1px solid rgba(80, 200, 120, 0.2); }
+
+  .when-quote {
+    font-size: 1rem;
+    color: var(--text);
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+
+  .when-verdict {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0;
+  }
+
+  .when-list {
+    color: var(--text-muted);
+    padding-left: 16px;
+    margin: 0;
+    line-height: 1.9;
+    font-size: 0.9rem;
+  }
+
+  .when-arrow {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  /* ── Problem → Solution pairs ── */
+  .vs-section {
+    padding: 72px 0;
+    background: var(--bg-elevated);
+  }
+
+  .vs-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .vs-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .vs-problem,
+  .vs-solution {
+    display: flex;
+    gap: 14px;
+    padding: 20px 22px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    align-items: flex-start;
+  }
+
+  .vs-problem {
+    background: rgba(255, 100, 100, 0.02);
+    border-color: rgba(255, 100, 100, 0.1);
+  }
+
+  .vs-solution {
+    background: rgba(91, 140, 254, 0.02);
+    border-color: rgba(91, 140, 254, 0.1);
+  }
+
+  .vs-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .vs-icon-red {
+    background: rgba(255, 100, 100, 0.1);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 100, 100, 0.2);
+  }
+
+  .vs-icon-blue {
+    background: rgba(91, 140, 254, 0.1);
+    color: var(--blue);
+    border: 1px solid rgba(91, 140, 254, 0.2);
+  }
+
+  .vs-problem h3,
+  .vs-solution h3 {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+
+  .vs-problem p,
+  .vs-solution p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* ── Table ── */
+  .table-section {
+    padding: 72px 0;
+  }
+
+  .table-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0;
+  }
+
+  .table-wrap:hover { transform: none; }
+
+  .cmp {
+    position: relative;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .cmp thead th {
+    padding: 16px 16px;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .cmp thead th.fc { text-align: left; width: 180px; }
+
+  .cmp thead th.hl {
+    color: var(--blue);
+    position: relative;
+    background: rgba(91, 140, 254, 0.05);
+  }
+
+  .cmp thead th.hl::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--gradient); border-radius: 3px 3px 0 0;
+  }
+
+  .cmp tbody td {
+    padding: 11px 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--table-border);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .cmp tbody td.fc { text-align: left; font-weight: 500; color: var(--text); font-size: 0.86rem; }
+  .cmp tbody td.hl { background: rgba(91, 140, 254, 0.04); }
+  .cmp tbody tr:last-child td { border-bottom: none; }
+  .cmp tbody tr:hover td { background: var(--card-hover-bg); }
+  .cmp tbody tr:hover td.hl { background: rgba(91, 140, 254, 0.08); }
+
+  .ic {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%;
+    font-size: 0.65rem; font-weight: 700; vertical-align: middle;
+  }
+
+  .ic.y { background: rgba(80, 200, 120, 0.15); color: #50c878; border: 1px solid rgba(80, 200, 120, 0.3); }
+  .ic.y::after { content: "\2713"; }
+  .ic.n { background: rgba(255, 100, 100, 0.1); color: #ff6b6b; border: 1px solid rgba(255, 100, 100, 0.2); }
+  .ic.n::after { content: "\2717"; }
+  .ic.p { background: rgba(255, 190, 60, 0.12); color: #f0a030; border: 1px solid rgba(255, 190, 60, 0.25); }
+  .ic.p::after { content: "~"; }
+  .tn { font-size: 0.76rem; color: var(--text-muted); margin-left: 5px; vertical-align: middle; }
+  .tl { font-size: 0.82rem; color: var(--text-muted); font-family: var(--mono); }
+
+  .cmp tfoot td {
+    padding: 14px 16px; text-align: center;
+    border-top: 1px solid var(--border); white-space: nowrap;
+  }
+  .cmp tfoot td.fc { text-align: left; font-weight: 600; color: var(--text); }
+  .cmp tfoot td.hl { background: rgba(91, 140, 254, 0.04); }
+  .mv { font-weight: 700; font-family: var(--mono); font-size: 0.95rem; color: var(--text); }
+  .mv.good { color: #50c878; }
+  .mv.bad { color: #ff6b6b; }
+
+  /* ── CTA ── */
+  .cta-section {
+    padding: 72px 0 80px;
+    background: var(--bg-elevated);
+  }
+
+  .cta-card {
+    padding: 56px 48px;
+    text-align: center;
+  }
+
+  .cta-card:hover { transform: none; }
+
+  .cta-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .cta-desc {
+    position: relative;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    margin-bottom: 28px;
+  }
+
+  .cta-desc code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text);
+  }
+
+  .cta-actions {
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 150px;
+    padding: 12px 28px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.3s;
+  }
+  .btn:hover { transform: translateY(-1px); text-decoration: none; }
+
+  .btn-primary { background: var(--gradient); color: #fff; box-shadow: var(--btn-primary-shadow); }
+  .btn-primary::before {
+    content: ""; position: absolute; inset: 0; border-radius: 12px; padding: 1px;
+    background: linear-gradient(180deg, var(--btn-shine) 0%, transparent 60%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
+  }
+  .btn-primary:hover { box-shadow: var(--btn-primary-hover-shadow); }
+
+  .btn-secondary {
+    background: var(--glass-bg); color: var(--text);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-glow);
+  }
+  .btn-secondary::before {
+    content: ""; position: absolute; inset: 0; border-radius: 12px; padding: 1px;
+    background: linear-gradient(180deg, var(--glass-shine) 0%, transparent 50%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
+  }
+  .btn-secondary:hover { border-color: var(--card-hover-border); box-shadow: var(--btn-secondary-hover-shadow); }
+
+  :global([data-theme="light"]) .btn-secondary {
+    background: #1a1a2e; color: #fff; border-color: #1a1a2e; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  }
+  :global([data-theme="light"]) .btn-secondary:hover { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .bignum-grid { grid-template-columns: 1fr; gap: 12px; max-width: 340px; margin: 0 auto; }
+    .bignum-card { flex-direction: row; gap: 16px; padding: 20px 24px; text-align: left; }
+    .bignum { font-size: 2.2rem; }
+
+    .vs-pair { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    .hero { padding: 48px 0 32px; }
+    .hero-title { font-size: 2.4rem; }
+    .hero-desc { font-size: 1rem; }
+    .hide-mobile { display: none; }
+
+    .mem-tabs { gap: 4px; }
+    .mem-tab { font-size: 0.78rem; padding: 8px 6px; }
+    .mem-tab-count { font-size: 0.6rem; }
+    .mem-val { font-size: 0.95rem; }
+
+    .when-cards { flex-direction: column; }
+    .when-arrow { justify-content: center; transform: rotate(90deg); }
+
+    .table-wrap {
+      margin-left: -24px; margin-right: -24px;
+      border-radius: 0; border-left: none; border-right: none;
+    }
+    .cmp { font-size: 0.78rem; }
+    .cmp thead th, .cmp tbody td, .cmp tfoot td { padding: 9px 8px; }
+    .tn { display: none; }
+
+    .cta-card { padding: 40px 24px; }
+    .cta-title { font-size: 1.4rem; }
+  }
+</style>
+
+<script>
+  function easeOutExpo(t: number): number {
+    return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+  }
+
+  // ── Count-up animation for [data-count] elements ──
+  function animateCounters() {
+    document.querySelectorAll<HTMLElement>("[data-count]").forEach((el) => {
+      const target = parseInt(el.dataset.count!, 10);
+      const suffix = el.dataset.suffix || "";
+
+      if (target === 0) {
+        el.textContent = "0" + suffix;
+        return;
+      }
+
+      const duration = target > 10 ? 2000 : 600;
+      let start: number | null = null;
+
+      function step(timestamp: number) {
+        if (!start) start = timestamp;
+        const progress = Math.min((timestamp - start) / duration, 1);
+        const current = Math.round(easeOutExpo(progress) * target);
+        el.textContent = current + suffix;
+        if (progress < 1) requestAnimationFrame(step);
+      }
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            observer.disconnect();
+            requestAnimationFrame(step);
+          }
+        },
+        { threshold: 0.5 }
+      );
+      observer.observe(el);
+    });
+  }
+
+  // ── Scroll reveal for .reveal, .reveal-left, .reveal-right ──
+  function initReveals() {
+    const els = document.querySelectorAll<HTMLElement>(
+      ".reveal, .reveal-left, .reveal-right"
+    );
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const el = entry.target as HTMLElement;
+            const delay = parseInt(el.dataset.delay || "0", 10);
+            setTimeout(() => el.classList.add("visible"), delay);
+            observer.unobserve(el);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    els.forEach((el) => observer.observe(el));
+  }
+
+  // ── Memory bars + value count-up ──
+  function initMemBars() {
+    const section = document.getElementById("mem-visual");
+    if (!section) return;
+
+    const runtimes: Record<string, {
+      composeMB: number;
+      fukuMB: number;
+      composeNote: string;
+      fukuNote: string;
+      estimate: string;
+    }> = {
+      go: {
+        composeMB: 2048,
+        fukuMB: 60,
+        composeNote: "+ Docker Desktop VM: 2-4 GB",
+        fukuNote: "No VM, no container runtime",
+        estimate: "",
+      },
+      node: {
+        composeMB: 6400,
+        fukuMB: 2400,
+        composeNote: "+ Docker Desktop VM: 2-4 GB",
+        fukuNote: "No VM, no container runtime",
+        estimate: "Rough estimate: ~80 MB per Express service",
+      },
+      python: {
+        composeMB: 5000,
+        fukuMB: 2000,
+        composeNote: "+ Docker Desktop VM: 2-4 GB",
+        fukuNote: "No VM, no container runtime",
+        estimate: "Rough estimate: ~100 MB per FastAPI service",
+      },
+      ruby: {
+        composeMB: 5250,
+        fukuMB: 2250,
+        composeNote: "+ Docker Desktop VM: 2-4 GB",
+        fukuNote: "No VM, no container runtime",
+        estimate: "Rough estimate: ~150 MB per Rails service (Puma single-mode)",
+      },
+    };
+
+    const composeVal = document.getElementById("mem-compose-val")!;
+    const fukuVal = document.getElementById("mem-fuku-val")!;
+    const composeBar = document.getElementById("mem-compose-bar")!;
+    const fukuBar = document.getElementById("mem-fuku-bar")!;
+    const composeNote = document.getElementById("mem-compose-note")!;
+    const fukuNote = document.getElementById("mem-fuku-note")!;
+    const estimateEl = document.getElementById("mem-estimate")!;
+
+    function formatMB(mb: number): string {
+      if (mb >= 1024) return "~" + (mb / 1024).toFixed(1).replace(/\.0$/, "") + " GB";
+      return "~" + mb + " MB";
+    }
+
+    function animateValue(el: HTMLElement, from: number, to: number) {
+      const duration = 1200;
+      let start: number | null = null;
+
+      function step(timestamp: number) {
+        if (!start) start = timestamp;
+        const progress = Math.min((timestamp - start) / duration, 1);
+        const current = Math.round(from + easeOutExpo(progress) * (to - from));
+        el.textContent = formatMB(current);
+        if (progress < 1) requestAnimationFrame(step);
+      }
+
+      requestAnimationFrame(step);
+    }
+
+    let currentCompose = 0;
+    let currentFuku = 0;
+    let activated = false;
+
+    function setRuntime(key: string, animate: boolean) {
+      const data = runtimes[key];
+      const maxMB = Math.max(...Object.values(runtimes).map((r) => r.composeMB));
+
+      const composePct = (data.composeMB / maxMB) * 100;
+      const fukuPct = Math.max((data.fukuMB / maxMB) * 100, 3);
+
+      if (animate) {
+        animateValue(composeVal, currentCompose, data.composeMB);
+        animateValue(fukuVal, currentFuku, data.fukuMB);
+      } else {
+        composeVal.textContent = formatMB(data.composeMB);
+        fukuVal.textContent = formatMB(data.fukuMB);
+      }
+
+      composeBar.classList.remove("bar-paused");
+      fukuBar.classList.remove("bar-paused");
+      composeBar.style.width = composePct + "%";
+      fukuBar.style.width = fukuPct + "%";
+
+      composeNote.textContent = data.composeNote;
+      fukuNote.textContent = data.fukuNote;
+      estimateEl.textContent = data.estimate;
+
+      currentCompose = data.composeMB;
+      currentFuku = data.fukuMB;
+    }
+
+    // Tab clicks
+    document.getElementById("mem-tabs")!.addEventListener("click", (e) => {
+      const tab = (e.target as HTMLElement).closest<HTMLElement>(".mem-tab");
+      if (!tab || tab.classList.contains("active")) return;
+
+      section.querySelectorAll(".mem-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      setRuntime(tab.dataset.runtime!, true);
+    });
+
+    // Scroll trigger
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !activated) {
+          activated = true;
+          observer.disconnect();
+          animateValue(composeVal, 0, runtimes.go.composeMB);
+          animateValue(fukuVal, 0, runtimes.go.fukuMB);
+
+          const maxMB = Math.max(...Object.values(runtimes).map((r) => r.composeMB));
+          composeBar.classList.remove("bar-paused");
+          fukuBar.classList.remove("bar-paused");
+          composeBar.style.width = (runtimes.go.composeMB / maxMB) * 100 + "%";
+          fukuBar.style.width = Math.max((runtimes.go.fukuMB / maxMB) * 100, 3) + "%";
+
+          currentCompose = runtimes.go.composeMB;
+          currentFuku = runtimes.go.fukuMB;
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(section);
+  }
+
+  animateCounters();
+  initReveals();
+  initMemBars();
+</script>

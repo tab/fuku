@@ -11,7 +11,7 @@ const nav = getFeaturesNav(base);
 ---
 
 <DocsLayout
-  title="Hot-Reload - Fuku"
+  title="Hot-Reload - fuku"
   description="Automatic service restart on file changes with debouncing."
   current={current}
   nav={nav}
@@ -24,7 +24,7 @@ const nav = getFeaturesNav(base);
   <h2>How It Works</h2>
 
   <p>
-    Fuku watches file system events in your service directories and restarts the affected service when matching files change. A debounce timer prevents restart storms when multiple files change at once (e.g., during a <code>git checkout</code>).
+    fuku watches file system events in your service directories and restarts the affected service when matching files change. A debounce timer prevents restart storms when multiple files change at once (e.g., during a <code>git checkout</code>).
   </p>
 
   <Terminal title="fuku run default">
