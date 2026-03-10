@@ -1,7 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
 import { getFeaturesNav } from "../../data/nav";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
@@ -44,7 +44,7 @@ const nav = getFeaturesNav(base);
 
   <h2>Configuration</h2>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   api:
     dir: ./api
     watch:
@@ -86,7 +86,7 @@ const nav = getFeaturesNav(base);
     If multiple services depend on a shared library (e.g., <code>pkg/common</code>), add it to <code>shared</code>. When files in that path change, the service restarts — even though the files are outside its own directory.
   </p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   api:
     dir: ./api
     watch:

@@ -1,0 +1,154 @@
+---
+interface Props {
+  code: string;
+}
+
+const { code } = Astro.props;
+const lines = code.split('\n');
+
+function esc(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function highlight(line: string): string {
+  const trimmed = line.trimStart();
+
+  if (trimmed.startsWith('#')) {
+    return `<span class="hl-comment">${esc(line)}</span>`;
+  }
+
+  return esc(line)
+    .replace(/^(\s*)(fuku|brew|git|go|cd|sudo|npm|make|curl|ln|kill|lsof|export|rm)(\s|$)/, '$1<span class="hl-cmd">$2</span>$3')
+    .replace(/(--[\w-]+)/g, '<span class="hl-flag">$1</span>')
+    .replace(/(\$\()/g, '<span class="hl-punct">$1</span>')
+    .replace(/(\))/g, '<span class="hl-punct">$1</span>');
+}
+
+const highlighted = lines.map(highlight).join('\n');
+---
+
+<div class="code-ide">
+  <div class="code-titlebar">
+    <div class="code-tab">
+      <svg class="file-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 17 10 11 4 5"/>
+        <line x1="12" y1="19" x2="20" y2="19"/>
+      </svg>
+      <span class="tab-name">terminal</span>
+    </div>
+    <button class="copy-btn" aria-label="Copy code" title="Copy code">
+      <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      <svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="code-body">
+    <pre><code set:html={highlighted} /></pre>
+  </div>
+</div>
+
+<style>
+  .code-ide {
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    background: #1e1e2e;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  }
+
+  .code-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    height: 38px;
+    background: #181825;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .code-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #a6adc8;
+    font-size: 0.8rem;
+    font-family: var(--mono);
+  }
+
+  .file-icon {
+    color: #6c7086;
+    flex-shrink: 0;
+  }
+
+  .tab-name {
+    color: #cdd6f4;
+  }
+
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #6c7086;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .copy-btn:hover {
+    color: #cdd6f4;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .copy-btn.copied {
+    color: #a6e3a1;
+  }
+
+  .check-icon {
+    display: none;
+  }
+
+  .copy-btn.copied .copy-icon {
+    display: none;
+  }
+
+  .copy-btn.copied .check-icon {
+    display: block;
+  }
+
+  .code-body {
+    display: flex;
+    padding: 16px 0;
+    overflow-x: auto;
+  }
+
+  pre {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: #cdd6f4;
+  }
+
+  :global(.hl-comment) { color: #6c7086; font-style: italic; }
+  :global(.hl-cmd) { color: #89b4fa; }
+  :global(.hl-flag) { color: #f9e2af; }
+  :global(.hl-punct) { color: #a6adc8; }
+</style>

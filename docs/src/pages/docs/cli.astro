@@ -1,6 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
@@ -82,14 +82,14 @@ const nav = getDocsNav(base);
   </table>
 
   <p>Flags can be placed in any position:</p>
-  <CodeBlock title="terminal" lang="shell" code={`fuku run core --no-ui
+  <CodeTerminal code={`fuku run core --no-ui
 fuku --no-ui run core        # Same result`} />
 
   <hr />
 
   <h2>Usage Examples</h2>
 
-  <CodeBlock title="terminal" lang="shell" code={`# Run with TUI (default profile)
+  <CodeTerminal code={`# Run with TUI (default profile)
 fuku
 
 # Run a specific profile without TUI

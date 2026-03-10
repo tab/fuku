@@ -1,6 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
@@ -49,13 +49,13 @@ const nav = getDocsNav(base);
 
   <h3>Set an environment variable</h3>
   <p>Disables all telemetry regardless of DSN:</p>
-  <CodeBlock title="terminal" lang="shell" code={`export FUKU_TELEMETRY_DISABLED=1`} />
+  <CodeTerminal code={`export FUKU_TELEMETRY_DISABLED=1`} />
 
   <h3>Build from source</h3>
   <p>
     When you build from source, no Sentry DSN is compiled in and telemetry is disabled by default.
   </p>
-  <CodeBlock title="terminal" lang="shell" code={`git clone https://github.com/tab/fuku.git
+  <CodeTerminal code={`git clone https://github.com/tab/fuku.git
 cd fuku
 go build -o cmd/fuku cmd/main.go`} />
 
@@ -63,7 +63,7 @@ go build -o cmd/fuku cmd/main.go`} />
   <p>
     Delete the telemetry ID file to reset your anonymous identity. A new random ID is generated on next run.
   </p>
-  <CodeBlock title="terminal" lang="shell" code={`# macOS
+  <CodeTerminal code={`# macOS
 rm ~/Library/Application\\ Support/fuku/telemetry.id
 
 # Linux
