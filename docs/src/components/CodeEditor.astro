@@ -1,6 +1,6 @@
 ---
 interface Props {
-  title?: string;
+  title: string;
   lang?: string;
   code: string;
 }
@@ -50,20 +50,6 @@ function hlYaml(line: string): string {
   return esc(raw);
 }
 
-function hlShell(line: string): string {
-  const trimmed = line.trimStart();
-
-  if (trimmed.startsWith('#')) {
-    return `<span class="hl-comment">${esc(line)}</span>`;
-  }
-
-  return esc(line)
-    .replace(/^(\s*)(fuku|brew|git|go|cd|sudo|npm|make|curl|ln)(\s|$)/, '$1<span class="hl-cmd">$2</span>$3')
-    .replace(/(--[\w-]+)/g, '<span class="hl-flag">$1</span>')
-    .replace(/(\$\()/g, '<span class="hl-punct">$1</span>')
-    .replace(/(\))/g, '<span class="hl-punct">$1</span>');
-}
-
 function hlMakefile(line: string): string {
   if (line.trimStart().startsWith('#')) {
     return `<span class="hl-comment">${esc(line)}</span>`;
@@ -77,7 +63,6 @@ function hlMakefile(line: string): string {
 
 function highlight(line: string): string {
   if (lang === 'yaml') return hlYaml(line);
-  if (lang === 'shell') return hlShell(line);
   if (lang === 'makefile') return hlMakefile(line);
   return esc(line);
 }
@@ -86,27 +71,25 @@ const highlighted = lines.map(highlight).join('\n');
 ---
 
 <div class="code-ide">
-  {title && (
-    <div class="code-titlebar">
-      <div class="code-tab">
-        <svg class="file-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-        </svg>
-        <span class="tab-name">{title}</span>
-      </div>
-      <button class="copy-btn" aria-label="Copy code" title="Copy code">
-        <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg>
-        <svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-      </button>
+  <div class="code-titlebar">
+    <div class="code-tab">
+      <svg class="file-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span class="tab-name">{title}</span>
     </div>
-  )}
-  <div class={`code-body ${!title ? 'no-title' : ''}`}>
+    <button class="copy-btn" aria-label="Copy code" title="Copy code">
+      <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      <svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="code-body">
     {showLineNumbers && (
       <div class="line-numbers" aria-hidden="true">
         {lines.map((_, i) => (
@@ -196,10 +179,6 @@ const highlighted = lines.map(highlight).join('\n');
     overflow-x: auto;
   }
 
-  .code-body.no-title {
-    padding: 16px 0;
-  }
-
   .line-numbers {
     display: flex;
     flex-direction: column;
@@ -223,6 +202,7 @@ const highlighted = lines.map(highlight).join('\n');
     margin: 0;
     flex: 1;
     min-width: 0;
+    padding-right: 16px;
   }
 
   pre.has-numbers {
@@ -240,14 +220,8 @@ const highlighted = lines.map(highlight).join('\n');
     color: #cdd6f4;
   }
 
-  pre {
-    padding-right: 16px;
-  }
-
   :global(.hl-key) { color: #89b4fa; }
   :global(.hl-punct) { color: #a6adc8; }
   :global(.hl-comment) { color: #6c7086; font-style: italic; }
   :global(.hl-str) { color: #a6e3a1; }
-  :global(.hl-cmd) { color: #89b4fa; }
-  :global(.hl-flag) { color: #f9e2af; }
 </style>

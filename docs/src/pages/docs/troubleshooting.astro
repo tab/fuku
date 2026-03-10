@@ -1,6 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
@@ -48,7 +49,7 @@ const nav = getDocsNav(base);
     <li><strong>Port conflict.</strong> Another process may already be listening on the same port. Check with <code>lsof -i :PORT</code>.</li>
   </ul>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   slow-service:
     dir: slow-service
     tier: core
@@ -66,7 +67,7 @@ const nav = getDocsNav(base);
     If fuku is killed abruptly (e.g., <code>kill -9</code>, terminal crash), child processes may keep running. You can clean them up with:
   </p>
 
-  <CodeBlock title="terminal" lang="shell" code={`# Stop all services managed by fuku
+  <CodeTerminal code={`# Stop all services managed by fuku
 fuku stop
 
 # Or find processes manually by port
@@ -84,7 +85,7 @@ lsof -i :3000`} />
     If a service fails to start with "address already in use", another process is occupying the port. This often happens after an unclean shutdown.
   </p>
 
-  <CodeBlock title="terminal" lang="shell" code={`# Find what's using port 8000
+  <CodeTerminal code={`# Find what's using port 8000
 lsof -i :8000
 
 # Kill it
@@ -102,7 +103,7 @@ kill $(lsof -t -i :8000)`} />
     Watching large directories (e.g., <code>node_modules</code>, <code>vendor</code>) causes high CPU usage from filesystem event processing. Make sure your <code>ignore</code> patterns exclude these:
   </p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`x-watch: &watch
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`x-watch: &watch
   include:
     - "**/*.go"
   ignore:
@@ -142,14 +143,14 @@ kill $(lsof -t -i :8000)`} />
     <li><strong>Use <code>fuku logs</code></strong> in a separate terminal to stream logs from specific services:</li>
   </ul>
 
-  <CodeBlock title="terminal" lang="shell" code={`# Stream logs from specific services only
+  <CodeTerminal code={`# Stream logs from specific services only
 fuku logs api auth`} />
 
   <ul>
     <li><strong>Limit log output per service.</strong> Some services are noisier than others. You can restrict which streams are captured:</li>
   </ul>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   noisy-service:
     dir: noisy-service
     logs:

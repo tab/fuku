@@ -1,5 +1,5 @@
 ---
-import CodeBlock from "./CodeBlock.astro";
+import CodeTerminal from "./CodeTerminal.astro";
 ---
 
 <section class="install" id="install">
@@ -8,12 +8,12 @@ import CodeBlock from "./CodeBlock.astro";
 
     <div class="homebrew">
       <h3>Homebrew</h3>
-      <CodeBlock title="terminal" lang="shell" code={`brew install tab/apps/fuku`} />
+      <CodeTerminal code={`brew install tab/apps/fuku`} />
     </div>
 
     <div class="source">
       <h3>Build from source</h3>
-      <CodeBlock title="terminal" lang="shell" code={`git clone https://github.com/tab/fuku.git
+      <CodeTerminal code={`git clone https://github.com/tab/fuku.git
 cd fuku
 go build -o cmd/fuku cmd/main.go
 sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />

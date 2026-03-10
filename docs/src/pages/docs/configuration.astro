@@ -1,6 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
 import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
@@ -27,7 +27,7 @@ const nav = getDocsNav(base);
 
   <p>Each service is defined with a name, directory, and optional settings:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   backend:
     dir: backend                # Path to service directory
     command: go run cmd/main.go # Custom start command (optional)
@@ -110,7 +110,7 @@ const nav = getDocsNav(base);
 
   <p>Profiles group services for batch operations:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`defaults:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`defaults:
   profiles: [default]           # Profiles used when no profile is specified
 
 profiles:
@@ -127,7 +127,7 @@ profiles:
 
   <h2>Concurrency</h2>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`concurrency:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`concurrency:
   workers: 5                    # Max concurrent service starts (default: 5)`} />
 
   <p>Controls how many services can start in parallel within a single tier.</p>
@@ -136,7 +136,7 @@ profiles:
 
   <h2>Retry</h2>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`retry:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`retry:
   attempts: 3                   # Max retry attempts (default: 3)
   backoff: 500ms                # Initial backoff duration (default: 500ms)`} />
 
@@ -144,14 +144,14 @@ profiles:
 
   <h2>Log Streaming Buffer</h2>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`logs:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`logs:
   buffer: 1000                  # Socket log streaming buffer size (default: 1000)`} />
 
   <hr />
 
   <h2>Logging</h2>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`logging:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`logging:
   format: console               # "console" or "json"
   level: info                   # debug, info, warn, error`} />
 
@@ -163,7 +163,7 @@ profiles:
     Use YAML anchors (<code>&amp;</code>) and merge keys (<code>&lt;&lt;: *</code>) to avoid repeating common configuration. Top-level keys prefixed with <code>x-</code> are ignored by fuku and serve as anchor definitions.
   </p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`x-readiness-http: &readiness-http
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`x-readiness-http: &readiness-http
   type: http
   timeout: 30s
   interval: 500ms
@@ -186,7 +186,7 @@ services:
 
   <h2>Full Example</h2>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`version: 1
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`version: 1
 
 x-readiness-http: &readiness-http
   type: http

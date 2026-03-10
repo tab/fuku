@@ -1,7 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
 import { getFeaturesNav } from "../../data/nav";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
@@ -50,7 +50,7 @@ const nav = getFeaturesNav(base);
 
   <p>Assign tiers to services in <code>fuku.yaml</code>. The tier order is determined by first occurrence in the file:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   auth:
     dir: auth
     tier: foundation            # Starts first
@@ -83,7 +83,7 @@ const nav = getFeaturesNav(base);
 
   <p>Profiles let you group services for batch operations — run only what you need:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`profiles:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`profiles:
   default: "*"                  # All services
   backend: [auth, api]          # Just the backend stack
   full: [auth, api, web]`} />
@@ -104,7 +104,7 @@ const nav = getFeaturesNav(base);
 
   <p>Control how many services start in parallel within a tier:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`concurrency:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`concurrency:
   workers: 5                    # Max concurrent service starts (default: 5)`} />
 
   <GetStartedCTA />

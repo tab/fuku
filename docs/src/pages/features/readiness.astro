@@ -1,7 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
 import { getFeaturesNav } from "../../data/nav";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
@@ -46,7 +46,7 @@ const nav = getFeaturesNav(base);
 
   <p>Wait for an HTTP endpoint to respond with a 2xx status code:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   api:
     dir: ./api
     readiness:
@@ -59,7 +59,7 @@ const nav = getFeaturesNav(base);
 
   <p>Wait for a TCP port to accept connections:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   gateway:
     dir: ./gateway
     readiness:
@@ -72,7 +72,7 @@ const nav = getFeaturesNav(base);
 
   <p>Wait for a specific pattern to appear in the service's output:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   grpc-server:
     dir: ./grpc
     readiness:
@@ -121,7 +121,7 @@ const nav = getFeaturesNav(base);
 
   <p>If a readiness check times out, fuku can retry the service start based on your retry configuration:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`retry:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`retry:
   attempts: 3                   # Max retry attempts (default: 3)
   backoff: 500ms                # Initial backoff duration (default: 500ms)`} />
 

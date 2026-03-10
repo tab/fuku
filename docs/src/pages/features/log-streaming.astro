@@ -1,7 +1,8 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getFeaturesNav } from "../../data/nav";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
@@ -41,7 +42,7 @@ const nav = getFeaturesNav(base);
 
   <h2>Usage</h2>
 
-  <CodeBlock title="terminal" lang="shell" code={`# Stream logs from all services
+  <CodeTerminal code={`# Stream logs from all services
 fuku logs
 
 # Stream logs from specific services
@@ -57,7 +58,7 @@ fuku l api worker`} />
 
   <p>Control which output streams are captured for each service:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   api:
     dir: ./api
     logs:
@@ -74,7 +75,7 @@ fuku l api worker`} />
 
   <p>Control the socket log streaming buffer size:</p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`logs:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`logs:
   buffer: 1000                  # Buffer size (default: 1000)`} />
 
   <GetStartedCTA />

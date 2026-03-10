@@ -1,6 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getFeaturesNav } from "../../data/nav";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
@@ -169,7 +169,7 @@ const nav = getFeaturesNav(base);
     If you prefer plain log output without the interactive dashboard, use <code>--no-ui</code>:
   </p>
 
-  <CodeBlock title="terminal" lang="shell" code={`fuku run core --no-ui`} />
+  <CodeTerminal code={`fuku run core --no-ui`} />
 
   <p>This streams service logs directly to your terminal with service name prefixes — useful for CI, scripting, or when you want simple output.</p>
 

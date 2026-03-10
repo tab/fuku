@@ -1,6 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
@@ -32,7 +33,7 @@ const nav = getDocsNav(base);
     Define reusable readiness, logging, and watch blocks at the top of your config. Services reference them with <code>*anchor</code> or merge with <code>&lt;&lt;: *anchor</code> to override specific fields.
   </p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`version: 1
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`version: 1
 
 # ── Reusable anchors ──
 
@@ -76,7 +77,7 @@ x-watch: &watch
     Services are organized into tiers. fuku starts all services in a tier, waits for readiness, then moves to the next tier.
   </p>
 
-  <CodeBlock title="fuku.yaml (continued)" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml (continued)" lang="yaml" code={`services:
   # Foundation — auth, users, shared infrastructure
   auth-service:
     dir: auth-service
@@ -212,7 +213,7 @@ x-watch: &watch
     Profiles let you run subsets of services. Use <code>"*"</code> to include everything, or list specific services.
   </p>
 
-  <CodeBlock title="fuku.yaml (continued)" lang="yaml" code={`profiles:
+  <CodeEditor title="fuku.yaml (continued)" lang="yaml" code={`profiles:
   default: "*"
 
   # Storefront and its direct dependencies
@@ -266,7 +267,7 @@ logging:
 
   <h3>Running</h3>
 
-  <CodeBlock title="terminal" lang="shell" code={`# Start everything
+  <CodeTerminal code={`# Start everything
 fuku
 
 # Start only the storefront profile

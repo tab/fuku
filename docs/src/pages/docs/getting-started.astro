@@ -1,6 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import CodeBlock from "../../components/CodeBlock.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
@@ -22,10 +23,10 @@ const nav = getDocsNav(base);
   <h2>Installation</h2>
 
   <h3>Homebrew</h3>
-  <CodeBlock title="terminal" lang="shell" code={`brew install tab/apps/fuku`} />
+  <CodeTerminal code={`brew install tab/apps/fuku`} />
 
   <h3>Build from Source</h3>
-  <CodeBlock title="terminal" lang="shell" code={`git clone https://github.com/tab/fuku.git
+  <CodeTerminal code={`git clone https://github.com/tab/fuku.git
 cd fuku
 go build -o cmd/fuku cmd/main.go
 sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />
@@ -37,7 +38,7 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />
   <ol>
     <li><strong>Generate a config file</strong> in your project root:</li>
   </ol>
-  <CodeBlock title="terminal" lang="shell" code={`fuku init`} />
+  <CodeTerminal code={`fuku init`} />
 
   <ol start="2">
     <li><strong>Edit <code>fuku.yaml</code></strong> to define your services, tiers, and profiles. See the <a href={`${base}docs/configuration/`}>Configuration</a> page for the full reference.</li>
@@ -46,7 +47,7 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />
   <ol start="3">
     <li><strong>Run your services:</strong></li>
   </ol>
-  <CodeBlock title="terminal" lang="shell" code={`# Run with the default profile (interactive TUI)
+  <CodeTerminal code={`# Run with the default profile (interactive TUI)
 fuku
 
 # Run a specific profile
@@ -63,7 +64,7 @@ fuku run core --no-ui`} />
     By default, fuku executes <code>make run</code> inside each service's directory. You can override this with a custom <code>command</code>:
   </p>
 
-  <CodeBlock title="fuku.yaml" lang="yaml" code={`services:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   api:
     dir: ./api
     command: go run cmd/main.go    # Custom command (runs via sh -c)
@@ -75,7 +76,7 @@ fuku run core --no-ui`} />
     When using the default <code>make run</code>, each service directory must contain a <code>Makefile</code> with a <code>run</code> target:
   </p>
 
-  <CodeBlock title="Makefile" lang="makefile" code={`run:
+  <CodeEditor title="Makefile" lang="makefile" code={`run:
 	npm start`} />
 
   <p>
