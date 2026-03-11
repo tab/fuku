@@ -1,6 +1,7 @@
 package bus
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -205,15 +206,17 @@ type bus struct {
 	closed      bool
 	server      logs.Server
 	log         logger.Logger
+	event       logger.EventLogger
 }
 
-// New creates a new Bus
-func New(cfg *config.Config, server logs.Server, log logger.Logger) Bus {
+// NewBus creates a new Bus
+func NewBus(cfg *config.Config, server logs.Server, event logger.EventLogger, log logger.Logger) Bus {
 	return &bus{
 		cfg:         cfg,
 		subscribers: make([]chan Message, 0),
 		server:      server,
 		log:         log,
+		event:       event,
 	}
 }
 
@@ -244,14 +247,14 @@ func (b *bus) Publish(msg Message) {
 
 	msg.Timestamp = time.Now()
 
-	text := fmt.Sprintf("%s %s", msg.Type, formatData(msg.Data))
+	text := b.formatEvent(msg.Type, msg.Data)
 
 	if b.log != nil {
 		b.log.Debug().Msg(text)
 	}
 
 	if b.server != nil {
-		b.server.Broadcast("fuku", text)
+		b.server.Broadcast(config.AppName, text)
 	}
 
 	for _, ch := range b.subscribers {
@@ -305,49 +308,62 @@ func (b *bus) unsubscribe(ch chan Message) {
 	}
 }
 
-func formatData(data any) string {
+func (b *bus) formatEvent(msgType MessageType, data any) string {
+	var buf bytes.Buffer
+
+	l := b.event.NewLogger(&buf)
+	e := l.Log()
+
 	switch d := data.(type) {
 	case CommandStarted:
-		return fmt.Sprintf("{command: %s, profile: %s, ui: %t}", d.Command, d.Profile, d.UI)
+		e.Str("command", d.Command).Str("profile", d.Profile).Bool("ui", d.UI)
 	case ProfileResolved:
-		return fmt.Sprintf("{profile: %s}", d.Profile)
+		e.Str("profile", d.Profile)
 	case PhaseChanged:
-		return fmt.Sprintf("{phase: %s, duration: %s, services: %d}", d.Phase, d.Duration, d.ServiceCount)
+		e.Str("phase", string(d.Phase)).Str("duration", d.Duration.String()).Int("services", d.ServiceCount)
 	case PreflightStarted:
-		return fmt.Sprintf("{services: %v}", d.Services)
+		e.Strs("services", d.Services)
 	case PreflightKill:
-		return fmt.Sprintf("{service: %s, pid: %d, name: %s}", d.Service, d.PID, d.Name)
+		e.Str("service", d.Service).Int("pid", d.PID).Str("name", d.Name)
 	case PreflightComplete:
-		return fmt.Sprintf("{killed: %d, duration: %s}", d.Killed, d.Duration)
+		e.Int("killed", d.Killed).Str("duration", d.Duration.String())
 	case TierStarting:
-		return fmt.Sprintf("{tier: %s}", d.Name)
+		e.Str("tier", d.Name)
 	case Payload:
-		return fmt.Sprintf("{name: %s}", d.Name)
+		e.Str("name", d.Name)
 	case TierReady:
-		return fmt.Sprintf("{tier: %s, duration: %s, services: %d}", d.Name, d.Duration, d.ServiceCount)
+		e.Str("tier", d.Name).Str("duration", d.Duration.String()).Int("services", d.ServiceCount)
 	case ServiceStarting:
-		return fmt.Sprintf("{service: %s, tier: %s, pid: %d}", d.Service, d.Tier, d.PID)
+		e.Str("service", d.Service).Str("tier", d.Tier).Int("pid", d.PID)
 	case ReadinessComplete:
-		return fmt.Sprintf("{service: %s, type: %s, duration: %s}", d.Service, d.Type, d.Duration)
+		e.Str("service", d.Service).Str("type", d.Type).Str("duration", d.Duration.String())
 	case ServiceReady:
-		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+		e.Str("service", d.Service).Str("tier", d.Tier)
 	case ServiceFailed:
-		return fmt.Sprintf("{service: %s, tier: %s, error: %v}", d.Service, d.Tier, d.Error)
+		e.Str("service", d.Service).Str("tier", d.Tier)
+
+		if d.Error != nil {
+			e.Str("error", d.Error.Error())
+		}
 	case ServiceStopping:
-		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+		e.Str("service", d.Service).Str("tier", d.Tier)
 	case ServiceStopped:
-		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+		e.Str("service", d.Service).Str("tier", d.Tier)
 	case ServiceRestarting:
-		return fmt.Sprintf("{service: %s, tier: %s}", d.Service, d.Tier)
+		e.Str("service", d.Service).Str("tier", d.Tier)
 	case Signal:
-		return fmt.Sprintf("{signal: %s}", d.Name)
+		e.Str("signal", d.Name)
 	case WatchTriggered:
-		return fmt.Sprintf("{service: %s, files: %v}", d.Service, d.ChangedFiles)
+		e.Str("service", d.Service).Strs("files", d.ChangedFiles)
 	case ResourceSample:
-		return fmt.Sprintf("{cpu: %.1f%%, mem: %.1fMB}", d.CPU, d.MEM)
+		e.Str("cpu", fmt.Sprintf("%.1f%%", d.CPU)).Str("mem", fmt.Sprintf("%.1fMB", d.MEM))
 	default:
-		return fmt.Sprintf("%+v", data)
+		e.Interface("data", data)
 	}
+
+	e.Msg(string(msgType))
+
+	return string(bytes.TrimRight(buf.Bytes(), "\n"))
 }
 
 // NoOp returns a no-op bus for when messaging is disabled

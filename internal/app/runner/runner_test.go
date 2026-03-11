@@ -404,7 +404,7 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	mockServer := logs.NewMockServer(ctrl)
 	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	r := &runner{

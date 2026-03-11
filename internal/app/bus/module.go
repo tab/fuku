@@ -10,7 +10,7 @@ import (
 
 // Module provides bus for dependency injection
 var Module = fx.Module("bus",
-	fx.Provide(func(cfg *config.Config, server logs.Server, log logger.Logger) Bus {
-		return New(cfg, server, log.WithComponent("BUS"))
+	fx.Provide(func(cfg *config.Config, server logs.Server, event logger.EventLogger, log logger.Logger) Bus {
+		return NewBus(cfg, server, event, log.WithComponent("BUS"))
 	}),
 )
