@@ -25,33 +25,34 @@ func Test_Watch_RestartOnFileChange(t *testing.T) {
 	err = runner.TouchFile("worker/main.go")
 	require.NoError(t, err)
 
-	err = runner.WaitForLog("watch_triggered {service: worker", 5*time.Second)
+	err = runner.WaitForLog("watch_triggered", 5*time.Second)
 	require.NoError(t, err)
 
 	err = runner.WaitForLog("File change detected for service 'worker'", 10*time.Second)
 	require.NoError(t, err)
 
-	err = runner.WaitForLog("service_restarting {service: worker", 10*time.Second)
+	err = runner.WaitForLog("service_restarting service=worker", 10*time.Second)
 	require.NoError(t, err)
 
-	err = runner.WaitForLog("service_ready {service: worker", 20*time.Second)
+	err = runner.WaitForLog("service_ready service=worker", 20*time.Second)
 	require.NoError(t, err)
 
 	output := runner.Output()
 
-	restartIdx := indexOf(output, "service_restarting {service: worker")
+	restartIdx := indexOf(output, "service_restarting service=worker")
 	require.Greater(t, restartIdx, -1, "service_restarting event should be present")
 
 	// Find service_ready after the restart event
 	afterRestart := output[restartIdx:]
-	readyAfterRestart := strings.Index(afterRestart, "service_ready {service: worker")
+	readyAfterRestart := strings.Index(afterRestart, "service_ready service=worker")
 
 	assert.Greater(t, readyAfterRestart, -1, "service_ready should appear after service_restarting")
 
-	watchIdx := indexOf(output, "watch_triggered {service: worker")
+	watchIdx := indexOf(output, "watch_triggered")
 	fileChangeIdx := indexOf(output, "File change detected for service 'worker'")
 
 	assert.Greater(t, watchIdx, -1, "watch_triggered event should be present")
+	assert.Contains(t, output[watchIdx:], "service=worker", "watch_triggered should be for worker service")
 	assert.Greater(t, fileChangeIdx, -1, "file change log should be present")
 
 	assert.Less(t, watchIdx, fileChangeIdx, "watch_triggered should appear before file change log")

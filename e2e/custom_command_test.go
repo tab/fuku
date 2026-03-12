@@ -26,8 +26,8 @@ func Test_CustomCommand_BothServicesStart(t *testing.T) {
 
 	output := runner.Output()
 
-	assert.Contains(t, output, "service_ready {service: with-makefile")
-	assert.Contains(t, output, "service_ready {service: with-command")
+	assert.Contains(t, output, "service_ready service=with-makefile")
+	assert.Contains(t, output, "service_ready service=with-command")
 }
 
 func Test_CustomCommand_GracefulShutdown(t *testing.T) {
@@ -45,6 +45,6 @@ func Test_CustomCommand_GracefulShutdown(t *testing.T) {
 
 	output := runner.Output()
 
-	assert.Contains(t, output, "signal {signal: terminated}")
+	assert.Contains(t, output, "signal signal=terminated")
 	assert.Contains(t, output, "Received signal terminated, shutting down services")
 }
