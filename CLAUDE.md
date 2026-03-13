@@ -310,8 +310,9 @@
 - don't be flattering or overly positive. be honest and direct.
 - we work as equal partners and treat each other with respect as two senior developers with equal expertise and experience.
 - prefer simple and focused solutions that are easy to understand, maintain and test.
-- use table-driven tests ONLY when testing multiple scenarios with different inputs/outputs; for single test cases, use plain test functions instead of table tests with one entry
-- table tests are appropriate when you have 2+ test cases with meaningful variations in input/output/behavior
+- prefer table-driven tests (TDT) by default — use TDT whenever testing multiple scenarios for the same function
+- never use multiple `t.Run()` blocks inside a single test function — if you have multiple cases, use TDT
+- for single test cases where TDT is not possible, use standalone `Test_<MethodName>_<TestCase>` naming (e.g., `Test_Load_ExplicitPathNotFound`)
 - don't overthink solutions - implement the simplest thing that works, then iterate if needed
 
 ## Architecture Guidelines
@@ -534,10 +535,10 @@ Example workflow:
 - for functions that need to be testable, separate return values from system calls: return exit codes and errors instead of calling os.Exit() directly
 
 ### Testing
-- write thorough tests with descriptive names (e.g., `Test_Runner_ResolvesComplexDependencies`)
-- prefer subtests or table-based tests, using testify
-- use table-driven tests ONLY when testing multiple scenarios (2+ test cases) with different inputs/outputs; for single test cases, use plain test functions instead of table tests with one entry
-- table-driven tests for testing multiple cases with the same logic
+- prefer table-driven tests (TDT) by default — use TDT whenever testing multiple scenarios for the same function
+- never use multiple `t.Run()` blocks inside a single test function — if you have multiple cases, use TDT
+- for single test cases where TDT is not possible, use standalone `Test_<MethodName>_<TestCase>` naming (e.g., `Test_Load_ExplicitPathNotFound`)
+- use testify for assertions
 - test both success and error scenarios
 - mock external dependencies to ensure unit tests are isolated and fast
 - aim for at least 80% code coverage
