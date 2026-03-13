@@ -31,7 +31,7 @@ brew install tab/apps/fuku
 ### Install Script
 
 ```bash
-curl -sL https://getfuku.sh/install.sh | sh
+curl -fsSL https://getfuku.sh/install.sh | sh
 ```
 
 ### Build from Source
