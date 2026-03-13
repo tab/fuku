@@ -2,9 +2,7 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 
 	"fuku/internal/app/bus"
@@ -185,16 +183,23 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 	return 0, nil
 }
 
-// handleInit generates a fuku.yaml template in the current directory
-func (c *cli) handleInit() (int, error) {
-	c.log.Debug().Msg("Initializing configuration")
+// GenerateConfigFile creates a fuku.yaml template in the current directory
+func GenerateConfigFile() (int, error) {
+	for _, f := range []string{config.ConfigFile, config.ConfigFileAlt} {
+		_, err := os.Stat(f)
 
-	f, err := os.OpenFile(config.ConfigFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if errors.Is(err, fs.ErrExist) {
-		fmt.Printf("%s already exists\n", config.ConfigFile)
-		return 0, nil
+		switch {
+		case err == nil:
+			fmt.Printf("%s already exists\n", f)
+			return 0, nil
+		case os.IsNotExist(err):
+			continue
+		default:
+			return 1, fmt.Errorf("failed to check %s: %w", f, err)
+		}
 	}
 
+	f, err := os.OpenFile(config.ConfigFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return 1, fmt.Errorf("failed to write %s: %w", config.ConfigFile, err)
 	}
@@ -208,6 +213,13 @@ func (c *cli) handleInit() (int, error) {
 	fmt.Printf("Created %s\n", config.ConfigFile)
 
 	return 0, nil
+}
+
+// handleInit generates a fuku.yaml template in the current directory
+func (c *cli) handleInit() (int, error) {
+	c.log.Debug().Msg("Initializing configuration")
+
+	return GenerateConfigFile()
 }
 
 // handleLogs streams logs from a running fuku instance

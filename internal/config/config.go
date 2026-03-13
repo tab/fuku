@@ -155,8 +155,42 @@ func ResolveEnv() string {
 	return env
 }
 
+// fileExists checks whether a file exists, returning an error for non-ENOENT failures
+func fileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+
+	switch {
+	case err == nil:
+		return true, nil
+	case os.IsNotExist(err):
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
+// resolveConfigFile returns override path as-is, otherwise tries fuku.yaml then fuku.yml
+func resolveConfigFile(override string) (string, error) {
+	if override != "" {
+		return override, nil
+	}
+
+	for _, candidate := range []string{ConfigFile, ConfigFileAlt} {
+		exists, err := fileExists(candidate)
+		if err != nil {
+			return "", err
+		}
+
+		if exists {
+			return candidate, nil
+		}
+	}
+
+	return "", nil
+}
+
 // Load loads the configuration from file and returns read-only config with derived topology
-func Load() (*Config, *Topology, error) {
+func Load(configFilePath ...string) (*Config, *Topology, error) {
 	LoadEnv()
 
 	cfg := DefaultConfig()
@@ -166,12 +200,22 @@ func Load() (*Config, *Topology, error) {
 
 	defaultTopology := DefaultTopology()
 
-	data, err := os.ReadFile(ConfigFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, defaultTopology, nil
-		}
+	var override string
+	if len(configFilePath) > 0 {
+		override = configFilePath[0]
+	}
 
+	filePath, err := resolveConfigFile(override)
+	if err != nil {
+		return nil, nil, errors.ErrFailedToReadConfig
+	}
+
+	if filePath == "" {
+		return cfg, defaultTopology, nil
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
 		return nil, nil, errors.ErrFailedToReadConfig
 	}
 

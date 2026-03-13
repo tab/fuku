@@ -370,101 +370,99 @@ func Test_handleHelp(t *testing.T) {
 	assert.Equal(t, Usage+"\n", output)
 }
 
-func Test_handleInit(t *testing.T) {
-	t.Run("fuku.yaml already exists", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+func Test_GenerateConfigFile(t *testing.T) {
+	tests := []struct {
+		name           string
+		existingFile   string
+		readOnly       bool
+		expectedExit   int
+		expectedError  bool
+		outputContains string
+		assertFn       func(t *testing.T)
+	}{
+		{
+			name:           "fuku.yaml already exists",
+			existingFile:   config.ConfigFile,
+			expectedExit:   0,
+			outputContains: "fuku.yaml already exists",
+			assertFn: func(t *testing.T) {
+				content, err := os.ReadFile(config.ConfigFile)
+				require.NoError(t, err)
+				assert.Equal(t, "existing", string(content))
+			},
+		},
+		{
+			name:           "fuku.yml already exists",
+			existingFile:   config.ConfigFileAlt,
+			expectedExit:   0,
+			outputContains: "fuku.yml already exists",
+			assertFn: func(t *testing.T) {
+				content, err := os.ReadFile(config.ConfigFileAlt)
+				require.NoError(t, err)
+				assert.Equal(t, "existing", string(content))
+			},
+		},
+		{
+			name:           "created successfully",
+			expectedExit:   0,
+			outputContains: "Created",
+			assertFn: func(t *testing.T) {
+				content, err := os.ReadFile(config.ConfigFile)
+				require.NoError(t, err)
+				assert.Contains(t, string(content), "version: 1")
+				assert.Contains(t, string(content), "services:")
+			},
+		},
+		{
+			name:          "write error",
+			readOnly:      true,
+			expectedExit:  1,
+			expectedError: true,
+		},
+	}
 
-		mockLogger := logger.NewMockLogger(ctrl)
-		mockLogger.EXPECT().Debug().Return(nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
 
-		dir := t.TempDir()
-		t.Chdir(dir)
+			if tt.existingFile != "" {
+				os.WriteFile(tt.existingFile, []byte("existing"), 0600)
+			}
 
-		os.WriteFile(config.ConfigFile, []byte("existing"), 0600)
+			if tt.readOnly {
+				os.Chmod(dir, 0444)
+				defer os.Chmod(dir, 0755)
+			}
 
-		c := &cli{log: mockLogger}
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
 
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
+			exitCode, err := GenerateConfigFile()
 
-		os.Stdout = w
+			w.Close()
 
-		exitCode, err := c.handleInit()
+			os.Stdout = oldStdout
 
-		w.Close()
+			var buf bytes.Buffer
 
-		os.Stdout = oldStdout
+			_, _ = io.Copy(&buf, r)
 
-		var buf bytes.Buffer
+			assert.Equal(t, tt.expectedExit, exitCode)
 
-		_, _ = io.Copy(&buf, r)
+			if tt.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Contains(t, buf.String(), tt.outputContains)
+			}
 
-		assert.Equal(t, 0, exitCode)
-		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "already exists")
-
-		content, _ := os.ReadFile(config.ConfigFile)
-		assert.Equal(t, "existing", string(content))
-	})
-
-	t.Run("fuku.yaml created successfully", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockLogger := logger.NewMockLogger(ctrl)
-		mockLogger.EXPECT().Debug().Return(nil)
-
-		dir := t.TempDir()
-		t.Chdir(dir)
-
-		c := &cli{log: mockLogger}
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-
-		os.Stdout = w
-
-		exitCode, err := c.handleInit()
-
-		w.Close()
-
-		os.Stdout = oldStdout
-
-		var buf bytes.Buffer
-
-		_, _ = io.Copy(&buf, r)
-
-		assert.Equal(t, 0, exitCode)
-		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "Created")
-
-		content, readErr := os.ReadFile(config.ConfigFile)
-		require.NoError(t, readErr)
-		assert.Contains(t, string(content), "version: 1")
-		assert.Contains(t, string(content), "services:")
-	})
-
-	t.Run("write error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockLogger := logger.NewMockLogger(ctrl)
-		mockLogger.EXPECT().Debug().Return(nil)
-
-		dir := t.TempDir()
-		t.Chdir(dir)
-
-		os.Chmod(dir, 0444)
-		defer os.Chmod(dir, 0755)
-
-		c := &cli{log: mockLogger}
-
-		exitCode, err := c.handleInit()
-
-		assert.Equal(t, 1, exitCode)
-		require.Error(t, err)
-	})
+			if tt.assertFn != nil {
+				tt.assertFn(t)
+			}
+		})
+	}
 }
 
 func Test_handleVersion(t *testing.T) {
@@ -500,108 +498,107 @@ func (m quitModel) Init() tea.Cmd                       { return tea.Quit }
 func (m quitModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return m, tea.Quit }
 func (m quitModel) View() tea.View                      { return tea.NewView("") }
 
-func Test_runWithUI(t *testing.T) {
-	t.Run("UI creation error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+func Test_runWithUI_UICreationError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-		mockRunner := runner.NewMockRunner(ctrl)
-		mockLogger := logger.NewMockLogger(ctrl)
-		mockLogger.EXPECT().Error().Return(nil)
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil)
 
-		mockRunner.EXPECT().Run(gomock.Any(), "test").Return(nil).AnyTimes()
+	mockRunner.EXPECT().Run(gomock.Any(), "test").Return(nil).AnyTimes()
 
-		c := &cli{
-			cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
-			runner: mockRunner,
-			log:    mockLogger,
-			ui: func(ctx context.Context, profile string) (*tea.Program, error) {
-				return nil, errors.New("failed to create UI")
-			},
-		}
+	c := &cli{
+		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
+		runner: mockRunner,
+		log:    mockLogger,
+		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+			return nil, errors.New("failed to create UI")
+		},
+	}
 
-		exitCode, err := c.runWithUI(context.Background(), "test")
+	exitCode, err := c.runWithUI(context.Background(), "test")
 
-		assert.Equal(t, 1, exitCode)
-		require.Error(t, err)
+	assert.Equal(t, 1, exitCode)
+	require.Error(t, err)
+}
+
+func Test_runWithUI_RunnerError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
+		<-ctx.Done()
+		return errors.New("runner failed")
+	})
+	mockLogger.EXPECT().Error().Return(nil)
+
+	inputR, inputW, _ := os.Pipe()
+	inputW.Close()
+
+	c := &cli{
+		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
+		runner: mockRunner,
+		log:    mockLogger,
+		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+			return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
+		},
+	}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	exitCode, err := c.runWithUI(context.Background(), "test")
+
+	w.Close()
+
+	os.Stdout = oldStdout
+
+	inputR.Close()
+
+	var buf bytes.Buffer
+
+	_, _ = io.Copy(&buf, r)
+	r.Close()
+
+	assert.Equal(t, 1, exitCode)
+	require.Error(t, err)
+}
+
+func Test_runWithUI_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
+		<-ctx.Done()
+		return nil
 	})
 
-	t.Run("Runner error after UI exits", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+	inputR, inputW, _ := os.Pipe()
+	inputW.Close()
 
-		mockRunner := runner.NewMockRunner(ctrl)
-		mockLogger := logger.NewMockLogger(ctrl)
+	c := &cli{
+		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
+		runner: mockRunner,
+		log:    mockLogger,
+		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+			return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
+		},
+	}
 
-		mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
-			<-ctx.Done()
-			return errors.New("runner failed")
-		})
-		mockLogger.EXPECT().Error().Return(nil)
+	exitCode, err := c.runWithUI(context.Background(), "test")
 
-		inputR, inputW, _ := os.Pipe()
-		inputW.Close()
+	inputR.Close()
 
-		c := &cli{
-			cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
-			runner: mockRunner,
-			log:    mockLogger,
-			ui: func(ctx context.Context, profile string) (*tea.Program, error) {
-				return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
-			},
-		}
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		exitCode, err := c.runWithUI(context.Background(), "test")
-
-		w.Close()
-
-		os.Stdout = oldStdout
-
-		inputR.Close()
-
-		var buf bytes.Buffer
-
-		_, _ = io.Copy(&buf, r)
-
-		assert.Equal(t, 1, exitCode)
-		require.Error(t, err)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockRunner := runner.NewMockRunner(ctrl)
-		mockLogger := logger.NewMockLogger(ctrl)
-
-		mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
-			<-ctx.Done()
-			return nil
-		})
-
-		inputR, inputW, _ := os.Pipe()
-		inputW.Close()
-
-		c := &cli{
-			cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
-			runner: mockRunner,
-			log:    mockLogger,
-			ui: func(ctx context.Context, profile string) (*tea.Program, error) {
-				return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
-			},
-		}
-
-		exitCode, err := c.runWithUI(context.Background(), "test")
-
-		inputR.Close()
-
-		assert.Equal(t, 0, exitCode)
-		require.NoError(t, err)
-	})
+	assert.Equal(t, 0, exitCode)
+	require.NoError(t, err)
 }
 
 func Test_handleStop(t *testing.T) {
