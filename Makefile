@@ -1,3 +1,8 @@
+.PHONY: fmt
+fmt:
+	@echo "Formatting code..."
+	go fmt ./...
+
 .PHONY: build
 build:
 	@echo "Building fuku..."

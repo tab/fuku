@@ -300,6 +300,54 @@ fuku run checkout --no-ui`} />
     <li><strong>edge</strong> — APIs, frontends</li>
   </ul>
 
+  <h3>Custom Commands</h3>
+
+  <p>
+    By default, fuku runs <code>make run</code> in each service directory. The <code>command</code> option lets you override this with any shell command — useful for running the same codebase in a different mode, spinning up tooling, or wrapping a service with extra steps.
+  </p>
+
+  <p>
+    For example, you can add a Swagger UI alongside your backend without changing the backend code. Define a second service pointing at the same directory with a custom command:
+  </p>
+
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
+  backend:
+    dir: backend
+    tier: core
+    readiness:
+      type: http
+      url: "http://localhost:3000/health"
+
+  backend-swagger:
+    dir: backend
+    tier: edge
+    command: >-
+      make swagger &&
+      docker run --rm --name backend-swagger
+      -p 8080:8080
+      -v $(pwd)/docs/swagger.json:/usr/share/nginx/html/swagger.json
+      -v $(pwd)/docs/nginx.conf:/etc/nginx/conf.d/default.conf
+      nginx:alpine
+    readiness:
+      type: http
+      url: "http://localhost:8080"
+
+profiles:
+  default: [backend]
+  docs: [backend, backend-swagger]`} />
+
+  <p>
+    Run <code>fuku run docs</code> and you get your backend plus live Swagger UI at <code>localhost:8080</code> — all managed by fuku.
+  </p>
+
+  <p>
+    Single containers work well with <code>command</code> because fuku owns the process — it can stop, restart, and check readiness of each container individually. Avoid running Docker Compose inside fuku: compose manages its own process tree, so fuku loses visibility into individual container health, logs get duplicated, and hot-reload restarts the entire stack instead of a single service.
+  </p>
+
+  <p>
+    For infrastructure like databases and queues, run <code>docker compose up</code> separately and let fuku manage your application services on top.
+  </p>
+
   <h3>Selective Watch</h3>
 
   <p>
