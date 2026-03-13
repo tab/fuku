@@ -67,6 +67,7 @@ func createApp(cfg *config.Config, topology *config.Topology, cmd *cli.Options) 
 		fx.Provide(func() logger.Logger {
 			return logger.NewLoggerWithOutput(cfg, formatter)
 		}),
+		fx.Provide(logger.NewEventLogger),
 		sentry.Module,
 		app.Module,
 	)

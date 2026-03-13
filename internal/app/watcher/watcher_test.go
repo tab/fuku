@@ -33,7 +33,7 @@ func Test_NewWatcher(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(config.DefaultConfig(), b, mockLog)
@@ -71,7 +71,7 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -126,7 +126,7 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -192,7 +192,7 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -266,7 +266,7 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -319,7 +319,7 @@ func Test_Watcher_Close(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(config.DefaultConfig(), b, mockLog)
@@ -355,7 +355,7 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -421,7 +421,7 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -483,7 +483,7 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -559,7 +559,7 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -626,7 +626,7 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -701,7 +701,7 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -762,7 +762,7 @@ func Test_Watcher_WatchesNewDirCreatedAtRuntime(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)
@@ -856,7 +856,7 @@ func Test_Watcher_NewDirInSharedPathRegistersAllServices(t *testing.T) {
 	}
 	cfg.Logs.Buffer = 10
 
-	b := bus.New(cfg, mockServer, nil)
+	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
 	defer b.Close()
 
 	w, err := NewWatcher(cfg, b, mockLog)

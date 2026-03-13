@@ -7,4 +7,5 @@ import (
 // Module provides the fx dependency injection options for the logger package
 var Module = fx.Options(
 	fx.Provide(NewLogger),
+	fx.Provide(NewEventLogger),
 )
