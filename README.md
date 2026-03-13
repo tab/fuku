@@ -28,9 +28,11 @@
 brew install tab/apps/fuku
 ```
 
-### Download from Releases
+### Install Script
 
-Download the latest binary from [GitHub Releases](https://github.com/tab/fuku/releases)
+```bash
+curl -sL https://getfuku.sh/install.sh | sh
+```
 
 ### Build from Source
 
@@ -61,7 +63,6 @@ fuku r core                     # Same as 'fuku run core'
 # Stream logs from running instance (in separate terminal)
 fuku logs                       # All services
 fuku logs api auth              # Specific services
-fuku logs --profile core api    # Filter by profile
 fuku l api db                   # Short alias
 
 # Show help
@@ -89,205 +90,49 @@ Generate a config template with `fuku init`, or create `fuku.yaml` manually in y
 ```yaml
 version: 1
 
-x-readiness-http: &readiness-http
-  type: http
-  timeout: 30s
-  interval: 500ms
-
-x-readiness-log: &readiness-log
-  type: log
-  pattern: "Service ready"
-  timeout: 30s
-
-x-logs: &logs
-  output: [stdout, stderr]
-
-x-watch: &watch
-  include: ["**/*.go"]
-  ignore: ["**/*_test.go"]
-  shared: ["pkg/common"]
-  debounce: 1s
-
 services:
   auth:
     dir: auth
     tier: foundation
     command: go run cmd/main.go
     readiness:
-      <<: *readiness-http
+      type: http
       url: http://localhost:8081/health
+      timeout: 30s
 
   backend:
     dir: backend
     tier: platform
     readiness:
-      <<: *readiness-http
+      type: http
       url: http://localhost:8080/health
-    logs:
-      <<: *logs
-    watch:
-      <<: *watch
+      timeout: 30s
 
   web:
     dir: frontend
     tier: edge
-    readiness:
-      <<: *readiness-http
-      url: http://localhost:3000/health
-
-defaults:
-  profiles: [default]
+    command: npm run dev
 
 profiles:
-  default: "*"                    # All services
-  backend: [auth, backend]          # Backend services only
-
-concurrency:
-  workers: 5                      # Max concurrent service starts
-
-retry:
-  attempts: 3                     # Max retry attempts
-  backoff: 500ms                  # Initial backoff duration
-
-logs:
-  buffer: 100                     # Log streaming buffer size
+  default: "*"
+  backend: [auth, backend]
 
 logging:
   format: console
   level: info
 ```
 
-### Tiers
+For the full configuration reference, examples, and advanced patterns see the [documentation](https://getfuku.sh/docs/configuration/).
 
-Services are organized into tiers for startup ordering.
-You can use any tier names you want - the startup order is determined by the first occurrence of each tier name in your `fuku.yaml` file.
+## Documentation
 
-Common tier naming pattern:
-- **foundation** - Core services (auth, config, gateway)
-- **platform** - Business logic services
-- **edge** - Client-facing services
+Full documentation is available at **[getfuku.sh](https://getfuku.sh)**:
 
-You can also use custom tier names like `infrastructure`, `middleware`, `api`, `frontend`, etc. The key points:
-- Tier order is defined by first appearance in the YAML file
-- Services within each tier are sorted alphabetically by name
-- Services without a tier are placed in a `default` tier that runs last
-- Tier names are case-insensitive and whitespace is trimmed
-
-For example, if your YAML defines services with tiers in this order: `foundation` → `platform` → `edge`, services will start in that order, tier by tier.
-
-### Readiness Checks
-
-**HTTP** - Wait for HTTP endpoint to respond with 2xx status:
-```yaml
-readiness:
-  type: http
-  url: http://localhost:8080/health
-  timeout: 30s
-  interval: 1s
-```
-
-**TCP** - Wait for TCP port to accept connections:
-```yaml
-readiness:
-  type: tcp
-  address: localhost:9000
-  timeout: 10s
-  interval: 1s
-```
-
-**Log** - Wait for pattern in service output:
-```yaml
-readiness:
-  type: log
-  pattern: "gRPC server started"
-  timeout: 30s
-```
-
-### Watch Configuration (Hot-Reload)
-
-Enable automatic service restart on file changes:
-
-```yaml
-services:
-  api:
-    dir: ./api
-    watch:
-      include: ["**/*.go"]           # Glob patterns to watch
-      ignore: ["**/*_test.go"]       # Patterns to ignore
-      shared: ["pkg/common"]         # Shared paths (triggers restart)
-      debounce: 300ms                # Debounce duration (default: 300ms)
-```
-
-### Per-Service Log Output
-
-Control which output streams are logged to the console per service:
-
-```yaml
-services:
-  api:
-    dir: ./api
-    logs:
-      output: [stdout]              # Only log stdout (default: both)
-  worker:
-    dir: ./worker
-    logs:
-      output: [stdout, stderr]      # Log both streams explicitly
-```
-
-Valid output values: `stdout`, `stderr`. When omitted, both streams are logged.
-
-### YAML Anchors
-
-Use YAML anchors (`&`) and merge keys (`<<: *`) to avoid repeating common configuration:
-
-```yaml
-x-readiness-http: &readiness-http
-  type: http
-  timeout: 30s
-  interval: 500ms
-
-x-watch: &watch
-  include: ["**/*.go"]
-  ignore: ["**/*_test.go"]
-  debounce: 1s
-
-services:
-  api:
-    dir: ./api
-    readiness:
-      <<: *readiness-http
-      url: http://localhost:8080/health
-    watch:
-      <<: *watch
-```
-
-Top-level keys prefixed with `x-` are ignored by fuku and serve as anchor definitions.
-
-### Custom Start Command
-
-By default, each service runs `make run` in its directory. You can override this with a custom command:
-
-```yaml
-services:
-  auth:
-    dir: ./auth
-    command: go run cmd/main.go
-  web:
-    dir: ./frontend
-    command: npm run dev
-  api:
-    dir: ./api
-    # No command — uses "make run" (requires Makefile with run target)
-```
-
-When `command` is omitted, the service directory must have a Makefile with a `run` target:
-
-```makefile
-run:
-	npm start
-```
-
-Check examples in the [examples](examples/bookstore) directory for reference.
+- [Getting Started](https://getfuku.sh/docs/getting-started/) - First steps with fuku
+- [Configuration](https://getfuku.sh/docs/configuration/) - All config options explained
+- [CLI Reference](https://getfuku.sh/docs/cli/) - Commands, flags, and aliases
+- [Examples](https://getfuku.sh/docs/examples/) - Real-world configuration patterns
+- [Troubleshooting](https://getfuku.sh/docs/troubleshooting/) - Common issues and solutions
 
 ## Architecture
 
@@ -295,55 +140,32 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architectural patterns and d
 
 ## Development
 
-### Tests and linters
+```bash
+make fmt        # Format code
+make vet        # Run go vet
+make lint       # Run golangci-lint
+make lint:fix   # Run golangci-lint with --fix
+make test       # Run unit tests
+make test:race  # Run tests with race detector
+make build      # Build binary
+make test:e2e   # Run e2e tests (requires build)
+make coverage   # Generate coverage report
+```
+
+Verification loop:
 
 ```bash
-# Run tests
-make test
-
-# Run linter
-make lint
-
-# Run vet
-make vet
-
-# Run coverage
-make coverage
-
-# Format code
-go fmt ./...
-
-# Full validation
-make vet && make lint && make test
+make vet && make lint && make test && make build && make test:e2e && make test:race
 ```
 
 ## Privacy & Telemetry
 
 Official release binaries include [Sentry](https://sentry.io) error tracking to help identify and fix bugs. This is completely transparent and can be disabled.
 
-### What is collected
+- Set `FUKU_TELEMETRY_DISABLED=1` to opt out
+- Build from source to disable telemetry entirely
 
-- Error types and stack traces (no file paths with usernames)
-- Performance traces for startup phases, tier sequencing, and shutdown
-- Fuku process CPU and RSS memory samples (process-level only, no service names or machine identity)
-- Anonymous random ID for unique-user counting (stored locally, not linked to any real identity)
-- Environment metadata: OS, architecture, Go version, fuku version
-- Command and profile names, service/tier counts
-
-### What is NOT collected
-
-- Hostnames, IP addresses, or usernames
-- Service names, fuku.yaml contents, or log output
-- Environment variable values or file paths
-- Any personally identifiable information
-
-### How to opt out
-
-1. **Set `FUKU_TELEMETRY_DISABLED=1`** — disables all telemetry regardless of DSN
-2. **Build from source** — no Sentry DSN compiled in, telemetry is disabled by default
-3. **Delete the telemetry ID file** — resets your anonymous identity; a new random ID is generated on next run
-   - macOS: `~/Library/Application Support/fuku/telemetry.id`
-   - Linux: `~/.config/fuku/telemetry.id`
+See [Privacy & Telemetry](https://getfuku.sh/docs/privacy/) for full details on what is and isn't collected.
 
 ## About the Name
 
