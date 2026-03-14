@@ -169,16 +169,16 @@ func fileExists(path string) (bool, error) {
 	}
 }
 
-// resolveConfigFile returns override path as-is, otherwise tries fuku.yaml then fuku.yml
+// resolveConfigFile validates and returns override path, otherwise tries fuku.yaml then fuku.yml
 func resolveConfigFile(override string) (string, error) {
 	if override != "" {
-		return override, nil
+		return resolveExplicitConfig(override)
 	}
 
 	for _, candidate := range []string{ConfigFile, ConfigFileAlt} {
 		exists, err := fileExists(candidate)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
 		}
 
 		if exists {
@@ -187,6 +187,20 @@ func resolveConfigFile(override string) (string, error) {
 	}
 
 	return "", nil
+}
+
+// resolveExplicitConfig validates that an explicit config path exists
+func resolveExplicitConfig(path string) (string, error) {
+	exists, err := fileExists(path)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
+	}
+
+	if !exists {
+		return "", fmt.Errorf("%w: %s", errors.ErrFailedToReadConfig, path)
+	}
+
+	return path, nil
 }
 
 // Load loads the configuration from file and returns read-only config with derived topology
@@ -207,7 +221,7 @@ func Load(configFilePath ...string) (*Config, *Topology, error) {
 
 	filePath, err := resolveConfigFile(override)
 	if err != nil {
-		return nil, nil, errors.ErrFailedToReadConfig
+		return nil, nil, err
 	}
 
 	if filePath == "" {
@@ -216,7 +230,7 @@ func Load(configFilePath ...string) (*Config, *Topology, error) {
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, nil, errors.ErrFailedToReadConfig
+		return nil, nil, fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
 	}
 
 	topology, err := parseTierOrder(data)
@@ -228,7 +242,7 @@ func Load(configFilePath ...string) (*Config, *Topology, error) {
 	v.SetConfigType("yaml")
 
 	if err := v.ReadConfig(bytes.NewReader(data)); err != nil {
-		return nil, nil, errors.ErrFailedToReadConfig
+		return nil, nil, fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
 	}
 
 	if err := v.Unmarshal(cfg); err != nil {

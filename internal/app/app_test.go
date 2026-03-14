@@ -18,13 +18,13 @@ func Test_NewApp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCLI := cli.NewMockCLI(ctrl)
+	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
 
-	application := NewApp(mockCLI, mockSentry)
+	application := NewApp(mockTUI, mockSentry)
 
 	assert.NotNil(t, application)
-	assert.Equal(t, mockCLI, application.cli)
+	assert.Equal(t, mockTUI, application.ui)
 	assert.Equal(t, mockSentry, application.sentry)
 	assert.NotNil(t, application.done)
 }
@@ -33,11 +33,11 @@ func Test_execute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCLI := cli.NewMockCLI(ctrl)
+	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
 
 	app := &App{
-		cli:    mockCLI,
+		ui:     mockTUI,
 		sentry: mockSentry,
 		done:   make(chan struct{}),
 	}
@@ -50,14 +50,14 @@ func Test_execute(t *testing.T) {
 		{
 			name: "Success",
 			before: func() {
-				mockCLI.EXPECT().Execute().Return(0, nil)
+				mockTUI.EXPECT().Execute().Return(0, nil)
 			},
 			expectedExitCode: 0,
 		},
 		{
 			name: "Failure",
 			before: func() {
-				mockCLI.EXPECT().Execute().Return(1, errors.New("runner failed"))
+				mockTUI.EXPECT().Execute().Return(1, errors.New("runner failed"))
 			},
 			expectedExitCode: 1,
 		},
@@ -77,9 +77,9 @@ func Test_Register(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCLI := cli.NewMockCLI(ctrl)
+	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockCLI, mockSentry)
+	app := NewApp(mockTUI, mockSentry)
 
 	var (
 		registered   bool
@@ -104,9 +104,9 @@ func Test_Register_OnStop_ReturnsWhenDoneClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCLI := cli.NewMockCLI(ctrl)
+	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockCLI, mockSentry)
+	app := NewApp(mockTUI, mockSentry)
 	close(app.done)
 
 	var capturedHook fx.Hook
@@ -128,9 +128,9 @@ func Test_Register_OnStop_RespectsContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockCLI := cli.NewMockCLI(ctrl)
+	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockCLI, mockSentry)
+	app := NewApp(mockTUI, mockSentry)
 
 	var capturedHook fx.Hook
 

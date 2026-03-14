@@ -31,7 +31,17 @@ func runApp() (exitCode int) {
 		return 1
 	}
 
-	cfg, topology, err := loadConfig()
+	if cmd.Type.Standalone() {
+		return createAppWithoutConfig(cmd).Run()
+	}
+
+	if err := cli.ChangeToConfigDir(cmd); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+
+		return 1
+	}
+
+	cfg, topology, err := loadConfig(cmd.ConfigFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 
@@ -49,8 +59,13 @@ func runApp() (exitCode int) {
 }
 
 // loadConfig wraps config.Load for easier testing
-func loadConfig() (*config.Config, *config.Topology, error) {
-	return config.Load()
+func loadConfig(configFile string) (*config.Config, *config.Topology, error) {
+	return config.Load(configFile)
+}
+
+// createAppWithoutConfig creates a lightweight app for standalone commands (init, version, help)
+func createAppWithoutConfig(cmd *cli.Options) *cli.CLI {
+	return cli.NewCLI(cmd)
 }
 
 // createApp creates the FX application with the given config and topology

@@ -155,15 +155,22 @@ func Test_DefaultTopology(t *testing.T) {
 
 func Test_ResolveConfigFile(t *testing.T) {
 	tests := []struct {
-		name     string
-		override string
-		files    []string
-		expected string
+		name      string
+		override  string
+		files     []string
+		expected  string
+		expectErr bool
 	}{
 		{
-			name:     "override path returned as-is",
-			override: "/custom/path.yaml",
-			expected: "/custom/path.yaml",
+			name:     "override path verified and returned",
+			override: "custom.yaml",
+			files:    []string{"custom.yaml"},
+			expected: "custom.yaml",
+		},
+		{
+			name:      "override path not found returns error",
+			override:  "missing.yaml",
+			expectErr: true,
 		},
 		{
 			name:     "fuku.yaml wins when both exist",
@@ -193,8 +200,13 @@ func Test_ResolveConfigFile(t *testing.T) {
 			}
 
 			result, err := resolveConfigFile(tt.override)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
+
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
 		})
 	}
 }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,13 +15,93 @@ import (
 )
 
 func Test_LoadConfig(t *testing.T) {
-	cfg, topology, err := loadConfig()
+	cfg, topology, err := loadConfig("")
 	require.NoError(t, err)
 
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, cfg.Services)
 	assert.NotNil(t, cfg.Profiles)
 	assert.NotNil(t, topology)
+}
+
+func Test_LoadConfig_WithExplicitPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	content := `version: 1
+services:
+  web:
+    dir: ./web
+`
+
+	filePath := filepath.Join(dir, "custom.yaml")
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	require.NoError(t, err)
+
+	cfg, topology, err := loadConfig(filePath)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
+	assert.NotNil(t, topology)
+	assert.Contains(t, cfg.Services, "web")
+}
+
+func Test_LoadConfig_AfterChangeToConfigDir(t *testing.T) {
+	dir := t.TempDir()
+
+	subdir := filepath.Join(dir, "project")
+	require.NoError(t, os.MkdirAll(subdir, 0755))
+
+	content := `version: 1
+services:
+  api:
+    dir: ./api
+`
+	require.NoError(t, os.WriteFile(filepath.Join(subdir, "fuku.yaml"), []byte(content), 0644))
+
+	t.Chdir(dir)
+
+	cmd := &cli.Options{ConfigFile: "project/fuku.yaml"}
+	require.NoError(t, cli.ChangeToConfigDir(cmd))
+
+	cfg, topology, err := loadConfig(cmd.ConfigFile)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
+	assert.NotNil(t, topology)
+	assert.Contains(t, cfg.Services, "api")
+}
+
+func Test_LoadConfig_ExplicitPathNotFound(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	_, _, err := loadConfig("nonexistent.yaml")
+	require.Error(t, err)
+}
+
+func Test_CreateAppWithoutConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  *cli.Options
+	}{
+		{
+			name: "version command",
+			cmd:  &cli.Options{Type: cli.CommandVersion},
+		},
+		{
+			name: "help command",
+			cmd:  &cli.Options{Type: cli.CommandHelp},
+		},
+		{
+			name: "init command",
+			cmd:  &cli.Options{Type: cli.CommandInit},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := createAppWithoutConfig(tt.cmd)
+			assert.NotNil(t, app)
+		})
+	}
 }
 
 func Test_CreateApp(t *testing.T) {

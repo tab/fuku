@@ -34,6 +34,8 @@ var (
 	ErrWatchIncludeRequired = errors.New("watch configuration requires include field")
 	ErrInvalidLogsOutput    = errors.New("invalid service logs output value (must be 'stdout' or 'stderr')")
 
+	ErrConfigFlagNotSupported = errors.New("--config flag is not supported for this command")
+
 	ErrFailedToGetWorkingDir = errors.New("failed to get working directory")
 	ErrFailedToCreatePipe    = errors.New("failed to create pipe")
 	ErrFailedToStartCommand  = errors.New("failed to start command")
