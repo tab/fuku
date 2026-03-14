@@ -1,23 +1,20 @@
 ---
 import CodeTerminal from "./CodeTerminal.astro";
+import { getInstallMethods } from "../data/install";
+
+const methods = getInstallMethods();
 ---
 
 <section class="install" id="install">
   <div class="container">
     <h2 class="section-title">Install</h2>
 
-    <div class="homebrew">
-      <h3>Homebrew</h3>
-      <CodeTerminal code={`brew install tab/apps/fuku`} />
-    </div>
-
-    <div class="source">
-      <h3>Build from source</h3>
-      <CodeTerminal code={`git clone https://github.com/tab/fuku.git
-cd fuku
-go build -o cmd/fuku cmd/main.go
-sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />
-    </div>
+    {methods.map((method) => (
+      <div class="method">
+        <h3>{method.title}</h3>
+        <CodeTerminal code={method.code} />
+      </div>
+    ))}
 
   </div>
 </section>
@@ -30,12 +27,7 @@ sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />
     margin-bottom: 48px;
   }
 
-  .homebrew {
-    max-width: 600px;
-    margin: 0 auto 48px;
-  }
-
-  .source {
+  .method {
     max-width: 600px;
     margin: 0 auto 48px;
   }

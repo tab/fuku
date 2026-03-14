@@ -3,10 +3,12 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
 import CodeEditor from "../../components/CodeEditor.astro";
 import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getDocsNav } from "../../data/nav";
+import { getInstallMethods } from "../../data/install";
 
 const base = import.meta.env.BASE_URL;
 const current = `${base}docs/getting-started/`;
 const nav = getDocsNav(base);
+const installMethods = getInstallMethods();
 ---
 
 <DocsLayout
@@ -22,17 +24,12 @@ const nav = getDocsNav(base);
 
   <h2>Installation</h2>
 
-  <h3>Homebrew</h3>
-  <CodeTerminal code={`brew install tab/apps/fuku`} />
-
-  <h3>Install Script</h3>
-  <CodeTerminal code={`curl -fsSL https://getfuku.sh/install.sh | sh`} />
-
-  <h3>Build from Source</h3>
-  <CodeTerminal code={`git clone https://github.com/tab/fuku.git
-cd fuku
-go build -o cmd/fuku cmd/main.go
-sudo ln -sf $(pwd)/cmd/fuku /usr/local/bin/fuku`} />
+  {installMethods.map((method) => (
+    <>
+      <h3>{method.title}</h3>
+      <CodeTerminal code={method.code} />
+    </>
+  ))}
 
   <hr />
 
