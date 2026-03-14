@@ -83,6 +83,26 @@ func (r *Runner) Start(profile string) error {
 	return nil
 }
 
+// StartWithConfig launches fuku with --config flag and given profile
+func (r *Runner) StartWithConfig(configFile, profile string) error {
+	bin := os.Getenv("FUKU_BIN")
+	if bin == "" {
+		bin = "fuku"
+	}
+
+	args := []string{"--config", configFile, "run", profile, "--no-ui"}
+	r.cmd = exec.Command(bin, args...)
+	r.cmd.Dir = r.workDir
+	r.cmd.Stdout = r.stdout
+	r.cmd.Stderr = r.stderr
+
+	if err := r.cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start fuku: %w", err)
+	}
+
+	return nil
+}
+
 // Stop sends SIGTERM and waits for graceful shutdown
 func (r *Runner) Stop() error {
 	if r.cmd == nil || r.cmd.Process == nil {
@@ -181,6 +201,56 @@ func (r *Runner) ExitCode() int {
 	}
 
 	return r.cmd.ProcessState.ExitCode()
+}
+
+// RunResult holds output from a completed fuku command
+type RunResult struct {
+	ExitCode int
+	Stdout   string
+	Stderr   string
+}
+
+// RunOnce executes fuku with the given args and waits for completion
+func RunOnce(t *testing.T, dir string, args ...string) RunResult {
+	t.Helper()
+
+	bin := os.Getenv("FUKU_BIN")
+	if bin == "" {
+		bin = "fuku"
+	}
+
+	workDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+
+	cmd := exec.Command(bin, args...)
+	cmd.Dir = workDir
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+
+	exitCode := 0
+
+	var exitErr *exec.ExitError
+
+	switch {
+	case err == nil:
+	case errors.As(err, &exitErr):
+		exitCode = exitErr.ExitCode()
+	default:
+		t.Fatalf("failed to run command: %v", err)
+	}
+
+	return RunResult{
+		ExitCode: exitCode,
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+	}
 }
 
 // indexOf returns the index of substr in s, or -1 if not found
