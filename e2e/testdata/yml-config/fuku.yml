@@ -1,0 +1,12 @@
+version: 1
+
+services:
+  echo-api:
+    dir: echo-api
+
+profiles:
+  default: "*"
+
+logging:
+  format: console
+  level: debug

@@ -7,7 +7,8 @@ const (
 	AppName = "fuku"
 	Version = "0.16.0"
 
-	ConfigFile = "fuku.yaml"
+	ConfigFile    = "fuku.yaml"
+	ConfigFileAlt = "fuku.yml"
 )
 
 // Default values

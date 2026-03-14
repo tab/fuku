@@ -13,15 +13,15 @@ import (
 
 // App represents the main application container
 type App struct {
-	cli    cli.CLI
+	ui     cli.TUI
 	sentry sentry.Sentry
 	done   chan struct{}
 }
 
 // NewApp creates a new application instance with its dependencies
-func NewApp(cli cli.CLI, s sentry.Sentry) *App {
+func NewApp(ui cli.TUI, s sentry.Sentry) *App {
 	return &App{
-		cli:    cli,
+		ui:     ui,
 		sentry: s,
 		done:   make(chan struct{}),
 	}
@@ -47,7 +47,7 @@ func (a *App) execute() int {
 		}
 	}()
 
-	exitCode, _ := a.cli.Execute()
+	exitCode, _ := a.ui.Execute()
 
 	return exitCode
 }

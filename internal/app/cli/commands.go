@@ -3,6 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	"fuku/internal/app/errors"
 	"fuku/internal/config"
 )
 
@@ -18,6 +19,16 @@ const (
 	CommandVersion
 	CommandHelp
 )
+
+// Standalone returns true for commands that run without config or FX container
+func (c CommandType) Standalone() bool {
+	switch c {
+	case CommandInit, CommandVersion, CommandHelp:
+		return true
+	default:
+		return false
+	}
+}
 
 // String returns the string representation of a CommandType
 func (c CommandType) String() string {
@@ -41,10 +52,11 @@ func (c CommandType) String() string {
 
 // Options contains the parsed command-line arguments
 type Options struct {
-	Type     CommandType
-	Profile  string
-	Services []string
-	NoUI     bool
+	ConfigFile string
+	Type       CommandType
+	Profile    string
+	Services   []string
+	NoUI       bool
 }
 
 // rootFlags holds flag values for the root command
@@ -104,16 +116,19 @@ func Parse(args []string) (*Options, error) {
 		result.Type = CommandInit
 	}
 
+	if result.ConfigFile != "" && result.Type.Standalone() {
+		return nil, errors.ErrConfigFlagNotSupported
+	}
+
 	return result, nil
 }
 
 // buildRootCommand creates the root cobra command
 func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "fuku",
-		Short: "A lightweight CLI orchestrator for running and managing multiple local services",
-		Long: `Fuku is a lightweight CLI orchestrator for running and managing
-multiple local services in development environments.`,
+		Use:           "fuku",
+		Short:         "A lightweight CLI orchestrator for running and managing multiple local services",
+		Long:          "Fuku is a lightweight CLI orchestrator for running and managing multiple local services in development environments",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -122,6 +137,7 @@ multiple local services in development environments.`,
 	}
 
 	cmd.PersistentFlags().BoolVar(&result.NoUI, "no-ui", false, "Run without TUI")
+	cmd.PersistentFlags().StringVarP(&result.ConfigFile, "config", "c", "", "Path to config file")
 	cmd.Flags().BoolVarP(&flags.version, "version", "v", false, "Show version information")
 	cmd.Flags().StringVarP(&flags.run, "run", "r", "", "Run services with specified profile")
 	cmd.Flags().StringVarP(&flags.stop, "stop", "s", "", "Stop services with specified profile")

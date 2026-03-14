@@ -45,109 +45,90 @@ func Test_ResolveEnv(t *testing.T) {
 }
 
 func Test_LoadEnv(t *testing.T) {
-	t.Run("Does not fail when no .env files exist", func(t *testing.T) {
-		t.Setenv("GO_ENV", "")
+	tests := []struct {
+		name     string
+		goEnv    string
+		envVar   string
+		files    map[string]string
+		existing string
+		expected string
+	}{
+		{
+			name:     "no .env files does not fail",
+			goEnv:    "",
+			envVar:   "TEST_LOADENV_NONE",
+			expected: "",
+		},
+		{
+			name:     "loads .env file",
+			goEnv:    "",
+			envVar:   "TEST_LOADENV_BASE",
+			files:    map[string]string{".env": "TEST_LOADENV_BASE=from_dotenv\n"},
+			expected: "from_dotenv",
+		},
+		{
+			name:     "loads environment-specific .env file",
+			goEnv:    "staging",
+			envVar:   "TEST_LOADENV_SPECIFIC",
+			files:    map[string]string{".env.staging": "TEST_LOADENV_SPECIFIC=from_staging\n"},
+			expected: "from_staging",
+		},
+		{
+			name:   "local file has highest priority",
+			goEnv:  "staging",
+			envVar: "TEST_LOADENV_LOCAL",
+			files: map[string]string{
+				".env.staging":       "TEST_LOADENV_LOCAL=from_env\n",
+				".env.staging.local": "TEST_LOADENV_LOCAL=from_local\n",
+			},
+			expected: "from_local",
+		},
+		{
+			name:   "environment-specific overrides base .env",
+			goEnv:  "staging",
+			envVar: "TEST_LOADENV_OVERRIDE",
+			files: map[string]string{
+				".env":         "TEST_LOADENV_OVERRIDE=from_base\n",
+				".env.staging": "TEST_LOADENV_OVERRIDE=from_staging\n",
+			},
+			expected: "from_staging",
+		},
+		{
+			name:     "does not override existing env vars",
+			goEnv:    "",
+			envVar:   "TEST_LOADENV_EXISTING",
+			files:    map[string]string{".env": "TEST_LOADENV_EXISTING=from_dotenv\n"},
+			existing: "already_set",
+			expected: "already_set",
+		},
+	}
 
-		LoadEnv()
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GO_ENV", tt.goEnv)
 
-	t.Run("Loads .env file", func(t *testing.T) {
-		err := os.WriteFile(".env", []byte("TEST_LOAD_ENV_VAR=from_dotenv\n"), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
+			os.Unsetenv(tt.envVar)
 
-		defer os.Remove(".env")
+			if tt.existing != "" {
+				t.Setenv(tt.envVar, tt.existing)
+			}
 
-		t.Setenv("GO_ENV", "")
-		os.Unsetenv("TEST_LOAD_ENV_VAR")
+			for name, content := range tt.files {
+				err := os.WriteFile(name, []byte(content), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
 
-		LoadEnv()
+				defer os.Remove(name)
+			}
 
-		assert.Equal(t, "from_dotenv", os.Getenv("TEST_LOAD_ENV_VAR"))
-		os.Unsetenv("TEST_LOAD_ENV_VAR")
-	})
+			LoadEnv()
 
-	t.Run("Loads environment-specific .env file", func(t *testing.T) {
-		err := os.WriteFile(".env.staging", []byte("TEST_LOAD_ENV_SPECIFIC=from_staging\n"), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
+			assert.Equal(t, tt.expected, os.Getenv(tt.envVar))
 
-		defer os.Remove(".env.staging")
-
-		t.Setenv("GO_ENV", "staging")
-		os.Unsetenv("TEST_LOAD_ENV_SPECIFIC")
-
-		LoadEnv()
-
-		assert.Equal(t, "from_staging", os.Getenv("TEST_LOAD_ENV_SPECIFIC"))
-		os.Unsetenv("TEST_LOAD_ENV_SPECIFIC")
-	})
-
-	t.Run("Loads .env.local file with highest priority", func(t *testing.T) {
-		err := os.WriteFile(".env.staging", []byte("TEST_LOCAL_PRIORITY=from_env\n"), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		defer os.Remove(".env.staging")
-
-		err = os.WriteFile(".env.staging.local", []byte("TEST_LOCAL_PRIORITY=from_local\n"), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		defer os.Remove(".env.staging.local")
-
-		t.Setenv("GO_ENV", "staging")
-		os.Unsetenv("TEST_LOCAL_PRIORITY")
-
-		LoadEnv()
-
-		assert.Equal(t, "from_local", os.Getenv("TEST_LOCAL_PRIORITY"))
-		os.Unsetenv("TEST_LOCAL_PRIORITY")
-	})
-
-	t.Run("Environment-specific overrides base .env", func(t *testing.T) {
-		err := os.WriteFile(".env", []byte("TEST_OVERRIDE=from_base\n"), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		defer os.Remove(".env")
-
-		err = os.WriteFile(".env.staging", []byte("TEST_OVERRIDE=from_staging\n"), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		defer os.Remove(".env.staging")
-
-		t.Setenv("GO_ENV", "staging")
-		os.Unsetenv("TEST_OVERRIDE")
-
-		LoadEnv()
-
-		assert.Equal(t, "from_staging", os.Getenv("TEST_OVERRIDE"))
-		os.Unsetenv("TEST_OVERRIDE")
-	})
-
-	t.Run("Does not override existing env vars", func(t *testing.T) {
-		err := os.WriteFile(".env", []byte("TEST_EXISTING_VAR=from_dotenv\n"), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		defer os.Remove(".env")
-
-		t.Setenv("GO_ENV", "")
-		t.Setenv("TEST_EXISTING_VAR", "already_set")
-
-		LoadEnv()
-
-		assert.Equal(t, "already_set", os.Getenv("TEST_EXISTING_VAR"))
-	})
+			os.Unsetenv(tt.envVar)
+		})
+	}
 }
 
 func Test_DefaultConfig(t *testing.T) {
@@ -170,6 +151,64 @@ func Test_DefaultTopology(t *testing.T) {
 	assert.NotNil(t, topology.TierServices)
 	assert.Empty(t, topology.Order)
 	assert.True(t, topology.HasDefaultOnly)
+}
+
+func Test_ResolveConfigFile(t *testing.T) {
+	tests := []struct {
+		name      string
+		override  string
+		files     []string
+		expected  string
+		expectErr bool
+	}{
+		{
+			name:     "override path verified and returned",
+			override: "custom.yaml",
+			files:    []string{"custom.yaml"},
+			expected: "custom.yaml",
+		},
+		{
+			name:      "override path not found returns error",
+			override:  "missing.yaml",
+			expectErr: true,
+		},
+		{
+			name:     "fuku.yaml wins when both exist",
+			files:    []string{ConfigFile, ConfigFileAlt},
+			expected: ConfigFile,
+		},
+		{
+			name:     "falls back to fuku.yml",
+			files:    []string{ConfigFileAlt},
+			expected: ConfigFileAlt,
+		},
+		{
+			name:     "empty when neither exists",
+			files:    nil,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
+
+			for _, f := range tt.files {
+				err := os.WriteFile(f, []byte("version: 1"), 0644)
+				require.NoError(t, err)
+			}
+
+			result, err := resolveConfigFile(tt.override)
+
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
 }
 
 func Test_Load(t *testing.T) {
@@ -312,44 +351,116 @@ services: "this should be a map not a string"
 	}
 }
 
+func Test_Load_YmlFallback(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	content := `version: 1
+services:
+  api:
+    dir: ./api
+`
+
+	err := os.WriteFile(ConfigFileAlt, []byte(content), 0644)
+	require.NoError(t, err)
+
+	cfg, topology, err := Load()
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
+	assert.NotNil(t, topology)
+	assert.Contains(t, cfg.Services, "api")
+}
+
+func Test_Load_ExplicitPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	content := `version: 1
+services:
+  web:
+    dir: ./web
+`
+
+	filePath := dir + "/custom.yaml"
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	require.NoError(t, err)
+
+	cfg, topology, err := Load(filePath)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
+	assert.NotNil(t, topology)
+	assert.Contains(t, cfg.Services, "web")
+}
+
+func Test_Load_ExplicitPathNotFound(t *testing.T) {
+	cfg, topology, err := Load("/nonexistent/path/fuku.yaml")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.ErrFailedToReadConfig))
+	assert.Nil(t, cfg)
+	assert.Nil(t, topology)
+}
+
 func Test_Load_SentryDSN(t *testing.T) {
-	t.Run("Reads SENTRY_DSN from environment", func(t *testing.T) {
-		t.Setenv("SENTRY_DSN", "https://key@sentry.io/123")
+	tests := []struct {
+		name     string
+		envValue string
+		expected string
+	}{
+		{
+			name:     "reads SENTRY_DSN from environment",
+			envValue: "https://key@sentry.io/123",
+			expected: "https://key@sentry.io/123",
+		},
+		{
+			name:     "empty when SENTRY_DSN not set",
+			envValue: "",
+			expected: "",
+		},
+	}
 
-		cfg, _, err := Load()
-		require.NoError(t, err)
-		assert.Equal(t, "https://key@sentry.io/123", cfg.SentryDSN)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("SENTRY_DSN", tt.envValue)
 
-	t.Run("Empty when SENTRY_DSN not set", func(t *testing.T) {
-		cfg, _, err := Load()
-		require.NoError(t, err)
-		assert.Empty(t, cfg.SentryDSN)
-	})
+			cfg, _, err := Load()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.SentryDSN)
+		})
+	}
 }
 
 func Test_Load_Telemetry(t *testing.T) {
-	t.Run("Disabled when FUKU_TELEMETRY_DISABLED=1", func(t *testing.T) {
-		t.Setenv("FUKU_TELEMETRY_DISABLED", "1")
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{
+			name:     "disabled when FUKU_TELEMETRY_DISABLED=1",
+			envValue: "1",
+			expected: false,
+		},
+		{
+			name:     "enabled when FUKU_TELEMETRY_DISABLED not set",
+			envValue: "",
+			expected: true,
+		},
+		{
+			name:     "enabled when FUKU_TELEMETRY_DISABLED is not 1",
+			envValue: "false",
+			expected: true,
+		},
+	}
 
-		cfg, _, err := Load()
-		require.NoError(t, err)
-		assert.False(t, cfg.Telemetry)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("FUKU_TELEMETRY_DISABLED", tt.envValue)
 
-	t.Run("Enabled when FUKU_TELEMETRY_DISABLED not set", func(t *testing.T) {
-		cfg, _, err := Load()
-		require.NoError(t, err)
-		assert.True(t, cfg.Telemetry)
-	})
-
-	t.Run("Enabled when FUKU_TELEMETRY_DISABLED is not 1", func(t *testing.T) {
-		t.Setenv("FUKU_TELEMETRY_DISABLED", "false")
-
-		cfg, _, err := Load()
-		require.NoError(t, err)
-		assert.True(t, cfg.Telemetry)
-	})
+			cfg, _, err := Load()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.Telemetry)
+		})
+	}
 }
 
 func Test_TelemetryEnabled(t *testing.T) {
@@ -1088,7 +1199,7 @@ defaults:
 			expectedServices:  map[string][]string{"platform": {"api", "web"}},
 		},
 		{
-			name: "mixed explicit and inherited tiers",
+			name: "mixed override and inherited tiers",
 			yaml: `services:
   db:
     tier: foundation
@@ -1165,7 +1276,7 @@ func Test_ParseTierOrder_HasDefaultOnly(t *testing.T) {
 			expectedHasDefaultOnly: false,
 		},
 		{
-			name: "mixed explicit and default not default only",
+			name: "mixed override and default not default only",
 			yaml: `services:
   db:
     tier: foundation

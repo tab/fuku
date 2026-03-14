@@ -213,71 +213,89 @@ func Test_GetSelectedService(t *testing.T) {
 }
 
 func Test_CalculateScrollOffset(t *testing.T) {
-	t.Run("zero height viewport returns current offset", func(t *testing.T) {
-		m := Model{}
-		m.state.tiers = []Tier{{Services: []string{"api"}}}
-		m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
-		m.state.selected = 0
-		m.ui.servicesViewport.SetHeight(0)
+	tests := []struct {
+		name     string
+		tiers    []Tier
+		services map[string]*ServiceState
+		selected int
+		vpHeight int
+		vpOffset int
+		assertFn func(t *testing.T, offset int)
+	}{
+		{
+			name:     "zero height viewport returns current offset",
+			tiers:    []Tier{{Services: []string{"api"}}},
+			services: map[string]*ServiceState{"api": {Name: "api"}},
+			selected: 0,
+			vpHeight: 0,
+			assertFn: func(t *testing.T, offset int) {
+				assert.Equal(t, 0, offset)
+			},
+		},
+		{
+			name:     "selection visible returns current offset",
+			tiers:    []Tier{{Services: []string{"api", "db"}}},
+			services: map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}},
+			selected: 0,
+			vpHeight: 10,
+			assertFn: func(t *testing.T, offset int) {
+				assert.Equal(t, 0, offset)
+			},
+		},
+		{
+			name: "multi-tier selection visible",
+			tiers: []Tier{
+				{Services: []string{"a", "b"}},
+				{Services: []string{"c", "d"}},
+			},
+			services: map[string]*ServiceState{
+				"a": {Name: "a"}, "b": {Name: "b"},
+				"c": {Name: "c"}, "d": {Name: "d"},
+			},
+			selected: 3,
+			vpHeight: 20,
+			assertFn: func(t *testing.T, offset int) {
+				assert.Equal(t, 0, offset)
+			},
+		},
+		{
+			name:     "scrolls down when selection below viewport",
+			tiers:    []Tier{{Services: []string{"a", "b", "c", "d", "e", "f"}}},
+			services: map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}},
+			selected: 5,
+			vpHeight: 3,
+			vpOffset: 0,
+			assertFn: func(t *testing.T, offset int) {
+				assert.Positive(t, offset)
+			},
+		},
+		{
+			name:     "scrolls up when selection above viewport",
+			tiers:    []Tier{{Services: []string{"a", "b", "c", "d", "e"}}},
+			services: map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}},
+			selected: 0,
+			vpHeight: 3,
+			vpOffset: 10,
+			assertFn: func(t *testing.T, offset int) {
+				assert.Less(t, offset, 10)
+			},
+		},
+	}
 
-		offset := m.calculateScrollOffset()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.state.tiers = tt.tiers
+			m.state.services = tt.services
+			m.state.selected = tt.selected
+			m.ui.servicesViewport.SetHeight(tt.vpHeight)
 
-		assert.Equal(t, 0, offset)
-	})
+			if tt.vpOffset > 0 {
+				m.ui.servicesViewport.SetYOffset(tt.vpOffset)
+			}
 
-	t.Run("selection visible returns current offset", func(t *testing.T) {
-		m := Model{}
-		m.state.tiers = []Tier{{Services: []string{"api", "db"}}}
-		m.state.services = map[string]*ServiceState{"api": {Name: "api"}, "db": {Name: "db"}}
-		m.state.selected = 0
-		m.ui.servicesViewport.SetHeight(10)
-
-		offset := m.calculateScrollOffset()
-
-		assert.Equal(t, 0, offset)
-	})
-
-	t.Run("calculates offset for multi-tier selection", func(t *testing.T) {
-		m := Model{}
-		m.state.tiers = []Tier{
-			{Services: []string{"a", "b"}},
-			{Services: []string{"c", "d"}},
-		}
-		m.state.services = map[string]*ServiceState{
-			"a": {Name: "a"}, "b": {Name: "b"},
-			"c": {Name: "c"}, "d": {Name: "d"},
-		}
-		m.state.selected = 3
-		m.ui.servicesViewport.SetHeight(20)
-
-		offset := m.calculateScrollOffset()
-
-		assert.Equal(t, 0, offset)
-	})
-
-	t.Run("scrolls down when selection below viewport", func(t *testing.T) {
-		m := Model{}
-		m.state.tiers = []Tier{{Services: []string{"a", "b", "c", "d", "e", "f"}}}
-		m.state.services = map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}}
-		m.state.selected = 5
-		m.ui.servicesViewport.SetHeight(3)
-		m.ui.servicesViewport.SetYOffset(0)
-
-		offset := m.calculateScrollOffset()
-
-		assert.Positive(t, offset)
-	})
-
-	t.Run("scrolls up when selection above viewport", func(t *testing.T) {
-		m := Model{}
-		m.state.tiers = []Tier{{Services: []string{"a", "b", "c", "d", "e"}}}
-		m.state.services = map[string]*ServiceState{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}}
-		m.state.selected = 0
-		m.ui.servicesViewport.SetHeight(3)
-		m.ui.servicesViewport.SetYOffset(10)
-
-		offset := m.calculateScrollOffset()
-
-		assert.Less(t, offset, 10)
-	})
+			offset := m.calculateScrollOffset()
+			tt.assertFn(t, offset)
+		})
+	}
 }

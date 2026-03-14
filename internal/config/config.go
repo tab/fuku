@@ -155,8 +155,56 @@ func ResolveEnv() string {
 	return env
 }
 
+// fileExists checks whether a file exists, returning an error for non-ENOENT failures
+func fileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+
+	switch {
+	case err == nil:
+		return true, nil
+	case os.IsNotExist(err):
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
+// resolveConfigFile validates and returns override path, otherwise tries fuku.yaml then fuku.yml
+func resolveConfigFile(override string) (string, error) {
+	if override != "" {
+		return resolveExplicitConfig(override)
+	}
+
+	for _, candidate := range []string{ConfigFile, ConfigFileAlt} {
+		exists, err := fileExists(candidate)
+		if err != nil {
+			return "", fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
+		}
+
+		if exists {
+			return candidate, nil
+		}
+	}
+
+	return "", nil
+}
+
+// resolveExplicitConfig validates that an explicit config path exists
+func resolveExplicitConfig(path string) (string, error) {
+	exists, err := fileExists(path)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
+	}
+
+	if !exists {
+		return "", fmt.Errorf("%w: %s", errors.ErrFailedToReadConfig, path)
+	}
+
+	return path, nil
+}
+
 // Load loads the configuration from file and returns read-only config with derived topology
-func Load() (*Config, *Topology, error) {
+func Load(configFilePath ...string) (*Config, *Topology, error) {
 	LoadEnv()
 
 	cfg := DefaultConfig()
@@ -166,13 +214,23 @@ func Load() (*Config, *Topology, error) {
 
 	defaultTopology := DefaultTopology()
 
-	data, err := os.ReadFile(ConfigFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, defaultTopology, nil
-		}
+	var override string
+	if len(configFilePath) > 0 {
+		override = configFilePath[0]
+	}
 
-		return nil, nil, errors.ErrFailedToReadConfig
+	filePath, err := resolveConfigFile(override)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if filePath == "" {
+		return cfg, defaultTopology, nil
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
 	}
 
 	topology, err := parseTierOrder(data)
@@ -184,7 +242,7 @@ func Load() (*Config, *Topology, error) {
 	v.SetConfigType("yaml")
 
 	if err := v.ReadConfig(bytes.NewReader(data)); err != nil {
-		return nil, nil, errors.ErrFailedToReadConfig
+		return nil, nil, fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
 	}
 
 	if err := v.Unmarshal(cfg); err != nil {
