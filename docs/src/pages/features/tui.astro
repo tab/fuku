@@ -1,6 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import CodeTerminal from "../../components/CodeTerminal.astro";
+import KeyboardControls from "../../components/KeyboardControls.astro";
 import { getFeaturesNav } from "../../data/nav";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
@@ -122,40 +123,7 @@ const nav = getFeaturesNav(base);
 
   <h2>Keyboard Controls</h2>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Key</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><code>&uarr;</code> / <code>&darr;</code> or <code>k</code> / <code>j</code></td>
-        <td>Navigate between services</td>
-      </tr>
-      <tr>
-        <td><code>PgUp</code> / <code>PgDn</code></td>
-        <td>Scroll viewport</td>
-      </tr>
-      <tr>
-        <td><code>Home</code> / <code>End</code></td>
-        <td>Jump to first / last service</td>
-      </tr>
-      <tr>
-        <td><code>s</code></td>
-        <td>Stop or start the selected service</td>
-      </tr>
-      <tr>
-        <td><code>r</code></td>
-        <td>Restart the selected service</td>
-      </tr>
-      <tr>
-        <td><code>q</code></td>
-        <td>Quit and stop all services</td>
-      </tr>
-    </tbody>
-  </table>
+  <KeyboardControls />
 
   <h2>Resource Monitoring</h2>
 

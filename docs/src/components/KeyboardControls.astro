@@ -1,0 +1,34 @@
+---
+import { getKeyboardControls } from "../data/controls";
+
+const controls = getKeyboardControls();
+---
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {controls.map((ctrl) => (
+      <tr>
+        <td>
+          {ctrl.keys.map((group, gi) => (
+            <>
+              {gi > 0 && " or "}
+              {group.map((key, ki) => (
+                <>
+                  {ki > 0 && " / "}
+                  <code>{key}</code>
+                </>
+              ))}
+            </>
+          ))}
+        </td>
+        <td>{ctrl.action}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
