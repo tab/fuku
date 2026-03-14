@@ -65,6 +65,10 @@ fuku logs                       # All services
 fuku logs api auth              # Specific services
 fuku l api db                   # Short alias
 
+# Use custom config file
+fuku --config path/to/fuku.yaml run core
+fuku -c custom.yaml run core
+
 # Show help
 fuku help                       # or --help, -h
 
@@ -85,7 +89,7 @@ q                Quit (stops all services)
 
 ## Configuration
 
-Generate a config template with `fuku init`, or create `fuku.yaml` manually in your project root:
+Generate a config template with `fuku init`, or create `fuku.yaml` manually in your project root (`fuku.yml` is also supported as a fallback when `fuku.yaml` is absent):
 
 ```yaml
 version: 1

@@ -1,6 +1,7 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import CodeTerminal from "../../components/CodeTerminal.astro";
+import KeyboardControls from "../../components/KeyboardControls.astro";
 import { getDocsNav } from "../../data/nav";
 
 const base = import.meta.env.BASE_URL;
@@ -34,6 +35,11 @@ const nav = getDocsNav(base);
         <td><code>fuku run [profile]</code></td>
         <td><code>r</code></td>
         <td>Run services for a profile (default if omitted)</td>
+      </tr>
+      <tr>
+        <td><code>fuku stop [profile]</code></td>
+        <td><code>s</code></td>
+        <td>Stop services by killing processes in service directories</td>
       </tr>
       <tr>
         <td><code>fuku logs [services...]</code></td>
@@ -71,6 +77,10 @@ const nav = getDocsNav(base);
     </thead>
     <tbody>
       <tr>
+        <td><code>--config</code>, <code>-c</code></td>
+        <td>Path to config file (default: <code>fuku.yaml</code>, falls back to <code>fuku.yml</code>). Only supported with <code>run</code>, <code>stop</code>, and <code>logs</code> commands</td>
+      </tr>
+      <tr>
         <td><code>--no-ui</code></td>
         <td>Run without the interactive TUI (log-only mode)</td>
       </tr>
@@ -104,6 +114,10 @@ fuku logs api auth              # Specific services
 fuku logs --profile core api    # Filter by profile
 fuku l api db                   # Short alias
 
+# Use a custom config file
+fuku --config path/to/fuku.yaml run core
+fuku -c custom.yaml run core
+
 # Generate config template
 fuku init
 
@@ -117,40 +131,7 @@ fuku version`} />
 
   <p>When running with the interactive TUI (default), use these keyboard shortcuts:</p>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Key</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><code>&uarr;</code> / <code>&darr;</code> or <code>k</code> / <code>j</code></td>
-        <td>Navigate services</td>
-      </tr>
-      <tr>
-        <td><code>PgUp</code> / <code>PgDn</code></td>
-        <td>Scroll viewport</td>
-      </tr>
-      <tr>
-        <td><code>Home</code> / <code>End</code></td>
-        <td>Jump to start / end</td>
-      </tr>
-      <tr>
-        <td><code>r</code></td>
-        <td>Restart selected service</td>
-      </tr>
-      <tr>
-        <td><code>s</code></td>
-        <td>Stop / start selected service</td>
-      </tr>
-      <tr>
-        <td><code>q</code></td>
-        <td>Quit (stops all services)</td>
-      </tr>
-    </tbody>
-  </table>
+  <KeyboardControls />
 
   <hr />
 
