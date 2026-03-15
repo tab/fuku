@@ -1,0 +1,14 @@
+---
+import Terminal from "../Terminal.astro";
+---
+
+<Terminal title="terminal — fuku logs">
+  <pre data-typewriter><span class="dim">$</span> fuku logs api auth
+<span class="purple">api</span>  <span class="dim">│</span> <span class="muted">10:23:01Z</span> <span class="blue">INF</span> server listening on :8080
+<span class="purple">api</span>  <span class="dim">│</span> <span class="muted">10:23:05Z</span> <span class="blue">INF</span> GET /health 200 1ms
+<span class="purple">auth</span> <span class="dim">│</span> <span class="muted">10:23:01Z</span> <span class="blue">INF</span> auth service started
+<span class="purple">api</span>  <span class="dim">│</span> <span class="muted">10:23:12Z</span> <span class="blue">INF</span> POST /api/users 201 45ms
+<span class="purple">auth</span> <span class="dim">│</span> <span class="muted">10:23:12Z</span> <span class="blue">INF</span> token issued user=john
+<span class="purple">api</span>  <span class="dim">│</span> <span class="muted">10:23:18Z</span> <span class="blue">INF</span> GET /api/users 200 12ms
+</pre>
+</Terminal>

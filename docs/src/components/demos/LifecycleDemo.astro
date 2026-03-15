@@ -1,0 +1,24 @@
+---
+import Terminal from "../Terminal.astro";
+---
+
+<Terminal title="fuku">
+  <pre data-typewriter><span class="dim">│</span> <span class="muted">received signal:</span> <span class="yellow">SIGINT</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">stopping tier edge</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> web         <span class="yellow">stopping</span>  <span class="dim">SIGTERM → pid 76780</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> web         <span class="muted">stopped</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">stopping tier platform</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> api         <span class="yellow">stopping</span>  <span class="dim">SIGTERM → pid 76758</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> worker      <span class="yellow">stopping</span>  <span class="dim">SIGTERM → pid 76759</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> worker      <span class="muted">stopped</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> api         <span class="muted">stopped</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">stopping tier foundation</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> auth        <span class="yellow">stopping</span>  <span class="dim">SIGTERM → pid 76741</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> auth        <span class="muted">stopped</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="green">all services stopped</span>
+</pre>
+</Terminal>

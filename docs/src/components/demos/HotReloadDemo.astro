@@ -1,0 +1,18 @@
+---
+import Terminal from "../Terminal.astro";
+---
+
+<Terminal title="fuku run default">
+  <pre data-typewriter><span class="dim">│</span> <span class="green">&#10003;</span> api         <span class="muted">running</span>  <span class="dim">pid 76758</span>
+<span class="dim">│</span> <span class="green">&#10003;</span> worker      <span class="muted">running</span>  <span class="dim">pid 76759</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="blue">watch</span>  file changed: <span class="muted">api/handlers/users.go</span>
+<span class="dim">│</span> <span class="blue">watch</span>  file changed: <span class="muted">api/handlers/users.go</span>
+<span class="dim">│</span> <span class="blue">watch</span>  debounce <span class="dim">300ms</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="yellow">&#9675;</span> api         <span class="yellow">restarting</span>
+<span class="dim">│</span>   <span class="dim">stopping pid 76758...</span>
+<span class="dim">│</span>   <span class="dim">starting...</span>
+<span class="dim">│</span> <span class="green">&#10003;</span> api         <span class="muted">running</span>  <span class="dim">pid 76801</span>
+</pre>
+</Terminal>

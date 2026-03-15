@@ -1,0 +1,22 @@
+---
+import Terminal from "../Terminal.astro";
+---
+
+<Terminal title="fuku run default">
+  <pre data-typewriter><span class="dim">$</span> fuku run default
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="muted">preflight</span>  cleaning up stale processes...
+<span class="dim">│</span> <span class="muted">preflight</span>  done
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">tier foundation</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> auth        <span class="muted">running</span>  <span class="dim">pid 76741  2.1s</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> gateway     <span class="muted">running</span>  <span class="dim">pid 76742  1.8s</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">tier platform</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> api         <span class="muted">running</span>  <span class="dim">pid 76758  4.5s</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> worker      <span class="muted">running</span>  <span class="dim">pid 76759  2.8s</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">tier edge</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> web         <span class="yellow">starting</span>
+</pre>
+</Terminal>

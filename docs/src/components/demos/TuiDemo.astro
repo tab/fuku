@@ -1,0 +1,186 @@
+---
+import Terminal from "../Terminal.astro";
+---
+
+<Terminal title="fuku">
+  <div class="panel">
+    <div class="panel-border">
+      <div class="border-top">
+        <span class="panel-title">services</span>
+        <span class="border-spacer"></span>
+        <span class="status-text">4/4 ready</span>
+      </div>
+
+      <div class="panel-content">
+        <div class="row header-row">
+          <span class="col-name"></span>
+          <span class="col-status">status</span>
+          <span class="col-cpu">cpu</span>
+          <span class="col-mem">mem</span>
+        </div>
+
+        <div class="tier">foundation</div>
+        <div class="row selected">
+          <span class="col-name"><span class="indicator">&#9673;</span> auth</span>
+          <span class="col-status running">running</span>
+          <span class="col-cpu dim">0.3%</span>
+          <span class="col-mem dim">24MB</span>
+        </div>
+
+        <div class="tier">platform</div>
+        <div class="row">
+          <span class="col-name"><span class="indicator">&#9673;</span> api</span>
+          <span class="col-status running">running</span>
+          <span class="col-cpu dim">1.2%</span>
+          <span class="col-mem dim">32MB</span>
+        </div>
+        <div class="row">
+          <span class="col-name"><span class="indicator">&#9673;</span> worker</span>
+          <span class="col-status running">running</span>
+          <span class="col-cpu dim">0.4%</span>
+          <span class="col-mem dim">28MB</span>
+        </div>
+
+        <div class="tier">edge</div>
+        <div class="row">
+          <span class="col-name"><span class="indicator">&#9673;</span> web</span>
+          <span class="col-status running">running</span>
+          <span class="col-cpu dim">4.2%</span>
+          <span class="col-mem dim">120MB</span>
+        </div>
+      </div>
+
+      <div class="border-bottom">
+        <span class="stats">cpu 6.1% &bull; mem 204MB</span>
+        <span class="border-spacer"></span>
+        <span class="version">v0.16.0</span>
+      </div>
+    </div>
+
+    <div class="help-footer">
+      <span class="help-left">
+        <span class="help-key">&uarr;/k</span> <span class="help-desc">up</span>
+        <span class="help-sep">&bull;</span>
+        <span class="help-key">&darr;/j</span> <span class="help-desc">down</span>
+        <span class="help-sep">&bull;</span>
+        <span class="help-key">s</span> <span class="help-desc">stop/start</span>
+        <span class="help-sep">&bull;</span>
+        <span class="help-key">r</span> <span class="help-desc">restart</span>
+        <span class="help-sep">&bull;</span>
+        <span class="help-key">q</span> <span class="help-desc">quit</span>
+      </span>
+    </div>
+  </div>
+</Terminal>
+
+<style>
+  .panel-border {
+    position: relative;
+    border: 1px solid #7D56F4;
+    border-radius: 8px;
+  }
+
+  .border-top,
+  .border-bottom {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    height: 0;
+  }
+
+  .border-top { top: 0; transform: translateY(-50%); }
+  .border-bottom { bottom: 0; transform: translateY(50%); }
+
+  .border-top > span,
+  .border-bottom > span {
+    background: #1e1e2e;
+    padding: 0 8px;
+  }
+
+  .border-spacer {
+    flex: 1;
+    padding: 0 !important;
+  }
+
+  .panel-title {
+    color: #7D56F4;
+    font-weight: bold;
+  }
+
+  .panel-content {
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .status-text { color: #cdd6f4; }
+  .version { color: #cdd6f4; }
+  .stats { color: #6c7086; }
+
+  .row:not(.header-row) {
+    padding-left: 12px;
+  }
+
+  .row {
+    display: flex;
+    white-space: nowrap;
+  }
+
+  .row.selected {
+    background: rgba(125, 86, 244, 0.15);
+    border-radius: 4px;
+    margin: 0 -4px;
+    padding-left: 16px;
+    padding-right: 4px;
+  }
+
+  .header-row { color: #6c7086; }
+
+  .col-name { width: 46%; }
+  .col-status { width: 24%; }
+  .col-cpu { width: 15%; text-align: right; }
+  .col-mem { width: 15%; text-align: right; }
+
+  .tier {
+    color: #7D56F4;
+    font-weight: bold;
+    margin-top: 6px;
+    padding-left: 4px;
+  }
+
+  .indicator {
+    color: #5af78e;
+    margin-right: 4px;
+  }
+
+  .running { color: #5af78e; }
+  .dim { color: #a6adc8; }
+
+  .help-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding: 10px 0 6px;
+    font-size: 0.75rem;
+  }
+
+  .help-key { color: #6c7086; }
+  .help-desc { color: #a6adc8; }
+  .help-sep { color: #6c7086; margin: 0 2px; }
+
+  @media (max-width: 900px) {
+    .help-footer {
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .help-footer {
+      display: none;
+    }
+  }
+</style>
