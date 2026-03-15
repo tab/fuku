@@ -56,7 +56,42 @@ func (s *server) SocketPath() string {
 
 // SocketPathForProfile constructs the socket path for a given profile
 func SocketPathForProfile(socketDir, profile string) string {
-	return filepath.Join(socketDir, config.SocketPrefix+profile+config.SocketSuffix)
+	return filepath.Join(socketDir, fmt.Sprintf("%s%s%s", config.SocketPrefix, profile, config.SocketSuffix))
+}
+
+// Cleanup removes all stale fuku socket files from the given directory
+func Cleanup(socketDir string) error {
+	pattern := SocketPathForProfile(socketDir, "*")
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("failed to glob for stale sockets: %w", err)
+	}
+
+	var failed []string
+
+	for _, socketPath := range matches {
+		info, err := os.Lstat(socketPath)
+		if err != nil || info.Mode()&os.ModeSocket == 0 {
+			continue
+		}
+
+		conn, err := net.DialTimeout("unix", socketPath, config.SocketDialTimeout)
+		if err == nil {
+			conn.Close()
+			continue
+		}
+
+		if err := os.Remove(socketPath); err != nil {
+			failed = append(failed, filepath.Base(socketPath))
+		}
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("%w: %v", errors.ErrFailedToCleanupSocket, failed)
+	}
+
+	return nil
 }
 
 // Start starts the Unix socket server
@@ -65,7 +100,13 @@ func (s *server) Start(ctx context.Context, profile string, services []string) e
 	s.services = services
 	s.socketPath = SocketPathForProfile(config.SocketDir, profile)
 
-	if err := s.cleanupStaleSocket(); err != nil {
+	conn, err := net.DialTimeout("unix", s.socketPath, config.SocketDialTimeout)
+	if err == nil {
+		conn.Close()
+		return fmt.Errorf("%w: %s", errors.ErrSocketAlreadyInUse, s.socketPath)
+	}
+
+	if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("%w: %w", errors.ErrFailedToCleanupSocket, err)
 	}
 
@@ -126,24 +167,6 @@ func (s *server) Broadcast(service, message string) {
 	}
 }
 
-// cleanupStaleSocket removes stale socket file if not in use
-func (s *server) cleanupStaleSocket() error {
-	if _, err := os.Stat(s.socketPath); os.IsNotExist(err) {
-		return nil
-	}
-
-	conn, err := net.DialTimeout("unix", s.socketPath, config.SocketDialTimeout)
-	if err == nil {
-		conn.Close()
-
-		return fmt.Errorf("%w: %s", errors.ErrSocketAlreadyInUse, s.socketPath)
-	}
-
-	s.log.Info().Msgf("Removing stale socket: %s", s.socketPath)
-
-	return os.Remove(s.socketPath)
-}
-
 // acceptConnections handles incoming client connections
 func (s *server) acceptConnections(ctx context.Context) {
 	for s.running.Load() {
@@ -180,7 +203,7 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
-		s.log.Error().Err(err).Msgf("Failed to read from client %s", clientID)
+		s.log.Debug().Err(err).Msgf("Client %s disconnected before subscribing", clientID)
 		return
 	}
 
@@ -202,7 +225,7 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 	s.log.Debug().Msgf("Client %s subscribed to services: %v", clientID, req.Services)
 
-	s.sendStatus(conn, clientID)
+	s.hello(conn, clientID)
 
 	for {
 		select {
@@ -234,8 +257,8 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 }
 
-// sendStatus sends a status message to a newly connected client
-func (s *server) sendStatus(conn net.Conn, clientID string) {
+// hello sends a status message to a newly connected client
+func (s *server) hello(conn net.Conn, clientID string) {
 	status := StatusMessage{
 		Type:     MessageStatus,
 		Version:  config.Version,

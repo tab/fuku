@@ -141,7 +141,7 @@ func FindSocket(socketDir, profile string) (string, error) {
 		return "", fmt.Errorf("%w: '%s'", errors.ErrInstanceNotFound, profile)
 	}
 
-	pattern := filepath.Join(socketDir, config.SocketPrefix+"*"+config.SocketSuffix)
+	pattern := SocketPathForProfile(socketDir, "*")
 
 	matches, err := filepath.Glob(pattern)
 	if err != nil {

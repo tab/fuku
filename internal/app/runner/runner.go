@@ -118,6 +118,10 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		r.log.Warn().Err(err).Msg("Preflight cleanup failed, continuing startup")
 	}
 
+	if err := logs.Cleanup(config.SocketDir); err != nil {
+		r.log.Warn().Err(err).Msg("Socket cleanup failed, continuing startup")
+	}
+
 	if err := r.server.Start(ctx, profile, services); err != nil {
 		r.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
 	} else {

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/errors"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -144,49 +146,11 @@ func Test_Server_Broadcast(t *testing.T) {
 	}
 }
 
-func Test_Server_cleanupStaleSocket_NoSocketExists(t *testing.T) {
+func Test_Server_Start_ActiveSocketReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	s := &server{
-		socketPath: filepath.Join("/tmp", "fuku-nonexistent.sock"),
-		log:        mockLogger,
-	}
-
-	err := s.cleanupStaleSocket()
-	require.NoError(t, err)
-}
-
-func Test_Server_cleanupStaleSocket_StaleSocketIsRemoved(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	socketPath := filepath.Join("/tmp", "fuku-stale.sock")
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Info().Return(nil)
-
-	f, err := os.Create(socketPath)
-	require.NoError(t, err)
-	f.Close()
-
-	s := &server{
-		socketPath: socketPath,
-		log:        mockLogger,
-	}
-
-	err = s.cleanupStaleSocket()
-	require.NoError(t, err)
-	assert.NoFileExists(t, socketPath)
-}
-
-func Test_Server_cleanupStaleSocket_ActiveSocketReturnsError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	socketPath := filepath.Join("/tmp", "fuku-active.sock")
+	socketPath := filepath.Join("/tmp", "fuku-active-start.sock")
 
 	mockLogger := logger.NewMockLogger(ctrl)
 
@@ -198,13 +162,134 @@ func Test_Server_cleanupStaleSocket_ActiveSocketReturnsError(t *testing.T) {
 	defer listener.Close()
 	defer os.Remove(socketPath)
 
+	cfg := config.DefaultConfig()
 	s := &server{
-		socketPath: socketPath,
+		bufferSize: cfg.Logs.Buffer,
+		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
 		log:        mockLogger,
 	}
 
-	err = s.cleanupStaleSocket()
-	require.Error(t, err)
+	err = s.Start(context.Background(), "active-start", nil)
+	require.ErrorIs(t, err, errors.ErrSocketAlreadyInUse)
+}
+
+func Test_Server_Start_RecoverFromStaleSocket(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	socketPath := filepath.Join("/tmp", "fuku-stale-start.sock")
+
+	f, err := os.Create(socketPath)
+	require.NoError(t, err)
+	f.Close()
+
+	defer os.Remove(socketPath)
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+
+	cfg := config.DefaultConfig()
+	s := &server{
+		bufferSize: cfg.Logs.Buffer,
+		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
+		log:        mockLogger,
+	}
+
+	err = s.Start(context.Background(), "stale-start", nil)
+	require.NoError(t, err)
+
+	defer s.Stop()
+
+	assert.True(t, s.running.Load())
+	assert.FileExists(t, s.socketPath)
+}
+
+func Test_Cleanup_NoSockets(t *testing.T) {
+	dir := t.TempDir()
+
+	err := Cleanup(dir)
+	require.NoError(t, err)
+}
+
+func Test_Cleanup_RemovesStaleSocket(t *testing.T) {
+	//nolint:usetesting // t.TempDir() paths exceed Unix socket max length on macOS
+	dir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
+
+	defer os.RemoveAll(dir)
+
+	socketPath := filepath.Join(dir, config.SocketPrefix+"stale"+config.SocketSuffix)
+
+	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	require.NoError(t, err)
+
+	require.NoError(t, syscall.Bind(fd, &syscall.SockaddrUnix{Name: socketPath}))
+	syscall.Close(fd)
+
+	err = Cleanup(dir)
+	require.NoError(t, err)
+	assert.NoFileExists(t, socketPath)
+}
+
+func Test_Cleanup_SkipsNonSocketFile(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, config.SocketPrefix+"fake"+config.SocketSuffix)
+
+	f, err := os.Create(filePath)
+	require.NoError(t, err)
+	f.Close()
+
+	err = Cleanup(dir)
+	require.NoError(t, err)
+	assert.FileExists(t, filePath)
+}
+
+func Test_Cleanup_PreservesActiveSocket(t *testing.T) {
+	//nolint:usetesting // t.TempDir() paths exceed Unix socket max length on macOS
+	dir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
+
+	defer os.RemoveAll(dir)
+
+	socketPath := filepath.Join(dir, config.SocketPrefix+"active"+config.SocketSuffix)
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Skip("Cannot create unix socket listener:", err)
+	}
+	defer listener.Close()
+
+	err = Cleanup(dir)
+	require.NoError(t, err)
+	assert.FileExists(t, socketPath)
+}
+
+func Test_Cleanup_MixedSockets(t *testing.T) {
+	//nolint:usetesting // t.TempDir() paths exceed Unix socket max length on macOS
+	dir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
+
+	defer os.RemoveAll(dir)
+
+	stalePath := filepath.Join(dir, config.SocketPrefix+"stale"+config.SocketSuffix)
+	activePath := filepath.Join(dir, config.SocketPrefix+"active"+config.SocketSuffix)
+
+	listener, err := net.Listen("unix", activePath)
+	if err != nil {
+		t.Skip("Cannot create unix socket listener:", err)
+	}
+	defer listener.Close()
+
+	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	require.NoError(t, err)
+
+	require.NoError(t, syscall.Bind(fd, &syscall.SockaddrUnix{Name: stalePath}))
+	syscall.Close(fd)
+
+	err = Cleanup(dir)
+	require.NoError(t, err)
+	assert.NoFileExists(t, stalePath)
+	assert.FileExists(t, activePath)
 }
 
 func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
