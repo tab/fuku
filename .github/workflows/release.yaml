@@ -62,6 +62,7 @@ jobs:
         run: |
           TAG="${{ github.event.release.tag_name }}"
           VERSION="${TAG#v}"
-          sentry-cli releases new "$VERSION"
-          sentry-cli releases set-commits "$VERSION" --auto
-          sentry-cli releases finalize "$VERSION"
+          RELEASE="fuku@${VERSION}"
+          sentry-cli releases new "$RELEASE"
+          sentry-cli releases set-commits "$RELEASE" --auto
+          sentry-cli releases finalize "$RELEASE"

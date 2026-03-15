@@ -40,7 +40,7 @@ func NewSentry(cfg *config.Config) Sentry {
 	err := gosentry.Init(gosentry.ClientOptions{
 		Dsn:                   cfg.SentryDSN,
 		Environment:           cfg.AppEnv,
-		Release:               config.Version,
+		Release:               fmt.Sprintf("%s@%s", config.AppName, config.Version),
 		AttachStacktrace:      true,
 		SampleRate:            1.0,
 		EnableTracing:         true,
