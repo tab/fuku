@@ -1,0 +1,354 @@
+---
+import { getFeatures } from "../data/features";
+import TuiDemo from "./demos/TuiDemo.astro";
+import OrchestrationDemo from "./demos/OrchestrationDemo.astro";
+import ReadinessDemo from "./demos/ReadinessDemo.astro";
+import HotReloadDemo from "./demos/HotReloadDemo.astro";
+import LogStreamingDemo from "./demos/LogStreamingDemo.astro";
+import LifecycleDemo from "./demos/LifecycleDemo.astro";
+
+const base = import.meta.env.BASE_URL;
+const features = getFeatures(base);
+
+const leads: Record<string, string> = {
+  terminal: "See every service at a glance — status, CPU, memory, and uptime in one dashboard. Stop, start, or restart any service with a single keystroke.",
+  layers: "Define tiers in <code>fuku.yaml</code> and fuku starts them in order — foundation first, then platform, then edge. Within each tier, services launch concurrently.",
+  check: "A started process isn't always a ready process. fuku polls <code>HTTP</code> endpoints, <code>TCP</code> ports, or <code>log</code> output and only proceeds to the next tier when services are actually healthy.",
+  refresh: "Edit a file, save, and fuku restarts the affected service automatically. Debouncing prevents restart storms, and shared path support handles cross-service dependencies.",
+  scroll: "Open a second terminal and run <code>fuku logs</code> to stream output from running services. Filter by service name, see color-coded prefixes, and keep your TUI clean.",
+  shield: "<code>Ctrl+C</code> or press <code>q</code> and services stop in reverse tier order — edge first, then platform, then foundation. Each service receives <code>SIGTERM</code> with time to shut down gracefully.",
+};
+---
+
+<section class="features-showcase">
+  <div class="container">
+    <h2 class="section-title">Features</h2>
+
+    {features.map((f, i) => (
+      <div class:list={["feature-row", { reverse: i % 2 === 1 }]}>
+        <div class="feature-info reveal">
+          <h3>{f.title}</h3>
+          {leads[f.icon] ? <p set:html={leads[f.icon]} /> : <p>{f.description}</p>}
+          <a href={f.href} class="learn-more" aria-label={`Learn more about ${f.title}`}>Learn more &rarr;</a>
+        </div>
+        <div class="feature-demo reveal">
+          {f.icon === "terminal" && <TuiDemo />}
+          {f.icon === "layers" && <OrchestrationDemo />}
+          {f.icon === "check" && <ReadinessDemo />}
+          {f.icon === "refresh" && <HotReloadDemo />}
+          {f.icon === "scroll" && <LogStreamingDemo />}
+          {f.icon === "shield" && <LifecycleDemo />}
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
+
+<script>
+  // Slide-in reveal
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("visible");
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.15 }
+  );
+
+  document.querySelectorAll(".features-showcase .reveal").forEach((el) => {
+    revealObserver.observe(el);
+  });
+
+  // Typewriter terminal animation
+  const CHAR_MS = 32;
+  const NL_MS = 208;
+  const HOLD_MS = 2500;
+  const CURSOR = '<span class="tw-cursor" aria-hidden="true">\u2588</span>';
+
+  function twTokenize(html: string) {
+    const tokens: { tag: boolean; v: string }[] = [];
+    let i = 0;
+    while (i < html.length) {
+      if (html[i] === "<") {
+        const end = html.indexOf(">", i);
+        if (end === -1) {
+          tokens.push({ tag: false, v: html[i] });
+          i++;
+        } else {
+          tokens.push({ tag: true, v: html.slice(i, end + 1) });
+          i = end + 1;
+        }
+      } else if (html[i] === "&") {
+        const semi = html.indexOf(";", i);
+        if (semi > 0 && semi - i < 10) {
+          tokens.push({ tag: false, v: html.slice(i, semi + 1) });
+          i = semi + 1;
+        } else {
+          tokens.push({ tag: false, v: html[i] });
+          i++;
+        }
+      } else {
+        tokens.push({ tag: false, v: html[i] });
+        i++;
+      }
+    }
+    return tokens;
+  }
+
+  document.querySelectorAll(".features-showcase [data-typewriter]").forEach((pre) => {
+    const el = pre as HTMLElement;
+    const source = el.innerHTML.trim();
+    const tokens = twTokenize(source);
+    const chars: number[] = [];
+    tokens.forEach((t, i) => {
+      if (!t.tag) chars.push(i);
+    });
+    if (!chars.length) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    // Hide content upfront, preserve height
+    el.style.minHeight = el.offsetHeight + "px";
+    el.innerHTML = "";
+
+    let gen = 0;
+
+    function build(charIdx: number) {
+      const limit = chars[charIdx];
+      let html = "";
+      const stack: string[] = [];
+      for (let i = 0; i <= limit; i++) {
+        html += tokens[i].v;
+        if (tokens[i].tag) {
+          if (tokens[i].v.startsWith("</")) {
+            stack.pop();
+          } else if (!tokens[i].v.endsWith("/>")) {
+            const m = tokens[i].v.match(/<(\w+)/);
+            if (m) stack.push(m[1]);
+          }
+        }
+      }
+      html += CURSOR;
+      while (stack.length) html += "</" + stack.pop() + ">";
+      return html;
+    }
+
+    let played = false;
+
+    function play() {
+      if (played) return;
+      played = true;
+      const id = ++gen;
+      let step = 0;
+      el.innerHTML = CURSOR;
+
+      function tick() {
+        if (id !== gen) return;
+        if (step >= chars.length) {
+          const cursor = el.querySelector(".tw-cursor") as HTMLElement;
+          if (cursor) {
+            const blink = setInterval(() => {
+              cursor.style.opacity = cursor.style.opacity === "0" ? "1" : "0";
+            }, 400);
+            setTimeout(() => {
+              clearInterval(blink);
+              if (id !== gen) return;
+              el.innerHTML = source;
+              el.style.minHeight = "";
+            }, HOLD_MS);
+          }
+          return;
+        }
+        el.innerHTML = build(step);
+        const delay = tokens[chars[step]].v === "\n" ? NL_MS : CHAR_MS;
+        step++;
+        setTimeout(tick, delay);
+      }
+
+      setTimeout(tick, 400);
+    }
+
+    const target = el.closest(".feature-demo") || el;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            play();
+            obs.unobserve(target);
+          }
+        });
+      },
+      { threshold: 0.8 }
+    );
+
+    obs.observe(target);
+  });
+</script>
+
+<style>
+  .section-title {
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0;
+  }
+
+  .feature-row {
+    display: grid;
+    grid-template-columns: 3fr 7fr;
+    gap: 48px;
+    align-items: start;
+    padding: 128px 0;
+  }
+
+  .feature-row.reverse {
+    grid-template-columns: 7fr 3fr;
+  }
+
+  .feature-row.reverse .feature-info {
+    order: 2;
+  }
+
+  .feature-row.reverse .feature-demo {
+    order: 1;
+  }
+
+  /* Reveal animation — hidden state */
+  .reveal {
+    opacity: 0;
+    transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .feature-info.reveal {
+    transform: translateX(-30px);
+  }
+
+  .feature-row.reverse .feature-info.reveal {
+    transform: translateX(30px);
+  }
+
+  .feature-demo.reveal {
+    transform: translateX(30px);
+    transition-delay: 0.15s;
+  }
+
+  .feature-row.reverse .feature-demo.reveal {
+    transform: translateX(-30px);
+  }
+
+  /* Reveal animation — visible state */
+  .reveal.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Skip animation for users who prefer reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+
+  .feature-info h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+
+  .feature-info p {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+
+  .learn-more {
+    display: inline-block;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--blue);
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .learn-more:hover {
+    opacity: 0.8;
+    text-decoration: none;
+  }
+
+  .feature-demo :global(.terminal-window) {
+    margin-bottom: 0;
+  }
+
+
+  @media (max-width: 900px) {
+    .feature-row {
+      grid-template-columns: 1fr;
+      gap: 24px;
+      padding: 40px 0;
+    }
+
+    .feature-row.reverse {
+      grid-template-columns: 1fr;
+    }
+
+    .feature-row.reverse .feature-info {
+      order: 1;
+    }
+
+    .feature-row.reverse .feature-demo {
+      order: 2;
+    }
+
+    .feature-info.reveal,
+    .feature-row.reverse .feature-info.reveal {
+      transform: translateY(20px);
+    }
+
+    .feature-demo.reveal,
+    .feature-row.reverse .feature-demo.reveal {
+      transform: translateY(20px);
+    }
+
+    .feature-info h3 {
+      font-size: 1.25rem;
+    }
+
+    .feature-info p {
+      font-size: 0.95rem;
+    }
+
+    .section-title {
+      margin-bottom: 40px;
+    }
+
+    .feature-demo :global(.terminal-content) {
+      font-size: 0.72rem;
+      padding: 12px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .feature-row {
+      padding: 32px 0;
+    }
+
+    .feature-demo :global(.terminal-content) {
+      font-size: 0.62rem;
+      padding: 10px;
+    }
+  }
+</style>
+
+<style is:global>
+  .features-showcase .tw-cursor {
+    color: #cdd6f4;
+    font-weight: normal;
+  }
+</style>

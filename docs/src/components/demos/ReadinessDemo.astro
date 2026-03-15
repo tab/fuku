@@ -1,0 +1,16 @@
+---
+import Terminal from "../Terminal.astro";
+---
+
+<Terminal title="fuku run default">
+  <pre data-typewriter><span class="dim">│</span> <span class="purple bold">tier foundation</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> auth        <span class="yellow">checking</span> <span class="dim">http :8081/health</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> gateway     <span class="yellow">checking</span> <span class="dim">http :8082/health</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> gateway     <span class="muted">ready</span>    <span class="dim">1.8s</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> auth        <span class="muted">ready</span>    <span class="dim">2.1s</span>
+<span class="dim">│</span>
+<span class="dim">│</span> <span class="purple bold">tier platform</span>
+<span class="dim">│</span>   <span class="yellow">&#9675;</span> api         <span class="yellow">checking</span> <span class="dim">http :8080/health</span>
+<span class="dim">│</span>   <span class="green">&#10003;</span> api         <span class="muted">ready</span>    <span class="dim">4.5s</span>
+</pre>
+</Terminal>
