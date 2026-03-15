@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## v0.17.0
+
+### Features
+- **feat:** Add configuration override files (`fuku.override.yaml`) and support for both `.yaml`/`.yml` formats
+
+### Fixes
+- **fix:** Clean up stale Unix sockets in log streaming
+
+### Refactor
+- **refactor:** Split CLI and TUI into standalone and UI command runners
+
+### Chore
+- **chore:** Update Sentry release naming and CI workflows
+
+### Tests
+- **test:** Add e2e tests for config overrides, socket cleanup, and yml config
+
+### Documentation
+- **docs:** Update project documentation and add new pages
+
 ## v0.16.0
 
 ### Features
