@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -85,4 +87,54 @@ func Test_Lifecycle_PreflightCleansUpOrphans(t *testing.T) {
 	assert.Contains(t, output, "service_ready service=auth-api")
 	assert.Contains(t, output, "service_ready service=user-api")
 	assert.NotContains(t, output, "No services found")
+}
+
+func Test_Lifecycle_SocketCleanup(t *testing.T) {
+	socketPath := filepath.Join("/tmp", "fuku-default.sock")
+
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+
+	first := NewRunner(t, "testdata/default-tier")
+
+	err := first.Start("default")
+	require.NoError(t, err)
+
+	err = first.WaitForRunning(15 * time.Second)
+	require.NoError(t, err)
+
+	require.FileExists(t, socketPath)
+
+	// Kill abruptly — stale socket remains
+	first.cmd.Process.Kill()
+	first.cmd.Wait()
+
+	require.FileExists(t, socketPath)
+
+	// Second run should clean up stale socket and start normally
+	second := NewRunner(t, "testdata/default-tier")
+	defer second.Stop()
+
+	err = second.Start("default")
+	require.NoError(t, err)
+
+	err = second.WaitForRunning(20 * time.Second)
+	require.NoError(t, err)
+
+	// Verify log streaming works through the new socket
+	logsRunner := NewLogsRunner(t, "testdata/default-tier")
+	defer logsRunner.Stop()
+
+	err = logsRunner.Start("default")
+	require.NoError(t, err)
+
+	err = logsRunner.WaitForLog("ctrl+c", 5*time.Second)
+	require.NoError(t, err)
+
+	output := logsRunner.Output()
+
+	assert.Contains(t, output, "profile:")
+	assert.Contains(t, output, "default")
+	assert.Contains(t, output, "services:")
+	assert.Contains(t, output, "2 running")
 }
