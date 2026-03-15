@@ -1,0 +1,17 @@
+version: 1
+
+x-watch: &watch
+  include:
+    - "*.go"
+
+services:
+  auth-api:
+    dir: auth-api
+    watch: *watch
+
+profiles:
+  default: "*"
+
+logging:
+  format: console
+  level: debug
