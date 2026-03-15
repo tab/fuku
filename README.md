@@ -89,7 +89,32 @@ q                Quit (stops all services)
 
 ## Configuration
 
-Generate a config template with `fuku init`, or create `fuku.yaml` manually in your project root (`fuku.yml` is also supported as a fallback when `fuku.yaml` is absent):
+Generate a config template with `fuku init`, or create `fuku.yaml` manually in your project root (`fuku.yml` is also supported as a fallback when `fuku.yaml` is absent).
+
+### Local Overrides
+
+Create `fuku.override.yaml` (or `fuku.override.yml`) next to your base config for local customizations that won't be committed:
+
+```yaml
+# fuku.override.yaml — typically .gitignored
+services:
+  api:
+    command: "dlv debug ./cmd/main.go"  # use debugger locally
+    watch:
+      include: ["*.templ"]              # appended to base includes
+  debug-tool:
+    dir: tools/debug                    # add a local-only service
+
+logging:
+  level: debug
+```
+
+Override merges are applied automatically when using default config discovery.
+Explicit `--config` skips override loading. Maps are deep-merged, arrays are concatenated, and setting a key to `null` removes it.
+
+See the [documentation](https://getfuku.sh/docs/configuration/) for full details.
+
+### Example Configuration
 
 ```yaml
 version: 1

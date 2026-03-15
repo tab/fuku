@@ -137,7 +137,7 @@ func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 	}
 
 	cmd.PersistentFlags().BoolVar(&result.NoUI, "no-ui", false, "Run without TUI")
-	cmd.PersistentFlags().StringVarP(&result.ConfigFile, "config", "c", "", "Path to config file")
+	cmd.PersistentFlags().StringVarP(&result.ConfigFile, "config", "c", "", "Path to config file (disables override merging)")
 	cmd.Flags().BoolVarP(&flags.version, "version", "v", false, "Show version information")
 	cmd.Flags().StringVarP(&flags.run, "run", "r", "", "Run services with specified profile")
 	cmd.Flags().StringVarP(&flags.stop, "stop", "s", "", "Stop services with specified profile")

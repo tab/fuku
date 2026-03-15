@@ -29,7 +29,7 @@ const (
   fuku --logs                     Same as above (--logs, -l, logs, l)
   fuku logs --profile <name> [service...] Stream logs from specific profile
 
-  fuku --config <path>            Use custom config file (--config, -c)
+  fuku --config <path>            Use custom config file, skip override merging (--config, -c)
 
   fuku help                       Show help (--help, -h, help)
   fuku version                    Show version (--version, -v, version)
@@ -44,8 +44,8 @@ Examples:
   fuku logs                       Stream all logs from running fuku
   fuku logs api auth              Stream logs from api and auth services
   fuku -l                         Stream logs using flag
-  fuku -c custom.yaml run core    Use custom config file
-  fuku --config /path/fuku.yaml   Use config from another directory`
+  fuku -c custom.yaml run core    Use custom config file (no override merging)
+  fuku --config /path/fuku.yaml   Use config from another directory (no override merging)`
 )
 
 // CLI handles standalone commands that run without config or FX container

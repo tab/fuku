@@ -58,9 +58,13 @@ func runApp() (exitCode int) {
 	return 0
 }
 
-// loadConfig wraps config.Load for easier testing
+// loadConfig wraps config loading for easier testing
 func loadConfig(configFile string) (*config.Config, *config.Topology, error) {
-	return config.Load(configFile)
+	if configFile != "" {
+		return config.LoadFromFile(configFile)
+	}
+
+	return config.Load()
 }
 
 // createAppWithoutConfig creates a lightweight app for standalone commands (init, version, help)

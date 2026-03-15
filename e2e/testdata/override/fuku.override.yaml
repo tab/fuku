@@ -1,0 +1,4 @@
+services:
+  debug-tool:
+    dir: debug-tool
+    watch: *watch

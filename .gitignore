@@ -28,6 +28,10 @@ vendor/
 go.work
 go.work.sum
 
+# Local config overrides
+fuku.override.yaml
+fuku.override.yml
+
 # env files
 .env
 .env.*.local

@@ -15,12 +15,33 @@ import (
 )
 
 func Test_LoadConfig(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	content := `version: 1
+services:
+  api:
+    dir: ./api
+profiles:
+  default: "*"
+`
+	require.NoError(t, os.WriteFile("fuku.yaml", []byte(content), 0644))
+
 	cfg, topology, err := loadConfig("")
 	require.NoError(t, err)
 
 	assert.NotNil(t, cfg)
-	assert.NotNil(t, cfg.Services)
+	assert.Contains(t, cfg.Services, "api")
 	assert.NotNil(t, cfg.Profiles)
+	assert.NotNil(t, topology)
+}
+
+func Test_LoadConfig_NoConfigFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	cfg, topology, err := loadConfig("")
+	require.NoError(t, err)
+
+	assert.NotNil(t, cfg)
 	assert.NotNil(t, topology)
 }
 
