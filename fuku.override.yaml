@@ -1,0 +1,50 @@
+x-watch: &watch
+  include:
+    - "**/*.go"
+    - "**/*.yml"
+    - "**/*.yaml"
+  ignore:
+    - ".git/**"
+    - ".idea/**"
+    - ".vscode/**"
+    - "**/*.swp"
+    - "**/*~"
+    - "**/.DS_Store"
+    - "node_modules/**"
+    - "vendor/**"
+    - "**/*_test.go"
+    - "**/testdata/**"
+    - "**/mock_*.go"
+    - "**/*_mock.go"
+    - "**/bin/**"
+    - "**/*.out"
+  shared:
+    - "examples/bookstore/pkg/common"
+  debounce: 1s
+
+services:
+  auth:
+    tier: platform
+    watch: *watch
+
+  storage:
+    tier: platform
+    watch: *watch
+
+  user:
+    tier: platform
+    watch: *watch
+
+  api:
+    tier: edge
+    watch: *watch
+
+  frontend-api:
+    tier: edge
+    watch: *watch
+
+concurrency:
+  workers: 5
+
+logging:
+  level: debug

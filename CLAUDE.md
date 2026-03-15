@@ -294,7 +294,11 @@
 - `internal/app/watcher/debouncer_test.go` - Debouncer testing
 - `internal/app/watcher/matcher_test.go` - File matcher testing
 - `internal/app/watcher/watcher_test.go` - File watcher testing
-- `internal/config/config_test.go` - Configuration loading and parsing
+- `internal/config/config_test.go` - Types, defaults, telemetry, and normalization testing
+- `internal/config/loader_test.go` - Config loading, file resolution, and override merging
+- `internal/config/merge_test.go` - YAML deep merge helper testing
+- `internal/config/topology_test.go` - Tier order parsing testing
+- `internal/config/validate_test.go` - Configuration validation testing
 - `internal/config/logger/logger_test.go` - Logger implementation testing
 - `internal/config/sentry/sentry_test.go` - Sentry client initialization testing
 - `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing

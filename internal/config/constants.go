@@ -9,6 +9,9 @@ const (
 
 	ConfigFile    = "fuku.yaml"
 	ConfigFileAlt = "fuku.yml"
+
+	OverrideConfigFile    = "fuku.override.yaml"
+	OverrideConfigFileAlt = "fuku.override.yml"
 )
 
 // Default values
