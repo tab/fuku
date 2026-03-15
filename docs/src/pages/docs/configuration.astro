@@ -157,6 +157,68 @@ profiles:
 
   <hr />
 
+  <h2>Local Overrides</h2>
+
+  <p>
+    Create <code>fuku.override.yaml</code> (or <code>fuku.override.yml</code>) next to your base config to add local customizations without modifying the shared project config. Override files are typically <code>.gitignore</code>d.
+  </p>
+
+  <CodeEditor title="fuku.override.yaml" lang="yaml" code={`services:
+  api:
+    command: "dlv debug ./cmd/main.go"  # override start command
+    watch:
+      include: ["*.templ"]              # appended to base includes
+  debug-tool:
+    dir: tools/debug                    # add a local-only service
+
+logging:
+  level: debug                          # override log level`} />
+
+  <h3>Merge Rules</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Behavior</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Scalar</td>
+        <td>Override replaces base</td>
+      </tr>
+      <tr>
+        <td>Map</td>
+        <td>Deep merge recursively (base key order preserved)</td>
+      </tr>
+      <tr>
+        <td>Array</td>
+        <td>Override items appended after base items (no deduplication)</td>
+      </tr>
+      <tr>
+        <td>Null</td>
+        <td>Removes the key from merged config (e.g. <code>watch: null</code>)</td>
+      </tr>
+      <tr>
+        <td>Mismatched types</td>
+        <td>Override replaces base</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Important Notes</h3>
+
+  <ul>
+    <li>Override loading is automatic when using default config discovery (<code>fuku.yaml</code> / <code>fuku.yml</code>)</li>
+    <li>Explicit <code>--config</code> disables override loading entirely</li>
+    <li>An override file without a base config is ignored</li>
+    <li>Null removal applies to the merged YAML — some removed keys may still have runtime defaults (e.g. <code>logging: null</code> still gets default log level)</li>
+    <li>If both <code>fuku.override.yaml</code> and <code>fuku.override.yml</code> exist, <code>.yaml</code> wins</li>
+  </ul>
+
+  <hr />
+
   <h2>YAML Anchors</h2>
 
   <p>
