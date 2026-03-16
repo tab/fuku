@@ -65,13 +65,14 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 func Test_RenderTitle_ServicesView(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
+	m.state.profile = "default"
 	m.state.phase = bus.PhaseRunning
 	m.state.services = map[string]*ServiceState{"api": {Status: StatusRunning}}
 	m.state.tiers = []Tier{{Services: []string{"api"}}}
 	m.ui.width = 100
 
 	title := m.renderTitle()
-	assert.Contains(t, title, "services")
+	assert.Equal(t, "profile • default", title)
 }
 
 func Test_RenderTitle_WithActiveLoader(t *testing.T) {
