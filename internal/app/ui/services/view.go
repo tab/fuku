@@ -110,7 +110,7 @@ func (m Model) renderTitle() string {
 		return b.String()
 	}
 
-	return "services"
+	return fmt.Sprintf("%s • %s", "profile", m.state.profile)
 }
 
 // renderServices renders the services list or empty state
