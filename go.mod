@@ -1,11 +1,11 @@
 module fuku
 
-go 1.25
+go 1.25.0
 
 require (
 	charm.land/bubbles/v2 v2.0.0
-	charm.land/bubbletea/v2 v2.0.0
-	charm.land/lipgloss/v2 v2.0.0
+	charm.land/bubbletea/v2 v2.0.2
+	charm.land/lipgloss/v2 v2.0.2
 	github.com/charmbracelet/harmonica v0.2.0
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/fsnotify/fsnotify v1.9.0
@@ -62,7 +62,7 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
