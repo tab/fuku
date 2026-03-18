@@ -1,4 +1,3 @@
-//nolint:gosec // e2e test helpers intentionally execute binaries from env vars and write test files
 package e2e
 
 import (

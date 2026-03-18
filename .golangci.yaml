@@ -127,6 +127,7 @@ linters:
         text: unused-parameter
       - linters:
           - errcheck
+          - gosec
         path: ^e2e/
       - linters:
           - forbidigo
