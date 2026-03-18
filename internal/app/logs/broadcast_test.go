@@ -11,6 +11,7 @@ import (
 func Test_MessageType_Constants(t *testing.T) {
 	assert.Equal(t, MessageSubscribe, MessageType("subscribe"))
 	assert.Equal(t, MessageLog, MessageType("log"))
+	assert.Equal(t, MessageStatus, MessageType("status"))
 }
 
 func Test_SubscribeRequest_Marshal(t *testing.T) {

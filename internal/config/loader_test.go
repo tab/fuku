@@ -333,21 +333,41 @@ retry:
 
 func Test_Load_LogsConfig(t *testing.T) {
 	tests := []struct {
-		name           string
-		yaml           string
-		expectedBuffer int
+		name            string
+		yaml            string
+		expectedBuffer  int
+		expectedHistory int
 	}{
 		{
-			name:           "default buffer when not specified",
-			yaml:           `version: 1`,
-			expectedBuffer: SocketLogsBufferSize,
+			name:            "default values when not specified",
+			yaml:            `version: 1`,
+			expectedBuffer:  SocketLogsBufferSize,
+			expectedHistory: SocketLogsHistorySize,
 		},
 		{
 			name: "custom buffer value",
 			yaml: `version: 1
 logs:
   buffer: 500`,
-			expectedBuffer: 500,
+			expectedBuffer:  500,
+			expectedHistory: SocketLogsHistorySize,
+		},
+		{
+			name: "custom history value",
+			yaml: `version: 1
+logs:
+  history: 10000`,
+			expectedBuffer:  SocketLogsBufferSize,
+			expectedHistory: 10000,
+		},
+		{
+			name: "custom buffer and history",
+			yaml: `version: 1
+logs:
+  buffer: 500
+  history: 2000`,
+			expectedBuffer:  500,
+			expectedHistory: 2000,
 		},
 	}
 
@@ -363,6 +383,7 @@ logs:
 			cfg, _, err := Load()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedBuffer, cfg.Logs.Buffer)
+			assert.Equal(t, tt.expectedHistory, cfg.Logs.History)
 		})
 	}
 }

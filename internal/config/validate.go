@@ -70,6 +70,10 @@ func (c *Config) validateLogs() error {
 		return errors.ErrInvalidLogsBuffer
 	}
 
+	if c.Logs.History <= 0 {
+		return errors.ErrInvalidLogsHistory
+	}
+
 	return nil
 }
 

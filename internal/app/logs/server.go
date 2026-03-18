@@ -27,25 +27,27 @@ type Server interface {
 
 // server implements the Server interface
 type server struct {
-	socketPath string
-	profile    string
-	services   []string
-	bufferSize int
-	listener   net.Listener
-	hub        Hub
-	running    atomic.Bool
-	wg         sync.WaitGroup
-	connID     atomic.Int64
-	cancel     context.CancelFunc
-	log        logger.Logger
+	socketPath  string
+	profile     string
+	services    []string
+	bufferSize  int
+	historySize int
+	listener    net.Listener
+	hub         Hub
+	running     atomic.Bool
+	wg          sync.WaitGroup
+	connID      atomic.Int64
+	cancel      context.CancelFunc
+	log         logger.Logger
 }
 
 // NewServer creates a new log streaming server
 func NewServer(cfg *config.Config, log logger.Logger) Server {
 	return &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, log.WithComponent("HUB")),
-		log:        log.WithComponent("SERVER"),
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log.WithComponent("HUB")),
+		log:         log.WithComponent("SERVER"),
 	}
 }
 
@@ -195,7 +197,7 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 	connID := s.connID.Add(1)
 	clientID := fmt.Sprintf("client-%d", connID)
-	client := NewClientConn(clientID, s.bufferSize)
+	client := NewClientConn(clientID, s.bufferSize+s.historySize)
 
 	s.log.Debug().Msgf("Client connected: %s", clientID)
 
@@ -219,14 +221,27 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	client.SetSubscription(req.Services)
-	s.hub.Register(client)
-
-	defer s.hub.Unregister(client)
 
 	s.log.Debug().Msgf("Client %s subscribed to services: %v", clientID, req.Services)
 
 	s.hello(conn, clientID)
 
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		s.writePump(ctx, conn, client)
+	}()
+
+	s.hub.Register(client)
+	defer s.hub.Unregister(client)
+
+	<-done
+}
+
+// writePump reads messages from SendChan and writes them to the connection
+func (s *server) writePump(ctx context.Context, conn net.Conn, client *ClientConn) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -238,19 +253,19 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 			data, err := json.Marshal(msg)
 			if err != nil {
-				s.log.Error().Err(err).Msgf("Failed to marshal message for %s", clientID)
+				s.log.Error().Err(err).Msgf("Failed to marshal message for %s", client.ID)
 				continue
 			}
 
 			data = append(data, '\n')
 
 			if err := conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout)); err != nil {
-				s.log.Debug().Err(err).Msgf("Client %s disconnected", clientID)
+				s.log.Debug().Err(err).Msgf("Client %s disconnected", client.ID)
 				return
 			}
 
 			if _, err := conn.Write(data); err != nil {
-				s.log.Debug().Err(err).Msgf("Client %s disconnected", clientID)
+				s.log.Debug().Err(err).Msgf("Client %s disconnected", client.ID)
 				return
 			}
 		}

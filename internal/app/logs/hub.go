@@ -49,6 +49,42 @@ func (c *ClientConn) ShouldReceive(service string) bool {
 	return c.Services[service]
 }
 
+// ringBuffer is a fixed-size circular buffer for log message history
+type ringBuffer struct {
+	items []LogMessage
+	head  int
+	count int
+}
+
+// newRingBuffer creates a ring buffer with the given capacity
+func newRingBuffer(capacity int) *ringBuffer {
+	return &ringBuffer{
+		items: make([]LogMessage, capacity),
+	}
+}
+
+// push adds a message, overwriting the oldest if full
+func (r *ringBuffer) push(msg LogMessage) {
+	r.items[r.head] = msg
+
+	r.head = (r.head + 1) % len(r.items)
+	if r.count < len(r.items) {
+		r.count++
+	}
+}
+
+// forEach iterates from oldest to newest
+func (r *ringBuffer) forEach(fn func(LogMessage)) {
+	if r.count == 0 {
+		return
+	}
+
+	start := (r.head - r.count + len(r.items)) % len(r.items)
+	for i := range r.count {
+		fn(r.items[(start+i)%len(r.items)])
+	}
+}
+
 // hub implements the Hub interface
 type hub struct {
 	clients    map[*ClientConn]bool
@@ -56,18 +92,20 @@ type hub struct {
 	unregister chan *ClientConn
 	broadcast  chan LogMessage
 	done       chan struct{}
+	history    *ringBuffer
 	log        logger.Logger
 	dropped    atomic.Int64
 }
 
-// NewHub creates a new Hub instance with the specified buffer size
-func NewHub(bufferSize int, log logger.Logger) Hub {
+// NewHub creates a new Hub instance with the specified buffer and history sizes
+func NewHub(bufferSize int, historySize int, log logger.Logger) Hub {
 	return &hub{
 		clients:    make(map[*ClientConn]bool),
 		register:   make(chan *ClientConn),
 		unregister: make(chan *ClientConn),
 		broadcast:  make(chan LogMessage, bufferSize),
 		done:       make(chan struct{}),
+		history:    newRingBuffer(historySize),
 		log:        log,
 	}
 }
@@ -125,12 +163,31 @@ func (h *hub) Run(ctx context.Context) {
 			}
 		case client := <-h.register:
 			h.clients[client] = true
+
+			replayed := 0
+
+			h.history.forEach(func(msg LogMessage) {
+				if !client.ShouldReceive(msg.Service) {
+					return
+				}
+
+				select {
+				case client.SendChan <- msg:
+					replayed++
+				default:
+					h.dropped.Add(1)
+				}
+			})
+
+			h.log.Debug().Msgf("Client %s registered, replayed %d messages", client.ID, replayed)
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				close(client.SendChan)
 				delete(h.clients, client)
 			}
 		case msg := <-h.broadcast:
+			h.history.push(msg)
+
 			for client := range h.clients {
 				if client.ShouldReceive(msg.Service) {
 					select {

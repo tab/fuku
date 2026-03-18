@@ -36,6 +36,7 @@ func Test_NewServer(t *testing.T) {
 
 	impl := s.(*server)
 	assert.Equal(t, cfg.Logs.Buffer, impl.bufferSize)
+	assert.Equal(t, cfg.Logs.History, impl.historySize)
 	assert.NotNil(t, impl.hub)
 	assert.Equal(t, componentLogger, impl.log)
 }
@@ -49,9 +50,10 @@ func Test_Server_SocketPath(t *testing.T) {
 	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
 
 	s := &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
-		log:        mockLogger,
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
 	}
 
 	ctx := context.Background()
@@ -78,9 +80,10 @@ func Test_Server_StartAndStop(t *testing.T) {
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
-		log:        mockLogger,
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
 	}
 
 	err := s.Start(ctx, "test-start", nil)
@@ -164,9 +167,10 @@ func Test_Server_Start_ActiveSocketReturnsError(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	s := &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
-		log:        mockLogger,
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
 	}
 
 	err = s.Start(context.Background(), "active-start", nil)
@@ -190,9 +194,10 @@ func Test_Server_Start_RecoverFromStaleSocket(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	s := &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
-		log:        mockLogger,
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
 	}
 
 	err = s.Start(context.Background(), "stale-start", nil)
@@ -307,9 +312,10 @@ func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
-		log:        mockLogger,
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
 	}
 
 	err := s.Start(ctx, "test-conn1", []string{"api", "db"})
@@ -390,9 +396,10 @@ func Test_Server_handleConnection_InvalidSubscribeRequest(t *testing.T) {
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
-		log:        mockLogger,
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
 	}
 
 	err := s.Start(ctx, "test-conn2", nil)
@@ -426,9 +433,10 @@ func Test_Server_handleConnection_WrongMessageType(t *testing.T) {
 	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, mockLogger),
-		log:        mockLogger,
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
 	}
 
 	err := s.Start(ctx, "test-conn3", nil)
@@ -449,4 +457,106 @@ func Test_Server_handleConnection_WrongMessageType(t *testing.T) {
 	conn.Close()
 	cancel()
 	s.Stop()
+}
+
+func Test_Server_handleConnection_ReplayHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cfg := config.DefaultConfig()
+
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Info().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLogger.EXPECT().Error().Return(nil).AnyTimes()
+
+	s := &server{
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, mockLogger),
+		log:         mockLogger,
+	}
+
+	err := s.Start(ctx, "test-replay", []string{"api"})
+	require.NoError(t, err)
+
+	defer os.Remove(s.SocketPath())
+
+	sentinel, err := net.Dial("unix", s.SocketPath())
+	require.NoError(t, err)
+
+	sentinelReq := SubscribeRequest{Type: MessageSubscribe, Services: []string{"api"}}
+	sentinelData, _ := json.Marshal(sentinelReq)
+	sentinelData = append(sentinelData, '\n')
+
+	_, err = sentinel.Write(sentinelData)
+	require.NoError(t, err)
+
+	sentinelReader := bufio.NewReader(sentinel)
+
+	_, err = sentinelReader.ReadBytes('\n')
+	require.NoError(t, err)
+
+	s.Broadcast("api", "before-connect")
+
+	_, err = sentinelReader.ReadBytes('\n')
+	require.NoError(t, err)
+
+	conn, err := net.Dial("unix", s.SocketPath())
+	require.NoError(t, err)
+
+	subscribeReq := SubscribeRequest{Type: MessageSubscribe, Services: []string{"api"}}
+	data, _ := json.Marshal(subscribeReq)
+	data = append(data, '\n')
+
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	reader := bufio.NewReader(conn)
+
+	statusLine, err := reader.ReadBytes('\n')
+	require.NoError(t, err)
+
+	var status StatusMessage
+
+	err = json.Unmarshal(statusLine, &status)
+	require.NoError(t, err)
+	assert.Equal(t, MessageStatus, status.Type)
+
+	replayLine, err := reader.ReadBytes('\n')
+	require.NoError(t, err)
+
+	var replayMsg LogMessage
+
+	err = json.Unmarshal(replayLine, &replayMsg)
+	require.NoError(t, err)
+	assert.Equal(t, MessageLog, replayMsg.Type)
+	assert.Equal(t, "before-connect", replayMsg.Message)
+
+	conn.Close()
+	cancel()
+	s.Stop()
+}
+
+func Test_Server_ClientQueueSizing(t *testing.T) {
+	cfg := config.DefaultConfig()
+
+	s := &server{
+		bufferSize:  100,
+		historySize: 500,
+	}
+
+	client := NewClientConn("test", s.bufferSize+s.historySize)
+	assert.Equal(t, 600, cap(client.SendChan))
+
+	s2 := &server{
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: 100,
+	}
+
+	client2 := NewClientConn("test2", s2.bufferSize+s2.historySize)
+	assert.Equal(t, cfg.Logs.Buffer+100, cap(client2.SendChan))
 }
