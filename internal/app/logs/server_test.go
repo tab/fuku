@@ -327,7 +327,9 @@ func Test_Server_handleConnection_SuccessfulFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	subscribeReq := SubscribeRequest{Type: MessageSubscribe, Services: []string{"api"}}
-	data, _ := json.Marshal(subscribeReq)
+	data, err := json.Marshal(subscribeReq)
+	require.NoError(t, err)
+
 	data = append(data, '\n')
 
 	_, err = conn.Write(data)
@@ -488,8 +490,12 @@ func Test_Server_handleConnection_ReplayHistory(t *testing.T) {
 	sentinel, err := net.Dial("unix", s.SocketPath())
 	require.NoError(t, err)
 
+	defer sentinel.Close()
+
 	sentinelReq := SubscribeRequest{Type: MessageSubscribe, Services: []string{"api"}}
-	sentinelData, _ := json.Marshal(sentinelReq)
+	sentinelData, err := json.Marshal(sentinelReq)
+	require.NoError(t, err)
+
 	sentinelData = append(sentinelData, '\n')
 
 	_, err = sentinel.Write(sentinelData)
@@ -509,7 +515,9 @@ func Test_Server_handleConnection_ReplayHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	subscribeReq := SubscribeRequest{Type: MessageSubscribe, Services: []string{"api"}}
-	data, _ := json.Marshal(subscribeReq)
+	data, err := json.Marshal(subscribeReq)
+	require.NoError(t, err)
+
 	data = append(data, '\n')
 
 	_, err = conn.Write(data)
@@ -544,19 +552,30 @@ func Test_Server_handleConnection_ReplayHistory(t *testing.T) {
 func Test_Server_ClientQueueSizing(t *testing.T) {
 	cfg := config.DefaultConfig()
 
-	s := &server{
-		bufferSize:  100,
-		historySize: 500,
+	tests := []struct {
+		name        string
+		bufferSize  int
+		historySize int
+		expected    int
+	}{
+		{
+			name:        "History larger than buffer",
+			bufferSize:  100,
+			historySize: 500,
+			expected:    600,
+		},
+		{
+			name:        "Buffer larger than history",
+			bufferSize:  cfg.Logs.Buffer,
+			historySize: 100,
+			expected:    cfg.Logs.Buffer + 100,
+		},
 	}
 
-	client := NewClientConn("test", s.bufferSize+s.historySize)
-	assert.Equal(t, 600, cap(client.SendChan))
-
-	s2 := &server{
-		bufferSize:  cfg.Logs.Buffer,
-		historySize: 100,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewClientConn("test", tt.bufferSize+tt.historySize)
+			assert.Equal(t, tt.expected, cap(client.SendChan))
+		})
 	}
-
-	client2 := NewClientConn("test2", s2.bufferSize+s2.historySize)
-	assert.Equal(t, cfg.Logs.Buffer+100, cap(client2.SendChan))
 }
