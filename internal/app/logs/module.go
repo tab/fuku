@@ -6,7 +6,5 @@ import (
 
 // Module provides the logs package dependencies
 var Module = fx.Options(
-	fx.Provide(NewClient),
-	fx.Provide(NewRunner),
-	fx.Provide(NewServer),
+	fx.Provide(NewScreen),
 )

@@ -1,4 +1,4 @@
-package logs
+package relay
 
 import (
 	"bufio"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,81 +16,48 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// Broadcaster sends log messages to connected clients
+type Broadcaster interface {
+	Broadcast(service, message string)
+}
+
 // Server manages the Unix socket server for log streaming
 type Server interface {
+	Broadcaster
 	Start(ctx context.Context, profile string, services []string) error
 	Stop() error
-	Broadcast(service, message string)
 	SocketPath() string
 }
 
 // server implements the Server interface
 type server struct {
-	socketPath string
-	profile    string
-	services   []string
-	bufferSize int
-	listener   net.Listener
-	hub        Hub
-	running    atomic.Bool
-	wg         sync.WaitGroup
-	connID     atomic.Int64
-	cancel     context.CancelFunc
-	log        logger.Logger
+	socketPath  string
+	profile     string
+	services    []string
+	bufferSize  int
+	historySize int
+	listener    net.Listener
+	hub         Hub
+	running     atomic.Bool
+	wg          sync.WaitGroup
+	connID      atomic.Int64
+	cancel      context.CancelFunc
+	log         logger.Logger
 }
 
 // NewServer creates a new log streaming server
 func NewServer(cfg *config.Config, log logger.Logger) Server {
 	return &server{
-		bufferSize: cfg.Logs.Buffer,
-		hub:        NewHub(cfg.Logs.Buffer, log.WithComponent("HUB")),
-		log:        log.WithComponent("SERVER"),
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
+		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log.WithComponent("HUB")),
+		log:         log.WithComponent("SERVER"),
 	}
 }
 
 // SocketPath returns the socket path for this server
 func (s *server) SocketPath() string {
 	return s.socketPath
-}
-
-// SocketPathForProfile constructs the socket path for a given profile
-func SocketPathForProfile(socketDir, profile string) string {
-	return filepath.Join(socketDir, fmt.Sprintf("%s%s%s", config.SocketPrefix, profile, config.SocketSuffix))
-}
-
-// Cleanup removes all stale fuku socket files from the given directory
-func Cleanup(socketDir string) error {
-	pattern := SocketPathForProfile(socketDir, "*")
-
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return fmt.Errorf("failed to glob for stale sockets: %w", err)
-	}
-
-	var failed []string
-
-	for _, socketPath := range matches {
-		info, err := os.Lstat(socketPath)
-		if err != nil || info.Mode()&os.ModeSocket == 0 {
-			continue
-		}
-
-		conn, err := net.DialTimeout("unix", socketPath, config.SocketDialTimeout)
-		if err == nil {
-			conn.Close()
-			continue
-		}
-
-		if err := os.Remove(socketPath); err != nil {
-			failed = append(failed, filepath.Base(socketPath))
-		}
-	}
-
-	if len(failed) > 0 {
-		return fmt.Errorf("%w: %v", errors.ErrFailedToCleanupSocket, failed)
-	}
-
-	return nil
 }
 
 // Start starts the Unix socket server
@@ -195,7 +161,7 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 	connID := s.connID.Add(1)
 	clientID := fmt.Sprintf("client-%d", connID)
-	client := NewClientConn(clientID, s.bufferSize)
+	client := NewClientConn(clientID, s.bufferSize+s.historySize)
 
 	s.log.Debug().Msgf("Client connected: %s", clientID)
 
@@ -219,14 +185,27 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	client.SetSubscription(req.Services)
-	s.hub.Register(client)
-
-	defer s.hub.Unregister(client)
 
 	s.log.Debug().Msgf("Client %s subscribed to services: %v", clientID, req.Services)
 
 	s.hello(conn, clientID)
 
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		s.writePump(ctx, conn, client)
+	}()
+
+	s.hub.Register(client)
+	defer s.hub.Unregister(client)
+
+	<-done
+}
+
+// writePump reads messages from SendChan and writes them to the connection
+func (s *server) writePump(ctx context.Context, conn net.Conn, client *ClientConn) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -238,19 +217,19 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 
 			data, err := json.Marshal(msg)
 			if err != nil {
-				s.log.Error().Err(err).Msgf("Failed to marshal message for %s", clientID)
+				s.log.Error().Err(err).Msgf("Failed to marshal message for %s", client.ID)
 				continue
 			}
 
 			data = append(data, '\n')
 
 			if err := conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout)); err != nil {
-				s.log.Debug().Err(err).Msgf("Client %s disconnected", clientID)
+				s.log.Debug().Err(err).Msgf("Client %s disconnected", client.ID)
 				return
 			}
 
 			if _, err := conn.Write(data); err != nil {
-				s.log.Debug().Err(err).Msgf("Client %s disconnected", clientID)
+				s.log.Debug().Err(err).Msgf("Client %s disconnected", client.ID)
 				return
 			}
 		}

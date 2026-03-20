@@ -25,7 +25,8 @@ type Config struct {
 		Backoff  time.Duration `yaml:"backoff"`
 	}
 	Logs struct {
-		Buffer int `yaml:"buffer"`
+		Buffer  int `yaml:"buffer"`
+		History int `yaml:"history"`
 	}
 	Version int
 }
@@ -87,6 +88,7 @@ func DefaultConfig() *Config {
 	cfg.Retry.Backoff = RetryBackoff
 
 	cfg.Logs.Buffer = SocketLogsBufferSize
+	cfg.Logs.History = SocketLogsHistorySize
 
 	cfg.Profiles[Default] = "*"
 

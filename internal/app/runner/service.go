@@ -17,10 +17,10 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/lifecycle"
-	"fuku/internal/app/logs"
 	"fuku/internal/app/process"
 	"fuku/internal/app/readiness"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/relay"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -43,14 +43,14 @@ type Service interface {
 }
 
 type service struct {
-	cfg       *config.Config
-	lifecycle lifecycle.Lifecycle
-	readiness readiness.Readiness
-	registry  registry.Registry
-	guard     Guard
-	bus       bus.Bus
-	server    logs.Server
-	log       logger.Logger
+	cfg         *config.Config
+	lifecycle   lifecycle.Lifecycle
+	readiness   readiness.Readiness
+	registry    registry.Registry
+	guard       Guard
+	bus         bus.Bus
+	broadcaster relay.Broadcaster
+	log         logger.Logger
 }
 
 // NewService creates a new service instance
@@ -61,18 +61,18 @@ func NewService(
 	reg registry.Registry,
 	guard Guard,
 	b bus.Bus,
-	server logs.Server,
+	broadcaster relay.Broadcaster,
 	log logger.Logger,
 ) Service {
 	return &service{
-		cfg:       cfg,
-		lifecycle: lc,
-		readiness: rd,
-		registry:  reg,
-		guard:     guard,
-		bus:       b,
-		server:    server,
-		log:       log.WithComponent("SERVICE"),
+		cfg:         cfg,
+		lifecycle:   lc,
+		readiness:   rd,
+		registry:    reg,
+		guard:       guard,
+		bus:         b,
+		broadcaster: broadcaster,
+		log:         log.WithComponent("SERVICE"),
 	}
 }
 
@@ -455,8 +455,8 @@ func (s *service) teeStream(src io.Reader, dst *io.PipeWriter, serviceName, stre
 			text := buf.String()
 			s.log.Info().Str("service", serviceName).Str("stream", streamType).Msg(text)
 
-			if s.server != nil {
-				s.server.Broadcast(serviceName, text)
+			if s.broadcaster != nil {
+				s.broadcaster.Broadcast(serviceName, text)
 			}
 
 			buf.Reset()

@@ -1,4 +1,4 @@
-package logs
+package relay
 
 import (
 	"bufio"
@@ -7,34 +7,32 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"fuku/internal/app/errors"
-	"fuku/internal/config"
 )
+
+// Handler processes messages received from the relay server
+type Handler interface {
+	HandleStatus(StatusMessage)
+	HandleLog(LogMessage)
+}
 
 // Client connects to a running fuku instance and streams logs
 type Client interface {
 	Connect(socketPath string) error
 	Subscribe(services []string) error
-	Stream(ctx context.Context, output io.Writer) error
+	Stream(ctx context.Context, handler Handler) error
 	Close() error
 }
 
 // client implements the Client interface
 type client struct {
-	conn      net.Conn
-	services  []string
-	formatter *LogFormatter
+	conn net.Conn
 }
 
-// NewClient creates a new tail client with the given formatter
-func NewClient(formatter *LogFormatter) Client {
-	return &client{
-		formatter: formatter,
-	}
+// NewClient creates a new relay client
+func NewClient() Client {
+	return &client{}
 }
 
 // Connect connects to the fuku socket
@@ -51,8 +49,6 @@ func (c *client) Connect(socketPath string) error {
 
 // Subscribe sends subscription request for the specified services
 func (c *client) Subscribe(services []string) error {
-	c.services = services
-
 	req := SubscribeRequest{
 		Type:     MessageSubscribe,
 		Services: services,
@@ -71,8 +67,8 @@ func (c *client) Subscribe(services []string) error {
 	return nil
 }
 
-// Stream reads log messages and writes them to output
-func (c *client) Stream(ctx context.Context, output io.Writer) error {
+// Stream reads log messages and dispatches them to the handler
+func (c *client) Stream(ctx context.Context, handler Handler) error {
 	done := make(chan struct{})
 	defer close(done)
 
@@ -109,14 +105,14 @@ func (c *client) Stream(ctx context.Context, output io.Writer) error {
 				continue
 			}
 
-			c.formatter.RenderBanner(output, status, c.services)
+			handler.HandleStatus(status)
 		case MessageLog:
 			var msg LogMessage
 			if err := json.Unmarshal(line, &msg); err != nil {
 				continue
 			}
 
-			c.formatter.WriteFormatted(output, msg.Service, msg.Message)
+			handler.HandleLog(msg)
 		}
 	}
 }
@@ -128,39 +124,4 @@ func (c *client) Close() error {
 	}
 
 	return nil
-}
-
-// FindSocket finds the socket for a running fuku instance in the given directory
-func FindSocket(socketDir, profile string) (string, error) {
-	if profile != "" {
-		socketPath := SocketPathForProfile(socketDir, profile)
-		if _, err := os.Stat(socketPath); err == nil {
-			return socketPath, nil
-		}
-
-		return "", fmt.Errorf("%w: '%s'", errors.ErrInstanceNotFound, profile)
-	}
-
-	pattern := SocketPathForProfile(socketDir, "*")
-
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", errors.ErrSocketSearchFailed, err)
-	}
-
-	if len(matches) == 0 {
-		return "", errors.ErrNoInstanceRunning
-	}
-
-	if len(matches) > 1 {
-		profiles := make([]string, len(matches))
-		for i, m := range matches {
-			base := filepath.Base(m)
-			profiles[i] = strings.TrimSuffix(strings.TrimPrefix(base, config.SocketPrefix), config.SocketSuffix)
-		}
-
-		return "", fmt.Errorf("%w, use: fuku logs --profile <name>, available: %v", errors.ErrMultipleInstancesRunning, profiles)
-	}
-
-	return matches[0], nil
 }

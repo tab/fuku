@@ -109,6 +109,28 @@ func Test_Validate(t *testing.T) {
 			errorMsg:    "logs buffer must be greater than 0",
 		},
 		{
+			name: "invalid logs history zero",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Logs.History = 0
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "logs history must be greater than 0",
+		},
+		{
+			name: "invalid logs history negative",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Logs.History = -1
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "logs history must be greater than 0",
+		},
+		{
 			name: "valid configuration with standard tiers",
 			config: func() *Config {
 				cfg := DefaultConfig()

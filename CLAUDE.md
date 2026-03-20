@@ -25,11 +25,13 @@
    - **app/cli/** - Command-line interface parsing and command handling
    - **app/discovery/** - Profile resolution to tiers and services
    - **app/lifecycle/** - Process termination with SIGTERM/SIGKILL handling
-   - **app/logs/** - Log streaming via Unix sockets (server, hub, client, formatter)
+   - **app/logs/** - CLI logs screen/mode
    - **app/metrics/** - Bus-driven metrics collector (subscribes to events, emits Sentry metrics)
    - **app/process/** - Process interface and handle implementation
    - **app/readiness/** - HTTP, TCP, and log-based health checks
    - **app/registry/** - Running process tracking with detach support
+   - **app/relay/** - Runtime log transport over Unix sockets (server, hub, client, protocol, socket helpers, bridge)
+   - **app/render/** - Log presentation and rendering (service lines, banner, logger output writer)
    - **app/preflight/** - Pre-start cleanup of orphaned processes in service directories
    - **app/runner/** - Service orchestration and startup coordination
    - **app/sampler/** - Periodic fuku process resource sampling (CPU/MEM) published as bus events
@@ -68,46 +70,71 @@
    }
    ```
 
-5. **logs.Runner** - Log streaming mode runner:
+5. **logs.Screen** - CLI logs screen/mode:
    ```go
-   type Runner interface {
+   type Screen interface {
        Run(profile string, services []string) int
    }
    ```
 
-6. **logs.Client** - Unix socket client for log streaming:
+6. **relay.Client** - Unix socket client for log streaming:
    ```go
    type Client interface {
        Connect(socketPath string) error
        Subscribe(services []string) error
-       Stream(ctx context.Context, output io.Writer) error
+       Stream(ctx context.Context, handler Handler) error
        Close() error
    }
    ```
 
-7. **preflight.Preflight** - Pre-start cleanup of orphaned processes:
+7. **relay.Broadcaster** - Log broadcast to connected clients:
    ```go
-   type Preflight interface {
-       Cleanup(ctx context.Context, dirs map[string]string) ([]Result, error)
+   type Broadcaster interface {
+       Broadcast(service, message string)
    }
    ```
 
-8. **worker.Pool** - Bounded worker pool for concurrent task execution:
+8. **relay.Server** - Unix socket log server (embeds Broadcaster):
    ```go
-   type Pool interface {
-       Acquire(ctx context.Context) error
-       Release()
+   type Server interface {
+       Broadcaster
+       Start(ctx context.Context, profile string, services []string) error
+       Stop() error
+       SocketPath() string
    }
    ```
 
-9. **sentry.Sentry** - Sentry SDK lifecycle management:
+9. **relay.Handler** - Client-side message handler:
    ```go
-   type Sentry interface {
-       Flush()
+   type Handler interface {
+       HandleStatus(StatusMessage)
+       HandleLog(LogMessage)
    }
    ```
 
-10. **metrics.Collector** - Bus-driven metrics collector:
+10. **preflight.Preflight** - Pre-start cleanup of orphaned processes:
+    ```go
+    type Preflight interface {
+        Cleanup(ctx context.Context, dirs map[string]string) ([]Result, error)
+    }
+    ```
+
+11. **worker.Pool** - Bounded worker pool for concurrent task execution:
+    ```go
+    type Pool interface {
+        Acquire(ctx context.Context) error
+        Release()
+    }
+    ```
+
+12. **sentry.Sentry** - Sentry SDK lifecycle management:
+    ```go
+    type Sentry interface {
+        Flush()
+    }
+    ```
+
+13. **metrics.Collector** - Bus-driven metrics collector:
     ```go
     type Collector interface {
         Run(ctx context.Context)
@@ -121,6 +148,7 @@
    - Checks `FUKU_TELEMETRY_DISABLED` env var for telemetry opt-out
    - Parses command-line arguments using cobra via `cli.Parse()`
    - Loads configuration from `fuku.yaml` using Viper
+   - Creates `render.NewLog` and `render.NewWriter` for log presentation
    - Injects Sentry DSN via build-time ldflags (`-X main.sentryDSN=...`)
    - Initializes FX container with all dependencies (including `sentry.Module`)
    - Starts application lifecycle
@@ -261,12 +289,15 @@
 - `internal/app/cli/commands_test.go` - Cobra command parsing tests
 - `internal/app/discovery/discovery_test.go` - Profile resolution testing
 - `internal/app/lifecycle/lifecycle_test.go` - Process termination testing
-- `internal/app/logs/broadcast_test.go` - Log broadcast message testing
-- `internal/app/logs/client_test.go` - Unix socket client testing
-- `internal/app/logs/formatter_test.go` - Log formatter testing
-- `internal/app/logs/hub_test.go` - Log hub connection testing
-- `internal/app/logs/runner_test.go` - Log streaming runner testing
-- `internal/app/logs/server_test.go` - Log server testing
+- `internal/app/logs/screen_test.go` - Logs screen/mode testing
+- `internal/app/relay/bridge_test.go` - Bus-to-relay bridge testing
+- `internal/app/relay/client_test.go` - Unix socket client testing
+- `internal/app/relay/hub_test.go` - Log hub connection testing
+- `internal/app/relay/protocol_test.go` - Wire protocol message testing
+- `internal/app/relay/server_test.go` - Log server testing
+- `internal/app/relay/socket_test.go` - Socket path and cleanup testing
+- `internal/app/render/log_test.go` - Service line and banner rendering
+- `internal/app/render/writer_test.go` - Application logger writer testing
 - `internal/app/metrics/metrics_test.go` - Bus-driven metrics collector testing
 - `internal/app/monitor/monitor_test.go` - Process monitoring testing
 - `internal/app/preflight/preflight_test.go` - Preflight process cleanup testing
@@ -344,6 +375,7 @@
 - when adding new functionality to the system, first check whether an existing bus event already carries the data you need; extend an existing event struct before inventing a new event type
 - every bus event struct must carry enough data for any subscriber to act without calling back into the publisher
 - the metrics collector (`app/metrics`) is the canonical example: it subscribes to bus events and emits all metrics from one place instead of scattering `sentry.NewMeter` calls across runner, service, discovery, and preflight
+- the relay bridge (`app/relay`) subscribes to bus events and forwards them to the relay broadcaster for streaming to connected log clients
 - only inline cross-cutting calls when no bus exists yet at that point in the lifecycle (e.g., CLI commands that run before the bus is created) or when the data is purely local and has no corresponding event (e.g., per-goroutine readiness check durations)
 
 ### Keep It Simple

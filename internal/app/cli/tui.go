@@ -22,7 +22,7 @@ type tui struct {
 	bus      bus.Bus
 	runner   runner.Runner
 	watcher  watcher.Watcher
-	streamer logs.Runner
+	streamer logs.Screen
 	ui       wire.UI
 	log      logger.Logger
 }
@@ -33,7 +33,7 @@ func NewTUI(
 	b bus.Bus,
 	runner runner.Runner,
 	watcher watcher.Watcher,
-	streamer logs.Runner,
+	streamer logs.Screen,
 	ui wire.UI,
 	log logger.Logger,
 ) TUI {

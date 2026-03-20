@@ -88,3 +88,29 @@ func Test_DefaultTier_LogsCommand(t *testing.T) {
 	assert.Contains(t, output, "services:")
 	assert.Contains(t, output, "2 running")
 }
+
+func Test_DefaultTier_LogsReplay(t *testing.T) {
+	runner := NewRunner(t, "testdata/default-tier")
+	defer runner.Stop()
+
+	err := runner.Start("default")
+	require.NoError(t, err)
+
+	err = runner.WaitForRunning(15 * time.Second)
+	require.NoError(t, err)
+
+	logsRunner := NewLogsRunner(t, "testdata/default-tier")
+	defer logsRunner.Stop()
+
+	err = logsRunner.Start("default")
+	require.NoError(t, err)
+
+	err = logsRunner.WaitForLog("service_ready", 5*time.Second)
+	require.NoError(t, err)
+
+	output := logsRunner.Output()
+
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "profile:")
+	assert.Contains(t, output, "default")
+}

@@ -1,13 +1,10 @@
 package bus
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
-	"fuku/internal/app/logs"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -204,19 +201,17 @@ type bus struct {
 	subscribers []chan Message
 	mu          sync.RWMutex
 	closed      bool
-	server      logs.Server
+	formatter   *Formatter
 	log         logger.Logger
-	event       logger.EventLogger
 }
 
 // NewBus creates a new Bus
-func NewBus(cfg *config.Config, server logs.Server, event logger.EventLogger, log logger.Logger) Bus {
+func NewBus(cfg *config.Config, formatter *Formatter, log logger.Logger) Bus {
 	return &bus{
 		cfg:         cfg,
 		subscribers: make([]chan Message, 0),
-		server:      server,
+		formatter:   formatter,
 		log:         log,
-		event:       event,
 	}
 }
 
@@ -247,14 +242,9 @@ func (b *bus) Publish(msg Message) {
 
 	msg.Timestamp = time.Now()
 
-	text := b.formatEvent(msg.Type, msg.Data)
-
-	if b.log != nil {
+	if b.formatter != nil && b.log != nil {
+		text := b.formatter.Format(msg.Type, msg.Data)
 		b.log.Debug().Msg(text)
-	}
-
-	if b.server != nil {
-		b.server.Broadcast(config.AppName, text)
 	}
 
 	for _, ch := range b.subscribers {
@@ -306,64 +296,6 @@ func (b *bus) unsubscribe(ch chan Message) {
 			break
 		}
 	}
-}
-
-func (b *bus) formatEvent(msgType MessageType, data any) string {
-	var buf bytes.Buffer
-
-	l := b.event.NewLogger(&buf)
-	e := l.Log()
-
-	switch d := data.(type) {
-	case CommandStarted:
-		e.Str("command", d.Command).Str("profile", d.Profile).Bool("ui", d.UI)
-	case ProfileResolved:
-		e.Str("profile", d.Profile)
-	case PhaseChanged:
-		e.Str("phase", string(d.Phase)).Str("duration", d.Duration.String()).Int("services", d.ServiceCount)
-	case PreflightStarted:
-		e.Strs("services", d.Services)
-	case PreflightKill:
-		e.Str("service", d.Service).Int("pid", d.PID).Str("name", d.Name)
-	case PreflightComplete:
-		e.Int("killed", d.Killed).Str("duration", d.Duration.String())
-	case TierStarting:
-		e.Str("tier", d.Name)
-	case Payload:
-		e.Str("name", d.Name)
-	case TierReady:
-		e.Str("tier", d.Name).Str("duration", d.Duration.String()).Int("services", d.ServiceCount)
-	case ServiceStarting:
-		e.Str("service", d.Service).Str("tier", d.Tier).Int("pid", d.PID)
-	case ReadinessComplete:
-		e.Str("service", d.Service).Str("type", d.Type).Str("duration", d.Duration.String())
-	case ServiceReady:
-		e.Str("service", d.Service).Str("tier", d.Tier)
-	case ServiceFailed:
-		e.Str("service", d.Service).Str("tier", d.Tier)
-
-		if d.Error != nil {
-			e.Str("error", d.Error.Error())
-		}
-	case ServiceStopping:
-		e.Str("service", d.Service).Str("tier", d.Tier)
-	case ServiceStopped:
-		e.Str("service", d.Service).Str("tier", d.Tier)
-	case ServiceRestarting:
-		e.Str("service", d.Service).Str("tier", d.Tier)
-	case Signal:
-		e.Str("signal", d.Name)
-	case WatchTriggered:
-		e.Str("service", d.Service).Strs("files", d.ChangedFiles)
-	case ResourceSample:
-		e.Str("cpu", fmt.Sprintf("%.1f%%", d.CPU)).Str("mem", fmt.Sprintf("%.1fMB", d.MEM))
-	default:
-		e.Interface("data", data)
-	}
-
-	e.Msg(string(msgType))
-
-	return string(bytes.TrimRight(buf.Bytes(), "\n"))
 }
 
 // NoOp returns a no-op bus for when messaging is disabled

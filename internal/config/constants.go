@@ -61,12 +61,13 @@ const (
 
 // Socket configuration
 const (
-	SocketDir            = "/tmp"
-	SocketPrefix         = "fuku-"
-	SocketSuffix         = ".sock"
-	SocketDialTimeout    = 100 * time.Millisecond
-	SocketWriteTimeout   = 5 * time.Second
-	SocketLogsBufferSize = 1000
+	SocketDir             = "/tmp"
+	SocketPrefix          = "fuku-"
+	SocketSuffix          = ".sock"
+	SocketDialTimeout     = 100 * time.Millisecond
+	SocketWriteTimeout    = 5 * time.Second
+	SocketLogsBufferSize  = 1000
+	SocketLogsHistorySize = 5000
 )
 
 // Watch settings

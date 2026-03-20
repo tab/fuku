@@ -14,9 +14,9 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
-	"fuku/internal/app/logs"
 	"fuku/internal/app/preflight"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/relay"
 	"fuku/internal/app/worker"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -37,7 +37,7 @@ type runner struct {
 	service   Service
 	worker    worker.Pool
 	bus       bus.Bus
-	server    logs.Server
+	server    relay.Server
 	log       logger.Logger
 }
 
@@ -50,7 +50,7 @@ func NewRunner(
 	service Service,
 	worker worker.Pool,
 	bus bus.Bus,
-	server logs.Server,
+	server relay.Server,
 	log logger.Logger,
 ) Runner {
 	return &runner{
@@ -118,7 +118,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		r.log.Warn().Err(err).Msg("Preflight cleanup failed, continuing startup")
 	}
 
-	if err := logs.Cleanup(config.SocketDir); err != nil {
+	if err := relay.Cleanup(config.SocketDir); err != nil {
 		r.log.Warn().Err(err).Msg("Socket cleanup failed, continuing startup")
 	}
 

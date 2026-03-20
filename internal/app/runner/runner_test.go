@@ -14,10 +14,10 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
-	"fuku/internal/app/logs"
 	"fuku/internal/app/preflight"
 	"fuku/internal/app/process"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/relay"
 	"fuku/internal/app/worker"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -38,7 +38,7 @@ func Test_NewRunner(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
@@ -76,7 +76,7 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
@@ -108,7 +108,7 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 	ctx := context.Background()
@@ -158,7 +158,7 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockRegistry.EXPECT().Wait().AnyTimes()
 
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 	mockServer.EXPECT().Start(gomock.Any(), "test", []string{"api"}).Return(nil)
 	mockServer.EXPECT().Stop().Return(nil)
 
@@ -193,7 +193,7 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
@@ -401,10 +401,10 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+	mockServer := relay.NewMockServer(ctrl)
+	formatter := bus.NewFormatter(logger.NewEventLogger())
 
-	b := bus.NewBus(cfg, mockServer, logger.NewEventLogger(), nil)
+	b := bus.NewBus(cfg, formatter, nil)
 	defer b.Close()
 
 	r := &runner{
@@ -965,7 +965,7 @@ func Test_Stop(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
@@ -992,7 +992,7 @@ func Test_Stop_ProfileNotFound(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 
@@ -1020,7 +1020,7 @@ func Test_Stop_NoServices(t *testing.T) {
 	mockService := NewMockService(ctrl)
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockServer := relay.NewMockServer(ctrl)
 
 	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
 

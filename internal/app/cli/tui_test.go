@@ -29,7 +29,7 @@ func Test_NewTUI(t *testing.T) {
 	cmd := &Options{Type: CommandRun, Profile: config.Default, NoUI: true}
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockWatcher := watcher.NewMockWatcher(ctrl)
-	mockLogsRunner := logs.NewMockRunner(ctrl)
+	mockLogsScreen := logs.NewMockScreen(ctrl)
 	mockUI := func(ctx context.Context, profile string) (*tea.Program, error) {
 		return nil, nil
 	}
@@ -38,7 +38,7 @@ func Test_NewTUI(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("TUI").Return(componentLogger)
 
 	b := bus.NoOp()
-	tuiInstance := NewTUI(cmd, b, mockRunner, mockWatcher, mockLogsRunner, mockUI, mockLogger)
+	tuiInstance := NewTUI(cmd, b, mockRunner, mockWatcher, mockLogsScreen, mockUI, mockLogger)
 	assert.NotNil(t, tuiInstance)
 
 	instance, ok := tuiInstance.(*tui)
@@ -48,7 +48,7 @@ func Test_NewTUI(t *testing.T) {
 	assert.Equal(t, b, instance.bus)
 	assert.Equal(t, mockRunner, instance.runner)
 	assert.Equal(t, mockWatcher, instance.watcher)
-	assert.Equal(t, mockLogsRunner, instance.streamer)
+	assert.Equal(t, mockLogsScreen, instance.streamer)
 	assert.NotNil(t, instance.ui)
 	assert.Equal(t, componentLogger, instance.log)
 }
@@ -179,7 +179,7 @@ func Test_Execute_LogsMode(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockLogsRunner := logs.NewMockRunner(ctrl)
+	mockLogsScreen := logs.NewMockScreen(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	tests := []struct {
@@ -215,11 +215,11 @@ func Test_Execute_LogsMode(t *testing.T) {
 			tu := &tui{
 				cmd:      tt.cmd,
 				bus:      bus.NoOp(),
-				streamer: mockLogsRunner,
+				streamer: mockLogsScreen,
 				log:      mockLogger,
 			}
 
-			mockLogsRunner.EXPECT().Run(tt.profile, tt.services).Return(0)
+			mockLogsScreen.EXPECT().Run(tt.profile, tt.services).Return(0)
 
 			exitCode, err := tu.Execute()
 
