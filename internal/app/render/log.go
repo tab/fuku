@@ -127,18 +127,16 @@ func (l *Log) getServiceStyle(service string) lipgloss.Style {
 	return style
 }
 
-// hashString returns a simple hash of a string
+// hashString returns a non-negative hash of a string
 func hashString(s string) int {
-	h := 0
+	var h uint64
+
 	for _, c := range s {
-		h = 31*h + int(c)
+		//nolint:gosec // rune values are always non-negative, safe to widen
+		h = 31*h + uint64(c)
 	}
 
-	if h < 0 {
-		h = -h
-	}
-
-	return h
+	return int(h & 0x7fffffffffffffff)
 }
 
 // Theme returns the theme used by this Log renderer
