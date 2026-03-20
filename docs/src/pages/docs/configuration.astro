@@ -142,10 +142,11 @@ profiles:
 
   <hr />
 
-  <h2>Log Streaming Buffer</h2>
+  <h2>Log Streaming</h2>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`logs:
-  buffer: 1000                  # Socket log streaming buffer size (default: 1000)`} />
+  buffer: 1000                  # Broadcast channel depth for socket log streaming (default: 1000)
+  history: 5000                 # Number of recent log messages kept in memory for replay (default: 5000)`} />
 
   <hr />
 

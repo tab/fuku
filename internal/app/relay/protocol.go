@@ -1,4 +1,4 @@
-package logs
+package relay
 
 // MessageType represents the type of message in the wire protocol
 type MessageType string

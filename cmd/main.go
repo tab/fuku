@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"os"
 
+	"charm.land/lipgloss/v2"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 
 	"fuku/internal/app"
 	"fuku/internal/app/cli"
-	"fuku/internal/app/logs"
+	"fuku/internal/app/render"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 	"fuku/internal/config/sentry"
@@ -74,17 +75,19 @@ func createAppWithoutConfig(cmd *cli.Options) *cli.CLI {
 
 // createApp creates the FX application with the given config and topology
 func createApp(cfg *config.Config, topology *config.Topology, cmd *cli.Options) *fx.App {
-	formatter := logs.NewLogFormatter(cfg)
+	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	log := render.NewLog(isDark)
+	writer := render.NewWriter(cfg, log, os.Stdout)
 
 	if cmd.NoUI || cmd.Type == cli.CommandLogs {
-		formatter.SetEnabled(true)
+		writer.SetEnabled(true)
 	}
 
 	return fx.New(
 		fx.WithLogger(createFxLogger(cfg)),
-		fx.Supply(cfg, topology, formatter, cmd),
+		fx.Supply(cfg, topology, log, cmd),
 		fx.Provide(func() logger.Logger {
-			return logger.NewLoggerWithOutput(cfg, formatter)
+			return logger.NewLoggerWithOutput(cfg, writer)
 		}),
 		fx.Provide(logger.NewEventLogger),
 		sentry.Module,

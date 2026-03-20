@@ -18,10 +18,10 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/lifecycle"
-	"fuku/internal/app/logs"
 	"fuku/internal/app/process"
 	"fuku/internal/app/readiness"
 	"fuku/internal/app/registry"
+	"fuku/internal/app/relay"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -36,12 +36,12 @@ func Test_NewService(t *testing.T) {
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockGuard := NewMockGuard(ctrl)
 	mockBus := bus.NoOp()
-	mockServer := logs.NewMockServer(ctrl)
+	mockBroadcaster := relay.NewMockBroadcaster(ctrl)
 	mockLog := logger.NewMockLogger(ctrl)
 	componentLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().WithComponent("SERVICE").Return(componentLog)
 
-	s := NewService(cfg, mockLifecycle, mockReadiness, mockRegistry, mockGuard, mockBus, mockServer, mockLog)
+	s := NewService(cfg, mockLifecycle, mockReadiness, mockRegistry, mockGuard, mockBus, mockBroadcaster, mockLog)
 
 	assert.NotNil(t, s)
 	instance, ok := s.(*service)
@@ -178,8 +178,8 @@ func Test_Restart_StoppedService(t *testing.T) {
 	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	mockReadiness := readiness.NewMockReadiness(ctrl)
-	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+	mockBroadcaster := relay.NewMockBroadcaster(ctrl)
+	mockBroadcaster.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
 	mockRegistry.EXPECT().Get("api").Return(registry.Lookup{Exists: false})
@@ -187,14 +187,14 @@ func Test_Restart_StoppedService(t *testing.T) {
 	mockRegistry.EXPECT().Remove("api", gomock.Any()).Return(registry.RemoveResult{Removed: true, UnexpectedExit: true}).AnyTimes()
 
 	s := &service{
-		cfg:       cfg,
-		lifecycle: mockLifecycle,
-		readiness: mockReadiness,
-		registry:  mockRegistry,
-		guard:     mockGuard,
-		bus:       bus.NoOp(),
-		server:    mockServer,
-		log:       mockLog,
+		cfg:         cfg,
+		lifecycle:   mockLifecycle,
+		readiness:   mockReadiness,
+		registry:    mockRegistry,
+		guard:       mockGuard,
+		bus:         bus.NoOp(),
+		broadcaster: mockBroadcaster,
+		log:         mockLog,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -310,8 +310,8 @@ func Test_DoStart_ValidDirectory(t *testing.T) {
 	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	mockReadiness := readiness.NewMockReadiness(ctrl)
-	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+	mockBroadcaster := relay.NewMockBroadcaster(ctrl)
+	mockBroadcaster.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
@@ -319,12 +319,12 @@ func Test_DoStart_ValidDirectory(t *testing.T) {
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := &service{
-		cfg:       cfg,
-		lifecycle: mockLifecycle,
-		readiness: mockReadiness,
-		bus:       bus.NoOp(),
-		server:    mockServer,
-		log:       mockLog,
+		cfg:         cfg,
+		lifecycle:   mockLifecycle,
+		readiness:   mockReadiness,
+		bus:         bus.NoOp(),
+		broadcaster: mockBroadcaster,
+		log:         mockLog,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -804,10 +804,10 @@ func Test_TeeStream_LongLineLogsAndForwards(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
-	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Broadcast("test-service", longContent).Times(1)
+	mockBroadcaster := relay.NewMockBroadcaster(ctrl)
+	mockBroadcaster.EXPECT().Broadcast("test-service", longContent).Times(1)
 
-	s := &service{cfg: cfg, log: mockLog, server: mockServer}
+	s := &service{cfg: cfg, log: mockLog, broadcaster: mockBroadcaster}
 
 	reader, writer := io.Pipe()
 	dstReader, dstWriter := io.Pipe()
@@ -1135,8 +1135,8 @@ func Test_DoStart_CustomCommand(t *testing.T) {
 	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	mockReadiness := readiness.NewMockReadiness(ctrl)
-	mockServer := logs.NewMockServer(ctrl)
-	mockServer.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+	mockBroadcaster := relay.NewMockBroadcaster(ctrl)
+	mockBroadcaster.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
@@ -1144,12 +1144,12 @@ func Test_DoStart_CustomCommand(t *testing.T) {
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	s := &service{
-		cfg:       cfg,
-		lifecycle: mockLifecycle,
-		readiness: mockReadiness,
-		bus:       bus.NoOp(),
-		server:    mockServer,
-		log:       mockLog,
+		cfg:         cfg,
+		lifecycle:   mockLifecycle,
+		readiness:   mockReadiness,
+		bus:         bus.NoOp(),
+		broadcaster: mockBroadcaster,
+		log:         mockLog,
 	}
 
 	svc := &config.Service{Dir: tmpDir, Command: "sleep 60"}

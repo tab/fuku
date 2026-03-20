@@ -12,6 +12,7 @@ var (
 	ErrInvalidRetryAttempts      = errors.New("retry attempts must be greater than 0")
 	ErrInvalidRetryBackoff       = errors.New("retry backoff must not be negative")
 	ErrInvalidLogsBuffer         = errors.New("logs buffer must be greater than 0")
+	ErrInvalidLogsHistory        = errors.New("logs history must be greater than 0")
 
 	ErrProfileNotFound          = errors.New("profile not found")
 	ErrUnsupportedProfileFormat = errors.New("unsupported profile format")
