@@ -13,12 +13,12 @@ var (
 	ErrInvalidRetryBackoff       = errors.New("retry backoff must not be negative")
 	ErrInvalidLogsBuffer         = errors.New("logs buffer must be greater than 0")
 	ErrInvalidLogsHistory        = errors.New("logs history must be greater than 0")
+	ErrNoServicesDefined         = errors.New("no services defined")
 
 	ErrProfileNotFound          = errors.New("profile not found")
 	ErrUnsupportedProfileFormat = errors.New("unsupported profile format")
 
 	ErrServiceNotFound          = errors.New("service not found")
-	ErrServiceNotInRegistry     = errors.New("service not found in registry")
 	ErrServiceDirectoryNotExist = errors.New("service directory does not exist")
 
 	ErrInvalidReadinessType     = errors.New("invalid readiness type")
@@ -63,7 +63,6 @@ var (
 )
 
 var (
-	As  = errors.As
 	Is  = errors.Is
 	New = errors.New
 )

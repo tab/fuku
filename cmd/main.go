@@ -10,6 +10,7 @@ import (
 
 	"fuku/internal/app"
 	"fuku/internal/app/cli"
+	"fuku/internal/app/errors"
 	"fuku/internal/app/render"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -47,6 +48,16 @@ func runApp() (exitCode int) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 
 		return 1
+	}
+
+	switch cmd.Type {
+	case cli.CommandRun, cli.CommandStop:
+		if len(cfg.Services) == 0 {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", errors.ErrNoServicesDefined)
+
+			return 1
+		}
+	default:
 	}
 
 	if cfg.Telemetry && cfg.SentryDSN == "" {
