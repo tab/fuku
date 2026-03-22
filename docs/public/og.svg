@@ -96,7 +96,7 @@
   <text class="mono" x="118" y="456" fill="#6c7086" font-size="14">cpu 6.2% • mem 25MB</text>
 
   <rect x="1010" y="443" width="72" height="17" fill="#1e1e2e"/>
-  <text class="mono" x="1016" y="456" fill="#cdd6f4" font-size="14">v0.17.0</text>
+  <text class="mono" x="1016" y="456" fill="#cdd6f4" font-size="14">v0.18.0</text>
 
   <!-- Title and tagline below terminal -->
   <text class="sans" x="600" y="546" text-anchor="middle" fill="#1a1a2e" font-size="42" font-weight="700">fuku</text>

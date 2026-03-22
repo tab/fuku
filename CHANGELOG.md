@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## v0.18.0
+
+### Features
+- **feat:** Rewrite log streaming with history replay support
+- **feat:** Show profile title in UI
+
+### Fixes
+- **fix:** Validate services before starting `run` and `stop` commands
+
+### Refactor
+- **refactor:** Split logs into relay, render, and logs packages
+
+### Build
+- **build:** Update bubbletea dependencies
+
+### Chore
+- **chore:** Update golangci-lint version to v2.11.3
+
+### Tests
+- **test:** Add e2e tests for missing and empty config scenarios
+
 ## v0.17.0
 
 ### Features

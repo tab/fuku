@@ -18,6 +18,8 @@ graph TD
     CLI --> APP
 
     APP --> Runner
+    APP --> Relay
+    APP --> Render
     APP --> Logs
     APP --> UI
 
@@ -26,9 +28,19 @@ graph TD
         runner & service & guard
     end
 
+    subgraph Relay["Relay Package"]
+        direction LR
+        server & hub & client & bridge & protocol
+    end
+
+    subgraph Render["Render Package"]
+        direction LR
+        log & writer
+    end
+
     subgraph Logs["Logs Package"]
         direction LR
-        server & hub & client & formatter
+        screen
     end
 
     subgraph UI["UI Package"]
@@ -37,6 +49,8 @@ graph TD
     end
 
     Runner --> Shared
+    Relay --> Shared
+    Render --> Shared
     Logs --> Shared
     UI --> Shared
 
@@ -575,9 +589,9 @@ This provides:
 
 ## 4. Log Streaming
 
-**Package**: `internal/app/logs`
+**Packages**: `internal/app/relay`, `internal/app/render`, `internal/app/logs`
 
-The logs package provides real-time log streaming from running fuku instances via Unix sockets.
+Log streaming is split into three packages: **relay** handles Unix socket transport with history replay, **render** handles log presentation and formatting, and **logs** provides the `fuku logs` CLI screen.
 
 ### Architecture
 
@@ -588,17 +602,32 @@ graph TD
 
     LogsCmd -- "Unix Socket<br>/tmp/fuku-‹profile›.sock" --> RunCmd
 
+    subgraph LogsCmd["fuku logs (separate terminal)"]
+        Screen --> Client
+    end
+
     subgraph RunCmd["fuku run profile (main process)"]
-        Service --> teeStream --> Hub --> SocketServer
+        Bus -- "bridge subscribes" --> Bridge --> Broadcaster
+        Service --> teeStream --> Bus
+        Broadcaster --> Hub --> SocketServer
     end
 ```
 
 ### Components
 
+**relay** — Unix socket transport and broadcasting:
 1. **Server** - Unix socket server that accepts client connections
 2. **Hub** - Connection hub for broadcasting log messages to subscribers
 3. **Client** - Connects to running instance and streams logs
-4. **Formatter** - Formats log output with colors (console) or JSON
+4. **Bridge** - Subscribes to bus events and forwards them to the relay broadcaster
+5. **Protocol** - JSON wire format for messages between server and client
+
+**render** — Log presentation:
+1. **Log** - Formats service log lines with colors and renders banners
+2. **Writer** - Application logger output writer
+
+**logs** — CLI command:
+1. **Screen** - The `fuku logs` command handler that connects to a running instance via relay client
 
 ### Protocol
 
@@ -609,25 +638,10 @@ JSON lines over Unix socket:
 {"type":"subscribe","services":["api","db"]}
 
 // Server → Client (status - sent after subscribe)
-{"type":"status","version":"0.12.0","profile":"default","services":["api","db","web"]}
+{"type":"status","version":"0.18.0","profile":"default","services":["api","db","web"]}
 
 // Server → Client (log message)
 {"type":"log","service":"api","message":"Server started on :8080"}
-```
-
-### FX Dependency Injection
-
-All components use proper FX wiring:
-
-```go
-// logs/module.go
-var Module = fx.Options(
-    fx.Provide(NewClient),
-    fx.Provide(NewRunner),
-)
-
-// NewLogFormatter takes *config.Config and configures styles internally
-func NewLogFormatter(cfg *config.Config) *LogFormatter
 ```
 
 ## 5. Bus-Driven Metrics
