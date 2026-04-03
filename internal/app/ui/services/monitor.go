@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -102,7 +103,10 @@ func (m *Model) isServiceMonitored(service *ServiceState) bool {
 
 // sampleAppStats collects CPU and memory stats for the fuku process itself
 func (m *Model) sampleAppStats() {
-	stats, err := m.monitor.GetStats(m.ctx, os.Getpid())
+	ctx, cancel := context.WithTimeout(m.ctx, components.StatsCallTimeout)
+	defer cancel()
+
+	stats, err := m.monitor.GetStats(ctx, os.Getpid())
 	if err != nil {
 		return
 	}
