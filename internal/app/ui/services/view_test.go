@@ -767,3 +767,74 @@ func Test_RenderTip_HiddenWhenDisabled(t *testing.T) {
 	result := m.renderTip()
 	assert.Empty(t, result)
 }
+
+func Test_RenderAPIDot(t *testing.T) {
+	theme := components.DefaultTheme()
+
+	tests := []struct {
+		name       string
+		apiHealthy bool
+		want       string
+	}{
+		{
+			name:       "connected",
+			apiHealthy: true,
+			want:       theme.APIDotConnected.Render(components.IndicatorDot),
+		},
+		{
+			name:       "disconnected",
+			apiHealthy: false,
+			want:       theme.APIDotDisconnected.Render(components.IndicatorDot),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{theme: theme}
+			m.state.apiHealthy = tt.apiHealthy
+
+			assert.Equal(t, tt.want, m.renderAPIDot())
+		})
+	}
+}
+
+func Test_RenderAppStats(t *testing.T) {
+	theme := components.DefaultTheme()
+
+	tests := []struct {
+		name      string
+		appCPU    float64
+		appMEM    float64
+		apiListen string
+		want      string
+	}{
+		{
+			name:   "no stats no api",
+			appCPU: 0,
+			appMEM: 0,
+			want:   "",
+		},
+		{
+			name:   "stats only",
+			appCPU: 1.0,
+			appMEM: 100,
+			want:   theme.PanelMutedStyle.Render("cpu 1.0% • mem 100MB"),
+		},
+		{
+			name:      "api only",
+			apiListen: "127.0.0.1:9876",
+			want:      theme.APIDotDisconnected.Render(components.IndicatorDot) + " " + theme.PanelMutedStyle.Render("127.0.0.1:9876"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{theme: theme}
+			m.state.appCPU = tt.appCPU
+			m.state.appMEM = tt.appMEM
+			m.state.apiListen = tt.apiListen
+
+			assert.Equal(t, tt.want, m.renderAppStats())
+		})
+	}
+}

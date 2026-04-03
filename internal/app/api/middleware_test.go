@@ -93,3 +93,45 @@ func Test_AuthMiddleware(t *testing.T) {
 		})
 	}
 }
+
+func Test_CorsMiddleware(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	tests := []struct {
+		name         string
+		method       string
+		expectStatus int
+		expectCORS   bool
+	}{
+		{
+			name:         "GET request sets CORS headers",
+			method:       http.MethodGet,
+			expectStatus: http.StatusOK,
+			expectCORS:   true,
+		},
+		{
+			name:         "OPTIONS preflight returns 204",
+			method:       http.MethodOptions,
+			expectStatus: http.StatusNoContent,
+			expectCORS:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := corsMiddleware(next)
+
+			req := httptest.NewRequest(tt.method, "/api/v1/status", nil)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectStatus, w.Code)
+			assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Methods"), "GET")
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+		})
+	}
+}
