@@ -132,6 +132,11 @@ type ServiceEvent struct {
 	Tier    string
 }
 
+// ServiceName returns the service name
+func (e ServiceEvent) ServiceName() string {
+	return e.Service
+}
+
 // ServiceStarting indicates a service is starting with attempt and process info
 type ServiceStarting struct {
 	ServiceEvent

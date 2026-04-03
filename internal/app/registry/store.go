@@ -239,65 +239,102 @@ func (s *store) handleEvent(msg bus.Message) {
 	//nolint:exhaustive // only handling lifecycle events relevant to the store
 	switch msg.Type {
 	case bus.EventProfileResolved:
-		if data, ok := msg.Data.(bus.ProfileResolved); ok {
-			s.profile = data.Profile
-			s.tiers = data.Tiers
-			s.initServices(data.Tiers)
-		}
+		s.handleProfileResolved(msg)
 	case bus.EventPhaseChanged:
-		if data, ok := msg.Data.(bus.PhaseChanged); ok {
-			s.phase = string(data.Phase)
-
-			if data.Phase == bus.PhaseStartup {
-				s.startTime = msg.Timestamp
-			}
-		}
+		s.handlePhaseChanged(msg)
 	case bus.EventServiceStarting:
-		if data, ok := msg.Data.(bus.ServiceStarting); ok {
-			if svc, exists := s.services[data.Service]; exists {
-				svc.status = StatusStarting
-				svc.pid = data.PID
-				svc.err = ""
-				svc.startTime = msg.Timestamp
-				svc.cpu = 0
-				svc.memory = 0
-			}
-		}
+		s.handleServiceStarting(msg)
 	case bus.EventServiceReady:
-		if data, ok := msg.Data.(bus.ServiceReady); ok {
-			if svc, exists := s.services[data.Service]; exists {
-				svc.status = StatusRunning
-			}
-		}
+		s.setServiceStatus(msg, StatusRunning)
 	case bus.EventServiceFailed:
 		s.handleServiceFailed(msg)
-
 	case bus.EventServiceStopping:
-		if data, ok := msg.Data.(bus.ServiceStopping); ok {
-			if svc, exists := s.services[data.Service]; exists {
-				svc.status = StatusStopping
-			}
-		}
+		s.setServiceStatus(msg, StatusStopping)
 	case bus.EventServiceStopped:
-		if data, ok := msg.Data.(bus.ServiceStopped); ok {
-			if svc, exists := s.services[data.Service]; exists {
-				svc.status = StatusStopped
-				svc.pid = 0
-				svc.cpu = 0
-				svc.memory = 0
-				svc.startTime = time.Time{}
-			}
-		}
+		s.handleServiceStopped(msg)
 	case bus.EventServiceRestarting:
-		if data, ok := msg.Data.(bus.ServiceRestarting); ok {
-			if svc, exists := s.services[data.Service]; exists {
-				svc.status = StatusRestarting
-			}
-		}
+		s.setServiceStatus(msg, StatusRestarting)
 	case bus.EventWatchStarted:
 		s.setWatching(msg, true)
 	case bus.EventWatchStopped:
 		s.setWatching(msg, false)
+	}
+}
+
+func (s *store) handleProfileResolved(msg bus.Message) {
+	data, ok := msg.Data.(bus.ProfileResolved)
+	if !ok {
+		return
+	}
+
+	s.profile = data.Profile
+	s.tiers = data.Tiers
+	s.initServices(data.Tiers)
+}
+
+func (s *store) handlePhaseChanged(msg bus.Message) {
+	data, ok := msg.Data.(bus.PhaseChanged)
+	if !ok {
+		return
+	}
+
+	s.phase = string(data.Phase)
+
+	if data.Phase == bus.PhaseStartup {
+		s.startTime = msg.Timestamp
+	}
+}
+
+func (s *store) handleServiceStarting(msg bus.Message) {
+	data, ok := msg.Data.(bus.ServiceStarting)
+	if !ok {
+		return
+	}
+
+	svc, exists := s.services[data.Service]
+	if !exists {
+		return
+	}
+
+	svc.status = StatusStarting
+	svc.pid = data.PID
+	svc.err = ""
+	svc.startTime = msg.Timestamp
+	svc.cpu = 0
+	svc.memory = 0
+}
+
+func (s *store) handleServiceStopped(msg bus.Message) {
+	data, ok := msg.Data.(bus.ServiceStopped)
+	if !ok {
+		return
+	}
+
+	svc, exists := s.services[data.Service]
+	if !exists {
+		return
+	}
+
+	svc.status = StatusStopped
+	svc.pid = 0
+	svc.cpu = 0
+	svc.memory = 0
+	svc.startTime = time.Time{}
+}
+
+// serviceNamer extracts the service name from bus event data
+type serviceNamer interface {
+	ServiceName() string
+}
+
+func (s *store) setServiceStatus(msg bus.Message, status Status) {
+	namer, ok := msg.Data.(serviceNamer)
+	if !ok {
+		return
+	}
+
+	if svc, exists := s.services[namer.ServiceName()]; exists {
+		svc.status = status
 	}
 }
 

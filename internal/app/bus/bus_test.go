@@ -263,3 +263,8 @@ func Test_NoOp_Methods(t *testing.T) {
 	b.Publish(Message{Type: EventPhaseChanged})
 	b.Close()
 }
+
+func Test_ServiceEvent_ServiceName(t *testing.T) {
+	e := ServiceEvent{Service: "api", Tier: "platform"}
+	assert.Equal(t, "api", e.ServiceName())
+}
