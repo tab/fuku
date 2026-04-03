@@ -438,6 +438,9 @@ func (s *store) sampleStats(ctx context.Context) {
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, config.StoreSampleInterval/2)
+	defer cancel()
+
 	stats := make(map[string]monitor.Stats, len(pids))
 
 	for name, pid := range pids {
