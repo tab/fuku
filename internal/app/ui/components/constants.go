@@ -37,7 +37,7 @@ const (
 const (
 	IndicatorSelected = "›"
 	IndicatorEmpty    = " "
-	IndicatorWatch    = "◉"
+	IndicatorDot      = "◉"
 )
 
 // Table layout constants

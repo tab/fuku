@@ -10,6 +10,7 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
+	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config/logger"
 )
@@ -20,12 +21,14 @@ func Test_NewUI(t *testing.T) {
 
 	mockBus := bus.NewMockBus(ctrl)
 	mockController := services.NewMockController(ctrl)
+	mockStore := registry.NewMockStore(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	params := UIParams{
 		Bus:        mockBus,
 		Controller: mockController,
+		Store:      mockStore,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
 		Logger:     mockLogger,
@@ -41,6 +44,7 @@ func Test_UI_CreateProgram(t *testing.T) {
 
 	mockBus := bus.NewMockBus(ctrl)
 	mockController := services.NewMockController(ctrl)
+	mockStore := registry.NewMockStore(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -57,6 +61,7 @@ func Test_UI_CreateProgram(t *testing.T) {
 	params := UIParams{
 		Bus:        mockBus,
 		Controller: mockController,
+		Store:      mockStore,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
 		Logger:     mockLogger,
@@ -86,6 +91,7 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 
 			mockBus := bus.NewMockBus(ctrl)
 			mockController := services.NewMockController(ctrl)
+			mockStore := registry.NewMockStore(ctrl)
 			mockMonitor := monitor.NewMockMonitor(ctrl)
 			mockLogger := logger.NewMockLogger(ctrl)
 			componentLogger := logger.NewMockLogger(ctrl)
@@ -102,6 +108,7 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 			params := UIParams{
 				Bus:        mockBus,
 				Controller: mockController,
+				Store:      mockStore,
 				Monitor:    mockMonitor,
 				Loader:     services.NewLoader(),
 				Logger:     mockLogger,

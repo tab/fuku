@@ -8,6 +8,7 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
+	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/services"
 	"fuku/internal/config/logger"
 )
@@ -27,6 +28,7 @@ type UIParams struct {
 
 	Bus        bus.Bus
 	Controller services.Controller
+	Store      registry.Store
 	Monitor    monitor.Monitor
 	Loader     *services.Loader
 	Logger     logger.Logger
@@ -40,6 +42,7 @@ func NewUI(params UIParams) UI {
 			profile,
 			params.Bus,
 			params.Controller,
+			params.Store,
 			params.Monitor,
 			params.Loader,
 			params.Logger,

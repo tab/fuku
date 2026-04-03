@@ -4,78 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
-
-	"fuku/internal/config/logger"
 )
-
-func Test_ServiceState_MarkStarting(t *testing.T) {
-	service := &ServiceState{Status: StatusStopped}
-	service.MarkStarting()
-	assert.Equal(t, StatusStarting, service.Status)
-}
-
-func Test_ServiceState_MarkRunning(t *testing.T) {
-	service := &ServiceState{Status: StatusStarting}
-	service.MarkRunning()
-	assert.Equal(t, StatusRunning, service.Status)
-}
-
-func Test_ServiceState_MarkStopping(t *testing.T) {
-	service := &ServiceState{Status: StatusRunning}
-	service.MarkStopping()
-	assert.Equal(t, StatusStopping, service.Status)
-}
-
-func Test_ServiceState_MarkStopped(t *testing.T) {
-	service := &ServiceState{Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
-	service.MarkStopped()
-	assert.Equal(t, StatusStopped, service.Status)
-	assert.Equal(t, 0, service.Monitor.PID)
-}
-
-func Test_ServiceState_MarkFailed(t *testing.T) {
-	service := &ServiceState{Status: StatusStarting, Monitor: ServiceMonitor{PID: 1234}}
-	service.MarkFailed()
-	assert.Equal(t, StatusFailed, service.Status)
-	assert.Equal(t, 0, service.Monitor.PID)
-}
-
-func Test_ServiceState_IsNil(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogger := logger.NewMockLogger(ctrl)
-	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
-
-	tests := []struct {
-		name    string
-		service *ServiceState
-		want    bool
-	}{
-		{
-			name:    "nil service",
-			service: nil,
-			want:    true,
-		},
-		{
-			name:    "nil FSM",
-			service: &ServiceState{Name: "test"},
-			want:    true,
-		},
-		{
-			name:    "valid service",
-			service: &ServiceState{Name: "test", FSM: newServiceFSM(&ServiceState{}, nil, mockLogger)},
-			want:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.service.IsNil())
-		})
-	}
-}
 
 func Test_GetTotalServices(t *testing.T) {
 	tests := []struct {

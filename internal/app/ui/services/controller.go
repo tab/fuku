@@ -1,169 +1,90 @@
 package services
 
 import (
-	"context"
-
 	"fuku/internal/app/bus"
+	"fuku/internal/app/registry"
 )
 
 // Controller handles business logic for service orchestration
 type Controller interface {
-	Start(ctx context.Context, service *ServiceState)
-	Stop(ctx context.Context, service *ServiceState)
-	Restart(ctx context.Context, service *ServiceState)
+	Start(name string) bool
+	Stop(name string) bool
+	Restart(name string) bool
 	StopAll()
-	HandleStarting(ctx context.Context, service *ServiceState, pid int)
-	HandleReady(ctx context.Context, service *ServiceState)
-	HandleFailed(ctx context.Context, service *ServiceState)
-	HandleStopping(ctx context.Context, service *ServiceState)
-	HandleStopped(ctx context.Context, service *ServiceState) bool
-	HandleRestarting(ctx context.Context, service *ServiceState)
 }
 
 // controller implements the Controller interface
 type controller struct {
-	bus bus.Bus
+	bus   bus.Bus
+	store registry.Store
 }
 
-// NewController creates a new controller with the given bus
-func NewController(b bus.Bus) Controller {
+// NewController creates a new controller with the given bus and store
+func NewController(b bus.Bus, store registry.Store) Controller {
 	return &controller{
-		bus: b,
+		bus:   b,
+		store: store,
 	}
 }
 
-// Start requests a service start if it's currently stopped
-func (c *controller) Start(ctx context.Context, service *ServiceState) {
-	if service.IsNil() {
-		return
+// Start requests a service start if it's currently stopped or failed
+func (c *controller) Start(name string) bool {
+	svc, found := c.store.Service(name)
+	if !found {
+		return false
 	}
 
-	if service.FSM.Current() != Stopped && service.FSM.Current() != Failed {
-		return
+	if !svc.Status.IsStartable() {
+		return false
 	}
 
 	c.bus.Publish(bus.Message{
-		Type: bus.CommandRestartService,
-		Data: bus.Payload{Name: service.Name},
+		Type: bus.CommandStartService,
+		Data: bus.Payload{Name: name},
 	})
+
+	return true
 }
 
 // Stop requests a service stop if it's currently running
-func (c *controller) Stop(ctx context.Context, service *ServiceState) {
-	if service.IsNil() {
-		return
+func (c *controller) Stop(name string) bool {
+	svc, found := c.store.Service(name)
+	if !found {
+		return false
 	}
 
-	if service.FSM.Current() != Running {
-		return
+	if !svc.Status.IsStoppable() {
+		return false
 	}
 
 	c.bus.Publish(bus.Message{
 		Type: bus.CommandStopService,
-		Data: bus.Payload{Name: service.Name},
+		Data: bus.Payload{Name: name},
 	})
+
+	return true
 }
 
 // Restart requests a service restart if it's running, failed, or stopped
-func (c *controller) Restart(ctx context.Context, service *ServiceState) {
-	if service.IsNil() {
-		return
+func (c *controller) Restart(name string) bool {
+	svc, found := c.store.Service(name)
+	if !found {
+		return false
 	}
 
-	state := service.FSM.Current()
-	if state != Running && state != Failed && state != Stopped {
-		return
+	if !svc.Status.IsRestartable() {
+		return false
 	}
-
-	// Optimistic UI update - immediately transition to Restarting for instant feedback
-	_ = service.FSM.Event(ctx, Restart)
 
 	c.bus.Publish(bus.Message{
 		Type: bus.CommandRestartService,
-		Data: bus.Payload{Name: service.Name},
+		Data: bus.Payload{Name: name},
 	})
+
+	return true
 }
 
 // StopAll sends a command to stop all services
 func (c *controller) StopAll() {
 	c.bus.Publish(bus.Message{Type: bus.CommandStopAll})
-}
-
-// HandleStarting updates service state when a process starts
-func (c *controller) HandleStarting(ctx context.Context, service *ServiceState, pid int) {
-	if service == nil {
-		return
-	}
-
-	service.Monitor.PID = pid
-	if service.FSM != nil {
-		_ = service.FSM.Event(ctx, Start)
-	}
-}
-
-// HandleReady updates service state when it becomes ready
-func (c *controller) HandleReady(ctx context.Context, service *ServiceState) {
-	if service == nil {
-		return
-	}
-
-	if service.FSM != nil {
-		_ = service.FSM.Event(ctx, Started)
-	}
-}
-
-// HandleFailed updates service state when it fails
-func (c *controller) HandleFailed(ctx context.Context, service *ServiceState) {
-	if service == nil {
-		return
-	}
-
-	if service.FSM != nil {
-		_ = service.FSM.Event(ctx, Failed)
-	}
-}
-
-// HandleStopping updates service state when it begins stopping
-func (c *controller) HandleStopping(ctx context.Context, service *ServiceState) {
-	if service == nil {
-		return
-	}
-
-	if service.FSM != nil {
-		_ = service.FSM.Event(ctx, Stop)
-	}
-}
-
-// HandleRestarting updates service state when it begins restarting
-func (c *controller) HandleRestarting(ctx context.Context, service *ServiceState) {
-	if service == nil {
-		return
-	}
-
-	// Skip if already in Restarting state (optimistic update already applied)
-	if service.FSM != nil && service.FSM.Current() != Restarting {
-		_ = service.FSM.Event(ctx, Restart)
-	}
-}
-
-// HandleStopped updates service state when it stops, returns true if it was restarting
-func (c *controller) HandleStopped(ctx context.Context, service *ServiceState) bool {
-	if service == nil {
-		return false
-	}
-
-	if service.FSM == nil {
-		service.MarkStopped()
-
-		return false
-	}
-
-	wasRestarting := service.FSM.Current() == Restarting
-
-	err := service.FSM.Event(ctx, Stopped)
-	if err != nil {
-		service.MarkStopped()
-	}
-
-	return wasRestarting
 }
