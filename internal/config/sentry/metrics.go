@@ -48,6 +48,7 @@ const (
 	MetricServiceRestart = "service_restart"
 	MetricUnexpectedExit = "unexpected_exit"
 	MetricWatchRestart   = "watch_restart"
+	MetricAPIEnabled     = "api_enabled"
 )
 
 // Distribution metrics track timing data in milliseconds

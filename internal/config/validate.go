@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"fuku/internal/app/errors"
@@ -18,6 +20,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.validateLogs(); err != nil {
+		return err
+	}
+
+	if err := c.validateAPI(); err != nil {
 		return err
 	}
 
@@ -75,6 +81,58 @@ func (c *Config) validateLogs() error {
 	}
 
 	return nil
+}
+
+// validateAPI validates the API server configuration
+func (c *Config) validateAPI() error {
+	if c.API == nil {
+		return nil
+	}
+
+	if c.API.Listen == "" {
+		return errors.ErrAPIListenRequired
+	}
+
+	if c.API.Auth.Token == "" {
+		return errors.ErrAPITokenRequired
+	}
+
+	host, portStr, err := net.SplitHostPort(c.API.Listen)
+	if err != nil {
+		return errors.ErrAPIInvalidListen
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return errors.ErrAPIInvalidListen
+	}
+
+	if !isLoopback(host) {
+		return errors.ErrAPINotLoopback
+	}
+
+	return nil
+}
+
+// isLoopback checks whether a host (IP literal or hostname) resolves to loopback
+func isLoopback(host string) bool {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+
+	addrs, err := net.LookupHost(host)
+	if err != nil || len(addrs) == 0 {
+		return false
+	}
+
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil || !ip.IsLoopback() {
+			return false
+		}
+	}
+
+	return true
 }
 
 // validateCommand validates the command configuration

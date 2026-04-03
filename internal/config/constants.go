@@ -74,3 +74,9 @@ const (
 const (
 	WatchDebounce = 500 * time.Millisecond
 )
+
+// API settings
+const (
+	APIShutdownTimeout  = 5 * time.Second
+	StoreSampleInterval = 2 * time.Second
+)

@@ -239,6 +239,132 @@ func Test_Validate(t *testing.T) {
 			expectError: true,
 			errorMsg:    "service api",
 		},
+		{
+			name: "valid API configuration",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "127.0.0.1:9876",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "valid API configuration with IPv6 loopback",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "[::1]:9876",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "API without listen address",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Auth: AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen is required",
+		},
+		{
+			name: "API without auth token",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "127.0.0.1:9876",
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api auth token is required",
+		},
+		{
+			name: "valid API configuration with localhost",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "localhost:9876",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "API with non-loopback address",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "0.0.0.0:9876",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must bind to a loopback address",
+		},
+		{
+			name: "API with invalid listen address",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "not-valid",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
+			name: "API with out-of-range port",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "127.0.0.1:99999",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
+			name: "API with zero port",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: "127.0.0.1:0",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
+			name:        "nil API configuration is valid",
+			config:      DefaultConfig(),
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {

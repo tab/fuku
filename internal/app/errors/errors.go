@@ -31,6 +31,16 @@ var (
 	ErrInvalidRegexPattern      = errors.New("invalid regex pattern")
 	ErrPortAlreadyInUse         = errors.New("port already in use")
 
+	ErrAPIListenRequired  = errors.New("api listen is required when api section is present")
+	ErrAPIInvalidListen   = errors.New("api listen must be a valid host:port address")
+	ErrAPINotLoopback     = errors.New("api listen must bind to a loopback address")
+	ErrAPITokenRequired   = errors.New("api auth token is required when api section is present")
+	ErrAPIUnauthorized    = errors.New("unauthorized")
+	ErrAPIServiceNotFound = errors.New("service not found")
+	ErrAPINotStartable    = errors.New("service is running")
+	ErrAPINotRunning      = errors.New("service is not running")
+	ErrAPINotAccepting    = errors.New("instance is not accepting actions")
+
 	ErrInvalidCommand       = errors.New("command must not be whitespace-only when provided")
 	ErrWatchIncludeRequired = errors.New("watch configuration requires include field")
 	ErrInvalidLogsOutput    = errors.New("invalid service logs output value (must be 'stdout' or 'stderr')")

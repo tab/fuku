@@ -28,7 +28,24 @@ type Config struct {
 		Buffer  int `yaml:"buffer"`
 		History int `yaml:"history"`
 	}
+	API     *APIConfig `yaml:"api"`
 	Version int
+}
+
+// APIConfig represents the HTTP API server configuration
+type APIConfig struct {
+	Listen string     `yaml:"listen"`
+	Auth   AuthConfig `yaml:"auth"`
+}
+
+// AuthConfig represents the API authentication configuration
+type AuthConfig struct {
+	Token string `yaml:"token"`
+}
+
+// APIEnabled reports whether the API server is configured
+func (c *Config) APIEnabled() bool {
+	return c.API != nil
 }
 
 // Service represents a service configuration
