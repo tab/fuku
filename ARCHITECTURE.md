@@ -18,6 +18,7 @@ graph TD
     CLI --> APP
 
     APP --> Runner
+    APP --> API
     APP --> Relay
     APP --> Render
     APP --> Logs
@@ -26,6 +27,11 @@ graph TD
     subgraph Runner["Runner Package"]
         direction LR
         runner & service & guard
+    end
+
+    subgraph API["API Package"]
+        direction LR
+        apiserver["server"] & handler & middleware
     end
 
     subgraph Relay["Relay Package"]
@@ -49,6 +55,7 @@ graph TD
     end
 
     Runner --> Shared
+    API --> Shared
     Relay --> Shared
     Render --> Shared
     Logs --> Shared
@@ -117,10 +124,14 @@ EventSignal            → OS signal received (SIGINT/SIGTERM)
 EventWatchTriggered    → File change detected for hot-reload
 EventWatchStarted      → File watcher started for a service
 EventWatchStopped      → File watcher stopped for a service
+EventResourceSample    → Periodic CPU/memory sample for fuku process
+EventAPIStarted        → API server bound and accepting requests
+EventAPIStopped        → API server shut down
 ```
 
 Commands:
 ```
+CommandStartService   → Start stopped/failed service
 CommandStopService    → Stop individual service
 CommandRestartService → Restart individual service
 CommandStopAll        → Graceful shutdown trigger
@@ -439,18 +450,20 @@ Commands are processed in both startup and running phases:
 ```go
 switch cmd.Type {
 case CommandStopService:
-    r.stopService(data.Service)
-    // Publishes: EventServiceStopped (or EventServiceFailed if not found)
+    r.service.Stop(data.Name)
+
+case CommandStartService:
+    go r.runWithWorker(ctx, data.Name, r.service.Resume)
 
 case CommandRestartService:
-    r.restartService(ctx, data.Service)
-    // Publishes: EventServiceStopped → EventServiceStarting → EventServiceReady
-    // Or EventServiceFailed if service config not found
+    go r.runWithWorker(ctx, data.Name, r.service.Restart)
 
 case CommandStopAll:
     return true  // Exit run loop, trigger shutdown
 }
 ```
+
+**Worker pool throttling**: Start and restart commands go through `runWithWorker()` which calls `worker.Acquire/Release`, respecting the configured `concurrency.workers` limit. This prevents API or TUI clients from overwhelming the host by starting many services simultaneously.
 
 **Startup phase handling**: Commands (restart/stop individual services) are processed during startup to handle user interactions before all services are ready. StopAll command aborts the entire startup sequence.
 
@@ -493,15 +506,25 @@ stateDiagram-v2
 
 ### State Definitions
 
+**Package**: `internal/app/registry` (shared by runner, API, and UI)
+
 ```go
+type Status string
+
 const (
-    Stopped    = "stopped"    // Service not running
-    Starting   = "starting"   // Process started, waiting for readiness
-    Running    = "running"    // Service ready and operational
-    Stopping   = "stopping"   // Shutdown in progress
-    Restarting = "restarting" // Restart initiated
-    Failed     = "failed"     // Service failed
+    StatusStarting   Status = "starting"   // Process started, waiting for readiness
+    StatusRunning    Status = "running"    // Service ready and operational
+    StatusStopping   Status = "stopping"   // Shutdown in progress
+    StatusRestarting Status = "restarting" // Restart initiated
+    StatusStopped    Status = "stopped"    // Service not running
+    StatusFailed     Status = "failed"     // Service failed
 )
+
+// Helper methods on Status type
+func (s Status) IsRunning() bool     // running
+func (s Status) IsStartable() bool   // stopped or failed
+func (s Status) IsStoppable() bool   // running
+func (s Status) IsRestartable() bool // running, failed, or stopped
 ```
 
 ### FSM Transitions
@@ -644,7 +667,68 @@ JSON lines over Unix socket:
 {"type":"log","service":"api","message":"Server started on :8080"}
 ```
 
-## 5. Bus-Driven Metrics
+## 5. Runtime State Store & REST API
+
+**Packages**: `internal/app/registry` (store), `internal/app/api`
+
+The runtime state store subscribes to bus events and maintains a consistent snapshot of all service states for read-only consumers (API and TUI).
+
+### Architecture
+
+```mermaid
+graph TD
+    Bus --> Store["registry.Store<br><i>bus-backed snapshot</i>"]
+    Monitor["monitor.Monitor"] --> Store
+    Store -->|reads| API["API Server"]
+    Store -->|reads| TUI["TUI Model"]
+    API -->|commands| Bus
+    TUI -->|commands| Bus
+```
+
+### Store Design
+
+The store maintains per-service state from bus lifecycle events:
+
+- **Status** — `registry.Status` type with typed constants
+- **PID, CPU, Memory** — sampled on a fixed interval with PID recheck to prevent stale stats after restarts
+- **StartTime** — recorded from `msg.Timestamp` (publish time, not dequeue time) for accurate uptime
+- **Instance uptime** — starts from `PhaseStartup`, includes startup duration
+
+```go
+type Store interface {
+    Run(ctx context.Context)
+    WaitReady()
+    Phase() string
+    Profile() string
+    Uptime() time.Duration
+    Services() []ServiceSnapshot
+    Service(name string) (ServiceSnapshot, bool)
+    ServiceByID(id string) (ServiceSnapshot, bool)
+}
+```
+
+### REST API
+
+Token-authenticated HTTP server bound to loopback. Started by the runner after profile resolution, stopped before shutdown event.
+
+**Read path**: Handlers read directly from `registry.Store` snapshots. Runtime fields (PID, CPU, memory, uptime) are zeroed for non-running services.
+
+**Write path**: Handlers validate state via `Status.IsStartable()`/`IsStoppable()`, publish commands to bus, return `202 Accepted`. Commands go through the worker pool.
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/status` | GET | Instance status, phase, uptime, service counts |
+| `/api/v1/services` | GET | All services ordered by tier then name |
+| `/api/v1/services/{id}` | GET | Single service by UUID |
+| `/api/v1/services/{id}/start` | POST | Start stopped/failed service |
+| `/api/v1/services/{id}/stop` | POST | Stop running service |
+| `/api/v1/services/{id}/restart` | POST | Restart running service |
+
+### TUI Integration
+
+The TUI bottom bar shows API connection status driven by `EventAPIStarted`/`EventAPIStopped` bus events: `◉ 127.0.0.1:9876` with green (connected) or grey (disconnected) indicator.
+
+## 6. Bus-Driven Metrics & Telemetry
 
 **Package**: `internal/app/metrics`
 
@@ -682,6 +766,7 @@ graph TD
 | `EventPhaseChanged` (running)      | `startup_duration`                                  | Distribution               |
 | `EventPhaseChanged` (stopped)      | `shutdown_duration`                                 | Distribution               |
 | `EventResourceSample`              | `fuku_cpu`, `fuku_memory`                           | Distribution               |
+| `EventAPIStarted`                  | `api_enabled`                                       | Counter                    |
 
 ### Design Principles
 
@@ -699,7 +784,9 @@ The key insight is **source of truth separation**:
 | Process lifecycle | Runner   | Event-driven     | OS manages reality      |
 | User actions      | Bus      | Command messages | Decoupled control       |
 | System events     | Bus      | Event messages   | Observable history      |
-| Visual state      | UI       | FSM              | Consistent UX           |
+| Runtime state     | Store    | Bus subscriber   | Consistent snapshots    |
+| External control  | API      | HTTP + bus       | IDE/tool integration    |
+| Visual state      | UI       | Store snapshots  | Consistent UX           |
 | File changes      | Watcher  | Debounced events | Hot-reload              |
 | Telemetry         | Metrics  | Bus subscriber   | Single collection point |
 
