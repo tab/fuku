@@ -11,6 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/fx"
+
+	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
 	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
@@ -28,41 +31,50 @@ type Runner interface {
 	Stop(ctx context.Context, profile string) error
 }
 
+// RunnerParams contains dependencies for creating a Runner
+type RunnerParams struct {
+	fx.In
+
+	Config    *config.Config
+	Discovery discovery.Discovery
+	Preflight preflight.Preflight
+	Registry  registry.Registry
+	Service   Service
+	Worker    worker.Pool
+	Bus       bus.Bus
+	Server    relay.Server
+	API       api.Server
+	Logger    logger.Logger
+}
+
 // runner implements the Runner interface
 type runner struct {
-	cfg       *config.Config
-	discovery discovery.Discovery
-	preflight preflight.Preflight
-	registry  registry.Registry
-	service   Service
-	worker    worker.Pool
-	bus       bus.Bus
-	server    relay.Server
-	log       logger.Logger
+	cfg        *config.Config
+	discovery  discovery.Discovery
+	preflight  preflight.Preflight
+	registry   registry.Registry
+	service    Service
+	worker     worker.Pool
+	bus        bus.Bus
+	server     relay.Server
+	api        api.Server
+	log        logger.Logger
+	apiStarted bool
 }
 
 // NewRunner creates a new runner instance
-func NewRunner(
-	cfg *config.Config,
-	discovery discovery.Discovery,
-	registry registry.Registry,
-	preflight preflight.Preflight,
-	service Service,
-	worker worker.Pool,
-	bus bus.Bus,
-	server relay.Server,
-	log logger.Logger,
-) Runner {
+func NewRunner(p RunnerParams) Runner {
 	return &runner{
-		cfg:       cfg,
-		discovery: discovery,
-		registry:  registry,
-		preflight: preflight,
-		service:   service,
-		worker:    worker,
-		bus:       bus,
-		server:    server,
-		log:       log.WithComponent("RUNNER"),
+		cfg:       p.Config,
+		discovery: p.Discovery,
+		registry:  p.Registry,
+		preflight: p.Preflight,
+		service:   p.Service,
+		worker:    p.Worker,
+		bus:       p.Bus,
+		server:    p.Server,
+		api:       p.API,
+		log:       p.Logger.WithComponent("RUNNER"),
 	}
 }
 
@@ -139,6 +151,9 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
+
+	r.startAPI(ctx)
+	defer r.stopAPI()
 
 	if err := r.runStartupPhase(ctx, cancel, tiers, sigChan, msgChan); err != nil {
 		r.bus.Publish(bus.Message{
@@ -319,11 +334,25 @@ func (r *runner) handleCommand(ctx context.Context, msg bus.Message) bool {
 	switch msg.Type {
 	case bus.CommandStopService:
 		r.service.Stop(data.Name)
+	case bus.CommandStartService:
+		go r.runWithWorker(ctx, data.Name, r.service.Resume)
 	case bus.CommandRestartService:
-		go r.service.Restart(ctx, data.Name)
+		go r.runWithWorker(ctx, data.Name, r.service.Restart)
 	}
 
 	return false
+}
+
+// runWithWorker acquires a worker slot before running a service action
+func (r *runner) runWithWorker(ctx context.Context, name string, action func(context.Context, string)) {
+	if err := r.worker.Acquire(ctx); err != nil {
+		r.log.Warn().Err(err).Msgf("Failed to acquire worker for service '%s'", name)
+
+		return
+	}
+	defer r.worker.Release()
+
+	action(ctx, name)
 }
 
 // startAllTiers starts services tier by tier
@@ -449,6 +478,41 @@ func (r *runner) collectServices(tiers []discovery.Tier) []string {
 	}
 
 	return slices.Concat(groups...)
+}
+
+// startAPI starts the API server and publishes the started event
+func (r *runner) startAPI(ctx context.Context) {
+	if err := r.api.Start(ctx); err != nil {
+		r.log.Warn().Err(err).Msg("Failed to start API server, continuing without it")
+
+		return
+	}
+
+	r.apiStarted = true
+
+	if r.cfg.APIEnabled() {
+		r.bus.Publish(bus.Message{
+			Type: bus.EventAPIStarted,
+			Data: bus.APIStarted{Listen: r.cfg.API.Listen},
+		})
+	}
+}
+
+// stopAPI stops the API server and publishes the stopped event
+func (r *runner) stopAPI() {
+	if !r.apiStarted {
+		return
+	}
+
+	//nolint:errcheck // best-effort cleanup on shutdown
+	r.api.Stop()
+
+	if r.cfg.APIEnabled() {
+		r.bus.Publish(bus.Message{
+			Type: bus.EventAPIStopped,
+			Data: bus.APIStopped{},
+		})
+	}
 }
 
 // resolveServiceDirs resolves service names to their absolute directories

@@ -66,6 +66,8 @@ func (c *collector) handle(ctx context.Context, msg bus.Message) {
 		c.handlePhaseChanged(ctx, msg)
 	case bus.EventResourceSample:
 		c.handleResourceSample(ctx, msg)
+	case bus.EventAPIStarted:
+		c.handleAPIStarted(ctx)
 	}
 }
 
@@ -188,6 +190,10 @@ func (c *collector) handleResourceSample(ctx context.Context, msg bus.Message) {
 	meter := sentry.NewMeter(ctx)
 	meter.Distribution(sentry.MetricFukuCPU, data.CPU, sentry.WithUnit(sentry.UnitPercent))
 	meter.Distribution(sentry.MetricFukuMemory, data.MEM, sentry.WithUnit(sentry.UnitMegabyte))
+}
+
+func (c *collector) handleAPIStarted(ctx context.Context) {
+	sentry.NewMeter(ctx).Count(sentry.MetricAPIEnabled, 1)
 }
 
 func (c *collector) handlePhaseChanged(ctx context.Context, msg bus.Message) {

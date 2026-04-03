@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
 	"fuku/internal/app/discovery"
 	"fuku/internal/app/errors"
@@ -39,8 +40,20 @@ func Test_NewRunner(t *testing.T) {
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := relay.NewMockServer(ctrl)
+	mockAPI := api.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 
 	assert.NotNil(t, r)
 	instance, ok := r.(*runner)
@@ -53,6 +66,7 @@ func Test_NewRunner(t *testing.T) {
 	assert.Equal(t, mockWorkerPool, instance.worker)
 	assert.Equal(t, mockRegistry, instance.registry)
 	assert.Equal(t, mockBus, instance.bus)
+	assert.Equal(t, mockAPI, instance.api)
 }
 
 func Test_Run_ProfileNotFound(t *testing.T) {
@@ -77,8 +91,20 @@ func Test_Run_ProfileNotFound(t *testing.T) {
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := relay.NewMockServer(ctrl)
+	mockAPI := api.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 	ctx := context.Background()
 
 	err := r.Run(ctx, "nonexistent")
@@ -109,8 +135,20 @@ func Test_Run_ServiceNotFound(t *testing.T) {
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := relay.NewMockServer(ctrl)
+	mockAPI := api.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 	ctx := context.Background()
 
 	err := r.Run(ctx, "test")
@@ -162,7 +200,22 @@ func Test_Run_SuccessfulStart(t *testing.T) {
 	mockServer.EXPECT().Start(gomock.Any(), "test", []string{"api"}).Return(nil)
 	mockServer.EXPECT().Stop().Return(nil)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	mockAPI := api.NewMockServer(ctrl)
+	mockAPI.EXPECT().Start(gomock.Any()).Return(nil)
+	mockAPI.EXPECT().Stop().Return(nil)
+
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -194,8 +247,20 @@ func Test_Run_NoServices_ExitsGracefully(t *testing.T) {
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := relay.NewMockServer(ctrl)
+	mockAPI := api.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -299,6 +364,50 @@ func Test_HandleCommand_StopService(t *testing.T) {
 	assert.False(t, result)
 }
 
+func Test_HandleCommand_StartService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+
+	done := make(chan struct{})
+	mockService := NewMockService(ctrl)
+	mockService.EXPECT().Resume(gomock.Any(), "api").Do(func(_ context.Context, _ string) {
+		close(done)
+	})
+
+	mockWorkerPool := worker.NewMockPool(ctrl)
+	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
+	mockWorkerPool.EXPECT().Release()
+
+	r := &runner{
+		cfg:       cfg,
+		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
+		service:   mockService,
+		worker:    mockWorkerPool,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
+	}
+
+	ctx := context.Background()
+	cmd := bus.Message{Type: bus.CommandStartService, Data: bus.Payload{Name: "api"}}
+	result := r.handleCommand(ctx, cmd)
+
+	assert.False(t, result)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("resume was not called")
+	}
+}
+
 func Test_HandleCommand_RestartService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -307,6 +416,7 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
 
 	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
 
 	done := make(chan struct{})
 	mockService := NewMockService(ctrl)
@@ -314,12 +424,16 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 		close(done)
 	})
 
+	mockWorkerPool := worker.NewMockPool(ctrl)
+	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
+	mockWorkerPool.EXPECT().Release()
+
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
 		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		worker:    worker.NewMockPool(ctrl),
+		worker:    mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,
@@ -966,8 +1080,20 @@ func Test_Stop(t *testing.T) {
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := relay.NewMockServer(ctrl)
+	mockAPI := api.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 
 	err := r.Stop(context.Background(), "test")
 
@@ -993,8 +1119,20 @@ func Test_Stop_ProfileNotFound(t *testing.T) {
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := relay.NewMockServer(ctrl)
+	mockAPI := api.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 
 	err := r.Stop(context.Background(), "nonexistent")
 
@@ -1021,8 +1159,20 @@ func Test_Stop_NoServices(t *testing.T) {
 	mockWorkerPool := worker.NewMockPool(ctrl)
 	mockBus := bus.NoOp()
 	mockServer := relay.NewMockServer(ctrl)
+	mockAPI := api.NewMockServer(ctrl)
 
-	r := NewRunner(cfg, mockDiscovery, mockRegistry, mockPreflight, mockService, mockWorkerPool, mockBus, mockServer, mockLog)
+	r := NewRunner(RunnerParams{
+		Config:    cfg,
+		Discovery: mockDiscovery,
+		Registry:  mockRegistry,
+		Preflight: mockPreflight,
+		Service:   mockService,
+		Worker:    mockWorkerPool,
+		Bus:       mockBus,
+		Server:    mockServer,
+		API:       mockAPI,
+		Logger:    mockLog,
+	})
 
 	err := r.Stop(context.Background(), "empty")
 

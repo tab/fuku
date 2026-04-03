@@ -52,6 +52,18 @@ func (mr *MockServiceMockRecorder) Restart(ctx, name any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockService)(nil).Restart), ctx, name)
 }
 
+// Resume mocks base method.
+func (m *MockService) Resume(ctx context.Context, name string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Resume", ctx, name)
+}
+
+// Resume indicates an expected call of Resume.
+func (mr *MockServiceMockRecorder) Resume(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resume", reflect.TypeOf((*MockService)(nil).Resume), ctx, name)
+}
+
 // Start mocks base method.
 func (m *MockService) Start(ctx context.Context, name, tier string) error {
 	m.ctrl.T.Helper()

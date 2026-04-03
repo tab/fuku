@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/fx"
+
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/lifecycle"
@@ -40,6 +42,21 @@ type Service interface {
 	Start(ctx context.Context, name, tier string) error
 	Stop(name string)
 	Restart(ctx context.Context, name string)
+	Resume(ctx context.Context, name string)
+}
+
+// ServiceParams contains dependencies for creating a Service
+type ServiceParams struct {
+	fx.In
+
+	Config      *config.Config
+	Lifecycle   lifecycle.Lifecycle
+	Readiness   readiness.Readiness
+	Registry    registry.Registry
+	Guard       Guard
+	Bus         bus.Bus
+	Broadcaster relay.Broadcaster
+	Logger      logger.Logger
 }
 
 type service struct {
@@ -54,25 +71,16 @@ type service struct {
 }
 
 // NewService creates a new service instance
-func NewService(
-	cfg *config.Config,
-	lc lifecycle.Lifecycle,
-	rd readiness.Readiness,
-	reg registry.Registry,
-	guard Guard,
-	b bus.Bus,
-	broadcaster relay.Broadcaster,
-	log logger.Logger,
-) Service {
+func NewService(p ServiceParams) Service {
 	return &service{
-		cfg:         cfg,
-		lifecycle:   lc,
-		readiness:   rd,
-		registry:    reg,
-		guard:       guard,
-		bus:         b,
-		broadcaster: broadcaster,
-		log:         log.WithComponent("SERVICE"),
+		cfg:         p.Config,
+		lifecycle:   p.Lifecycle,
+		readiness:   p.Readiness,
+		registry:    p.Registry,
+		guard:       p.Guard,
+		bus:         p.Bus,
+		broadcaster: p.Broadcaster,
+		log:         p.Logger.WithComponent("SERVICE"),
 	}
 }
 
@@ -204,6 +212,34 @@ func (s *service) Restart(ctx context.Context, name string) {
 
 	s.registry.Add(name, proc, tier)
 	s.watchForExit(proc)
+}
+
+// Resume starts a stopped or failed service with guard protection
+func (s *service) Resume(ctx context.Context, name string) {
+	if !s.guard.Lock(name) {
+		s.log.Info().Msgf("Service '%s' start already in progress, skipping", name)
+
+		return
+	}
+	defer s.guard.Unlock(name)
+
+	cfg, tier := s.getConfig(name)
+	if cfg == nil {
+		s.log.Error().Msgf("Service configuration for '%s' not found", name)
+		s.bus.Publish(bus.Message{
+			Type: bus.EventServiceFailed,
+			Data: bus.ServiceFailed{
+				ServiceEvent: bus.ServiceEvent{Service: name, Tier: ""},
+				Error:        errors.ErrServiceNotFound,
+			},
+			Critical: true,
+		})
+
+		return
+	}
+
+	//nolint:errcheck // errors published to bus internally by Start
+	s.Start(ctx, name, tier)
 }
 
 // doStart creates, starts, and waits for a service to be ready

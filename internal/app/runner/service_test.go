@@ -41,7 +41,16 @@ func Test_NewService(t *testing.T) {
 	componentLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().WithComponent("SERVICE").Return(componentLog)
 
-	s := NewService(cfg, mockLifecycle, mockReadiness, mockRegistry, mockGuard, mockBus, mockBroadcaster, mockLog)
+	s := NewService(ServiceParams{
+		Config:      cfg,
+		Lifecycle:   mockLifecycle,
+		Readiness:   mockReadiness,
+		Registry:    mockRegistry,
+		Guard:       mockGuard,
+		Bus:         mockBus,
+		Broadcaster: mockBroadcaster,
+		Logger:      mockLog,
+	})
 
 	assert.NotNil(t, s)
 	instance, ok := s.(*service)
@@ -201,6 +210,101 @@ func Test_Restart_StoppedService(t *testing.T) {
 	defer cancel()
 
 	s.Restart(ctx, "api")
+}
+
+func Test_Resume_GuardLocked(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	mockGuard := NewMockGuard(ctrl)
+	mockGuard.EXPECT().Lock("api").Return(false)
+
+	s := &service{
+		cfg:   cfg,
+		guard: mockGuard,
+		bus:   bus.NoOp(),
+		log:   mockLog,
+	}
+
+	ctx := context.Background()
+	s.Resume(ctx, "api")
+}
+
+func Test_Resume_ConfigNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockGuard := NewMockGuard(ctrl)
+	mockGuard.EXPECT().Lock("api").Return(true)
+	mockGuard.EXPECT().Unlock("api")
+
+	s := &service{
+		cfg:   cfg,
+		guard: mockGuard,
+		bus:   bus.NoOp(),
+		log:   mockLog,
+	}
+
+	ctx := context.Background()
+	s.Resume(ctx, "api")
+}
+
+func Test_Resume_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tmpDir := t.TempDir()
+	makefilePath := filepath.Join(tmpDir, "Makefile")
+	err := os.WriteFile(makefilePath, []byte("run:\n\techo 'test'\n"), 0644)
+	require.NoError(t, err)
+
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: tmpDir, Tier: "platform"}
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+
+	mockGuard := NewMockGuard(ctrl)
+	mockGuard.EXPECT().Lock("api").Return(true)
+	mockGuard.EXPECT().Unlock("api")
+
+	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
+	mockLifecycle.EXPECT().Configure(gomock.Any()).AnyTimes()
+	mockLifecycle.EXPECT().Terminate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	mockReadiness := readiness.NewMockReadiness(ctrl)
+	mockBroadcaster := relay.NewMockBroadcaster(ctrl)
+	mockBroadcaster.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
+
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().Add("api", gomock.Any(), "platform")
+	mockRegistry.EXPECT().Remove("api", gomock.Any()).Return(registry.RemoveResult{Removed: true, UnexpectedExit: true}).AnyTimes()
+
+	s := &service{
+		cfg:         cfg,
+		lifecycle:   mockLifecycle,
+		readiness:   mockReadiness,
+		registry:    mockRegistry,
+		guard:       mockGuard,
+		bus:         bus.NoOp(),
+		broadcaster: mockBroadcaster,
+		log:         mockLog,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	s.Resume(ctx, "api")
 }
 
 func Test_GetConfig_NotFound(t *testing.T) {

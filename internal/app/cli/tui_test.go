@@ -38,7 +38,15 @@ func Test_NewTUI(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("TUI").Return(componentLogger)
 
 	b := bus.NoOp()
-	tuiInstance := NewTUI(cmd, b, mockRunner, mockWatcher, mockLogsScreen, mockUI, mockLogger)
+	tuiInstance := NewTUI(TUIParams{
+		Cmd:      cmd,
+		Bus:      b,
+		Runner:   mockRunner,
+		Watcher:  mockWatcher,
+		Streamer: mockLogsScreen,
+		UI:       mockUI,
+		Logger:   mockLogger,
+	})
 	assert.NotNil(t, tuiInstance)
 
 	instance, ok := tuiInstance.(*tui)

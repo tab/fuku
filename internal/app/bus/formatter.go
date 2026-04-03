@@ -69,6 +69,10 @@ func (f *Formatter) Format(msgType MessageType, data any) string {
 		e.Str("service", d.Service).Strs("files", d.ChangedFiles)
 	case ResourceSample:
 		e.Str("cpu", fmt.Sprintf("%.1f%%", d.CPU)).Str("mem", fmt.Sprintf("%.1fMB", d.MEM))
+	case APIStarted:
+		e.Str("listen", d.Listen)
+	case APIStopped:
+		// no fields
 	default:
 		e.Interface("data", data)
 	}
