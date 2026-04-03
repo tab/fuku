@@ -29,7 +29,8 @@
    - **app/metrics/** - Bus-driven metrics collector (subscribes to events, emits Sentry metrics)
    - **app/process/** - Process interface and handle implementation
    - **app/readiness/** - HTTP, TCP, and log-based health checks
-   - **app/registry/** - Running process tracking with detach support
+   - **app/api/** - REST API server for runtime service control (status, list, start, stop, restart) with token auth
+   - **app/registry/** - Running process tracking, runtime state store, service status types, and detach support
    - **app/relay/** - Runtime log transport over Unix sockets (server, hub, client, protocol, socket helpers, bridge)
    - **app/render/** - Log presentation and rendering (service lines, banner, logger output writer)
    - **app/preflight/** - Pre-start cleanup of orphaned processes in service directories
@@ -49,6 +50,7 @@
    ```go
    type Runner interface {
        Run(ctx context.Context, profile string) error
+       Stop(ctx context.Context, profile string) error
    }
    ```
 
@@ -141,6 +143,38 @@
     }
     ```
 
+14. **api.Server** - REST API server for runtime service control:
+    ```go
+    type Server interface {
+        Start(ctx context.Context) error
+        Stop() error
+    }
+    ```
+
+15. **registry.Store** - Bus-backed runtime state snapshot for API and TUI:
+    ```go
+    type Store interface {
+        Run(ctx context.Context)
+        WaitReady()
+        Phase() string
+        Profile() string
+        Uptime() time.Duration
+        Services() []ServiceSnapshot
+        Service(name string) (ServiceSnapshot, bool)
+        ServiceByID(id string) (ServiceSnapshot, bool)
+    }
+    ```
+
+16. **runner.Service** - Individual service lifecycle management:
+    ```go
+    type Service interface {
+        Start(ctx context.Context, name, tier string) error
+        Stop(name string)
+        Restart(ctx context.Context, name string)
+        Resume(ctx context.Context, name string)
+    }
+    ```
+
 ### Execution Flow
 
 1. **CLI Entry Point** (`cmd/main.go`)
@@ -221,6 +255,12 @@
 8. **Per-Service Log Output**
    - Configurable output streams per service (`logs.output`)
    - Valid values: `stdout`, `stderr` (default: both streams)
+
+9. **REST API Configuration**
+   - Enable with `api.listen` (must be loopback address, valid port 1-65535)
+   - Token authentication with `api.auth.token` (required when API enabled)
+   - Endpoints: GET `/status`, GET `/services`, GET `/services/{id}`, POST `/services/{id}/start|stop|restart`
+   - CORS enabled for browser-based tools (token auth is the security boundary)
 
 ### Testing Patterns
 
@@ -335,8 +375,13 @@
 - `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing
 - `internal/config/sentry/trace_test.go` - Trace types and operation constants testing
 - `internal/config/sentry/identity_test.go` - Anonymous telemetry ID testing
+- `internal/app/api/handler_test.go` - API handler testing (status, list, get, start, stop, restart)
+- `internal/app/api/middleware_test.go` - Auth middleware testing (bearer token, case-insensitive)
+- `internal/app/api/server_test.go` - API server creation testing
+- `internal/app/cli/tui_test.go` - TUI creation and command execution testing
+- `internal/app/registry/store_test.go` - Runtime state store testing (lifecycle, status methods)
 - `internal/app/errors/` - Error definitions (no test file - contains only constants)
-- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management, custom command)
+- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management, custom command, API endpoints)
 
 ## Primary Guidelines
 
@@ -681,6 +726,11 @@ profiles:
 logging:
   format: console
   level: info
+
+api:
+  listen: "127.0.0.1:9876"
+  auth:
+    token: "your-secret-token"
 ```
 
 ## Working with Services

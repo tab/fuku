@@ -1,0 +1,375 @@
+openapi: 3.1.0
+
+info:
+  title: Fuku API
+  description: HTTP API for observing and controlling services in the active profile of a running fuku instance
+  version: 1.0.0
+  license:
+    name: MIT
+
+servers:
+  - url: http://127.0.0.1:9876/api/v1
+    description: Local loopback development
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    ServiceStatus:
+      type: string
+      enum: [starting, running, stopping, restarting, stopped, failed]
+      description: Current service state
+      example: running
+
+    ActionStatus:
+      type: string
+      enum: [starting, stopping, restarting]
+      description: Immediate state after an accepted action
+      example: starting
+
+    Phase:
+      type: string
+      enum: [startup, running, stopping, stopped]
+      description: Current fuku instance phase
+      example: running
+
+    Service:
+      type: object
+      required: [id, name, tier, status, watching, pid, cpu, memory, uptime]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the service in this session
+          example: 550e8400-e29b-41d4-a716-446655440000
+        name:
+          type: string
+          description: Service name in the active profile
+          example: api-gateway
+        tier:
+          type: string
+          description: Startup tier
+          example: foundation
+        status:
+          $ref: "#/components/schemas/ServiceStatus"
+        watching:
+          type: boolean
+          description: Whether file watching is active for this service
+          example: true
+        error:
+          type: string
+          description: Error message when status is failed, omitted otherwise
+          example: readiness check timed out
+        pid:
+          type: integer
+          description: OS process ID, 0 for non-running services
+          example: 12345
+        cpu:
+          type: number
+          format: float
+          description: CPU usage percentage, 0 for non-running services
+          example: 2.4
+        memory:
+          type: integer
+          format: int64
+          description: RSS memory in bytes, 0 for non-running services
+          example: 67108864
+        uptime:
+          type: integer
+          description: Seconds since service process started, 0 for non-running services
+          example: 3600
+
+    ServiceList:
+      type: object
+      required: [services]
+      properties:
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+
+    ServiceActionAccepted:
+      type: object
+      required: [id, name, action, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        name:
+          type: string
+          example: api-gateway
+        action:
+          type: string
+          enum: [start, stop, restart]
+          example: start
+        status:
+          $ref: "#/components/schemas/ActionStatus"
+
+    ServiceCounts:
+      type: object
+      required: [total, starting, running, stopping, restarting, stopped, failed]
+      properties:
+        total:
+          type: integer
+          example: 8
+        starting:
+          type: integer
+          example: 0
+        running:
+          type: integer
+          example: 6
+        stopping:
+          type: integer
+          example: 0
+        restarting:
+          type: integer
+          example: 0
+        stopped:
+          type: integer
+          example: 1
+        failed:
+          type: integer
+          example: 1
+
+    Status:
+      type: object
+      required: [version, profile, phase, uptime, services]
+      properties:
+        version:
+          type: string
+          example: "0.18.0"
+        profile:
+          type: string
+          example: default
+        phase:
+          $ref: "#/components/schemas/Phase"
+        uptime:
+          type: integer
+          description: Fuku instance uptime in seconds (from startup phase, includes startup duration)
+          example: 3600
+        services:
+          $ref: "#/components/schemas/ServiceCounts"
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: service not found
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: unauthorized
+
+    NotFound:
+      description: Service not found in the active profile
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: service not found
+
+    Conflict:
+      description: Invalid action for the current service state or instance phase
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            invalidState:
+              summary: Invalid service state
+              value:
+                error: service is not running
+            invalidPhase:
+              summary: Instance not accepting actions
+              value:
+                error: instance is not accepting actions
+
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: internal server error
+
+paths:
+  /status:
+    get:
+      summary: Get fuku instance status
+      operationId: getStatus
+      responses:
+        "200":
+          description: Instance status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services:
+    get:
+      summary: List services in the active profile
+      operationId: listServices
+      responses:
+        "200":
+          description: Services ordered by tier and then name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services/{id}:
+    get:
+      summary: Get a single service in the active profile
+      operationId: getService
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Service UUID
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        "200":
+          description: Service details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services/{id}/start:
+    post:
+      summary: Start a stopped or failed service
+      description: Accepts the action and returns immediately. Poll GET /services/{id} for completion.
+      operationId: startService
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Service UUID
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        "202":
+          description: Start accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceActionAccepted"
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                name: api-gateway
+                action: start
+                status: starting
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services/{id}/stop:
+    post:
+      summary: Stop a running service
+      description: Accepts the action and returns immediately. Poll GET /services/{id} for completion.
+      operationId: stopService
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Service UUID
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        "202":
+          description: Stop accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceActionAccepted"
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                name: api-gateway
+                action: stop
+                status: stopping
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services/{id}/restart:
+    post:
+      summary: Restart a running service
+      description: Accepts the action and returns immediately. Poll GET /services/{id} for completion.
+      operationId: restartService
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Service UUID
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        "202":
+          description: Restart accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceActionAccepted"
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                name: api-gateway
+                action: restart
+                status: restarting
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

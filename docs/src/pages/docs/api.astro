@@ -1,0 +1,719 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Header from "../../components/Header.astro";
+import Footer from "../../components/Footer.astro";
+
+const base = import.meta.env.BASE_URL;
+
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+const statusJson = esc(`{
+  "version": "0.18.0",
+  "profile": "default",
+  "phase": "running",
+  "uptime": 3600,
+  "services": {
+    "total": 8,
+    "starting": 0,
+    "running": 6,
+    "stopping": 0,
+    "restarting": 0,
+    "stopped": 1,
+    "failed": 1
+  }
+}`);
+
+const serviceJson = esc(`{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "api-gateway",
+  "tier": "foundation",
+  "status": "running",
+  "watching": true,
+  "pid": 12345,
+  "cpu": 2.4,
+  "memory": 67108864,
+  "uptime": 3600
+}`);
+
+const serviceListJson = esc(`{
+  "services": [
+    {
+      "id": "550e8400-...",
+      "name": "api-gateway",
+      "tier": "foundation",
+      "status": "running",
+      "watching": true,
+      "pid": 12345,
+      "cpu": 2.4,
+      "memory": 67108864,
+      "uptime": 3600
+    }
+  ]
+}`);
+
+const startJson = esc(`{
+  "id": "550e8400-...",
+  "name": "api-gateway",
+  "action": "start",
+  "status": "starting"
+}`);
+
+const stopJson = esc(`{
+  "id": "550e8400-...",
+  "name": "api-gateway",
+  "action": "stop",
+  "status": "stopping"
+}`);
+
+const restartJson = esc(`{
+  "id": "550e8400-...",
+  "name": "api-gateway",
+  "action": "restart",
+  "status": "restarting"
+}`);
+
+const unauthorizedJson = esc(`{ "error": "unauthorized" }`);
+const notFoundJson = esc(`{ "error": "service not found" }`);
+const conflictStartJson = esc(`{ "error": "service is running" }`);
+const conflictStopJson = esc(`{ "error": "service is not running" }`);
+const notAcceptingJson = esc(`{ "error": "instance is not accepting actions" }`);
+const internalErrorJson = esc(`{ "error": "internal server error" }`);
+
+interface Endpoint {
+  id: string;
+  method: string;
+  path: string;
+  apiPath: string;
+  description: string;
+  hasId: boolean;
+  responses: { status: string; code: string; body: string }[];
+}
+
+const endpoints: Endpoint[] = [
+  {
+    id: "get-status", method: "GET", path: "/api/v1/status", apiPath: "/api/v1/status",
+    description: "Returns fuku instance information: version, profile, phase, uptime, and service counts.",
+    hasId: false,
+    responses: [
+      { status: "success", code: "200", body: statusJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "500", body: internalErrorJson },
+    ],
+  },
+  {
+    id: "list-services", method: "GET", path: "/api/v1/services", apiPath: "/api/v1/services",
+    description: "Returns all services in the active profile, ordered by tier then name.",
+    hasId: false,
+    responses: [
+      { status: "success", code: "200", body: serviceListJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "500", body: internalErrorJson },
+    ],
+  },
+  {
+    id: "get-service", method: "GET", path: "/api/v1/services/:id", apiPath: "/api/v1/services/:id",
+    description: "Returns a single service by UUID.",
+    hasId: true,
+    responses: [
+      { status: "success", code: "200", body: serviceJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "404", body: notFoundJson },
+      { status: "error", code: "500", body: internalErrorJson },
+    ],
+  },
+  {
+    id: "start-service", method: "POST", path: "/api/v1/services/:id/start", apiPath: "/api/v1/services/:id/start",
+    description: "Starts a stopped or failed service. Asynchronous — poll GET /services/:id for completion.",
+    hasId: true,
+    responses: [
+      { status: "accepted", code: "202", body: startJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "404", body: notFoundJson },
+      { status: "error", code: "409", body: conflictStartJson },
+      { status: "error", code: "409", body: notAcceptingJson },
+      { status: "error", code: "500", body: internalErrorJson },
+    ],
+  },
+  {
+    id: "stop-service", method: "POST", path: "/api/v1/services/:id/stop", apiPath: "/api/v1/services/:id/stop",
+    description: "Stops a running service. Asynchronous — poll GET /services/:id for completion.",
+    hasId: true,
+    responses: [
+      { status: "accepted", code: "202", body: stopJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "404", body: notFoundJson },
+      { status: "error", code: "409", body: conflictStopJson },
+      { status: "error", code: "409", body: notAcceptingJson },
+      { status: "error", code: "500", body: internalErrorJson },
+    ],
+  },
+  {
+    id: "restart-service", method: "POST", path: "/api/v1/services/:id/restart", apiPath: "/api/v1/services/:id/restart",
+    description: "Restarts a running service. Asynchronous — poll GET /services/:id for completion.",
+    hasId: true,
+    responses: [
+      { status: "accepted", code: "202", body: restartJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "404", body: notFoundJson },
+      { status: "error", code: "409", body: conflictStopJson },
+      { status: "error", code: "409", body: notAcceptingJson },
+      { status: "error", code: "500", body: internalErrorJson },
+    ],
+  },
+];
+---
+
+<Layout title="REST API - fuku" description="Observe and control services from IDE plugins, desktop apps, and CLI tools.">
+  <Header section="docs" />
+  <div class="api-layout">
+    <aside class="api-sidebar">
+      <div class="sidebar-header">API Reference</div>
+      <nav class="api-nav">
+        <div class="nav-section">Configuration</div>
+        <a href="#config" class="api-link">
+          <span class="path">Setup</span>
+        </a>
+        <div class="nav-section">Status</div>
+        {endpoints.filter(e => e.id === "get-status").map(e => (
+          <a href={`#${e.id}`} class="api-link">
+            <span class={`method ${e.method.toLowerCase()}`}>{e.method}</span>
+            <span class="path">{e.path.replace('/api/v1', '')}</span>
+          </a>
+        ))}
+        <div class="nav-section">Services</div>
+        {endpoints.filter(e => e.id !== "get-status").map(e => (
+          <a href={`#${e.id}`} class="api-link">
+            <span class={`method ${e.method.toLowerCase()}`}>{e.method}</span>
+            <span class="path">{e.path.replace('/api/v1', '')}</span>
+          </a>
+        ))}
+      </nav>
+      <div class="sidebar-footer">
+        <a href="https://github.com/tab/fuku/blob/master/spec/openapi.yaml" target="_blank" rel="noopener" class="spec-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          OpenAPI spec
+        </a>
+      </div>
+    </aside>
+
+    <main class="api-main">
+      <section class="api-intro" id="config">
+        <h1>REST API</h1>
+        <p>Observe and control services from IDE plugins, desktop apps, and CLI tools.</p>
+        <div class="two-col">
+          <div class="col-doc">
+            <p>The API server is embedded in the fuku process and available during <code>fuku run</code>. Disabled by default. All endpoints require <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
+            <table>
+              <thead><tr><th>Field</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td><code>api.listen</code></td><td>TCP address to bind (must be loopback)</td></tr>
+                <tr><td><code>api.auth.token</code></td><td>Bearer token for authentication</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="col-play">
+            <div class="config-block">
+              <div class="config-title">fuku.yaml</div>
+              <pre><code><span class="hl-key">api</span><span class="hl-punct">:</span>
+  <span class="hl-key">listen</span><span class="hl-punct">:</span> <span class="hl-str">"127.0.0.1:9876"</span>
+  <span class="hl-key">auth</span><span class="hl-punct">:</span>
+    <span class="hl-key">token</span><span class="hl-punct">:</span> <span class="hl-str">"my-dev-token"</span></code></pre>
+            </div>
+            <div class="connection-fields">
+              <div class="input-row">
+                <label class="input-label">Base URL</label>
+                <input type="text" id="pg-base" value="http://127.0.0.1:9876" class="pg-input" />
+              </div>
+              <div class="input-row">
+                <label class="input-label">Token</label>
+                <input type="text" id="pg-token" value="" placeholder="my-dev-token" class="pg-input" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {endpoints.map(ep => (
+        <section class="endpoint" id={ep.id}>
+          <div class="endpoint-header">
+            <span class={`method-badge ${ep.method.toLowerCase()}`}>{ep.method}</span>
+            <code class="endpoint-path">{ep.path}</code>
+          </div>
+          <div class="two-col">
+            <div class="col-doc">
+              <p>{ep.description}</p>
+              {ep.responses.map(r => (
+                <div class="response-block">
+                  <div class="response-label">Response <span class={`status-code ${r.status}`}>{r.code}</span></div>
+                  <pre><code set:html={r.body} /></pre>
+                </div>
+              ))}
+            </div>
+            <div class="col-play">
+              <div class="playground" data-method={ep.method} data-path={ep.apiPath} data-has-id={ep.hasId ? "true" : "false"}>
+                {ep.hasId && (
+                  <div class="input-row pg-id-row">
+                    <label class="input-label">Service ID</label>
+                    <input type="text" class="pg-input pg-id" value="" placeholder="uuid" />
+                  </div>
+                )}
+                <button class="pg-button pg-send">
+                  <span class={`method-tag ${ep.method.toLowerCase()}`}>{ep.method}</span>
+                  Send
+                </button>
+                <div class="playground-result pg-result" style="display: none;">
+                  <div class="result-header">
+                    <span class="result-status pg-status"></span>
+                    <span class="result-time pg-time"></span>
+                  </div>
+                  <pre class="result-body"><code class="pg-body"></code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      ))}
+
+      <section class="endpoint" id="errors">
+        <div class="endpoint-header">
+          <span class="method-badge err">ERR</span>
+          <code class="endpoint-path">Common Errors</code>
+        </div>
+        <div class="two-col">
+          <div class="col-doc col-full">
+            <table>
+              <thead><tr><th>Status</th><th>Error</th><th>When</th></tr></thead>
+              <tbody>
+                <tr><td><code>401</code></td><td>unauthorized</td><td>Missing or invalid bearer token</td></tr>
+                <tr><td><code>404</code></td><td>service not found</td><td>Unknown UUID</td></tr>
+                <tr><td><code>409</code></td><td>service is running</td><td>Start on non-stopped service</td></tr>
+                <tr><td><code>409</code></td><td>service is not running</td><td>Stop/restart on non-running service</td></tr>
+                <tr><td><code>409</code></td><td>instance is not accepting actions</td><td>Action during startup or shutdown</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <Footer />
+</Layout>
+
+<script>
+  document.querySelectorAll('.pg-send').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pg = btn.closest('.playground') as HTMLElement;
+      const baseInput = document.getElementById('pg-base') as HTMLInputElement;
+      const tokenInput = document.getElementById('pg-token') as HTMLInputElement;
+      const base = baseInput.value.replace(/\/$/, '');
+      const token = tokenInput.value;
+      const method = pg.dataset.method!;
+      const hasId = pg.dataset.hasId === 'true';
+
+      let path = pg.dataset.path!;
+      if (hasId) {
+        const idInput = pg.querySelector('.pg-id') as HTMLInputElement;
+        const serviceId = idInput?.value || '';
+        if (serviceId) path = path.replace(':id', serviceId);
+      }
+
+      const url = base + path;
+      const resultEl = pg.querySelector('.pg-result') as HTMLElement;
+      const statusEl = pg.querySelector('.pg-status')!;
+      const timeEl = pg.querySelector('.pg-time')!;
+      const bodyEl = pg.querySelector('.pg-body')!;
+
+      resultEl.style.display = '';
+      statusEl.textContent = 'Sending...';
+      statusEl.className = 'result-status pg-status';
+      timeEl.textContent = '';
+      bodyEl.textContent = '';
+
+      const start = performance.now();
+
+      try {
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(url, { method, headers });
+        const elapsed = Math.round(performance.now() - start);
+        const text = await res.text();
+
+        let body: string;
+        try { body = JSON.stringify(JSON.parse(text), null, 2); }
+        catch { body = text; }
+
+        statusEl.textContent = `${res.status} ${res.statusText}`;
+        statusEl.className = `result-status pg-status ${res.ok ? 'ok' : 'err'}`;
+        timeEl.textContent = `${elapsed}ms`;
+        bodyEl.textContent = body;
+      } catch (err: any) {
+        const elapsed = Math.round(performance.now() - start);
+        statusEl.textContent = 'Error';
+        statusEl.className = 'result-status pg-status err';
+        timeEl.textContent = `${elapsed}ms`;
+        bodyEl.textContent = err.message || 'Request failed';
+      }
+    });
+  });
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        document.querySelectorAll('.api-link').forEach(l => {
+          l.classList.toggle('active', l.getAttribute('href') === `#${id}`);
+        });
+      }
+    });
+  }, { rootMargin: '-80px 0px -60% 0px' });
+
+  document.querySelectorAll('.endpoint, .api-intro').forEach(s => observer.observe(s));
+</script>
+
+<style>
+  .api-layout {
+    display: flex;
+    min-height: calc(100vh - 56px);
+    padding-top: 56px;
+  }
+
+  .api-sidebar {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    bottom: 0;
+    width: 240px;
+    background: var(--sidebar-bg);
+    backdrop-filter: blur(16px);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 24px 0;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+
+  .sidebar-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0 20px 16px;
+  }
+
+  .api-nav { flex: 1; }
+
+  .nav-section {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 16px 20px 6px;
+  }
+
+  .api-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 20px;
+    text-decoration: none;
+    transition: background 0.15s;
+    font-size: 0.85rem;
+  }
+
+  .api-link:hover, .api-link.active {
+    background: var(--nav-hover-bg);
+    text-decoration: none;
+  }
+
+  .method {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .method.get { color: #22c55e; background: rgba(34, 197, 94, 0.1); }
+  .method.post { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+
+  .path {
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+
+  .sidebar-footer {
+    padding: 16px 20px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 16px;
+  }
+
+  .spec-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .spec-link:hover { color: var(--text); text-decoration: none; }
+
+  .api-main {
+    margin-left: 240px;
+    flex: 1;
+    padding: 0 48px 80px;
+  }
+
+  .api-main section {
+    padding: 24px 0;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .two-col > * {
+    min-width: 0;
+  }
+
+  .col-full { grid-column: 1 / -1; }
+
+  .api-intro {
+    scroll-margin-top: 56px;
+  }
+
+  .api-intro h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .api-intro > p {
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  .col-doc p {
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+  }
+
+  .col-doc code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.82em;
+  }
+
+  .col-doc table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .col-doc th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .col-doc td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--table-border);
+    color: var(--text);
+  }
+
+  .config-block {
+    background: #181825;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .config-title {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #a6adc8;
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .config-block pre { padding: 14px; margin: 0; overflow-x: auto; }
+  .config-block code { font-size: 0.82rem; line-height: 1.6; color: #cdd6f4; }
+
+  .hl-key { color: #89b4fa; }
+  .hl-punct { color: #a6adc8; }
+  .hl-str { color: #a6e3a1; }
+
+  .connection-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .endpoint {
+    border-top: 1px solid var(--border);
+    scroll-margin-top: 56px;
+  }
+
+  .endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .method-badge {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .method-badge.get { color: #22c55e; background: rgba(34, 197, 94, 0.12); }
+  .method-badge.post { color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
+  .method-badge.err { color: #ef4444; background: rgba(239, 68, 68, 0.12); }
+
+  .endpoint-path { font-size: 0.95rem; color: var(--text); }
+
+  .response-block {
+    margin-bottom: 8px;
+    background: #181825;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .response-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #a6adc8;
+    padding: 5px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .status-code { font-family: var(--mono); font-weight: 700; font-size: 0.72rem; }
+  .status-code.success { color: #22c55e; }
+  .status-code.accepted { color: #3b82f6; }
+  .status-code.error { color: #f59e0b; }
+
+  .response-block pre { padding: 12px; margin: 0; overflow-x: auto; }
+  .response-block code { font-size: 0.78rem; line-height: 1.5; color: #cdd6f4; background: none; padding: 0; }
+
+  .playground {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: sticky;
+    top: 80px;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .input-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    width: 68px;
+    flex-shrink: 0;
+  }
+
+  .pg-input {
+    flex: 1;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text);
+    outline: none;
+  }
+
+  .pg-input:focus { border-color: var(--blue); }
+
+  .pg-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    padding: 6px 16px;
+    background: var(--card-hover-bg);
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .pg-button:hover { border-color: var(--card-hover-border); }
+
+  .method-tag {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+
+  .method-tag.get { color: #22c55e; }
+  .method-tag.post { color: #f59e0b; }
+
+  .playground-result { border-top: 1px solid var(--border); margin: 4px -16px -16px; }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    font-size: 0.75rem;
+  }
+
+  .result-status { font-family: var(--mono); font-weight: 600; color: var(--text-muted); }
+  .result-status.ok { color: #22c55e; }
+  .result-status.err { color: #ef4444; }
+
+  .result-time { font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted); }
+
+  .result-body { padding: 10px 16px; margin: 0; overflow-x: auto; max-height: 300px; overflow-y: auto; }
+  .result-body code { font-size: 0.78rem; line-height: 1.5; color: var(--text); }
+
+  @media (max-width: 1024px) {
+    .two-col { grid-template-columns: 1fr; }
+    .playground { position: static; }
+  }
+
+  @media (max-width: 768px) {
+    .api-sidebar { display: none; }
+    .api-main { margin-left: 0; padding: 24px 16px 64px; }
+  }
+</style>

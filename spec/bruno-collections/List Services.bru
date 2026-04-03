@@ -1,0 +1,16 @@
+meta {
+  name: List Services
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BASE_URL}}/api/v1/services
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

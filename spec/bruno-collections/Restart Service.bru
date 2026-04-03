@@ -1,0 +1,20 @@
+meta {
+  name: Restart Service
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{BASE_URL}}/api/v1/services/:id/restart
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 61979f77-fc81-4262-b355-3b867dd5f082
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
