@@ -1,0 +1,19 @@
+version: 1
+
+services:
+  auth-api:
+    dir: auth-api
+  user-api:
+    dir: user-api
+
+profiles:
+  default: "*"
+
+api:
+  listen: "127.0.0.1:19876"
+  auth:
+    token: "test-token"
+
+logging:
+  format: console
+  level: debug
