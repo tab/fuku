@@ -304,14 +304,16 @@ func toServiceSerializer(s registry.ServiceSnapshot) ServiceSerializer {
 		Error:    s.Error,
 	}
 
-	if s.Status.IsRunning() {
-		result.PID = s.PID
-		result.CPU = s.CPU
-		result.Memory = s.Memory
+	if !s.Status.IsRunning() {
+		return result
+	}
 
-		if !s.StartTime.IsZero() {
-			result.Uptime = int64(time.Since(s.StartTime).Seconds())
-		}
+	result.PID = s.PID
+	result.CPU = s.CPU
+	result.Memory = s.Memory
+
+	if !s.StartTime.IsZero() {
+		result.Uptime = int64(time.Since(s.StartTime).Seconds())
 	}
 
 	return result
