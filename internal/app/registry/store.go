@@ -159,7 +159,7 @@ func (s *store) Profile() string {
 	return s.profile
 }
 
-// Uptime returns the duration since the instance entered the running phase
+// Uptime returns the duration since the instance started (includes startup phase)
 func (s *store) Uptime() time.Duration {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -335,7 +335,12 @@ func (s *store) setWatching(msg bus.Message, value bool) {
 }
 
 func (s *store) initServices(tiers []bus.Tier) {
-	s.services = make(map[string]*serviceState, len(s.serviceOrder))
+	totalServices := 0
+	for _, tier := range tiers {
+		totalServices += len(tier.Services)
+	}
+
+	s.services = make(map[string]*serviceState, totalServices)
 	s.serviceOrder = nil
 
 	tierIndex := make(map[string]int, len(tiers))

@@ -114,25 +114,13 @@ func (c *Config) validateAPI() error {
 	return nil
 }
 
-// isLoopback checks whether a host (IP literal or hostname) resolves to loopback
+// isLoopback checks whether a host is a loopback IP literal or known loopback hostname
 func isLoopback(host string) bool {
 	if ip := net.ParseIP(host); ip != nil {
 		return ip.IsLoopback()
 	}
 
-	addrs, err := net.LookupHost(host)
-	if err != nil || len(addrs) == 0 {
-		return false
-	}
-
-	for _, addr := range addrs {
-		ip := net.ParseIP(addr)
-		if ip == nil || !ip.IsLoopback() {
-			return false
-		}
-	}
-
-	return true
+	return host == LoopbackHostname || host == LoopbackIPv6Hostname
 }
 
 // validateCommand validates the command configuration

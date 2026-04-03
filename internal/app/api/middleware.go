@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -38,7 +39,7 @@ func authMiddleware(token string, next http.Handler) http.Handler {
 			return
 		}
 
-		if header[7:] != token {
+		if subtle.ConstantTimeCompare([]byte(header[7:]), []byte(token)) != 1 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 

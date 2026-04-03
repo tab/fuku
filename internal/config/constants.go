@@ -77,6 +77,13 @@ const (
 
 // API settings
 const (
-	APIShutdownTimeout  = 5 * time.Second
-	StoreSampleInterval = 2 * time.Second
+	APIShutdownTimeout   = 5 * time.Second
+	APIReadHeaderTimeout = 5 * time.Second
+	StoreSampleInterval  = 2 * time.Second
+)
+
+// Loopback hostnames (not available as stdlib constants)
+const (
+	LoopbackHostname     = "localhost"
+	LoopbackIPv6Hostname = "ip6-localhost"
 )

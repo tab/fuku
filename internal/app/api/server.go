@@ -60,7 +60,7 @@ func (s *server) Start(_ context.Context) error {
 
 	s.httpServer = &http.Server{
 		Handler:           corsMiddleware(authMiddleware(s.cfg.API.Auth.Token, mux)),
-		ReadHeaderTimeout: config.APIShutdownTimeout,
+		ReadHeaderTimeout: config.APIReadHeaderTimeout,
 	}
 
 	s.log.Info().Msgf("API server listening on %s", ln.Addr().String())
