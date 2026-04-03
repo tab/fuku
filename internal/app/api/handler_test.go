@@ -186,7 +186,7 @@ func Test_HandleStartService(t *testing.T) {
 				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
 			},
 			expectStatus: http.StatusConflict,
-			expectBody:   "service is running",
+			expectBody:   "service cannot be started",
 		},
 		{
 			name:      "service not found",

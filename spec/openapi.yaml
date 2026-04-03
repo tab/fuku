@@ -191,8 +191,12 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
           examples:
-            invalidState:
-              summary: Invalid service state
+            notStartable:
+              summary: Service cannot be started
+              value:
+                error: service cannot be started
+            notRunning:
+              summary: Service is not running
               value:
                 error: service is not running
             invalidPhase:

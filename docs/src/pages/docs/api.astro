@@ -76,7 +76,7 @@ const restartJson = esc(`{
 
 const unauthorizedJson = esc(`{ "error": "unauthorized" }`);
 const notFoundJson = esc(`{ "error": "service not found" }`);
-const conflictStartJson = esc(`{ "error": "service is running" }`);
+const conflictStartJson = esc(`{ "error": "service cannot be started" }`);
 const conflictStopJson = esc(`{ "error": "service is not running" }`);
 const notAcceptingJson = esc(`{ "error": "instance is not accepting actions" }`);
 const internalErrorJson = esc(`{ "error": "internal server error" }`);

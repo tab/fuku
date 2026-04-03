@@ -37,7 +37,7 @@ var (
 	ErrAPITokenRequired   = errors.New("api auth token is required when api section is present")
 	ErrAPIUnauthorized    = errors.New("unauthorized")
 	ErrAPIServiceNotFound = errors.New("service not found")
-	ErrAPINotStartable    = errors.New("service is running")
+	ErrAPINotStartable    = errors.New("service cannot be started")
 	ErrAPINotRunning      = errors.New("service is not running")
 	ErrAPINotAccepting    = errors.New("instance is not accepting actions")
 

@@ -262,7 +262,7 @@ func Test_API_StartConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 
 	body := apiJSON(t, resp)
-	assert.Equal(t, "service is running", body["error"])
+	assert.Equal(t, "service cannot be started", body["error"])
 }
 
 func Test_API_Unauthorized(t *testing.T) {

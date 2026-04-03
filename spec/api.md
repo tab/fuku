@@ -270,7 +270,7 @@ Response 404:
 
 Response 409:
 {
-  "error": "service is running"
+  "error": "service cannot be started"
 }
 ```
 
