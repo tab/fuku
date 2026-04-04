@@ -174,8 +174,9 @@ func (h *handler) handleStartService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(bus.Message{
-		Type: bus.CommandStartService,
-		Data: bus.Payload{Name: svc.Name},
+		Type:     bus.CommandStartService,
+		Data:     bus.Payload{Name: svc.Name},
+		Critical: true,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
@@ -226,8 +227,9 @@ func (h *handler) handleStopService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(bus.Message{
-		Type: bus.CommandStopService,
-		Data: bus.Payload{Name: svc.Name},
+		Type:     bus.CommandStopService,
+		Data:     bus.Payload{Name: svc.Name},
+		Critical: true,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
@@ -278,8 +280,9 @@ func (h *handler) handleRestartService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(bus.Message{
-		Type: bus.CommandRestartService,
-		Data: bus.Payload{Name: svc.Name},
+		Type:     bus.CommandRestartService,
+		Data:     bus.Payload{Name: svc.Name},
+		Critical: true,
 	})
 
 	w.Header().Set("Content-Type", "application/json")

@@ -65,8 +65,9 @@ func Test_Controller_Start(t *testing.T) {
 					Status: registry.StatusStopped,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
-					Type: bus.CommandStartService,
-					Data: bus.Payload{Name: "api"},
+					Type:     bus.CommandStartService,
+					Critical: true,
+					Data:     bus.Payload{Name: "api"},
 				})
 			},
 			expect: true,
@@ -79,8 +80,9 @@ func Test_Controller_Start(t *testing.T) {
 					Status: registry.StatusFailed,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
-					Type: bus.CommandStartService,
-					Data: bus.Payload{Name: "api"},
+					Type:     bus.CommandStartService,
+					Critical: true,
+					Data:     bus.Payload{Name: "api"},
 				})
 			},
 			expect: true,
@@ -134,8 +136,9 @@ func Test_Controller_Stop(t *testing.T) {
 					Status: registry.StatusRunning,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
-					Type: bus.CommandStopService,
-					Data: bus.Payload{Name: "api"},
+					Type:     bus.CommandStopService,
+					Critical: true,
+					Data:     bus.Payload{Name: "api"},
 				})
 			},
 			expect: true,
@@ -189,8 +192,9 @@ func Test_Controller_Restart(t *testing.T) {
 					Status: registry.StatusRunning,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
-					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Type:     bus.CommandRestartService,
+					Critical: true,
+					Data:     bus.Payload{Name: "api"},
 				})
 			},
 			expect: true,
@@ -203,8 +207,9 @@ func Test_Controller_Restart(t *testing.T) {
 					Status: registry.StatusFailed,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
-					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Type:     bus.CommandRestartService,
+					Critical: true,
+					Data:     bus.Payload{Name: "api"},
 				})
 			},
 			expect: true,
@@ -217,8 +222,9 @@ func Test_Controller_Restart(t *testing.T) {
 					Status: registry.StatusStopped,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
-					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Type:     bus.CommandRestartService,
+					Critical: true,
+					Data:     bus.Payload{Name: "api"},
 				})
 			},
 			expect: true,
@@ -242,7 +248,7 @@ func Test_Controller_StopAll(t *testing.T) {
 
 	c := NewController(mockBus, mockStore)
 
-	mockBus.EXPECT().Publish(bus.Message{Type: bus.CommandStopAll})
+	mockBus.EXPECT().Publish(bus.Message{Type: bus.CommandStopAll, Critical: true})
 
 	c.StopAll()
 }

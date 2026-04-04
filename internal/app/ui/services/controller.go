@@ -39,8 +39,9 @@ func (c *controller) Start(name string) bool {
 	}
 
 	c.bus.Publish(bus.Message{
-		Type: bus.CommandStartService,
-		Data: bus.Payload{Name: name},
+		Type:     bus.CommandStartService,
+		Data:     bus.Payload{Name: name},
+		Critical: true,
 	})
 
 	return true
@@ -58,8 +59,9 @@ func (c *controller) Stop(name string) bool {
 	}
 
 	c.bus.Publish(bus.Message{
-		Type: bus.CommandStopService,
-		Data: bus.Payload{Name: name},
+		Type:     bus.CommandStopService,
+		Data:     bus.Payload{Name: name},
+		Critical: true,
 	})
 
 	return true
@@ -77,8 +79,9 @@ func (c *controller) Restart(name string) bool {
 	}
 
 	c.bus.Publish(bus.Message{
-		Type: bus.CommandRestartService,
-		Data: bus.Payload{Name: name},
+		Type:     bus.CommandRestartService,
+		Data:     bus.Payload{Name: name},
+		Critical: true,
 	})
 
 	return true
@@ -86,5 +89,5 @@ func (c *controller) Restart(name string) bool {
 
 // StopAll sends a command to stop all services
 func (c *controller) StopAll() {
-	c.bus.Publish(bus.Message{Type: bus.CommandStopAll})
+	c.bus.Publish(bus.Message{Type: bus.CommandStopAll, Critical: true})
 }
