@@ -354,6 +354,7 @@ func (s *store) handleServiceFailed(msg bus.Message) {
 	svc.cpu = 0
 	svc.memory = 0
 	svc.startTime = time.Time{}
+	svc.err = ""
 
 	if data.Error != nil {
 		svc.err = data.Error.Error()
