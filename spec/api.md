@@ -1,4 +1,4 @@
- API
+# API
 
 - Status: implemented
 - Branch: `feat/api`
