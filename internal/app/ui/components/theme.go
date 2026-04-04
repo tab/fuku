@@ -91,7 +91,7 @@ func NewTheme(isDark bool) Theme {
 		EmptyStateStyle:      lipgloss.NewStyle().Foreground(fgMuted).Padding(0, 1),
 		IndicatorActiveStyle: lipgloss.NewStyle().Foreground(fgStatusWarning),
 		IndicatorDotStyle:    lipgloss.NewStyle().Foreground(fgStatusRunning),
-		APIDotConnected:      lipgloss.NewStyle().Foreground(fgStatusRunning),
+		APIDotConnected:      lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#0284c7"), lipgloss.Color("#38bdf8"))),
 		APIDotDisconnected:   lipgloss.NewStyle().Foreground(fgBorder),
 	}
 }

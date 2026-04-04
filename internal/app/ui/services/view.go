@@ -130,7 +130,8 @@ func (m Model) renderTitle() string {
 		return b.String()
 	}
 
-	return fmt.Sprintf("%s • %s", "profile", m.state.profile)
+	//nolint:perfsprint // readability over micro-optimization
+	return m.theme.PanelMutedStyle.Render(fmt.Sprintf("profile • %s", m.state.profile))
 }
 
 // renderServices renders the services list or empty state
