@@ -87,7 +87,6 @@ type serviceState struct {
 
 // store implements the Store interface
 type store struct {
-	cfg     *config.Config
 	bus     bus.Bus
 	monitor monitor.Monitor
 	ready   chan struct{}
@@ -102,9 +101,8 @@ type store struct {
 }
 
 // NewStore creates a new runtime store
-func NewStore(cfg *config.Config, b bus.Bus, mon monitor.Monitor) Store {
+func NewStore(b bus.Bus, mon monitor.Monitor) Store {
 	return &store{
-		cfg:      cfg,
 		bus:      b,
 		monitor:  mon,
 		ready:    make(chan struct{}),

@@ -22,7 +22,7 @@ func newTestStore(t *testing.T, cfg *config.Config) (*store, bus.Bus) {
 
 	b := bus.NewBus(cfg, nil, nil)
 	mon := monitor.NewMonitor()
-	s := NewStore(cfg, b, mon).(*store)
+	s := NewStore(b, mon).(*store)
 
 	go s.Run(t.Context())
 
@@ -238,7 +238,7 @@ func Test_Store_Uptime_ZeroBeforeRunning(t *testing.T) {
 	cfg := config.DefaultConfig()
 	b := bus.NewBus(cfg, nil, nil)
 	mon := monitor.NewMonitor()
-	s := NewStore(cfg, b, mon)
+	s := NewStore(b, mon)
 
 	assert.Equal(t, time.Duration(0), s.Uptime())
 }

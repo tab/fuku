@@ -150,3 +150,41 @@ func (mr *MockStoreMockRecorder) WaitReady() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitReady", reflect.TypeOf((*MockStore)(nil).WaitReady))
 }
+
+// MockserviceNamer is a mock of serviceNamer interface.
+type MockserviceNamer struct {
+	ctrl     *gomock.Controller
+	recorder *MockserviceNamerMockRecorder
+	isgomock struct{}
+}
+
+// MockserviceNamerMockRecorder is the mock recorder for MockserviceNamer.
+type MockserviceNamerMockRecorder struct {
+	mock *MockserviceNamer
+}
+
+// NewMockserviceNamer creates a new mock instance.
+func NewMockserviceNamer(ctrl *gomock.Controller) *MockserviceNamer {
+	mock := &MockserviceNamer{ctrl: ctrl}
+	mock.recorder = &MockserviceNamerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockserviceNamer) EXPECT() *MockserviceNamerMockRecorder {
+	return m.recorder
+}
+
+// ServiceName mocks base method.
+func (m *MockserviceNamer) ServiceName() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ServiceName")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// ServiceName indicates an expected call of ServiceName.
+func (mr *MockserviceNamerMockRecorder) ServiceName() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceName", reflect.TypeOf((*MockserviceNamer)(nil).ServiceName))
+}
