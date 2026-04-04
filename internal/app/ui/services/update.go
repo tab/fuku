@@ -367,6 +367,7 @@ func (m Model) handleServiceStarting(msg bus.Message) Model {
 	}
 
 	if service, exists := m.state.services[data.Service]; exists {
+		service.Status = StatusStarting
 		service.Tier = data.Tier
 		service.PID = data.PID
 		service.StartTime = msg.Timestamp
@@ -390,6 +391,7 @@ func (m Model) handleServiceReady(msg bus.Message) Model {
 	}
 
 	if service, exists := m.state.services[data.Service]; exists {
+		service.Status = StatusRunning
 		service.ReadyTime = msg.Timestamp
 
 		m.loader.Stop(data.Service)
@@ -406,6 +408,7 @@ func (m Model) handleServiceFailed(msg bus.Message) Model {
 	}
 
 	if service, exists := m.state.services[data.Service]; exists {
+		service.Status = StatusFailed
 		service.Error = data.Error
 
 		m.loader.Stop(data.Service)
@@ -422,7 +425,9 @@ func (m Model) handleServiceStopping(msg bus.Message) Model {
 		return m
 	}
 
-	if _, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service]; exists {
+		service.Status = StatusStopping
+
 		if !m.loader.Has(data.Service) {
 			m.loader.Start(data.Service, fmt.Sprintf("stopping %s…", data.Service))
 		}
@@ -438,7 +443,8 @@ func (m Model) handleServiceRestarting(msg bus.Message) Model {
 		return m
 	}
 
-	if _, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service]; exists {
+		service.Status = StatusRestarting
 		m.state.restarting[data.Service] = true
 		m.loader.Start(data.Service, fmt.Sprintf("restarting %s…", data.Service))
 	}
@@ -453,9 +459,12 @@ func (m Model) handleServiceStopped(msg bus.Message) Model {
 		return m
 	}
 
-	if _, exists := m.state.services[data.Service]; !exists {
+	service, exists := m.state.services[data.Service]
+	if !exists {
 		return m
 	}
+
+	service.Status = StatusStopped
 
 	if !m.state.restarting[data.Service] {
 		m.loader.Stop(data.Service)

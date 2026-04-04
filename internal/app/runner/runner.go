@@ -492,8 +492,9 @@ func (r *runner) startAPI(ctx context.Context) {
 
 	if r.cfg.APIEnabled() {
 		r.bus.Publish(bus.Message{
-			Type: bus.EventAPIStarted,
-			Data: bus.APIStarted{Listen: r.cfg.API.Listen},
+			Type:     bus.EventAPIStarted,
+			Data:     bus.APIStarted{Listen: r.cfg.API.Listen},
+			Critical: true,
 		})
 	}
 }
@@ -509,8 +510,9 @@ func (r *runner) stopAPI() {
 
 	if r.cfg.APIEnabled() {
 		r.bus.Publish(bus.Message{
-			Type: bus.EventAPIStopped,
-			Data: bus.APIStopped{},
+			Type:     bus.EventAPIStopped,
+			Data:     bus.APIStopped{},
+			Critical: true,
 		})
 	}
 }

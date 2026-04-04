@@ -293,6 +293,7 @@ func Test_HandleServiceStarting(t *testing.T) {
 
 	result := m.handleServiceStarting(event)
 
+	assert.Equal(t, StatusStarting, result.state.services["api"].Status)
 	assert.Equal(t, "tier1", result.state.services["api"].Tier)
 	assert.Equal(t, 1234, result.state.services["api"].PID)
 	assert.Equal(t, now, result.state.services["api"].StartTime)
@@ -389,6 +390,7 @@ func Test_HandleServiceReady(t *testing.T) {
 
 	result := m.handleServiceReady(event)
 
+	assert.Equal(t, StatusRunning, result.state.services["api"].Status)
 	assert.Equal(t, now, result.state.services["api"].ReadyTime)
 	assert.False(t, result.loader.Active)
 	assert.False(t, result.loader.Has("api"))
@@ -426,6 +428,7 @@ func Test_HandleServiceFailed(t *testing.T) {
 
 	result := m.handleServiceFailed(event)
 
+	assert.Equal(t, StatusFailed, result.state.services["api"].Status)
 	assert.Equal(t, testErr, result.state.services["api"].Error)
 	assert.False(t, result.loader.Active)
 	assert.False(t, result.loader.Has("api"))
@@ -483,6 +486,7 @@ func Test_HandleServiceStopping(t *testing.T) {
 
 	result := m.handleServiceStopping(event)
 
+	assert.Equal(t, StatusStopping, result.state.services["api"].Status)
 	assert.True(t, result.loader.Active)
 	assert.True(t, result.loader.Has("api"))
 }
@@ -546,6 +550,7 @@ func Test_HandleServiceRestarting(t *testing.T) {
 
 	result := m.handleServiceRestarting(event)
 
+	assert.Equal(t, StatusRestarting, result.state.services["api"].Status)
 	assert.True(t, result.state.restarting["api"])
 	assert.True(t, result.loader.Active)
 	assert.True(t, result.loader.Has("api"))
@@ -606,6 +611,7 @@ func Test_HandleServiceStopped(t *testing.T) {
 
 			result := m.handleServiceStopped(event)
 
+			assert.Equal(t, StatusStopped, result.state.services["api"].Status)
 			assert.Equal(t, tt.loaderActive, result.loader.Active)
 			assert.Equal(t, tt.loaderHasItem, result.loader.Has("api"))
 		})
