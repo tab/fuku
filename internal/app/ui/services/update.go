@@ -85,10 +85,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ui.tickCounter = 0
 		}
 
-		m.refreshFromStore()
-
 		if m.state.now.IsZero() || m.ui.tickCounter%components.UITicksPerSecond == 0 {
 			m.state.now = time.Now()
+			m.refreshFromStore()
 			m.sampleAppStats()
 		}
 

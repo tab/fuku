@@ -320,6 +320,7 @@ func (s *store) handleServiceStopped(msg bus.Message) {
 	svc.cpu = 0
 	svc.memory = 0
 	svc.startTime = time.Time{}
+	svc.err = ""
 }
 
 // serviceNamer extracts the service name from bus event data
