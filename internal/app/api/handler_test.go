@@ -15,16 +15,10 @@ import (
 	"fuku/internal/app/registry"
 )
 
-func newTestHandler(t *testing.T) (*handler, *registry.MockStore, *bus.MockBus) {
+func Test_HandleStatus(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockStore := registry.NewMockStore(ctrl)
-	mockBus := bus.NewMockBus(ctrl)
-
-	return &handler{store: mockStore, bus: mockBus}, mockStore, mockBus
-}
-
-func Test_HandleStatus(t *testing.T) {
-	h, mockStore, _ := newTestHandler(t)
+	h := &handler{store: mockStore, bus: bus.NewMockBus(ctrl)}
 
 	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
 		{ID: "id-1", Name: "api", Status: registry.StatusRunning},
@@ -55,7 +49,9 @@ func Test_HandleStatus(t *testing.T) {
 }
 
 func Test_HandleListServices(t *testing.T) {
-	h, mockStore, _ := newTestHandler(t)
+	ctrl := gomock.NewController(t)
+	mockStore := registry.NewMockStore(ctrl)
+	h := &handler{store: mockStore, bus: bus.NewMockBus(ctrl)}
 
 	now := time.Now()
 	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
@@ -94,18 +90,24 @@ func Test_HandleListServices(t *testing.T) {
 }
 
 func Test_HandleGetService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStore := registry.NewMockStore(ctrl)
+	h := &handler{store: mockStore, bus: bus.NewMockBus(ctrl)}
+
 	tests := []struct {
 		name         string
 		serviceID    string
-		before       func(*registry.MockStore)
+		before       func()
 		expectStatus int
 		expectBody   string
 	}{
 		{
 			name:      "service found",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore) {
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{
+			before: func() {
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{
 					ID:     "id-api",
 					Name:   "api",
 					Tier:   "foundation",
@@ -119,8 +121,8 @@ func Test_HandleGetService(t *testing.T) {
 		{
 			name:      "service not found",
 			serviceID: "id-unknown",
-			before: func(s *registry.MockStore) {
-				s.EXPECT().ServiceByID("id-unknown").Return(registry.ServiceSnapshot{}, false)
+			before: func() {
+				mockStore.EXPECT().ServiceByID("id-unknown").Return(registry.ServiceSnapshot{}, false)
 			},
 			expectStatus: http.StatusNotFound,
 			expectBody:   "service not found",
@@ -129,8 +131,7 @@ func Test_HandleGetService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, mockStore, _ := newTestHandler(t)
-			tt.before(mockStore)
+			tt.before()
 
 			mux := http.NewServeMux()
 			mux.HandleFunc("GET /api/v1/services/{id}", h.handleGetService)
@@ -147,20 +148,27 @@ func Test_HandleGetService(t *testing.T) {
 }
 
 func Test_HandleStartService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockBus := bus.NewMockBus(ctrl)
+	h := &handler{store: mockStore, bus: mockBus}
+
 	tests := []struct {
 		name         string
 		serviceID    string
-		before       func(*registry.MockStore, *bus.MockBus)
+		before       func()
 		expectStatus int
 		expectBody   string
 	}{
 		{
 			name:      "start stopped service",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, b *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
-				b.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
+				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
 					assert.Equal(t, bus.CommandStartService, msg.Type)
 				})
 			},
@@ -170,10 +178,10 @@ func Test_HandleStartService(t *testing.T) {
 		{
 			name:      "start failed service",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, b *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusFailed}, true)
-				b.EXPECT().Publish(gomock.Any())
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusFailed}, true)
+				mockBus.EXPECT().Publish(gomock.Any())
 			},
 			expectStatus: http.StatusAccepted,
 			expectBody:   "starting",
@@ -181,9 +189,9 @@ func Test_HandleStartService(t *testing.T) {
 		{
 			name:      "cannot start running service",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, _ *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
 			},
 			expectStatus: http.StatusConflict,
 			expectBody:   "service cannot be started",
@@ -191,9 +199,9 @@ func Test_HandleStartService(t *testing.T) {
 		{
 			name:      "service not found",
 			serviceID: "id-unknown",
-			before: func(s *registry.MockStore, _ *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-unknown").Return(registry.ServiceSnapshot{}, false)
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-unknown").Return(registry.ServiceSnapshot{}, false)
 			},
 			expectStatus: http.StatusNotFound,
 			expectBody:   "service not found",
@@ -201,8 +209,8 @@ func Test_HandleStartService(t *testing.T) {
 		{
 			name:      "instance not accepting actions",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, _ *bus.MockBus) {
-				s.EXPECT().Phase().Return("startup")
+			before: func() {
+				mockStore.EXPECT().Phase().Return("startup")
 			},
 			expectStatus: http.StatusConflict,
 			expectBody:   "instance is not accepting actions",
@@ -211,8 +219,7 @@ func Test_HandleStartService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, mockStore, mockBus := newTestHandler(t)
-			tt.before(mockStore, mockBus)
+			tt.before()
 
 			mux := http.NewServeMux()
 			mux.HandleFunc("POST /api/v1/services/{id}/start", h.handleStartService)
@@ -229,20 +236,27 @@ func Test_HandleStartService(t *testing.T) {
 }
 
 func Test_HandleStopService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockBus := bus.NewMockBus(ctrl)
+	h := &handler{store: mockStore, bus: mockBus}
+
 	tests := []struct {
 		name         string
 		serviceID    string
-		before       func(*registry.MockStore, *bus.MockBus)
+		before       func()
 		expectStatus int
 		expectBody   string
 	}{
 		{
 			name:      "stop running service",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, b *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
-				b.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
+				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
 					assert.Equal(t, bus.CommandStopService, msg.Type)
 				})
 			},
@@ -252,9 +266,9 @@ func Test_HandleStopService(t *testing.T) {
 		{
 			name:      "cannot stop stopped service",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, _ *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
 			},
 			expectStatus: http.StatusConflict,
 			expectBody:   "service is not running",
@@ -262,8 +276,8 @@ func Test_HandleStopService(t *testing.T) {
 		{
 			name:      "instance not accepting actions",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, _ *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseStopping))
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseStopping))
 			},
 			expectStatus: http.StatusConflict,
 			expectBody:   "instance is not accepting actions",
@@ -272,8 +286,7 @@ func Test_HandleStopService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, mockStore, mockBus := newTestHandler(t)
-			tt.before(mockStore, mockBus)
+			tt.before()
 
 			mux := http.NewServeMux()
 			mux.HandleFunc("POST /api/v1/services/{id}/stop", h.handleStopService)
@@ -290,20 +303,27 @@ func Test_HandleStopService(t *testing.T) {
 }
 
 func Test_HandleRestartService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockBus := bus.NewMockBus(ctrl)
+	h := &handler{store: mockStore, bus: mockBus}
+
 	tests := []struct {
 		name         string
 		serviceID    string
-		before       func(*registry.MockStore, *bus.MockBus)
+		before       func()
 		expectStatus int
 		expectBody   string
 	}{
 		{
 			name:      "restart running service",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, b *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
-				b.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
+				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
 					assert.Equal(t, bus.CommandRestartService, msg.Type)
 				})
 			},
@@ -313,9 +333,9 @@ func Test_HandleRestartService(t *testing.T) {
 		{
 			name:      "cannot restart stopped service",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, _ *bus.MockBus) {
-				s.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				s.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
+			before: func() {
+				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
+				mockStore.EXPECT().ServiceByID("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
 			},
 			expectStatus: http.StatusConflict,
 			expectBody:   "service is not running",
@@ -323,8 +343,8 @@ func Test_HandleRestartService(t *testing.T) {
 		{
 			name:      "instance not accepting actions",
 			serviceID: "id-api",
-			before: func(s *registry.MockStore, _ *bus.MockBus) {
-				s.EXPECT().Phase().Return("startup")
+			before: func() {
+				mockStore.EXPECT().Phase().Return("startup")
 			},
 			expectStatus: http.StatusConflict,
 			expectBody:   "instance is not accepting actions",
@@ -333,8 +353,7 @@ func Test_HandleRestartService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, mockStore, mockBus := newTestHandler(t)
-			tt.before(mockStore, mockBus)
+			tt.before()
 
 			mux := http.NewServeMux()
 			mux.HandleFunc("POST /api/v1/services/{id}/restart", h.handleRestartService)

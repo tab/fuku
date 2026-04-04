@@ -75,6 +75,18 @@ func Test_UI_CreateProgram(t *testing.T) {
 }
 
 func Test_UI_MultipleProfiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBus := bus.NewMockBus(ctrl)
+	mockController := services.NewMockController(ctrl)
+	mockStore := registry.NewMockStore(ctrl)
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+
+	ctx := context.Background()
+
 	tests := []struct {
 		name    string
 		profile string
@@ -86,17 +98,6 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockBus := bus.NewMockBus(ctrl)
-			mockController := services.NewMockController(ctrl)
-			mockStore := registry.NewMockStore(ctrl)
-			mockMonitor := monitor.NewMockMonitor(ctrl)
-			mockLogger := logger.NewMockLogger(ctrl)
-			componentLogger := logger.NewMockLogger(ctrl)
-
-			ctx := context.Background()
 			msgChan := make(chan bus.Message)
 			close(msgChan)
 
