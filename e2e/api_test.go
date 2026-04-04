@@ -228,8 +228,8 @@ func Test_API_StopConflict(t *testing.T) {
 	services := listBody["services"].([]any)
 	serviceID := services[0].(map[string]any)["id"].(string)
 
-	//nolint:bodyclose // response intentionally discarded
-	apiRequest(t, http.MethodPost, "/api/v1/services/"+serviceID+"/stop", apiToken)
+	stopResp := apiRequest(t, http.MethodPost, "/api/v1/services/"+serviceID+"/stop", apiToken)
+	stopResp.Body.Close()
 
 	require.Eventually(t, func() bool {
 		//nolint:bodyclose // closed by apiJSON
@@ -305,8 +305,8 @@ func Test_API_StatusCounts(t *testing.T) {
 	services := listBody["services"].([]any)
 	serviceID := services[0].(map[string]any)["id"].(string)
 
-	//nolint:bodyclose // response intentionally discarded
-	apiRequest(t, http.MethodPost, "/api/v1/services/"+serviceID+"/stop", apiToken)
+	stopResp := apiRequest(t, http.MethodPost, "/api/v1/services/"+serviceID+"/stop", apiToken)
+	stopResp.Body.Close()
 
 	require.Eventually(t, func() bool {
 		//nolint:bodyclose // closed by apiJSON
