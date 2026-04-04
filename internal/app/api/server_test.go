@@ -31,7 +31,7 @@ func Test_NewServer_APIEnabled(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.API = &config.APIConfig{
-		Listen: "127.0.0.1:0",
+		Listen: "127.0.0.1:9876",
 		Auth:   config.AuthConfig{Token: "test"},
 	}
 
