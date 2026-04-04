@@ -7,9 +7,9 @@ import (
 
 // Controller handles business logic for service orchestration
 type Controller interface {
-	Start(name string) bool
-	Stop(name string) bool
-	Restart(name string) bool
+	Start(id string) bool
+	Stop(id string) bool
+	Restart(id string) bool
 	StopAll()
 }
 
@@ -28,8 +28,8 @@ func NewController(b bus.Bus, store registry.Store) Controller {
 }
 
 // Start requests a service start if it's currently stopped or failed
-func (c *controller) Start(name string) bool {
-	svc, found := c.store.Service(name)
+func (c *controller) Start(id string) bool {
+	svc, found := c.store.Service(id)
 	if !found {
 		return false
 	}
@@ -40,7 +40,7 @@ func (c *controller) Start(name string) bool {
 
 	c.bus.Publish(bus.Message{
 		Type:     bus.CommandStartService,
-		Data:     bus.Payload{Name: name},
+		Data:     bus.Service{ID: id, Name: svc.Name},
 		Critical: true,
 	})
 
@@ -48,8 +48,8 @@ func (c *controller) Start(name string) bool {
 }
 
 // Stop requests a service stop if it's currently running
-func (c *controller) Stop(name string) bool {
-	svc, found := c.store.Service(name)
+func (c *controller) Stop(id string) bool {
+	svc, found := c.store.Service(id)
 	if !found {
 		return false
 	}
@@ -60,7 +60,7 @@ func (c *controller) Stop(name string) bool {
 
 	c.bus.Publish(bus.Message{
 		Type:     bus.CommandStopService,
-		Data:     bus.Payload{Name: name},
+		Data:     bus.Service{ID: id, Name: svc.Name},
 		Critical: true,
 	})
 
@@ -68,8 +68,8 @@ func (c *controller) Stop(name string) bool {
 }
 
 // Restart requests a service restart if it's running, failed, or stopped
-func (c *controller) Restart(name string) bool {
-	svc, found := c.store.Service(name)
+func (c *controller) Restart(id string) bool {
+	svc, found := c.store.Service(id)
 	if !found {
 		return false
 	}
@@ -80,7 +80,7 @@ func (c *controller) Restart(name string) bool {
 
 	c.bus.Publish(bus.Message{
 		Type:     bus.CommandRestartService,
-		Data:     bus.Payload{Name: name},
+		Data:     bus.Service{ID: id, Name: svc.Name},
 		Critical: true,
 	})
 

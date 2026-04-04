@@ -71,7 +71,7 @@ func Test_Stop_ServiceNotRunning(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(registry.Lookup{Exists: false})
+	mockRegistry.EXPECT().Get("test-id-api").Return(registry.Lookup{Exists: false})
 
 	s := &service{
 		cfg:      cfg,
@@ -80,7 +80,7 @@ func Test_Stop_ServiceNotRunning(t *testing.T) {
 		log:      mockLog,
 	}
 
-	s.Stop("api")
+	s.Stop("test-id-api")
 }
 
 func Test_Stop_ServiceRunning(t *testing.T) {
@@ -101,9 +101,9 @@ func Test_Stop_ServiceRunning(t *testing.T) {
 	mockLifecycle.EXPECT().Terminate(mockProcess, config.ShutdownTimeout).Return(nil)
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(registry.Lookup{Proc: mockProcess, Tier: "platform", Exists: true})
-	mockRegistry.EXPECT().Detach("api")
-	mockRegistry.EXPECT().Remove("api", mockProcess).Return(registry.RemoveResult{Removed: true})
+	mockRegistry.EXPECT().Get("test-id-api").Return(registry.Lookup{Proc: mockProcess, Name: "api", Tier: "platform", Exists: true})
+	mockRegistry.EXPECT().Detach("test-id-api")
+	mockRegistry.EXPECT().Remove("test-id-api", mockProcess).Return(registry.RemoveResult{Removed: true})
 
 	s := &service{
 		cfg:       cfg,
@@ -113,7 +113,7 @@ func Test_Stop_ServiceRunning(t *testing.T) {
 		log:       mockLog,
 	}
 
-	s.Stop("api")
+	s.Stop("test-id-api")
 }
 
 func Test_Restart_GuardLocked(t *testing.T) {
@@ -125,7 +125,7 @@ func Test_Restart_GuardLocked(t *testing.T) {
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockGuard := NewMockGuard(ctrl)
-	mockGuard.EXPECT().Lock("api").Return(false)
+	mockGuard.EXPECT().Lock("test-id-api").Return(false)
 
 	s := &service{
 		cfg:   cfg,
@@ -135,7 +135,7 @@ func Test_Restart_GuardLocked(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s.Restart(ctx, "api")
+	s.Restart(ctx, bus.Service{ID: "test-id-api", Name: "api"})
 }
 
 func Test_Restart_ConfigNotFound(t *testing.T) {
@@ -147,8 +147,8 @@ func Test_Restart_ConfigNotFound(t *testing.T) {
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockGuard := NewMockGuard(ctrl)
-	mockGuard.EXPECT().Lock("api").Return(true)
-	mockGuard.EXPECT().Unlock("api")
+	mockGuard.EXPECT().Lock("test-id-api").Return(true)
+	mockGuard.EXPECT().Unlock("test-id-api")
 
 	s := &service{
 		cfg:   cfg,
@@ -158,7 +158,7 @@ func Test_Restart_ConfigNotFound(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s.Restart(ctx, "api")
+	s.Restart(ctx, bus.Service{ID: "test-id-api", Name: "api"})
 }
 
 func Test_Restart_StoppedService(t *testing.T) {
@@ -179,8 +179,8 @@ func Test_Restart_StoppedService(t *testing.T) {
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockGuard := NewMockGuard(ctrl)
-	mockGuard.EXPECT().Lock("api").Return(true)
-	mockGuard.EXPECT().Unlock("api")
+	mockGuard.EXPECT().Lock("test-id-api").Return(true)
+	mockGuard.EXPECT().Unlock("test-id-api")
 
 	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 	mockLifecycle.EXPECT().Configure(gomock.Any()).AnyTimes()
@@ -191,9 +191,9 @@ func Test_Restart_StoppedService(t *testing.T) {
 	mockBroadcaster.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Get("api").Return(registry.Lookup{Exists: false})
-	mockRegistry.EXPECT().Add("api", gomock.Any(), "platform")
-	mockRegistry.EXPECT().Remove("api", gomock.Any()).Return(registry.RemoveResult{Removed: true, UnexpectedExit: true}).AnyTimes()
+	mockRegistry.EXPECT().Get("test-id-api").Return(registry.Lookup{Exists: false})
+	mockRegistry.EXPECT().Add("platform", bus.Service{ID: "test-id-api", Name: "api"}, gomock.Any())
+	mockRegistry.EXPECT().Remove("test-id-api", gomock.Any()).Return(registry.RemoveResult{Removed: true, Name: "api", UnexpectedExit: true}).AnyTimes()
 
 	s := &service{
 		cfg:         cfg,
@@ -209,7 +209,7 @@ func Test_Restart_StoppedService(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	s.Restart(ctx, "api")
+	s.Restart(ctx, bus.Service{ID: "test-id-api", Name: "api"})
 }
 
 func Test_Resume_GuardLocked(t *testing.T) {
@@ -221,7 +221,7 @@ func Test_Resume_GuardLocked(t *testing.T) {
 	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	mockGuard := NewMockGuard(ctrl)
-	mockGuard.EXPECT().Lock("api").Return(false)
+	mockGuard.EXPECT().Lock("test-id-api").Return(false)
 
 	s := &service{
 		cfg:   cfg,
@@ -231,7 +231,7 @@ func Test_Resume_GuardLocked(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s.Resume(ctx, "api")
+	s.Resume(ctx, bus.Service{ID: "test-id-api", Name: "api"})
 }
 
 func Test_Resume_ConfigNotFound(t *testing.T) {
@@ -243,8 +243,8 @@ func Test_Resume_ConfigNotFound(t *testing.T) {
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockGuard := NewMockGuard(ctrl)
-	mockGuard.EXPECT().Lock("api").Return(true)
-	mockGuard.EXPECT().Unlock("api")
+	mockGuard.EXPECT().Lock("test-id-api").Return(true)
+	mockGuard.EXPECT().Unlock("test-id-api")
 
 	s := &service{
 		cfg:   cfg,
@@ -254,7 +254,7 @@ func Test_Resume_ConfigNotFound(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s.Resume(ctx, "api")
+	s.Resume(ctx, bus.Service{ID: "test-id-api", Name: "api"})
 }
 
 func Test_Resume_Success(t *testing.T) {
@@ -275,8 +275,8 @@ func Test_Resume_Success(t *testing.T) {
 	mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 	mockGuard := NewMockGuard(ctrl)
-	mockGuard.EXPECT().Lock("api").Return(true)
-	mockGuard.EXPECT().Unlock("api")
+	mockGuard.EXPECT().Lock("test-id-api").Return(true)
+	mockGuard.EXPECT().Unlock("test-id-api")
 
 	mockLifecycle := lifecycle.NewMockLifecycle(ctrl)
 	mockLifecycle.EXPECT().Configure(gomock.Any()).AnyTimes()
@@ -287,8 +287,8 @@ func Test_Resume_Success(t *testing.T) {
 	mockBroadcaster.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().Add("api", gomock.Any(), "platform")
-	mockRegistry.EXPECT().Remove("api", gomock.Any()).Return(registry.RemoveResult{Removed: true, UnexpectedExit: true}).AnyTimes()
+	mockRegistry.EXPECT().Add("platform", bus.Service{ID: "test-id-api", Name: "api"}, gomock.Any())
+	mockRegistry.EXPECT().Remove("test-id-api", gomock.Any()).Return(registry.RemoveResult{Removed: true, Name: "api", UnexpectedExit: true}).AnyTimes()
 
 	s := &service{
 		cfg:         cfg,
@@ -304,7 +304,7 @@ func Test_Resume_Success(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	s.Resume(ctx, "api")
+	s.Resume(ctx, bus.Service{ID: "test-id-api", Name: "api"})
 }
 
 func Test_GetConfig_NotFound(t *testing.T) {
@@ -369,7 +369,7 @@ func Test_DoStart_DirectoryNotExist(t *testing.T) {
 	ctx := context.Background()
 	svc := &config.Service{Dir: "/nonexistent/directory/path"}
 
-	proc, err := s.doStart(ctx, "test-service", "platform", svc)
+	proc, err := s.doStart(ctx, "platform", bus.Service{ID: "test-id-svc", Name: "test-service"}, svc)
 
 	require.Error(t, err)
 	assert.Nil(t, proc)
@@ -391,7 +391,7 @@ func Test_DoStart_RelativePathConversion(t *testing.T) {
 	ctx := context.Background()
 	svc := &config.Service{Dir: "nonexistent"}
 
-	proc, err := s.doStart(ctx, "test-service", "platform", svc)
+	proc, err := s.doStart(ctx, "platform", bus.Service{ID: "test-id-svc", Name: "test-service"}, svc)
 
 	require.Error(t, err)
 	assert.Nil(t, proc)
@@ -436,7 +436,7 @@ func Test_DoStart_ValidDirectory(t *testing.T) {
 
 	svc := &config.Service{Dir: tmpDir}
 
-	proc, err := s.doStart(ctx, "test-service", "platform", svc)
+	proc, err := s.doStart(ctx, "platform", bus.Service{ID: "test-id-svc", Name: "test-service"}, svc)
 	if err != nil {
 		assert.Contains(t, err.Error(), "failed to start command")
 
@@ -477,7 +477,7 @@ func Test_SetupReadinessCheck_NoReadiness(t *testing.T) {
 		Readiness: nil,
 	}
 
-	s.setupReadinessCheck(ctx, "test-service", serviceCfg, proc)
+	s.setupReadinessCheck(ctx, bus.Service{ID: "test-id-svc", Name: "test-service"}, serviceCfg, proc)
 
 	select {
 	case err := <-proc.Ready():
@@ -497,7 +497,7 @@ func Test_SetupReadinessCheck_HTTPReadiness(t *testing.T) {
 
 	checkCalled := make(chan struct{})
 
-	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
+	mockReadiness.EXPECT().Check(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(1).
 		Do(func(_, _, _, _ any) {
 			close(checkCalled)
@@ -529,7 +529,7 @@ func Test_SetupReadinessCheck_HTTPReadiness(t *testing.T) {
 		},
 	}
 
-	s.setupReadinessCheck(ctx, "test-service", serviceCfg, proc)
+	s.setupReadinessCheck(ctx, bus.Service{ID: "test-id-svc", Name: "test-service"}, serviceCfg, proc)
 
 	select {
 	case <-checkCalled:
@@ -548,7 +548,7 @@ func Test_SetupReadinessCheck_LogReadiness(t *testing.T) {
 
 	checkCalled := make(chan struct{})
 
-	mockReadiness.EXPECT().Check(gomock.Any(), "test-service", gomock.Any(), gomock.Any()).
+	mockReadiness.EXPECT().Check(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(1).
 		Do(func(_, _, _, _ any) {
 			close(checkCalled)
@@ -580,7 +580,7 @@ func Test_SetupReadinessCheck_LogReadiness(t *testing.T) {
 		},
 	}
 
-	s.setupReadinessCheck(ctx, "test-service", serviceCfg, proc)
+	s.setupReadinessCheck(ctx, bus.Service{ID: "test-id-svc", Name: "test-service"}, serviceCfg, proc)
 
 	select {
 	case <-checkCalled:
@@ -617,7 +617,7 @@ func Test_SetupReadinessCheck_UnknownType(t *testing.T) {
 		},
 	}
 
-	s.setupReadinessCheck(ctx, "test-service", serviceCfg, proc)
+	s.setupReadinessCheck(ctx, bus.Service{ID: "test-id-svc", Name: "test-service"}, serviceCfg, proc)
 
 	select {
 	case err := <-proc.Ready():
@@ -1258,7 +1258,7 @@ func Test_DoStart_CustomCommand(t *testing.T) {
 
 	svc := &config.Service{Dir: tmpDir, Command: "sleep 60"}
 
-	proc, err := s.doStart(t.Context(), "test-service", "platform", svc)
+	proc, err := s.doStart(t.Context(), "platform", bus.Service{ID: "test-id-svc", Name: "test-service"}, svc)
 	require.NoError(t, err)
 	require.NotNil(t, proc)
 

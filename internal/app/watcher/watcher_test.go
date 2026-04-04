@@ -77,7 +77,7 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	// Wait for WatchStarted event instead of sleeping
@@ -85,7 +85,7 @@ func Test_Watcher_StartsWatchingOnServiceReady(t *testing.T) {
 
 	m := w.(*manager)
 	m.mu.RLock()
-	_, exists := m.watchers["test-service"]
+	_, exists := m.watchers["test-id-svc"]
 	m.mu.RUnlock()
 
 	assert.True(t, exists, "watcher should be registered for service")
@@ -129,21 +129,21 @@ func Test_Watcher_StopsWatchingOnServiceStopped(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStopped,
-		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStopped)
 
 	m := w.(*manager)
 	m.mu.RLock()
-	_, exists := m.watchers["test-service"]
+	_, exists := m.watchers["test-id-svc"]
 	m.mu.RUnlock()
 
 	assert.False(t, exists, "watcher should be removed after service stopped")
@@ -192,7 +192,7 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
@@ -208,7 +208,7 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 			if event.Type == bus.EventWatchTriggered {
 				data, ok := event.Data.(bus.WatchTriggered)
 				assert.True(t, ok)
-				assert.Equal(t, "test-service", data.Service)
+				assert.Equal(t, "test-service", data.Service.Name)
 				assert.NotEmpty(t, data.ChangedFiles)
 
 				return
@@ -263,7 +263,7 @@ func Test_Watcher_IgnoresTestFiles(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
@@ -346,7 +346,7 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "no-watch-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-nowatch", Name: "no-watch-service"}, Tier: "default"}},
 	})
 
 	// Wait briefly - no WatchStarted event should be published
@@ -362,7 +362,7 @@ func Test_Watcher_SkipsServiceWithoutWatchConfig(t *testing.T) {
 			// Verify watcher was not registered
 			m := w.(*manager)
 			m.mu.RLock()
-			_, exists := m.watchers["no-watch-service"]
+			_, exists := m.watchers["test-id-nowatch"]
 			m.mu.RUnlock()
 			assert.False(t, exists, "watcher should not be registered for service without watch config")
 
@@ -409,7 +409,7 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	timeout := time.After(time.Second)
@@ -418,7 +418,7 @@ func Test_Watcher_PublishesWatchStartedEvent(t *testing.T) {
 		select {
 		case event := <-eventCh:
 			if event.Type == bus.EventWatchStarted {
-				data, ok := event.Data.(bus.Payload)
+				data, ok := event.Data.(bus.Service)
 				assert.True(t, ok)
 				assert.Equal(t, "test-service", data.Name)
 
@@ -468,14 +468,14 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStopped,
-		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	timeout := time.After(time.Second)
@@ -484,7 +484,7 @@ func Test_Watcher_PublishesWatchStoppedEvent(t *testing.T) {
 		select {
 		case event := <-eventCh:
 			if event.Type == bus.EventWatchStopped {
-				data, ok := event.Data.(bus.Payload)
+				data, ok := event.Data.(bus.Service)
 				assert.True(t, ok)
 				assert.Equal(t, "test-service", data.Name)
 
@@ -541,14 +541,14 @@ func Test_Watcher_IgnoreSkipsDirs(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	m := w.(*manager)
 	m.mu.RLock()
-	watcher, exists := m.watchers["test-service"]
+	watcher, exists := m.watchers["test-id-svc"]
 	m.mu.RUnlock()
 
 	require.True(t, exists)
@@ -605,7 +605,7 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
@@ -621,7 +621,7 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 			if event.Type == bus.EventWatchTriggered {
 				data, ok := event.Data.(bus.WatchTriggered)
 				assert.True(t, ok)
-				assert.Equal(t, "test-service", data.Service)
+				assert.Equal(t, "test-service", data.Service.Name)
 				assert.NotEmpty(t, data.ChangedFiles)
 
 				return
@@ -677,14 +677,14 @@ func Test_Watcher_IgnoreSkipsCustomDirs(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	m := w.(*manager)
 	m.mu.RLock()
-	watcher, exists := m.watchers["test-service"]
+	watcher, exists := m.watchers["test-id-svc"]
 	m.mu.RUnlock()
 
 	require.True(t, exists)
@@ -735,7 +735,7 @@ func Test_Watcher_WatchesNewDirCreatedAtRuntime(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "test-service", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc", Name: "test-service"}, Tier: "default"}},
 	})
 
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
@@ -766,7 +766,7 @@ func Test_Watcher_WatchesNewDirCreatedAtRuntime(t *testing.T) {
 			if event.Type == bus.EventWatchTriggered {
 				data, ok := event.Data.(bus.WatchTriggered)
 				assert.True(t, ok)
-				assert.Equal(t, "test-service", data.Service)
+				assert.Equal(t, "test-service", data.Service.Name)
 
 				return
 			}
@@ -826,13 +826,13 @@ func Test_Watcher_NewDirInSharedPathRegistersAllServices(t *testing.T) {
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "service-1", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc1", Name: "service-1"}, Tier: "default"}},
 	})
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "service-2", Tier: "default"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-svc2", Name: "service-2"}, Tier: "default"}},
 	})
 	waitForEvent(t, eventCh, bus.EventWatchStarted)
 
@@ -854,8 +854,8 @@ func Test_Watcher_NewDirInSharedPathRegistersAllServices(t *testing.T) {
 	subscribers := m.registry[newDir]
 	m.mu.RUnlock()
 
-	assert.Contains(t, subscribers, "service-1")
-	assert.Contains(t, subscribers, "service-2")
+	assert.Contains(t, subscribers, "test-id-svc1")
+	assert.Contains(t, subscribers, "test-id-svc2")
 }
 
 func Test_normalizeSharedPath(t *testing.T) {

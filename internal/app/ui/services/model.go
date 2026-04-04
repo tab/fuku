@@ -40,6 +40,7 @@ type Tier struct {
 
 // ServiceState represents the state of a service in the UI
 type ServiceState struct {
+	ID        string
 	Name      string
 	Tier      string
 	Status    Status
@@ -69,7 +70,9 @@ type Model struct {
 		profile      string
 		phase        bus.Phase
 		tiers        []Tier
+		tierIndex    map[string]int
 		services     map[string]*ServiceState
+		serviceIDs   []string
 		restarting   map[string]bool
 		selected     int
 		ready        bool
@@ -130,6 +133,7 @@ func NewModel(
 	m.state.profile = profile
 	m.state.phase = bus.PhaseStartup
 	m.state.tiers = make([]Tier, 0)
+	m.state.tierIndex = make(map[string]int)
 	m.state.services = make(map[string]*ServiceState)
 	m.state.restarting = make(map[string]bool)
 	m.state.selected = 0
@@ -166,33 +170,16 @@ func requestBackgroundColorCmd() tea.Msg {
 
 // getSelectedService returns the currently selected service state
 func (m Model) getSelectedService() *ServiceState {
-	if m.state.selected < 0 {
+	if m.state.selected < 0 || m.state.selected >= len(m.state.serviceIDs) {
 		return nil
 	}
 
-	idx := 0
-
-	for _, tier := range m.state.tiers {
-		for _, serviceName := range tier.Services {
-			if idx == m.state.selected {
-				return m.state.services[serviceName]
-			}
-
-			idx++
-		}
-	}
-
-	return nil
+	return m.state.services[m.state.serviceIDs[m.state.selected]]
 }
 
 // getTotalServices returns the total count of services
 func (m Model) getTotalServices() int {
-	total := 0
-	for _, tier := range m.state.tiers {
-		total += len(tier.Services)
-	}
-
-	return total
+	return len(m.state.serviceIDs)
 }
 
 // getReadyServices returns the count of services in ready state
@@ -282,7 +269,7 @@ func (m *Model) refreshFromStore() {
 	snapshots := m.store.Services()
 
 	for _, snap := range snapshots {
-		service, exists := m.state.services[snap.Name]
+		service, exists := m.state.services[snap.ID]
 		if !exists {
 			continue
 		}

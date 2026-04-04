@@ -172,8 +172,8 @@ func (m Model) renderTier(tier Tier, currentIdx *int) string {
 
 	rows = append(rows, components.TierHeaderStyle.Width(rowWidth).Render(tier.Name))
 
-	for _, serviceName := range tier.Services {
-		service, exists := m.state.services[serviceName]
+	for _, serviceID := range tier.Services {
+		service, exists := m.state.services[serviceID]
 		if !exists {
 			continue
 		}

@@ -11,6 +11,7 @@ package runner
 
 import (
 	context "context"
+	bus "fuku/internal/app/bus"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -41,51 +42,51 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 }
 
 // Restart mocks base method.
-func (m *MockService) Restart(ctx context.Context, name string) {
+func (m *MockService) Restart(ctx context.Context, svc bus.Service) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Restart", ctx, name)
+	m.ctrl.Call(m, "Restart", ctx, svc)
 }
 
 // Restart indicates an expected call of Restart.
-func (mr *MockServiceMockRecorder) Restart(ctx, name any) *gomock.Call {
+func (mr *MockServiceMockRecorder) Restart(ctx, svc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockService)(nil).Restart), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockService)(nil).Restart), ctx, svc)
 }
 
 // Resume mocks base method.
-func (m *MockService) Resume(ctx context.Context, name string) {
+func (m *MockService) Resume(ctx context.Context, svc bus.Service) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Resume", ctx, name)
+	m.ctrl.Call(m, "Resume", ctx, svc)
 }
 
 // Resume indicates an expected call of Resume.
-func (mr *MockServiceMockRecorder) Resume(ctx, name any) *gomock.Call {
+func (mr *MockServiceMockRecorder) Resume(ctx, svc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resume", reflect.TypeOf((*MockService)(nil).Resume), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resume", reflect.TypeOf((*MockService)(nil).Resume), ctx, svc)
 }
 
 // Start mocks base method.
-func (m *MockService) Start(ctx context.Context, name, tier string) error {
+func (m *MockService) Start(ctx context.Context, tier string, svc bus.Service) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", ctx, name, tier)
+	ret := m.ctrl.Call(m, "Start", ctx, tier, svc)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockServiceMockRecorder) Start(ctx, name, tier any) *gomock.Call {
+func (mr *MockServiceMockRecorder) Start(ctx, tier, svc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockService)(nil).Start), ctx, name, tier)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockService)(nil).Start), ctx, tier, svc)
 }
 
 // Stop mocks base method.
-func (m *MockService) Stop(name string) {
+func (m *MockService) Stop(id string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop", name)
+	m.ctrl.Call(m, "Stop", id)
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockServiceMockRecorder) Stop(name any) *gomock.Call {
+func (mr *MockServiceMockRecorder) Stop(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockService)(nil).Stop), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockService)(nil).Stop), id)
 }

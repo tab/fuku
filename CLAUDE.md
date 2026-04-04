@@ -160,18 +160,18 @@
         Profile() string
         Uptime() time.Duration
         Services() []ServiceSnapshot
-        Service(name string) (ServiceSnapshot, bool)
-        ServiceByID(id string) (ServiceSnapshot, bool)
+        Service(id string) (ServiceSnapshot, bool)
+        Counts() StatusCounts
     }
     ```
 
 16. **runner.Service** - Individual service lifecycle management:
     ```go
     type Service interface {
-        Start(ctx context.Context, name, tier string) error
-        Stop(name string)
-        Restart(ctx context.Context, name string)
-        Resume(ctx context.Context, name string)
+        Start(ctx context.Context, tier string, svc bus.Service) error
+        Stop(id string)
+        Restart(ctx context.Context, svc bus.Service)
+        Resume(ctx context.Context, svc bus.Service)
     }
     ```
 
@@ -358,7 +358,6 @@
 - `internal/app/ui/services/loader_test.go` - Loader queue operations
 - `internal/app/ui/services/model_test.go` - Service state methods and helpers
 - `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
-- `internal/app/ui/services/state_test.go` - FSM state transitions and callbacks
 - `internal/app/ui/services/update_test.go` - Event handlers
 - `internal/app/ui/services/view_test.go` - View rendering functions
 - `internal/app/ui/wire/module_test.go` - UI wire module testing

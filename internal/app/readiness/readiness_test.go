@@ -318,7 +318,7 @@ func Test_Check_HTTP(t *testing.T) {
 	proc := process.NewProcess(process.Params{Name: "test-service"})
 
 	ctx := context.Background()
-	checker.Check(ctx, "test-service", srv, proc)
+	checker.Check(ctx, bus.Service{ID: "test-id-api", Name: "test-service"}, srv, proc)
 
 	select {
 	case err := <-proc.Ready():
@@ -364,7 +364,7 @@ func Test_Check_Log(t *testing.T) {
 	}()
 
 	ctx := context.Background()
-	checker.Check(ctx, "test-service", srv, proc)
+	checker.Check(ctx, bus.Service{ID: "test-id-api", Name: "test-service"}, srv, proc)
 
 	select {
 	case err := <-proc.Ready():
@@ -396,7 +396,7 @@ func Test_Check_InvalidType(t *testing.T) {
 	proc := process.NewProcess(process.Params{Name: "test-service"})
 
 	ctx := context.Background()
-	checker.Check(ctx, "test-service", srv, proc)
+	checker.Check(ctx, bus.Service{ID: "test-id-api", Name: "test-service"}, srv, proc)
 
 	select {
 	case err := <-proc.Ready():
@@ -559,7 +559,7 @@ func Test_Check_TCP(t *testing.T) {
 	proc := process.NewProcess(process.Params{Name: "test-service"})
 
 	ctx := context.Background()
-	checker.Check(ctx, "test-service", srv, proc)
+	checker.Check(ctx, bus.Service{ID: "test-id-api", Name: "test-service"}, srv, proc)
 
 	select {
 	case err := <-proc.Ready():

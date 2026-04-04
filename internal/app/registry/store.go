@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
 	"fuku/internal/config"
@@ -60,6 +58,17 @@ type ServiceSnapshot struct {
 	StartTime time.Time
 }
 
+// StatusCounts contains service counts grouped by status
+type StatusCounts struct {
+	Total      int
+	Starting   int
+	Running    int
+	Stopping   int
+	Restarting int
+	Stopped    int
+	Failed     int
+}
+
 // Store provides a bus-backed snapshot of the runtime state
 type Store interface {
 	Run(ctx context.Context)
@@ -68,13 +77,14 @@ type Store interface {
 	Profile() string
 	Uptime() time.Duration
 	Services() []ServiceSnapshot
-	Service(name string) (ServiceSnapshot, bool)
-	ServiceByID(id string) (ServiceSnapshot, bool)
+	Service(id string) (ServiceSnapshot, bool)
+	Counts() StatusCounts
 }
 
 // serviceState tracks the mutable state of a single service
 type serviceState struct {
 	id        string
+	name      string
 	tier      string
 	status    Status
 	watching  bool
@@ -98,6 +108,7 @@ type store struct {
 	tiers        []bus.Tier
 	services     map[string]*serviceState
 	serviceOrder []string
+	counts       StatusCounts
 }
 
 // NewStore creates a new runtime store
@@ -176,49 +187,83 @@ func (s *store) Services() []ServiceSnapshot {
 
 	snapshots := make([]ServiceSnapshot, 0, len(s.serviceOrder))
 
-	for _, name := range s.serviceOrder {
-		svc, exists := s.services[name]
+	for _, id := range s.serviceOrder {
+		svc, exists := s.services[id]
 		if !exists {
 			continue
 		}
 
-		snapshots = append(snapshots, s.snapshot(name, svc))
+		snapshots = append(snapshots, s.snapshot(svc))
 	}
 
 	return snapshots
 }
 
-// Service returns a single service snapshot
-func (s *store) Service(name string) (ServiceSnapshot, bool) {
+// Service returns a single service snapshot by ID
+func (s *store) Service(id string) (ServiceSnapshot, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	svc, exists := s.services[name]
+	svc, exists := s.services[id]
 	if !exists {
 		return ServiceSnapshot{}, false
 	}
 
-	return s.snapshot(name, svc), true
+	return s.snapshot(svc), true
 }
 
-// ServiceByID returns a single service snapshot by UUID
-func (s *store) ServiceByID(id string) (ServiceSnapshot, bool) {
+// Counts returns the current service status counts
+func (s *store) Counts() StatusCounts {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for name, svc := range s.services {
-		if svc.id == id {
-			return s.snapshot(name, svc), true
-		}
-	}
-
-	return ServiceSnapshot{}, false
+	return s.counts
 }
 
-func (s *store) snapshot(name string, svc *serviceState) ServiceSnapshot {
+func (s *store) transitionStatus(svc *serviceState, newStatus Status) {
+	s.decrementCount(svc.status)
+	svc.status = newStatus
+	s.incrementCount(newStatus)
+}
+
+func (s *store) incrementCount(status Status) {
+	switch status {
+	case StatusStarting:
+		s.counts.Starting++
+	case StatusRunning:
+		s.counts.Running++
+	case StatusStopping:
+		s.counts.Stopping++
+	case StatusRestarting:
+		s.counts.Restarting++
+	case StatusStopped:
+		s.counts.Stopped++
+	case StatusFailed:
+		s.counts.Failed++
+	}
+}
+
+func (s *store) decrementCount(status Status) {
+	switch status {
+	case StatusStarting:
+		s.counts.Starting--
+	case StatusRunning:
+		s.counts.Running--
+	case StatusStopping:
+		s.counts.Stopping--
+	case StatusRestarting:
+		s.counts.Restarting--
+	case StatusStopped:
+		s.counts.Stopped--
+	case StatusFailed:
+		s.counts.Failed--
+	}
+}
+
+func (s *store) snapshot(svc *serviceState) ServiceSnapshot {
 	return ServiceSnapshot{
 		ID:        svc.id,
-		Name:      name,
+		Name:      svc.name,
 		Tier:      svc.tier,
 		Status:    svc.status,
 		Watching:  svc.watching,
@@ -289,12 +334,12 @@ func (s *store) handleServiceStarting(msg bus.Message) {
 		return
 	}
 
-	svc, exists := s.services[data.Service]
+	svc, exists := s.services[data.Service.ID]
 	if !exists {
 		return
 	}
 
-	svc.status = StatusStarting
+	s.transitionStatus(svc, StatusStarting)
 	svc.pid = data.PID
 	svc.err = ""
 	svc.startTime = msg.Timestamp
@@ -308,12 +353,12 @@ func (s *store) handleServiceStopped(msg bus.Message) {
 		return
 	}
 
-	svc, exists := s.services[data.Service]
+	svc, exists := s.services[data.Service.ID]
 	if !exists {
 		return
 	}
 
-	svc.status = StatusStopped
+	s.transitionStatus(svc, StatusStopped)
 	svc.pid = 0
 	svc.cpu = 0
 	svc.memory = 0
@@ -321,19 +366,19 @@ func (s *store) handleServiceStopped(msg bus.Message) {
 	svc.err = ""
 }
 
-// serviceNamer extracts the service name from bus event data
-type serviceNamer interface {
-	ServiceName() string
+// serviceIdentifier extracts the service ID from bus event data
+type serviceIdentifier interface {
+	ServiceID() string
 }
 
 func (s *store) setServiceStatus(msg bus.Message, status Status) {
-	namer, ok := msg.Data.(serviceNamer)
+	ident, ok := msg.Data.(serviceIdentifier)
 	if !ok {
 		return
 	}
 
-	if svc, exists := s.services[namer.ServiceName()]; exists {
-		svc.status = status
+	if svc, exists := s.services[ident.ServiceID()]; exists {
+		s.transitionStatus(svc, status)
 	}
 }
 
@@ -343,12 +388,12 @@ func (s *store) handleServiceFailed(msg bus.Message) {
 		return
 	}
 
-	svc, exists := s.services[data.Service]
+	svc, exists := s.services[data.Service.ID]
 	if !exists {
 		return
 	}
 
-	svc.status = StatusFailed
+	s.transitionStatus(svc, StatusFailed)
 	svc.pid = 0
 	svc.cpu = 0
 	svc.memory = 0
@@ -361,12 +406,12 @@ func (s *store) handleServiceFailed(msg bus.Message) {
 }
 
 func (s *store) setWatching(msg bus.Message, value bool) {
-	data, ok := msg.Data.(bus.Payload)
+	data, ok := msg.Data.(bus.Service)
 	if !ok {
 		return
 	}
 
-	if svc, exists := s.services[data.Name]; exists {
+	if svc, exists := s.services[data.ID]; exists {
 		svc.watching = value
 	}
 }
@@ -379,6 +424,7 @@ func (s *store) initServices(tiers []bus.Tier) {
 
 	s.services = make(map[string]*serviceState, totalServices)
 	s.serviceOrder = nil
+	s.counts = StatusCounts{Total: totalServices, Starting: totalServices}
 
 	tierIndex := make(map[string]int, len(tiers))
 	for i, tier := range tiers {
@@ -386,6 +432,7 @@ func (s *store) initServices(tiers []bus.Tier) {
 	}
 
 	type serviceEntry struct {
+		id        string
 		name      string
 		tier      string
 		tierOrder int
@@ -394,14 +441,16 @@ func (s *store) initServices(tiers []bus.Tier) {
 	var entries []serviceEntry
 
 	for _, tier := range tiers {
-		for _, name := range tier.Services {
-			s.services[name] = &serviceState{
-				id:     uuid.NewString(),
+		for _, svc := range tier.Services {
+			s.services[svc.ID] = &serviceState{
+				id:     svc.ID,
+				name:   svc.Name,
 				tier:   tier.Name,
 				status: StatusStarting,
 			}
 			entries = append(entries, serviceEntry{
-				name:      name,
+				id:        svc.ID,
+				name:      svc.Name,
 				tier:      tier.Name,
 				tierOrder: tierIndex[tier.Name],
 			})
@@ -418,7 +467,7 @@ func (s *store) initServices(tiers []bus.Tier) {
 
 	s.serviceOrder = make([]string, len(entries))
 	for i, e := range entries {
-		s.serviceOrder[i] = e.name
+		s.serviceOrder[i] = e.id
 	}
 }
 
@@ -426,9 +475,9 @@ func (s *store) sampleStats(ctx context.Context) {
 	s.mu.RLock()
 	pids := make(map[string]int, len(s.services))
 
-	for name, svc := range s.services {
+	for id, svc := range s.services {
 		if svc.pid > 0 {
-			pids[name] = svc.pid
+			pids[id] = svc.pid
 		}
 	}
 
@@ -443,20 +492,20 @@ func (s *store) sampleStats(ctx context.Context) {
 
 	stats := make(map[string]monitor.Stats, len(pids))
 
-	for name, pid := range pids {
+	for id, pid := range pids {
 		st, err := s.monitor.GetStats(ctx, pid)
 		if err != nil {
 			continue
 		}
 
-		stats[name] = st
+		stats[id] = st
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for name, st := range stats {
-		if svc, exists := s.services[name]; exists && svc.pid == pids[name] {
+	for id, st := range stats {
+		if svc, exists := s.services[id]; exists && svc.pid == pids[id] {
 			svc.cpu = st.CPU
 			svc.memory = st.RawMEM
 		}

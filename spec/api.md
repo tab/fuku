@@ -399,7 +399,7 @@ commands. The runner processes these through the worker pool to respect
 `concurrency.workers`.
 
 **TUI integration:** The TUI bottom bar shows API status when enabled:
-`◉ 127.0.0.1:9876` with green dot (connected) or grey dot (disconnected),
+`◉ 127.0.0.1:9876` with sky blue dot (connected) or grey dot (disconnected),
 driven by `EventAPIStarted`/`EventAPIStopped` bus events.
 
 ## Test

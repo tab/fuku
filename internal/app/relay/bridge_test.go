@@ -97,7 +97,7 @@ func Test_Bridge_StartStop(t *testing.T) {
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
 		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 		},
 	})
 
@@ -127,7 +127,7 @@ func Test_Bridge_ForwardsMultipleEvents(t *testing.T) {
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
 		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 			PID:          1234,
 		},
 	})
@@ -135,7 +135,7 @@ func Test_Bridge_ForwardsMultipleEvents(t *testing.T) {
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
 		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 		},
 	})
 

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/process"
 )
 
@@ -29,7 +30,7 @@ func Test_Registry_Add(t *testing.T) {
 	mockProc := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("test-service", mockProc, "default")
+	reg.Add("default", bus.Service{ID: "test-service", Name: "test-service"}, mockProc)
 
 	lookup := reg.Get("test-service")
 	assert.True(t, lookup.Exists)
@@ -54,8 +55,8 @@ func Test_Registry_Snapshot(t *testing.T) {
 	mockProc2 := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("service1", mockProc1, "default")
-	reg.Add("service2", mockProc2, "default")
+	reg.Add("default", bus.Service{ID: "service1", Name: "service1"}, mockProc1)
+	reg.Add("default", bus.Service{ID: "service2", Name: "service2"}, mockProc2)
 
 	snapshot := reg.SnapshotReverse()
 	assert.Len(t, snapshot, 2)
@@ -68,7 +69,7 @@ func Test_Registry_Remove_FromProcesses(t *testing.T) {
 	mockProc := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("test-service", mockProc, "platform")
+	reg.Add("platform", bus.Service{ID: "test-service", Name: "test-service"}, mockProc)
 
 	lookup := reg.Get("test-service")
 	assert.True(t, lookup.Exists)
@@ -89,7 +90,7 @@ func Test_Registry_Remove_FromDetached(t *testing.T) {
 	mockProc := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("test-service", mockProc, "platform")
+	reg.Add("platform", bus.Service{ID: "test-service", Name: "test-service"}, mockProc)
 	reg.Detach("test-service")
 
 	result := reg.Remove("test-service", mockProc)
@@ -117,7 +118,7 @@ func Test_Registry_Remove_WrongProcess(t *testing.T) {
 	mockProc2 := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("test-service", mockProc1, "default")
+	reg.Add("default", bus.Service{ID: "test-service", Name: "test-service"}, mockProc1)
 
 	result := reg.Remove("test-service", mockProc2)
 	assert.False(t, result.Removed)
@@ -134,8 +135,8 @@ func Test_Registry_Wait(t *testing.T) {
 	mockProc2 := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("service1", mockProc1, "default")
-	reg.Add("service2", mockProc2, "default")
+	reg.Add("default", bus.Service{ID: "service1", Name: "service1"}, mockProc1)
+	reg.Add("default", bus.Service{ID: "service2", Name: "service2"}, mockProc2)
 
 	waitDone := make(chan struct{})
 
@@ -181,7 +182,7 @@ func Test_Registry_ConcurrentAccess(t *testing.T) {
 		go func(name string, proc process.Process) {
 			defer addWg.Done()
 
-			reg.Add(name, proc, "default")
+			reg.Add("default", bus.Service{ID: name, Name: name}, proc)
 		}(serviceName, mockProc)
 	}
 
@@ -233,7 +234,7 @@ func Test_Registry_Detach_RemovesFromMap(t *testing.T) {
 	mockProc := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("test-service", mockProc, "default")
+	reg.Add("default", bus.Service{ID: "test-service", Name: "test-service"}, mockProc)
 
 	reg.Detach("test-service")
 
@@ -255,10 +256,10 @@ func Test_Registry_Remove_ChecksPointerIdentity(t *testing.T) {
 	mockProc2 := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("test-service", mockProc1, "default")
+	reg.Add("default", bus.Service{ID: "test-service", Name: "test-service"}, mockProc1)
 
 	reg.Detach("test-service")
-	reg.Add("test-service", mockProc2, "default")
+	reg.Add("default", bus.Service{ID: "test-service", Name: "test-service"}, mockProc2)
 
 	result := reg.Remove("test-service", mockProc1)
 	assert.False(t, result.Removed, "Should not remove old process")
@@ -276,10 +277,10 @@ func Test_Registry_RestartRaceCondition(t *testing.T) {
 	newProc := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("test-service", oldProc, "default")
+	reg.Add("default", bus.Service{ID: "test-service", Name: "test-service"}, oldProc)
 
 	reg.Detach("test-service")
-	reg.Add("test-service", newProc, "default")
+	reg.Add("default", bus.Service{ID: "test-service", Name: "test-service"}, newProc)
 
 	result := reg.Remove("test-service", oldProc)
 	assert.False(t, result.Removed, "Old process should not be removed from active processes")
@@ -298,14 +299,14 @@ func Test_Registry_SnapshotReverse_IncludesDetached(t *testing.T) {
 	mockProc2 := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("service1", mockProc1, "default")
-	reg.Add("service2", mockProc2, "default")
+	reg.Add("default", bus.Service{ID: "service1", Name: "service1"}, mockProc1)
+	reg.Add("default", bus.Service{ID: "service2", Name: "service2"}, mockProc2)
 	reg.Detach("service1")
 
 	snapshot := reg.SnapshotReverse()
 	assert.Len(t, snapshot, 2)
-	assert.Equal(t, mockProc2, snapshot[0])
-	assert.Equal(t, mockProc1, snapshot[1])
+	assert.Equal(t, mockProc2, snapshot[0].Proc)
+	assert.Equal(t, mockProc1, snapshot[1].Proc)
 }
 
 func Test_Registry_SnapshotReverse_ReturnsReverseOrder(t *testing.T) {
@@ -317,13 +318,13 @@ func Test_Registry_SnapshotReverse_ReturnsReverseOrder(t *testing.T) {
 	mockProc3 := process.NewMockProcess(ctrl)
 
 	reg := NewRegistry()
-	reg.Add("service1", mockProc1, "default")
-	reg.Add("service2", mockProc2, "default")
-	reg.Add("service3", mockProc3, "default")
+	reg.Add("default", bus.Service{ID: "service1", Name: "service1"}, mockProc1)
+	reg.Add("default", bus.Service{ID: "service2", Name: "service2"}, mockProc2)
+	reg.Add("default", bus.Service{ID: "service3", Name: "service3"}, mockProc3)
 
 	snapshot := reg.SnapshotReverse()
 	assert.Len(t, snapshot, 3)
-	assert.Equal(t, mockProc3, snapshot[0])
-	assert.Equal(t, mockProc2, snapshot[1])
-	assert.Equal(t, mockProc1, snapshot[2])
+	assert.Equal(t, mockProc3, snapshot[0].Proc)
+	assert.Equal(t, mockProc2, snapshot[1].Proc)
+	assert.Equal(t, mockProc1, snapshot[2].Proc)
 }

@@ -40,45 +40,45 @@ func (m *MockController) EXPECT() *MockControllerMockRecorder {
 }
 
 // Restart mocks base method.
-func (m *MockController) Restart(name string) bool {
+func (m *MockController) Restart(id string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Restart", name)
+	ret := m.ctrl.Call(m, "Restart", id)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Restart indicates an expected call of Restart.
-func (mr *MockControllerMockRecorder) Restart(name any) *gomock.Call {
+func (mr *MockControllerMockRecorder) Restart(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockController)(nil).Restart), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockController)(nil).Restart), id)
 }
 
 // Start mocks base method.
-func (m *MockController) Start(name string) bool {
+func (m *MockController) Start(id string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", name)
+	ret := m.ctrl.Call(m, "Start", id)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockControllerMockRecorder) Start(name any) *gomock.Call {
+func (mr *MockControllerMockRecorder) Start(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockController)(nil).Start), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockController)(nil).Start), id)
 }
 
 // Stop mocks base method.
-func (m *MockController) Stop(name string) bool {
+func (m *MockController) Stop(id string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop", name)
+	ret := m.ctrl.Call(m, "Stop", id)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockControllerMockRecorder) Stop(name any) *gomock.Call {
+func (mr *MockControllerMockRecorder) Stop(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockController)(nil).Stop), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockController)(nil).Stop), id)
 }
 
 // StopAll mocks base method.

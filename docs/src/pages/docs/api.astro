@@ -288,7 +288,7 @@ const endpoints: Endpoint[] = [
               <tbody>
                 <tr><td><code>401</code></td><td>unauthorized</td><td>Missing or invalid bearer token</td></tr>
                 <tr><td><code>404</code></td><td>service not found</td><td>Unknown UUID</td></tr>
-                <tr><td><code>409</code></td><td>service is running</td><td>Start on non-stopped service</td></tr>
+                <tr><td><code>409</code></td><td>service cannot be started</td><td>Start on non-stopped service</td></tr>
                 <tr><td><code>409</code></td><td>service is not running</td><td>Stop/restart on non-running service</td></tr>
                 <tr><td><code>409</code></td><td>instance is not accepting actions</td><td>Action during startup or shutdown</td></tr>
               </tbody>

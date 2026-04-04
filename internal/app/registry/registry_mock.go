@@ -10,6 +10,7 @@
 package registry
 
 import (
+	bus "fuku/internal/app/bus"
 	process "fuku/internal/app/process"
 	reflect "reflect"
 
@@ -41,62 +42,62 @@ func (m *MockRegistry) EXPECT() *MockRegistryMockRecorder {
 }
 
 // Add mocks base method.
-func (m *MockRegistry) Add(name string, proc process.Process, tier string) {
+func (m *MockRegistry) Add(tier string, svc bus.Service, proc process.Process) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Add", name, proc, tier)
+	m.ctrl.Call(m, "Add", tier, svc, proc)
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockRegistryMockRecorder) Add(name, proc, tier any) *gomock.Call {
+func (mr *MockRegistryMockRecorder) Add(tier, svc, proc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockRegistry)(nil).Add), name, proc, tier)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockRegistry)(nil).Add), tier, svc, proc)
 }
 
 // Detach mocks base method.
-func (m *MockRegistry) Detach(name string) {
+func (m *MockRegistry) Detach(id string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Detach", name)
+	m.ctrl.Call(m, "Detach", id)
 }
 
 // Detach indicates an expected call of Detach.
-func (mr *MockRegistryMockRecorder) Detach(name any) *gomock.Call {
+func (mr *MockRegistryMockRecorder) Detach(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Detach", reflect.TypeOf((*MockRegistry)(nil).Detach), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Detach", reflect.TypeOf((*MockRegistry)(nil).Detach), id)
 }
 
 // Get mocks base method.
-func (m *MockRegistry) Get(name string) Lookup {
+func (m *MockRegistry) Get(id string) Lookup {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", name)
+	ret := m.ctrl.Call(m, "Get", id)
 	ret0, _ := ret[0].(Lookup)
 	return ret0
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockRegistryMockRecorder) Get(name any) *gomock.Call {
+func (mr *MockRegistryMockRecorder) Get(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRegistry)(nil).Get), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRegistry)(nil).Get), id)
 }
 
 // Remove mocks base method.
-func (m *MockRegistry) Remove(name string, proc process.Process) RemoveResult {
+func (m *MockRegistry) Remove(id string, proc process.Process) RemoveResult {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Remove", name, proc)
+	ret := m.ctrl.Call(m, "Remove", id, proc)
 	ret0, _ := ret[0].(RemoveResult)
 	return ret0
 }
 
 // Remove indicates an expected call of Remove.
-func (mr *MockRegistryMockRecorder) Remove(name, proc any) *gomock.Call {
+func (mr *MockRegistryMockRecorder) Remove(id, proc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockRegistry)(nil).Remove), name, proc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockRegistry)(nil).Remove), id, proc)
 }
 
 // SnapshotReverse mocks base method.
-func (m *MockRegistry) SnapshotReverse() []process.Process {
+func (m *MockRegistry) SnapshotReverse() []ProcessEntry {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SnapshotReverse")
-	ret0, _ := ret[0].([]process.Process)
+	ret0, _ := ret[0].([]ProcessEntry)
 	return ret0
 }
 

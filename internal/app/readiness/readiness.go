@@ -22,7 +22,7 @@ type Readiness interface {
 	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error
 	CheckTCP(ctx context.Context, address string, timeout, interval time.Duration, done <-chan struct{}) error
 	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error
-	Check(ctx context.Context, name string, service *config.Service, proc process.Process)
+	Check(ctx context.Context, svc bus.Service, service *config.Service, proc process.Process)
 }
 
 // readiness implements the Readiness interface
@@ -156,11 +156,11 @@ func (r *readiness) CheckTCP(ctx context.Context, address string, timeout, inter
 }
 
 // Check performs the appropriate readiness check for a service
-func (r *readiness) Check(ctx context.Context, name string, service *config.Service, proc process.Process) {
+func (r *readiness) Check(ctx context.Context, svc bus.Service, service *config.Service, proc process.Process) {
 	startTime := time.Now()
 
 	options := service.Readiness
-	r.log.Info().Msgf("Starting %s readiness check for service '%s'", options.Type, name)
+	r.log.Info().Msgf("Starting %s readiness check for service '%s'", options.Type, svc.Name)
 
 	var err error
 
@@ -178,14 +178,14 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 	}
 
 	if err != nil {
-		r.log.Error().Err(err).Msgf("Readiness check failed for service '%s'", name)
+		r.log.Error().Err(err).Msgf("Readiness check failed for service '%s'", svc.Name)
 	} else {
-		r.log.Info().Msgf("Service '%s' is ready", name)
+		r.log.Info().Msgf("Service '%s' is ready", svc.Name)
 
 		r.bus.Publish(bus.Message{
 			Type: bus.EventReadinessComplete,
 			Data: bus.ReadinessComplete{
-				Service:  name,
+				Service:  svc,
 				Type:     options.Type,
 				Duration: time.Since(startTime),
 			},

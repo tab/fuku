@@ -41,32 +41,32 @@ func (f *Formatter) Format(msgType MessageType, data any) string {
 		e.Int("killed", d.Killed).Str("duration", d.Duration.String())
 	case TierStarting:
 		e.Str("tier", d.Name)
-	case Payload:
-		e.Str("name", d.Name)
+	case Service:
+		e.Str("id", d.ID).Str("name", d.Name)
 	case TierReady:
 		e.Str("tier", d.Name).Str("duration", d.Duration.String()).Int("services", d.ServiceCount)
 	case ServiceStarting:
-		e.Str("service", d.Service).Str("tier", d.Tier).Int("pid", d.PID)
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Str("tier", d.Tier).Int("pid", d.PID)
 	case ReadinessComplete:
-		e.Str("service", d.Service).Str("type", d.Type).Str("duration", d.Duration.String())
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Str("type", d.Type).Str("duration", d.Duration.String())
 	case ServiceReady:
-		e.Str("service", d.Service).Str("tier", d.Tier)
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Str("tier", d.Tier)
 	case ServiceFailed:
-		e.Str("service", d.Service).Str("tier", d.Tier)
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Str("tier", d.Tier)
 
 		if d.Error != nil {
 			e.Str("error", d.Error.Error())
 		}
 	case ServiceStopping:
-		e.Str("service", d.Service).Str("tier", d.Tier)
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Str("tier", d.Tier)
 	case ServiceStopped:
-		e.Str("service", d.Service).Str("tier", d.Tier)
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Str("tier", d.Tier)
 	case ServiceRestarting:
-		e.Str("service", d.Service).Str("tier", d.Tier)
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Str("tier", d.Tier)
 	case Signal:
 		e.Str("signal", d.Name)
 	case WatchTriggered:
-		e.Str("service", d.Service).Strs("files", d.ChangedFiles)
+		e.Str("id", d.Service.ID).Str("service", d.Service.Name).Strs("files", d.ChangedFiles)
 	case ResourceSample:
 		e.Str("cpu", fmt.Sprintf("%.1f%%", d.CPU)).Str("mem", fmt.Sprintf("%.1fMB", d.MEM))
 	case APIStarted:

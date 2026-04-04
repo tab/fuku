@@ -60,9 +60,9 @@ func Test_FormatEvent(t *testing.T) {
 			contains: []string{"tier_starting", "tier=platform"},
 		},
 		{
-			name:     "Payload",
+			name:     "Service",
 			msgType:  CommandStopService,
-			data:     Payload{Name: "api"},
+			data:     Service{ID: "test-id-api", Name: "api"},
 			contains: []string{"cmd_stop_service", "name=api"},
 		},
 		{
@@ -74,43 +74,43 @@ func Test_FormatEvent(t *testing.T) {
 		{
 			name:     "ServiceStarting",
 			msgType:  EventServiceStarting,
-			data:     ServiceStarting{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}, PID: 123},
+			data:     ServiceStarting{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}, PID: 123},
 			contains: []string{"service_starting", "service=api", "tier=platform", "pid=123"},
 		},
 		{
 			name:     "ReadinessComplete",
 			msgType:  EventReadinessComplete,
-			data:     ReadinessComplete{Service: "api", Type: "http", Duration: time.Second},
+			data:     ReadinessComplete{Service: Service{ID: "test-id-api", Name: "api"}, Type: "http", Duration: time.Second},
 			contains: []string{"readiness_complete", "service=api", "type=http", "duration=1s"},
 		},
 		{
 			name:     "ServiceReady",
 			msgType:  EventServiceReady,
-			data:     ServiceReady{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
+			data:     ServiceReady{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}},
 			contains: []string{"service_ready", "service=api", "tier=platform"},
 		},
 		{
 			name:     "ServiceFailed",
 			msgType:  EventServiceFailed,
-			data:     ServiceFailed{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}, Error: nil},
+			data:     ServiceFailed{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}, Error: nil},
 			contains: []string{"service_failed", "service=api", "tier=platform"},
 		},
 		{
 			name:     "ServiceStopping",
 			msgType:  EventServiceStopping,
-			data:     ServiceStopping{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
+			data:     ServiceStopping{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}},
 			contains: []string{"service_stopping", "service=api", "tier=platform"},
 		},
 		{
 			name:     "ServiceStopped",
 			msgType:  EventServiceStopped,
-			data:     ServiceStopped{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
+			data:     ServiceStopped{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}},
 			contains: []string{"service_stopped", "service=api", "tier=platform"},
 		},
 		{
 			name:     "ServiceRestarting",
 			msgType:  EventServiceRestarting,
-			data:     ServiceRestarting{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
+			data:     ServiceRestarting{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}},
 			contains: []string{"service_restarting", "service=api", "tier=platform"},
 		},
 		{
@@ -122,7 +122,7 @@ func Test_FormatEvent(t *testing.T) {
 		{
 			name:     "WatchTriggered",
 			msgType:  EventWatchTriggered,
-			data:     WatchTriggered{Service: "api", ChangedFiles: []string{"main.go"}},
+			data:     WatchTriggered{Service: Service{ID: "test-id-api", Name: "api"}, ChangedFiles: []string{"main.go"}},
 			contains: []string{"watch_triggered", "service=api", "main.go"},
 		},
 		{
@@ -162,7 +162,7 @@ func Test_FormatEvent_QuotesAndSlices(t *testing.T) {
 			name:    "Error with spaces is quoted",
 			msgType: EventServiceFailed,
 			data: ServiceFailed{
-				ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"},
+				ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 				Error:        errors.New("address already in use"),
 			},
 			contains: []string{"service_failed", "service=api", "tier=platform", `"address already in use"`},
@@ -171,20 +171,20 @@ func Test_FormatEvent_QuotesAndSlices(t *testing.T) {
 			name:    "Service name with spaces is quoted",
 			msgType: EventServiceReady,
 			data: ServiceReady{
-				ServiceEvent: ServiceEvent{Service: "api worker", Tier: "platform"},
+				ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api worker"}, Tier: "platform"},
 			},
 			contains: []string{"service_ready", `"api worker"`, "tier=platform"},
 		},
 		{
 			name:     "No quoting without spaces",
 			msgType:  EventServiceReady,
-			data:     ServiceReady{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
+			data:     ServiceReady{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}},
 			contains: []string{"service_ready", "service=api", "tier=platform"},
 		},
 		{
 			name:     "Slice preserves commas in values",
 			msgType:  EventWatchTriggered,
-			data:     WatchTriggered{Service: "api", ChangedFiles: []string{"main.go", "foo,bar.go"}},
+			data:     WatchTriggered{Service: Service{ID: "test-id-api", Name: "api"}, ChangedFiles: []string{"main.go", "foo,bar.go"}},
 			contains: []string{"watch_triggered", "service=api", "main.go", "foo,bar.go"},
 		},
 	}

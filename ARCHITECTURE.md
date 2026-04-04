@@ -337,9 +337,8 @@ The guard prevents concurrent restarts of the same service:
 
 ```go
 type Guard interface {
-    Lock(name string) bool   // Returns true if lock acquired
-    Unlock(name string)
-    IsLocked(name string) bool
+    Lock(id string) bool   // Returns true if lock acquired
+    Unlock(id string)
 }
 ```
 
@@ -355,15 +354,18 @@ The Registry provides centralized process lifecycle management with proper synch
 ```go
 type Lookup struct {
     Proc     Process
+    Name     string
+    Tier     string
     Exists   bool
     Detached bool
 }
 
 type Registry interface {
-    Add(name string, proc Process, tier string)
-    Get(name string) Lookup
-    SnapshotReverse() []Process
-    Detach(name string)
+    Add(tier string, svc bus.Service, proc Process)
+    Get(id string) Lookup
+    Remove(id string, proc Process) RemoveResult
+    SnapshotReverse() []ProcessEntry
+    Detach(id string)
     Wait()
 }
 ```
@@ -386,16 +388,16 @@ type Registry interface {
 **Restart flow**:
 ```go
 // 1. Detach old process (remove from map, mark as detached)
-registry.Detach(serviceName)
+registry.Detach(svc.ID)
 
 // 2. Stop old process
-service.Stop(oldProc)
+service.Stop(svc.ID)
 
 // 3. Start new process
-newProc := service.Start(ctx, serviceName, config)
+newProc := service.Start(ctx, tier, svc)
 
 // 4. Add new process to registry
-registry.Add(serviceName, newProc, tier)
+registry.Add(tier, svc, newProc)
 
 // 5. Old process exits → Done() fires → WaitGroup decremented
 // 6. New process tracked independently
@@ -450,13 +452,13 @@ Commands are processed in both startup and running phases:
 ```go
 switch cmd.Type {
 case CommandStopService:
-    r.service.Stop(data.Name)
+    r.service.Stop(svc.ID)
 
 case CommandStartService:
-    go r.runWithWorker(ctx, data.Name, r.service.Resume)
+    go r.runWithWorker(ctx, svc, r.service.Resume)
 
 case CommandRestartService:
-    go r.runWithWorker(ctx, data.Name, r.service.Restart)
+    go r.runWithWorker(ctx, svc, r.service.Restart)
 
 case CommandStopAll:
     return true  // Exit run loop, trigger shutdown
@@ -555,11 +557,11 @@ fsm.Callbacks{
     OnStopping: func(ctx, e) {
         service.MarkStopping()
         loader.Start("Stopping...")
-        bus.Publish(Message{Type: CommandStopService, Data: Payload{Name: service}})
+        bus.Publish(Message{Type: CommandStopService, Data: Service{ID: serviceID, Name: serviceName}})
     },
     OnRestarting: func(ctx, e) {
         loader.Start("Restarting...")
-        bus.Publish(Message{Type: CommandRestartService, Data: Payload{Name: service}})
+        bus.Publish(Message{Type: CommandRestartService, Data: Service{ID: serviceID, Name: serviceName}})
     },
     OnRunning: func(ctx, e) {
         service.MarkRunning()
@@ -702,8 +704,8 @@ type Store interface {
     Profile() string
     Uptime() time.Duration
     Services() []ServiceSnapshot
-    Service(name string) (ServiceSnapshot, bool)
-    ServiceByID(id string) (ServiceSnapshot, bool)
+    Service(id string) (ServiceSnapshot, bool)
+    Counts() StatusCounts
 }
 ```
 
@@ -726,7 +728,7 @@ Token-authenticated HTTP server bound to loopback. Started by the runner after p
 
 ### TUI Integration
 
-The TUI bottom bar shows API connection status driven by `EventAPIStarted`/`EventAPIStopped` bus events: `◉ 127.0.0.1:9876` with green (connected) or grey (disconnected) indicator.
+The TUI bottom bar shows API connection status driven by `EventAPIStarted`/`EventAPIStopped` bus events: `◉ 127.0.0.1:9876` with sky blue (connected) or grey (disconnected) indicator.
 
 ## 6. Bus-Driven Metrics & Telemetry
 
@@ -797,14 +799,14 @@ The key insight is **source of truth separation**:
    UI: handleKeyPress → FSM.Event(Restart)
    ```
 
-2. **FSM callback publishes command**
+2. **Controller publishes command**
    ```
-   UI: OnRestarting → Bus.Publish(CommandRestartService)
+   UI: controller.Restart(serviceID) → Bus.Publish(CommandRestartService)
    ```
 
 3. **Runner receives command**
    ```
-   Runner: handleCommand → stopService + startServiceWithRetry
+   Runner: handleCommand → service.Restart(ctx, id, name)
    ```
 
 4. **Runner publishes events**
@@ -833,16 +835,16 @@ The key insight is **source of truth separation**:
 
 3. **Runner receives watch event (concurrent)**
    ```
-   Runner: go handleWatchEvent → guard.Lock(service) → restartWatchedService
+   Runner: go handleWatchEvent → guard.Lock(serviceID) → service.Restart(ctx, id, name)
    ```
 
 4. **Guard prevents concurrent restarts**
    ```
-   Runner: guard.Lock("api") → true (proceed)
-   Runner: guard.Lock("api") → false (skip, already restarting)
+   Runner: guard.Lock(serviceID) → true (proceed)
+   Runner: guard.Lock(serviceID) → false (skip, already restarting)
    ```
 
 5. **Restart completes**
    ```
-   Runner: guard.Unlock("api") → next restart can proceed
+   Runner: guard.Unlock(serviceID) → next restart can proceed
    ```

@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -39,8 +40,14 @@ func Test_Store_ProfileResolved(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "default",
 			Tiers: []bus.Tier{
-				{Name: "foundation", Services: []string{"db", "cache"}},
-				{Name: "application", Services: []string{"api", "web"}},
+				{Name: "foundation", Services: []bus.Service{
+					{ID: "test-id-db", Name: "db"},
+					{ID: "test-id-cache", Name: "cache"},
+				}},
+				{Name: "application", Services: []bus.Service{
+					{ID: "test-id-api", Name: "api"},
+					{ID: "test-id-web", Name: "web"},
+				}},
 			},
 		},
 	})
@@ -102,63 +109,65 @@ func Test_Store_ServiceLifecycle(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "default",
-			Tiers:   []bus.Tier{{Name: "foundation", Services: []string{"api"}}},
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
 		},
 	})
 
 	require.Eventually(t, func() bool {
-		_, found := s.Service("api")
+		_, found := s.Service("test-id-api")
 		return found
 	}, testTimeout, testInterval)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
 		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "foundation"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
 			PID:          1234,
 		},
 	})
 
 	require.Eventually(t, func() bool {
-		svc, _ := s.Service("api")
+		svc, _ := s.Service("test-id-api")
 		return svc.PID == 1234
 	}, testTimeout, testInterval)
 
-	svc, found := s.Service("api")
+	svc, found := s.Service("test-id-api")
 	require.True(t, found)
 	assert.Equal(t, StatusStarting, svc.Status)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "foundation"}},
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
 	})
 
 	require.Eventually(t, func() bool {
-		svc, _ := s.Service("api")
+		svc, _ := s.Service("test-id-api")
 		return svc.Status == StatusRunning
 	}, testTimeout, testInterval)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStopping,
-		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "foundation"}},
+		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
 	})
 
 	require.Eventually(t, func() bool {
-		svc, _ := s.Service("api")
+		svc, _ := s.Service("test-id-api")
 		return svc.Status == StatusStopping
 	}, testTimeout, testInterval)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStopped,
-		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "foundation"}},
+		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
 	})
 
 	require.Eventually(t, func() bool {
-		svc, _ := s.Service("api")
+		svc, _ := s.Service("test-id-api")
 		return svc.Status == StatusStopped
 	}, testTimeout, testInterval)
 
-	svc, found = s.Service("api")
+	svc, found = s.Service("test-id-api")
 	require.True(t, found)
 	assert.Equal(t, 0, svc.PID)
 }
@@ -170,34 +179,36 @@ func Test_Store_ServiceFailed(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "default",
-			Tiers:   []bus.Tier{{Name: "foundation", Services: []string{"api"}}},
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
 		},
 	})
 
 	require.Eventually(t, func() bool {
-		_, found := s.Service("api")
+		_, found := s.Service("test-id-api")
 		return found
 	}, testTimeout, testInterval)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
 		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "foundation"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
 			PID:          5678,
 		},
 	})
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceFailed,
-		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "foundation"}},
+		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
 	})
 
 	require.Eventually(t, func() bool {
-		svc, _ := s.Service("api")
+		svc, _ := s.Service("test-id-api")
 		return svc.Status == StatusFailed
 	}, testTimeout, testInterval)
 
-	svc, found := s.Service("api")
+	svc, found := s.Service("test-id-api")
 	require.True(t, found)
 	assert.Equal(t, 0, svc.PID)
 	assert.True(t, svc.StartTime.IsZero())
@@ -218,8 +229,13 @@ func Test_Store_ServiceOrder(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "default",
 			Tiers: []bus.Tier{
-				{Name: "platform", Services: []string{"zebra", "alpha"}},
-				{Name: "foundation", Services: []string{"beta"}},
+				{Name: "platform", Services: []bus.Service{
+					{ID: "test-id-zebra", Name: "zebra"},
+					{ID: "test-id-alpha", Name: "alpha"},
+				}},
+				{Name: "foundation", Services: []bus.Service{
+					{ID: "test-id-beta", Name: "beta"},
+				}},
 			},
 		},
 	})
@@ -403,6 +419,200 @@ func Test_Status_IsRestartable(t *testing.T) {
 	}
 }
 
+func Test_Store_Counts(t *testing.T) {
+	s, b := newTestStore(t, config.DefaultConfig())
+
+	b.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "default",
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+				{ID: "test-id-db", Name: "db"},
+			}}},
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Total == 2
+	}, testTimeout, testInterval)
+
+	counts := s.Counts()
+	assert.Equal(t, 2, counts.Total)
+	assert.Equal(t, 2, counts.Starting)
+	assert.Equal(t, 0, counts.Running)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Running == 1
+	}, testTimeout, testInterval)
+
+	counts = s.Counts()
+	assert.Equal(t, 2, counts.Total)
+	assert.Equal(t, 1, counts.Starting)
+	assert.Equal(t, 1, counts.Running)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceFailed,
+		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-db", Name: "db"}, Tier: "foundation"}},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Failed == 1
+	}, testTimeout, testInterval)
+
+	counts = s.Counts()
+	assert.Equal(t, 2, counts.Total)
+	assert.Equal(t, 0, counts.Starting)
+	assert.Equal(t, 1, counts.Running)
+	assert.Equal(t, 1, counts.Failed)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceStopped,
+		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Stopped == 1
+	}, testTimeout, testInterval)
+
+	counts = s.Counts()
+	assert.Equal(t, 0, counts.Running)
+	assert.Equal(t, 1, counts.Stopped)
+	assert.Equal(t, 1, counts.Failed)
+}
+
+func Test_Store_Watching(t *testing.T) {
+	s, b := newTestStore(t, config.DefaultConfig())
+
+	b.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "default",
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		_, found := s.Service("test-id-api")
+		return found
+	}, testTimeout, testInterval)
+
+	b.Publish(bus.Message{
+		Type: bus.EventWatchStarted,
+		Data: bus.Service{ID: "test-id-api", Name: "api"},
+	})
+
+	require.Eventually(t, func() bool {
+		svc, _ := s.Service("test-id-api")
+		return svc.Watching
+	}, testTimeout, testInterval)
+
+	b.Publish(bus.Message{
+		Type: bus.EventWatchStopped,
+		Data: bus.Service{ID: "test-id-api", Name: "api"},
+	})
+
+	require.Eventually(t, func() bool {
+		svc, _ := s.Service("test-id-api")
+		return !svc.Watching
+	}, testTimeout, testInterval)
+}
+
+func Test_Store_ServiceFailedWithError(t *testing.T) {
+	s, b := newTestStore(t, config.DefaultConfig())
+
+	b.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "default",
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		_, found := s.Service("test-id-api")
+		return found
+	}, testTimeout, testInterval)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceFailed,
+		Data: bus.ServiceFailed{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
+			Error:        errors.New("readiness timeout"),
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		svc, _ := s.Service("test-id-api")
+		return svc.Status == StatusFailed
+	}, testTimeout, testInterval)
+
+	svc, _ := s.Service("test-id-api")
+	assert.Equal(t, "readiness timeout", svc.Error)
+}
+
+func Test_Store_CountsRestarting(t *testing.T) {
+	s, b := newTestStore(t, config.DefaultConfig())
+
+	b.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "default",
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Total == 1
+	}, testTimeout, testInterval)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Running == 1
+	}, testTimeout, testInterval)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceRestarting,
+		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Restarting == 1
+	}, testTimeout, testInterval)
+
+	counts := s.Counts()
+	assert.Equal(t, 0, counts.Running)
+	assert.Equal(t, 1, counts.Restarting)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceStopping,
+		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
+	})
+
+	require.Eventually(t, func() bool {
+		return s.Counts().Stopping == 1
+	}, testTimeout, testInterval)
+
+	counts = s.Counts()
+	assert.Equal(t, 0, counts.Restarting)
+	assert.Equal(t, 1, counts.Stopping)
+}
+
 func Test_Store_ServiceRestarting(t *testing.T) {
 	s, b := newTestStore(t, config.DefaultConfig())
 
@@ -410,22 +620,24 @@ func Test_Store_ServiceRestarting(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "default",
-			Tiers:   []bus.Tier{{Name: "foundation", Services: []string{"api"}}},
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
 		},
 	})
 
 	require.Eventually(t, func() bool {
-		_, found := s.Service("api")
+		_, found := s.Service("test-id-api")
 		return found
 	}, testTimeout, testInterval)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceRestarting,
-		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "foundation"}},
+		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
 	})
 
 	require.Eventually(t, func() bool {
-		svc, _ := s.Service("api")
+		svc, _ := s.Service("test-id-api")
 		return svc.Status == StatusRestarting
 	}, testTimeout, testInterval)
 }

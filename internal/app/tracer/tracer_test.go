@@ -91,8 +91,8 @@ func Test_Handle_ProfileResolved_CreatesSpan(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "default",
 			Tiers: []bus.Tier{
-				{Name: "foundation", Services: []string{"db", "cache"}},
-				{Name: "app", Services: []string{"api"}},
+				{Name: "foundation", Services: []bus.Service{{ID: "test-id-db", Name: "db"}, {ID: "test-id-cache", Name: "cache"}}},
+				{Name: "app", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}},
 			},
 			Duration: 50 * time.Millisecond,
 		},
@@ -172,8 +172,8 @@ func Test_Handle_TierReady_CreatesSpan(t *testing.T) {
 	tr := &tracer{}
 	startTransaction(tr)
 	tr.tiers = []bus.Tier{
-		{Name: "foundation", Services: []string{"db", "cache"}},
-		{Name: "app", Services: []string{"api"}},
+		{Name: "foundation", Services: []bus.Service{{ID: "test-id-db", Name: "db"}, {ID: "test-id-cache", Name: "cache"}}},
+		{Name: "app", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}},
 	}
 
 	tr.handle(context.Background(), bus.Message{
@@ -224,7 +224,7 @@ func Test_Handle_WatchTriggered_CreatesSpan(t *testing.T) {
 	tr.handle(context.Background(), bus.Message{
 		Type:      bus.EventWatchTriggered,
 		Timestamp: time.Now(),
-		Data:      bus.WatchTriggered{Service: "api", ChangedFiles: []string{"main.go"}},
+		Data:      bus.WatchTriggered{Service: bus.Service{ID: "test-id-api", Name: "api"}, ChangedFiles: []string{"main.go"}},
 	})
 
 	assert.NotNil(t, tr.trace)
@@ -236,7 +236,7 @@ func Test_Handle_WatchTriggered_NoTransaction(t *testing.T) {
 	tr.handle(context.Background(), bus.Message{
 		Type:      bus.EventWatchTriggered,
 		Timestamp: time.Now(),
-		Data:      bus.WatchTriggered{Service: "api"},
+		Data:      bus.WatchTriggered{Service: bus.Service{ID: "test-id-api", Name: "api"}},
 	})
 
 	assert.Nil(t, tr.trace)
@@ -249,7 +249,7 @@ func Test_Handle_ServiceStop_CreatesSpan(t *testing.T) {
 	tr.handle(context.Background(), bus.Message{
 		Type:      bus.CommandStopService,
 		Timestamp: time.Now(),
-		Data:      bus.Payload{Name: "api"},
+		Data:      bus.Service{Name: "api"},
 	})
 
 	assert.NotNil(t, tr.trace)
@@ -261,7 +261,7 @@ func Test_Handle_ServiceStop_NoTransaction(t *testing.T) {
 	tr.handle(context.Background(), bus.Message{
 		Type:      bus.CommandStopService,
 		Timestamp: time.Now(),
-		Data:      bus.Payload{Name: "api"},
+		Data:      bus.Service{Name: "api"},
 	})
 
 	assert.Nil(t, tr.trace)
@@ -274,7 +274,7 @@ func Test_Handle_ServiceRestart_CreatesSpan(t *testing.T) {
 	tr.handle(context.Background(), bus.Message{
 		Type:      bus.CommandRestartService,
 		Timestamp: time.Now(),
-		Data:      bus.Payload{Name: "api"},
+		Data:      bus.Service{Name: "api"},
 	})
 
 	assert.NotNil(t, tr.trace)
@@ -286,7 +286,7 @@ func Test_Handle_ServiceRestart_NoTransaction(t *testing.T) {
 	tr.handle(context.Background(), bus.Message{
 		Type:      bus.CommandRestartService,
 		Timestamp: time.Now(),
-		Data:      bus.Payload{Name: "api"},
+		Data:      bus.Service{Name: "api"},
 	})
 
 	assert.Nil(t, tr.trace)
@@ -369,10 +369,11 @@ func Test_Finish_NilTransaction(t *testing.T) {
 func Test_TierPosition(t *testing.T) {
 	tr := &tracer{
 		tiers: []bus.Tier{
-			{Name: "foundation", Services: []string{"db"}},
-			{Name: "app", Services: []string{"api"}},
-			{Name: "gateway", Services: []string{"nginx"}},
+			{Name: "foundation", Services: []bus.Service{{ID: "test-id-db", Name: "db"}}},
+			{Name: "app", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}},
+			{Name: "gateway", Services: []bus.Service{{ID: "test-id-nginx", Name: "nginx"}}},
 		},
+		tierIndex: map[string]int{"foundation": 0, "app": 1, "gateway": 2},
 	}
 
 	index, total := tr.tierPosition("app")
@@ -383,8 +384,9 @@ func Test_TierPosition(t *testing.T) {
 func Test_TierPosition_Unknown(t *testing.T) {
 	tr := &tracer{
 		tiers: []bus.Tier{
-			{Name: "foundation", Services: []string{"db"}},
+			{Name: "foundation", Services: []bus.Service{{ID: "test-id-db", Name: "db"}}},
 		},
+		tierIndex: map[string]int{"foundation": 0},
 	}
 
 	index, total := tr.tierPosition("unknown")
@@ -416,7 +418,7 @@ func Test_Tracer_Run_HandlesMessagesAndChannelClose(t *testing.T) {
 		Timestamp: time.Now(),
 		Data: bus.ProfileResolved{
 			Profile:  "default",
-			Tiers:    []bus.Tier{{Name: "default", Services: []string{"api"}}},
+			Tiers:    []bus.Tier{{Name: "default", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}}},
 			Duration: 10 * time.Millisecond,
 		},
 	}

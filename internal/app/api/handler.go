@@ -69,36 +69,26 @@ type ErrorSerializer struct {
 }
 
 func (h *handler) handleStatus(w http.ResponseWriter, _ *http.Request) {
-	services := h.store.Services()
-	counts := ServiceCountSerializer{Total: len(services)}
-
-	for _, svc := range services {
-		switch svc.Status {
-		case registry.StatusStarting:
-			counts.Starting++
-		case registry.StatusRunning:
-			counts.Running++
-		case registry.StatusStopping:
-			counts.Stopping++
-		case registry.StatusRestarting:
-			counts.Restarting++
-		case registry.StatusStopped:
-			counts.Stopped++
-		case registry.StatusFailed:
-			counts.Failed++
-		}
-	}
+	c := h.store.Counts()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	//nolint:errcheck // best-effort JSON encoding
 	json.NewEncoder(w).Encode(StatusSerializer{
-		Version:  config.Version,
-		Profile:  h.store.Profile(),
-		Phase:    h.store.Phase(),
-		Uptime:   int64(h.store.Uptime().Seconds()),
-		Services: counts,
+		Version: config.Version,
+		Profile: h.store.Profile(),
+		Phase:   h.store.Phase(),
+		Uptime:  int64(h.store.Uptime().Seconds()),
+		Services: ServiceCountSerializer{
+			Total:      c.Total,
+			Starting:   c.Starting,
+			Running:    c.Running,
+			Stopping:   c.Stopping,
+			Restarting: c.Restarting,
+			Stopped:    c.Stopped,
+			Failed:     c.Failed,
+		},
 	})
 }
 
@@ -120,7 +110,7 @@ func (h *handler) handleListServices(w http.ResponseWriter, _ *http.Request) {
 func (h *handler) handleGetService(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	svc, found := h.store.ServiceByID(id)
+	svc, found := h.store.Service(id)
 	if !found {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -152,7 +142,7 @@ func (h *handler) handleStartService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc, found := h.store.ServiceByID(id)
+	svc, found := h.store.Service(id)
 	if !found {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -175,7 +165,7 @@ func (h *handler) handleStartService(w http.ResponseWriter, r *http.Request) {
 
 	h.bus.Publish(bus.Message{
 		Type:     bus.CommandStartService,
-		Data:     bus.Payload{Name: svc.Name},
+		Data:     bus.Service{ID: svc.ID, Name: svc.Name},
 		Critical: true,
 	})
 
@@ -205,7 +195,7 @@ func (h *handler) handleStopService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc, found := h.store.ServiceByID(id)
+	svc, found := h.store.Service(id)
 	if !found {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -228,7 +218,7 @@ func (h *handler) handleStopService(w http.ResponseWriter, r *http.Request) {
 
 	h.bus.Publish(bus.Message{
 		Type:     bus.CommandStopService,
-		Data:     bus.Payload{Name: svc.Name},
+		Data:     bus.Service{ID: svc.ID, Name: svc.Name},
 		Critical: true,
 	})
 
@@ -258,7 +248,7 @@ func (h *handler) handleRestartService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc, found := h.store.ServiceByID(id)
+	svc, found := h.store.Service(id)
 	if !found {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -281,7 +271,7 @@ func (h *handler) handleRestartService(w http.ResponseWriter, r *http.Request) {
 
 	h.bus.Publish(bus.Message{
 		Type:     bus.CommandRestartService,
-		Data:     bus.Payload{Name: svc.Name},
+		Data:     bus.Service{ID: svc.ID, Name: svc.Name},
 		Critical: true,
 	})
 

@@ -41,6 +41,20 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
+// Counts mocks base method.
+func (m *MockStore) Counts() StatusCounts {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Counts")
+	ret0, _ := ret[0].(StatusCounts)
+	return ret0
+}
+
+// Counts indicates an expected call of Counts.
+func (mr *MockStoreMockRecorder) Counts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Counts", reflect.TypeOf((*MockStore)(nil).Counts))
+}
+
 // Phase mocks base method.
 func (m *MockStore) Phase() string {
 	m.ctrl.T.Helper()
@@ -82,33 +96,18 @@ func (mr *MockStoreMockRecorder) Run(ctx any) *gomock.Call {
 }
 
 // Service mocks base method.
-func (m *MockStore) Service(name string) (ServiceSnapshot, bool) {
+func (m *MockStore) Service(id string) (ServiceSnapshot, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Service", name)
+	ret := m.ctrl.Call(m, "Service", id)
 	ret0, _ := ret[0].(ServiceSnapshot)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
 // Service indicates an expected call of Service.
-func (mr *MockStoreMockRecorder) Service(name any) *gomock.Call {
+func (mr *MockStoreMockRecorder) Service(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Service", reflect.TypeOf((*MockStore)(nil).Service), name)
-}
-
-// ServiceByID mocks base method.
-func (m *MockStore) ServiceByID(id string) (ServiceSnapshot, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ServiceByID", id)
-	ret0, _ := ret[0].(ServiceSnapshot)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// ServiceByID indicates an expected call of ServiceByID.
-func (mr *MockStoreMockRecorder) ServiceByID(id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceByID", reflect.TypeOf((*MockStore)(nil).ServiceByID), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Service", reflect.TypeOf((*MockStore)(nil).Service), id)
 }
 
 // Services mocks base method.
@@ -151,40 +150,40 @@ func (mr *MockStoreMockRecorder) WaitReady() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitReady", reflect.TypeOf((*MockStore)(nil).WaitReady))
 }
 
-// MockserviceNamer is a mock of serviceNamer interface.
-type MockserviceNamer struct {
+// MockserviceIdentifier is a mock of serviceIdentifier interface.
+type MockserviceIdentifier struct {
 	ctrl     *gomock.Controller
-	recorder *MockserviceNamerMockRecorder
+	recorder *MockserviceIdentifierMockRecorder
 	isgomock struct{}
 }
 
-// MockserviceNamerMockRecorder is the mock recorder for MockserviceNamer.
-type MockserviceNamerMockRecorder struct {
-	mock *MockserviceNamer
+// MockserviceIdentifierMockRecorder is the mock recorder for MockserviceIdentifier.
+type MockserviceIdentifierMockRecorder struct {
+	mock *MockserviceIdentifier
 }
 
-// NewMockserviceNamer creates a new mock instance.
-func NewMockserviceNamer(ctrl *gomock.Controller) *MockserviceNamer {
-	mock := &MockserviceNamer{ctrl: ctrl}
-	mock.recorder = &MockserviceNamerMockRecorder{mock}
+// NewMockserviceIdentifier creates a new mock instance.
+func NewMockserviceIdentifier(ctrl *gomock.Controller) *MockserviceIdentifier {
+	mock := &MockserviceIdentifier{ctrl: ctrl}
+	mock.recorder = &MockserviceIdentifierMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockserviceNamer) EXPECT() *MockserviceNamerMockRecorder {
+func (m *MockserviceIdentifier) EXPECT() *MockserviceIdentifierMockRecorder {
 	return m.recorder
 }
 
-// ServiceName mocks base method.
-func (m *MockserviceNamer) ServiceName() string {
+// ServiceID mocks base method.
+func (m *MockserviceIdentifier) ServiceID() string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ServiceName")
+	ret := m.ctrl.Call(m, "ServiceID")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// ServiceName indicates an expected call of ServiceName.
-func (mr *MockserviceNamerMockRecorder) ServiceName() *gomock.Call {
+// ServiceID indicates an expected call of ServiceID.
+func (mr *MockserviceIdentifierMockRecorder) ServiceID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceName", reflect.TypeOf((*MockserviceNamer)(nil).ServiceName))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceID", reflect.TypeOf((*MockserviceIdentifier)(nil).ServiceID))
 }

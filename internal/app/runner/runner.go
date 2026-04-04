@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/fx"
 
 	"fuku/internal/app/api"
@@ -97,10 +98,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 
 	discoveryDuration := time.Since(discoveryStart)
 
-	tierData := make([]bus.Tier, len(tiers))
-	for i, tier := range tiers {
-		tierData[i] = bus.Tier{Name: tier.Name, Services: tier.Services}
-	}
+	tierData := r.buildTiers(tiers)
 
 	r.bus.Publish(bus.Message{
 		Type: bus.EventProfileResolved,
@@ -112,7 +110,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		Critical: true,
 	})
 
-	services := r.collectServices(tiers)
+	services := r.collectServiceNames(tierData)
 
 	if len(services) == 0 {
 		r.log.Warn().Msgf("No services found for profile '%s'. Nothing to run.", profile)
@@ -155,7 +153,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	r.startAPI(ctx)
 	defer r.stopAPI()
 
-	if err := r.runStartupPhase(ctx, cancel, tiers, sigChan, msgChan); err != nil {
+	if err := r.runStartupPhase(ctx, cancel, tierData, sigChan, msgChan); err != nil {
 		r.bus.Publish(bus.Message{
 			Type:     bus.EventPhaseChanged,
 			Data:     bus.PhaseChanged{Phase: bus.PhaseStopped},
@@ -200,7 +198,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 }
 
 // runStartupPhase handles the service startup phase
-func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []discovery.Tier, sigChan chan os.Signal, msgChan <-chan bus.Message) error {
+func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []bus.Tier, sigChan chan os.Signal, msgChan <-chan bus.Message) error {
 	startupDone := make(chan struct{}, 1)
 
 	go func() {
@@ -298,16 +296,16 @@ func (r *runner) handleMessage(ctx context.Context, msg bus.Message) bool {
 	switch msg.Type {
 	case bus.EventWatchTriggered:
 		if data, ok := msg.Data.(bus.WatchTriggered); ok {
-			go func(service string, files []string) {
+			go func(svc bus.Service, files []string) {
 				if err := r.worker.Acquire(ctx); err != nil {
-					r.log.Warn().Err(err).Msgf("Failed to acquire worker for watch restart of '%s'", service)
+					r.log.Warn().Err(err).Msgf("Failed to acquire worker for watch restart of '%s'", svc.Name)
 
 					return
 				}
 				defer r.worker.Release()
 
-				r.log.Info().Msgf("File change detected for service '%s': %v", service, files)
-				r.service.Restart(ctx, service)
+				r.log.Info().Msgf("File change detected for service '%s': %v", svc.Name, files)
+				r.service.Restart(ctx, svc)
 			}(data.Service, data.ChangedFiles)
 		}
 
@@ -325,7 +323,7 @@ func (r *runner) handleCommand(ctx context.Context, msg bus.Message) bool {
 		return true
 	}
 
-	data, ok := msg.Data.(bus.Payload)
+	data, ok := msg.Data.(bus.Service)
 	if !ok {
 		return false
 	}
@@ -333,36 +331,37 @@ func (r *runner) handleCommand(ctx context.Context, msg bus.Message) bool {
 	//nolint:exhaustive // only handling command types
 	switch msg.Type {
 	case bus.CommandStopService:
-		r.service.Stop(data.Name)
+		r.service.Stop(data.ID)
 	case bus.CommandStartService:
-		go r.runWithWorker(ctx, data.Name, r.service.Resume)
+		go r.runWithWorker(ctx, data, r.service.Resume)
 	case bus.CommandRestartService:
-		go r.runWithWorker(ctx, data.Name, r.service.Restart)
+		go r.runWithWorker(ctx, data, r.service.Restart)
 	}
 
 	return false
 }
 
 // runWithWorker acquires a worker slot before running a service action
-func (r *runner) runWithWorker(ctx context.Context, name string, action func(context.Context, string)) {
+func (r *runner) runWithWorker(ctx context.Context, svc bus.Service, action func(context.Context, bus.Service)) {
 	if err := r.worker.Acquire(ctx); err != nil {
-		r.log.Warn().Err(err).Msgf("Failed to acquire worker for service '%s'", name)
+		r.log.Warn().Err(err).Msgf("Failed to acquire worker for service '%s'", svc.Name)
 
 		return
 	}
 	defer r.worker.Release()
 
-	action(ctx, name)
+	action(ctx, svc)
 }
 
 // startAllTiers starts services tier by tier
-func (r *runner) startAllTiers(ctx context.Context, tiers []discovery.Tier) {
+func (r *runner) startAllTiers(ctx context.Context, tiers []bus.Tier) {
 	for tierIdx, tier := range tiers {
 		if len(tier.Services) == 0 {
 			continue
 		}
 
-		r.log.Info().Msgf("Starting tier '%s' (%d/%d) with services: %v", tier.Name, tierIdx+1, len(tiers), tier.Services)
+		names := serviceNames(tier.Services)
+		r.log.Info().Msgf("Starting tier '%s' (%d/%d) with services: %v", tier.Name, tierIdx+1, len(tiers), names)
 		r.bus.Publish(bus.Message{
 			Type:     bus.EventTierStarting,
 			Data:     bus.TierStarting{Name: tier.Name},
@@ -390,35 +389,35 @@ func (r *runner) startAllTiers(ctx context.Context, tiers []discovery.Tier) {
 }
 
 // startTier starts all services in a tier concurrently
-func (r *runner) startTier(ctx context.Context, tier string, services []string) []string {
+func (r *runner) startTier(ctx context.Context, tier string, services []bus.Service) []string {
 	failedChan := make(chan string, len(services))
 
 	var wg sync.WaitGroup
 
-	for _, name := range services {
+	for _, ref := range services {
 		wg.Add(1)
 
-		go func(name string) {
+		go func(ref bus.Service) {
 			defer wg.Done()
 
 			if err := r.worker.Acquire(ctx); err != nil {
-				r.log.Error().Err(err).Msgf("Failed to acquire worker for service '%s'", name)
+				r.log.Error().Err(err).Msgf("Failed to acquire worker for service '%s'", ref.Name)
 				r.bus.Publish(bus.Message{
 					Type:     bus.EventServiceFailed,
-					Data:     bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: name, Tier: tier}, Error: fmt.Errorf("%w: %w", errors.ErrFailedToAcquireWorker, err)},
+					Data:     bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: ref, Tier: tier}, Error: fmt.Errorf("%w: %w", errors.ErrFailedToAcquireWorker, err)},
 					Critical: true,
 				})
 
-				failedChan <- name
+				failedChan <- ref.Name
 
 				return
 			}
 			defer r.worker.Release()
 
-			if err := r.service.Start(ctx, name, tier); err != nil {
-				failedChan <- name
+			if err := r.service.Start(ctx, tier, ref); err != nil {
+				failedChan <- ref.Name
 			}
-		}(name)
+		}(ref)
 	}
 
 	wg.Wait()
@@ -434,19 +433,19 @@ func (r *runner) startTier(ctx context.Context, tier string, services []string) 
 
 // shutdown stops all services in reverse order and returns the count of stopped services
 func (r *runner) shutdown() int {
-	processes := r.registry.SnapshotReverse()
+	entries := r.registry.SnapshotReverse()
 
-	for _, proc := range processes {
-		r.registry.Detach(proc.Name())
+	for _, e := range entries {
+		r.registry.Detach(e.ID)
 	}
 
-	for _, proc := range processes {
-		r.service.Stop(proc.Name())
+	for _, e := range entries {
+		r.service.Stop(e.ID)
 	}
 
 	r.registry.Wait()
 
-	return len(processes)
+	return len(entries)
 }
 
 // Stop resolves a profile and kills any processes running in service directories
@@ -456,7 +455,7 @@ func (r *runner) Stop(ctx context.Context, profile string) error {
 		return fmt.Errorf("failed to resolve profile: %w", err)
 	}
 
-	services := r.collectServices(tiers)
+	services := collectDiscoveryServices(tiers)
 	if len(services) == 0 {
 		r.log.Warn().Msgf("No services found for profile '%s'", profile)
 
@@ -471,13 +470,58 @@ func (r *runner) Stop(ctx context.Context, profile string) error {
 	return nil
 }
 
-func (r *runner) collectServices(tiers []discovery.Tier) []string {
+// buildTiers converts discovery tiers to bus tiers with assigned UUIDs
+func (r *runner) buildTiers(tiers []discovery.Tier) []bus.Tier {
+	result := make([]bus.Tier, len(tiers))
+
+	for i, tier := range tiers {
+		refs := make([]bus.Service, len(tier.Services))
+		for j, name := range tier.Services {
+			refs[j] = bus.Service{
+				ID:   uuid.NewString(),
+				Name: name,
+			}
+		}
+
+		result[i] = bus.Tier{
+			ID:       uuid.NewString(),
+			Name:     tier.Name,
+			Services: refs,
+		}
+	}
+
+	return result
+}
+
+// collectServiceNames extracts service names from bus tiers
+func (r *runner) collectServiceNames(tiers []bus.Tier) []string {
+	var names []string
+
+	for _, tier := range tiers {
+		for _, ref := range tier.Services {
+			names = append(names, ref.Name)
+		}
+	}
+
+	return names
+}
+
+func collectDiscoveryServices(tiers []discovery.Tier) []string {
 	groups := make([][]string, len(tiers))
 	for i, tier := range tiers {
 		groups[i] = tier.Services
 	}
 
 	return slices.Concat(groups...)
+}
+
+func serviceNames(refs []bus.Service) []string {
+	names := make([]string, len(refs))
+	for i, ref := range refs {
+		names[i] = ref.Name
+	}
+
+	return names
 }
 
 // startAPI starts the API server and publishes the started event

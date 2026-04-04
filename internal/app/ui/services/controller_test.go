@@ -43,14 +43,15 @@ func Test_Controller_Start(t *testing.T) {
 		{
 			name: "not found",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{}, false)
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{}, false)
 			},
 			expect: false,
 		},
 		{
 			name: "running - no-op",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusRunning,
 				}, true)
@@ -60,14 +61,15 @@ func Test_Controller_Start(t *testing.T) {
 		{
 			name: "stopped - publishes CommandStartService",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusStopped,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
 					Type:     bus.CommandStartService,
 					Critical: true,
-					Data:     bus.Payload{Name: "api"},
+					Data:     bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expect: true,
@@ -75,14 +77,15 @@ func Test_Controller_Start(t *testing.T) {
 		{
 			name: "failed - publishes CommandStartService",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusFailed,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
 					Type:     bus.CommandStartService,
 					Critical: true,
-					Data:     bus.Payload{Name: "api"},
+					Data:     bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expect: true,
@@ -92,7 +95,7 @@ func Test_Controller_Start(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
-			assert.Equal(t, tt.expect, c.Start("api"))
+			assert.Equal(t, tt.expect, c.Start("test-id-api"))
 		})
 	}
 }
@@ -114,14 +117,15 @@ func Test_Controller_Stop(t *testing.T) {
 		{
 			name: "not found",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{}, false)
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{}, false)
 			},
 			expect: false,
 		},
 		{
 			name: "stopped - no-op",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusStopped,
 				}, true)
@@ -131,14 +135,15 @@ func Test_Controller_Stop(t *testing.T) {
 		{
 			name: "running - publishes CommandStopService",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusRunning,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
 					Type:     bus.CommandStopService,
 					Critical: true,
-					Data:     bus.Payload{Name: "api"},
+					Data:     bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expect: true,
@@ -148,7 +153,7 @@ func Test_Controller_Stop(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
-			assert.Equal(t, tt.expect, c.Stop("api"))
+			assert.Equal(t, tt.expect, c.Stop("test-id-api"))
 		})
 	}
 }
@@ -170,14 +175,15 @@ func Test_Controller_Restart(t *testing.T) {
 		{
 			name: "not found",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{}, false)
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{}, false)
 			},
 			expect: false,
 		},
 		{
 			name: "starting - no-op",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusStarting,
 				}, true)
@@ -187,14 +193,15 @@ func Test_Controller_Restart(t *testing.T) {
 		{
 			name: "running - publishes CommandRestartService",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusRunning,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
 					Type:     bus.CommandRestartService,
 					Critical: true,
-					Data:     bus.Payload{Name: "api"},
+					Data:     bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expect: true,
@@ -202,14 +209,15 @@ func Test_Controller_Restart(t *testing.T) {
 		{
 			name: "failed - publishes CommandRestartService",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusFailed,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
 					Type:     bus.CommandRestartService,
 					Critical: true,
-					Data:     bus.Payload{Name: "api"},
+					Data:     bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expect: true,
@@ -217,14 +225,15 @@ func Test_Controller_Restart(t *testing.T) {
 		{
 			name: "stopped - publishes CommandRestartService",
 			before: func() {
-				mockStore.EXPECT().Service("api").Return(registry.ServiceSnapshot{
+				mockStore.EXPECT().Service("test-id-api").Return(registry.ServiceSnapshot{
+					ID:     "test-id-api",
 					Name:   "api",
 					Status: registry.StatusStopped,
 				}, true)
 				mockBus.EXPECT().Publish(bus.Message{
 					Type:     bus.CommandRestartService,
 					Critical: true,
-					Data:     bus.Payload{Name: "api"},
+					Data:     bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expect: true,
@@ -234,7 +243,7 @@ func Test_Controller_Restart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
-			assert.Equal(t, tt.expect, c.Restart("api"))
+			assert.Equal(t, tt.expect, c.Restart("test-id-api"))
 		})
 	}
 }

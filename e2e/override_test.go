@@ -27,8 +27,9 @@ func Test_Override_MergesServices(t *testing.T) {
 	output := runner.Output()
 
 	assert.Contains(t, output, "profile_resolved profile=default")
-	assert.Contains(t, output, "service_ready service=auth-api")
-	assert.Contains(t, output, "service_ready service=debug-tool")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=auth-api")
+	assert.Contains(t, output, "service=debug-tool")
 }
 
 func Test_Override_ConfigFlagSkipsOverride(t *testing.T) {
@@ -46,6 +47,7 @@ func Test_Override_ConfigFlagSkipsOverride(t *testing.T) {
 
 	output := runner.Output()
 
-	assert.Contains(t, output, "service_ready service=auth-api")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=auth-api")
 	assert.NotContains(t, output, "debug-tool")
 }

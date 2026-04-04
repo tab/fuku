@@ -31,20 +31,20 @@ func Test_Watch_RestartOnFileChange(t *testing.T) {
 	err = runner.WaitForLog("File change detected for service 'worker'", 10*time.Second)
 	require.NoError(t, err)
 
-	err = runner.WaitForLog("service_restarting service=worker", 10*time.Second)
+	err = runner.WaitForLog("service_restarting", 10*time.Second)
 	require.NoError(t, err)
 
-	err = runner.WaitForLog("service_ready service=worker", 20*time.Second)
+	err = runner.WaitForLog("service_ready", 20*time.Second)
 	require.NoError(t, err)
 
 	output := runner.Output()
 
-	restartIdx := indexOf(output, "service_restarting service=worker")
+	restartIdx := indexOf(output, "service_restarting")
 	require.Greater(t, restartIdx, -1, "service_restarting event should be present")
 
 	// Find service_ready after the restart event
 	afterRestart := output[restartIdx:]
-	readyAfterRestart := strings.Index(afterRestart, "service_ready service=worker")
+	readyAfterRestart := strings.Index(afterRestart, "service_ready")
 
 	assert.Greater(t, readyAfterRestart, -1, "service_ready should appear after service_restarting")
 

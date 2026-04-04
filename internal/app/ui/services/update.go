@@ -191,14 +191,14 @@ func (m Model) handleStopKey() (tea.Model, tea.Cmd) {
 
 	switch service.Status {
 	case StatusStopped, StatusFailed:
-		if m.controller.Start(service.Name) {
-			m.loader.Start(service.Name, fmt.Sprintf("starting %s…", service.Name))
+		if m.controller.Start(service.ID) {
+			m.loader.Start(service.ID, fmt.Sprintf("starting %s…", service.Name))
 
 			return m, m.loader.Model.Tick
 		}
 	case StatusRunning:
-		if m.controller.Stop(service.Name) {
-			m.loader.Start(service.Name, fmt.Sprintf("stopping %s…", service.Name))
+		if m.controller.Stop(service.ID) {
+			m.loader.Start(service.ID, fmt.Sprintf("stopping %s…", service.Name))
 
 			return m, m.loader.Model.Tick
 		}
@@ -214,8 +214,8 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.controller.Restart(service.Name) {
-		m.loader.Start(service.Name, fmt.Sprintf("restarting %s…", service.Name))
+	if m.controller.Restart(service.ID) {
+		m.loader.Start(service.ID, fmt.Sprintf("restarting %s…", service.Name))
 
 		return m, m.loader.Model.Tick
 	}
@@ -284,17 +284,29 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 
 	m.state.services = make(map[string]*ServiceState)
 	m.state.restarting = make(map[string]bool)
+	m.state.serviceIDs = nil
 	m.state.selected = 0
 	m.loader.StopAll()
 
 	m.state.tiers = make([]Tier, len(data.Tiers))
-	for i, tier := range data.Tiers {
-		m.log.Debug().Msgf("TUI: Adding tier %s with %d services: %v", tier.Name, len(tier.Services), tier.Services)
+	m.state.tierIndex = make(map[string]int, len(data.Tiers))
 
-		m.state.tiers[i] = Tier{Name: tier.Name, Services: tier.Services, Ready: false}
-		for _, serviceName := range tier.Services {
-			m.state.services[serviceName] = &ServiceState{
-				Name:   serviceName,
+	for i, tier := range data.Tiers {
+		ids := make([]string, len(tier.Services))
+		for j, ref := range tier.Services {
+			ids[j] = ref.ID
+		}
+
+		m.log.Debug().Msgf("TUI: Adding tier %s with %d services", tier.Name, len(tier.Services))
+
+		m.state.tiers[i] = Tier{Name: tier.Name, Services: ids, Ready: false}
+		m.state.tierIndex[tier.Name] = i
+		m.state.serviceIDs = append(m.state.serviceIDs, ids...)
+
+		for _, ref := range tier.Services {
+			m.state.services[ref.ID] = &ServiceState{
+				ID:     ref.ID,
+				Name:   ref.Name,
 				Tier:   tier.Name,
 				Status: StatusStarting,
 				Blink:  components.NewBlink(),
@@ -331,11 +343,8 @@ func (m Model) handleTierStarting(msg bus.Message) Model {
 		return m
 	}
 
-	for i, tier := range m.state.tiers {
-		if tier.Name == data.Name {
-			m.state.tiers[i].Ready = false
-			break
-		}
+	if i, exists := m.state.tierIndex[data.Name]; exists {
+		m.state.tiers[i].Ready = false
 	}
 
 	return m
@@ -348,11 +357,8 @@ func (m Model) handleTierReady(msg bus.Message) Model {
 		return m
 	}
 
-	for i, tier := range m.state.tiers {
-		if tier.Name == data.Name {
-			m.state.tiers[i].Ready = true
-			break
-		}
+	if i, exists := m.state.tierIndex[data.Name]; exists {
+		m.state.tiers[i].Ready = true
 	}
 
 	return m
@@ -365,17 +371,17 @@ func (m Model) handleServiceStarting(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service.ID]; exists {
 		service.Status = StatusStarting
 		service.Tier = data.Tier
 		service.PID = data.PID
 		service.StartTime = msg.Timestamp
 		service.Error = nil
 
-		delete(m.state.restarting, data.Service)
+		delete(m.state.restarting, data.Service.ID)
 
-		if !m.loader.Has(data.Service) {
-			m.loader.Start(data.Service, fmt.Sprintf("starting %s…", data.Service))
+		if !m.loader.Has(data.Service.ID) {
+			m.loader.Start(data.Service.ID, fmt.Sprintf("starting %s…", data.Service.Name))
 		}
 	}
 
@@ -389,11 +395,11 @@ func (m Model) handleServiceReady(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service.ID]; exists {
 		service.Status = StatusRunning
 		service.ReadyTime = msg.Timestamp
 
-		m.loader.Stop(data.Service)
+		m.loader.Stop(data.Service.ID)
 	}
 
 	return m
@@ -406,12 +412,12 @@ func (m Model) handleServiceFailed(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service.ID]; exists {
 		service.Status = StatusFailed
 		service.Error = data.Error
 
-		m.loader.Stop(data.Service)
-		delete(m.state.restarting, data.Service)
+		m.loader.Stop(data.Service.ID)
+		delete(m.state.restarting, data.Service.ID)
 	}
 
 	return m
@@ -424,11 +430,11 @@ func (m Model) handleServiceStopping(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service.ID]; exists {
 		service.Status = StatusStopping
 
-		if !m.loader.Has(data.Service) {
-			m.loader.Start(data.Service, fmt.Sprintf("stopping %s…", data.Service))
+		if !m.loader.Has(data.Service.ID) {
+			m.loader.Start(data.Service.ID, fmt.Sprintf("stopping %s…", data.Service.Name))
 		}
 	}
 
@@ -442,10 +448,10 @@ func (m Model) handleServiceRestarting(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.Service.ID]; exists {
 		service.Status = StatusRestarting
-		m.state.restarting[data.Service] = true
-		m.loader.Start(data.Service, fmt.Sprintf("restarting %s…", data.Service))
+		m.state.restarting[data.Service.ID] = true
+		m.loader.Start(data.Service.ID, fmt.Sprintf("restarting %s…", data.Service.Name))
 	}
 
 	return m
@@ -458,15 +464,15 @@ func (m Model) handleServiceStopped(msg bus.Message) Model {
 		return m
 	}
 
-	service, exists := m.state.services[data.Service]
+	service, exists := m.state.services[data.Service.ID]
 	if !exists {
 		return m
 	}
 
 	service.Status = StatusStopped
 
-	if !m.state.restarting[data.Service] {
-		m.loader.Stop(data.Service)
+	if !m.state.restarting[data.Service.ID] {
+		m.loader.Stop(data.Service.ID)
 	}
 
 	return m
@@ -474,12 +480,12 @@ func (m Model) handleServiceStopped(msg bus.Message) Model {
 
 // handleWatchStarted updates a service when file watching starts
 func (m Model) handleWatchStarted(msg bus.Message) Model {
-	data, ok := msg.Data.(bus.Payload)
+	data, ok := msg.Data.(bus.Service)
 	if !ok {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Name]; exists {
+	if service, exists := m.state.services[data.ID]; exists {
 		service.Watching = true
 	}
 
@@ -490,12 +496,12 @@ func (m Model) handleWatchStarted(msg bus.Message) Model {
 
 // handleWatchStopped updates a service when file watching stops
 func (m Model) handleWatchStopped(msg bus.Message) Model {
-	data, ok := msg.Data.(bus.Payload)
+	data, ok := msg.Data.(bus.Service)
 	if !ok {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Name]; exists {
+	if service, exists := m.state.services[data.ID]; exists {
 		service.Watching = false
 	}
 
