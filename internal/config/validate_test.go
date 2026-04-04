@@ -361,6 +361,20 @@ func Test_Validate(t *testing.T) {
 			errorMsg:    "api listen must be a valid host:port address",
 		},
 		{
+			name: "API with empty host",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.API = &APIConfig{
+					Listen: ":9876",
+					Auth:   AuthConfig{Token: "test-token"},
+				}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
 			name:        "nil API configuration is valid",
 			config:      DefaultConfig(),
 			expectError: false,

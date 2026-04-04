@@ -98,7 +98,7 @@ func (c *Config) validateAPI() error {
 	}
 
 	host, portStr, err := net.SplitHostPort(c.API.Listen)
-	if err != nil {
+	if err != nil || host == "" {
 		return errors.ErrAPIInvalidListen
 	}
 
