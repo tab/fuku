@@ -10,6 +10,7 @@
 package cli
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -40,16 +41,16 @@ func (m *MockTUI) EXPECT() *MockTUIMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockTUI) Execute() (int, error) {
+func (m *MockTUI) Execute(ctx context.Context) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute")
+	ret := m.ctrl.Call(m, "Execute", ctx)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockTUIMockRecorder) Execute() *gomock.Call {
+func (mr *MockTUIMockRecorder) Execute(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockTUI)(nil).Execute))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockTUI)(nil).Execute), ctx)
 }

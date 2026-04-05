@@ -25,6 +25,8 @@ type Broadcaster interface {
 // Server manages the Unix socket server for log streaming
 type Server struct {
 	bus         bus.Bus
+	ch          <-chan bus.Message
+	cancelSub   context.CancelFunc
 	cancel      context.CancelFunc
 	socketPath  string
 	profile     string
@@ -55,16 +57,25 @@ func (s *Server) SocketPath() string {
 	return s.socketPath
 }
 
-// Run subscribes to the bus and starts the server when the profile is resolved
-func (s *Server) Run(ctx context.Context) {
-	ch := s.bus.Subscribe(ctx)
+// Subscribe registers the server as a bus subscriber, must be called before Run
+func (s *Server) Subscribe(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	s.ch = s.bus.Subscribe(ctx)
+	s.cancelSub = cancel
+}
 
+// Run waits for the profile resolved event and starts the server
+func (s *Server) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			s.cancelSub()
+
 			return
-		case msg, ok := <-ch:
+		case msg, ok := <-s.ch:
 			if !ok {
+				s.cancelSub()
+
 				return
 			}
 
@@ -77,6 +88,7 @@ func (s *Server) Run(ctx context.Context) {
 				continue
 			}
 
+			s.cancelSub()
 			s.activate(ctx, data)
 
 			return

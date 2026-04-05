@@ -64,6 +64,84 @@ func Test_NewServer(t *testing.T) {
 	assert.NotNil(t, s)
 }
 
+func Test_Server_Subscribe(t *testing.T) {
+	cfg := config.DefaultConfig()
+	log := logger.NewLoggerWithOutput(cfg, io.Discard)
+
+	s := NewServer(cfg, bus.NoOp(), log)
+
+	s.Subscribe(t.Context())
+
+	assert.NotNil(t, s.ch)
+	assert.NotNil(t, s.cancelSub)
+}
+
+func Test_Server_Run_ActivatesOnProfileResolved(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Logs.Buffer = 10
+
+	b := bus.NewBus(cfg, nil, nil)
+	defer b.Close()
+
+	log := logger.NewLoggerWithOutput(cfg, io.Discard)
+	s := NewServer(cfg, b, log)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	s.Subscribe(ctx)
+
+	tierServices := []bus.Service{{ID: "test-id", Name: "api"}}
+	b.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "test",
+			Tiers:   []bus.Tier{{Name: "default", Services: tierServices}},
+		},
+	})
+
+	done := make(chan struct{})
+
+	go func() {
+		s.Run(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after activation")
+	}
+
+	assert.Equal(t, "test", s.profile)
+
+	cancel()
+	s.Stop()
+}
+
+func Test_Server_Run_ContextCancelled(t *testing.T) {
+	cfg := config.DefaultConfig()
+	log := logger.NewLoggerWithOutput(cfg, io.Discard)
+
+	s := NewServer(cfg, bus.NoOp(), log)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	s.Subscribe(ctx)
+
+	done := make(chan struct{})
+
+	go func() {
+		s.Run(ctx)
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after context cancel")
+	}
+}
+
 func Test_Server_SocketPath(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)

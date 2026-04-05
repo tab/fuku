@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+
 	"go.uber.org/fx"
 
 	"fuku/internal/app/bus"
@@ -29,7 +31,8 @@ var Module = fx.Options(
 	tracer.Module,
 	watcher.Module,
 	wire.Module,
-	fx.Provide(provideContext),
+	fx.Provide(NewRoot),
+	fx.Provide(func(root *Root) context.Context { return root.Context() }),
 	fx.Provide(NewApp),
 	fx.Invoke(Register),
 )

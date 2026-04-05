@@ -105,7 +105,7 @@ func Test_screen_streamLogs(t *testing.T) {
 				width:  func() int { return 80 },
 			}
 
-			result := s.streamLogs("/tmp/test.sock", tt.services)
+			result := s.streamLogs(t.Context(), "/tmp/test.sock", tt.services)
 
 			assert.Equal(t, tt.expect, result)
 		})
@@ -152,7 +152,7 @@ func Test_screen_streamLogs_WritesToOutput(t *testing.T) {
 		width:  func() int { return 80 },
 	}
 
-	result := s.streamLogs("/tmp/test.sock", []string{"api"})
+	result := s.streamLogs(t.Context(), "/tmp/test.sock", []string{"api"})
 
 	assert.Equal(t, 0, result)
 
@@ -185,7 +185,7 @@ func Test_screen_Run(t *testing.T) {
 			width:  func() int { return 80 },
 		}
 
-		result := s.Run("nonexistent-profile-that-does-not-exist", nil)
+		result := s.Run(t.Context(), "nonexistent-profile-that-does-not-exist", nil)
 
 		assert.Equal(t, 1, result)
 	})
@@ -221,7 +221,7 @@ func Test_screen_Run(t *testing.T) {
 			width:  func() int { return 80 },
 		}
 
-		result := s.Run(profile, []string{"api"})
+		result := s.Run(t.Context(), profile, []string{"api"})
 
 		assert.Equal(t, 0, result)
 	})

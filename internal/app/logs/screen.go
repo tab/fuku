@@ -17,7 +17,7 @@ import (
 
 // Screen handles the fuku logs command
 type Screen interface {
-	Run(profile string, services []string) int
+	Run(ctx context.Context, profile string, services []string) int
 }
 
 // screen implements the Screen interface
@@ -53,18 +53,18 @@ func terminalWidth() int {
 }
 
 // Run handles the logs command to stream logs from a running instance
-func (s *screen) Run(profile string, services []string) int {
+func (s *screen) Run(ctx context.Context, profile string, services []string) int {
 	socketPath, err := relay.FindSocket(config.SocketDir, profile)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to find socket")
 		return 1
 	}
 
-	return s.streamLogs(socketPath, services)
+	return s.streamLogs(ctx, socketPath, services)
 }
 
 // streamLogs connects to a running fuku instance and streams logs
-func (s *screen) streamLogs(socketPath string, services []string) int {
+func (s *screen) streamLogs(ctx context.Context, socketPath string, services []string) int {
 	if err := s.client.Connect(socketPath); err != nil {
 		s.log.Error().Err(err).Msg("Failed to connect to socket")
 		return 1
@@ -77,7 +77,7 @@ func (s *screen) streamLogs(socketPath string, services []string) int {
 		return 1
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	handler := &screenHandler{
