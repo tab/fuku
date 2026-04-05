@@ -40,27 +40,27 @@ func (m *MockGuard) EXPECT() *MockGuardMockRecorder {
 }
 
 // Lock mocks base method.
-func (m *MockGuard) Lock(name string) bool {
+func (m *MockGuard) Lock(id string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Lock", name)
+	ret := m.ctrl.Call(m, "Lock", id)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Lock indicates an expected call of Lock.
-func (mr *MockGuardMockRecorder) Lock(name any) *gomock.Call {
+func (mr *MockGuardMockRecorder) Lock(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Lock", reflect.TypeOf((*MockGuard)(nil).Lock), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Lock", reflect.TypeOf((*MockGuard)(nil).Lock), id)
 }
 
 // Unlock mocks base method.
-func (m *MockGuard) Unlock(name string) {
+func (m *MockGuard) Unlock(id string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Unlock", name)
+	m.ctrl.Call(m, "Unlock", id)
 }
 
 // Unlock indicates an expected call of Unlock.
-func (mr *MockGuardMockRecorder) Unlock(name any) *gomock.Call {
+func (mr *MockGuardMockRecorder) Unlock(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unlock", reflect.TypeOf((*MockGuard)(nil).Unlock), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unlock", reflect.TypeOf((*MockGuard)(nil).Unlock), id)
 }

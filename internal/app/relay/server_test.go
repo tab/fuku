@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -26,13 +27,13 @@ func uniqueProfile(t *testing.T) string {
 	return fmt.Sprintf("test-%d", time.Now().UnixNano())
 }
 
-func newTestServer(t *testing.T) *server {
+func newTestServer(t *testing.T) *Server {
 	t.Helper()
 
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	return &server{
+	return &Server{
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log),
@@ -40,11 +41,25 @@ func newTestServer(t *testing.T) *server {
 	}
 }
 
+func startTestServer(t *testing.T, srv *Server, profile string, services []string) context.CancelFunc {
+	t.Helper()
+
+	srv.profile = profile
+	srv.services = services
+
+	ctx, cancel := context.WithCancel(t.Context())
+
+	err := srv.start(ctx)
+	require.NoError(t, err)
+
+	return cancel
+}
+
 func Test_NewServer(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, log)
+	s := NewServer(cfg, bus.NoOp(), log)
 
 	assert.NotNil(t, s)
 }
@@ -53,7 +68,7 @@ func Test_Server_SocketPath(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, log)
+	s := NewServer(cfg, bus.NoOp(), log)
 
 	assert.Empty(t, s.SocketPath())
 }
@@ -62,14 +77,13 @@ func Test_Server_StartStop(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api", "web"})
-	require.NoError(t, err)
+	cancel := startTestServer(t, srv, profile, []string{"api", "web"})
 
 	assert.NotEmpty(t, srv.SocketPath())
 	assert.FileExists(t, srv.SocketPath())
 
-	err = srv.Stop()
-	require.NoError(t, err)
+	cancel()
+	srv.Stop()
 }
 
 func Test_Server_Broadcast_Running(t *testing.T) {
@@ -79,7 +93,7 @@ func Test_Server_Broadcast_Running(t *testing.T) {
 	mockHub := NewMockHub(ctrl)
 	mockHub.EXPECT().Broadcast("api", "hello").Times(1)
 
-	srv := &server{
+	srv := &Server{
 		hub: mockHub,
 		log: testLogger(),
 	}
@@ -94,7 +108,7 @@ func Test_Server_Broadcast_NotRunning(t *testing.T) {
 
 	mockHub := NewMockHub(ctrl)
 
-	srv := &server{
+	srv := &Server{
 		hub: mockHub,
 		log: testLogger(),
 	}
@@ -114,8 +128,10 @@ func Test_Server_Start_ActiveSocket_ReturnsError(t *testing.T) {
 	defer os.Remove(socketPath)
 
 	srv := newTestServer(t)
+	srv.profile = profile
+	srv.services = []string{"api"}
 
-	err = srv.Start(t.Context(), profile, []string{"api"})
+	err = srv.start(t.Context())
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errors.ErrSocketAlreadyInUse))
 }
@@ -131,30 +147,27 @@ func Test_Server_Start_RecoverFromStaleSocket(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	err = srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 
-	err = srv.Stop()
-	require.NoError(t, err)
+	cancel()
+	srv.Stop()
 }
 
 func Test_Server_Stop_NotRunning(t *testing.T) {
-	srv := &server{
+	srv := &Server{
 		log: testLogger(),
 	}
 
-	err := srv.Stop()
-	require.NoError(t, err)
+	srv.Stop()
 }
 
 func Test_Server_HandleConnection_SuccessfulFlow(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api", "web"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api", "web"})
 	defer srv.Stop()
+	defer cancel()
 
 	conn, err := net.Dial("unix", srv.SocketPath())
 	require.NoError(t, err)
@@ -207,10 +220,9 @@ func Test_Server_HandleConnection_InvalidSubscribe(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	conn, err := net.Dial("unix", srv.SocketPath())
 	require.NoError(t, err)
@@ -232,10 +244,9 @@ func Test_Server_HandleConnection_WrongMessageType(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	conn, err := net.Dial("unix", srv.SocketPath())
 	require.NoError(t, err)
@@ -265,10 +276,9 @@ func Test_Server_HandleConnection_ReplaysHistory(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	srv.Broadcast("api", "history-msg-1")
 	srv.Broadcast("api", "history-msg-2")
@@ -328,7 +338,7 @@ func Test_Server_HandleConnection_ReplaysHistory(t *testing.T) {
 func Test_Server_ClientQueueSizing(t *testing.T) {
 	cfg := config.DefaultConfig()
 
-	srv := &server{
+	srv := &Server{
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		log:         testLogger(),
@@ -459,10 +469,9 @@ func Test_Server_HandleConnection_ClientDisconnectsBeforeSubscribe(t *testing.T)
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	conn, err := net.Dial("unix", srv.SocketPath())
 	require.NoError(t, err)
@@ -490,7 +499,12 @@ func Test_Server_AcceptConnections_ErrorWhileRunning(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
+	ctx, cancel := context.WithCancel(t.Context())
+
+	srv.profile = profile
+	srv.services = []string{"api"}
+
+	err := srv.start(ctx)
 	require.NoError(t, err)
 
 	srv.listener.Close()
@@ -499,7 +513,7 @@ func Test_Server_AcceptConnections_ErrorWhileRunning(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	srv.running.Store(false)
-	srv.cancel()
+	cancel()
 	srv.wg.Wait()
 
 	if err := os.Remove(srv.SocketPath()); err != nil && !os.IsNotExist(err) {
@@ -509,8 +523,10 @@ func Test_Server_AcceptConnections_ErrorWhileRunning(t *testing.T) {
 
 func Test_Server_Start_ListenError(t *testing.T) {
 	srv := newTestServer(t)
+	srv.profile = "nonexistent/profile"
+	srv.services = []string{"api"}
 
-	err := srv.Start(t.Context(), "nonexistent/profile", []string{"api"})
+	err := srv.start(t.Context())
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errors.ErrFailedToListenSocket))
 }
@@ -529,6 +545,5 @@ func Test_Server_Stop_RemoveSocketError(t *testing.T) {
 	srv.running.Store(true)
 	srv.socketPath = tmpDir
 
-	err = srv.Stop()
-	require.NoError(t, err)
+	srv.Stop()
 }

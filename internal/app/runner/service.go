@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/fx"
+
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/lifecycle"
@@ -37,9 +39,24 @@ const (
 
 // Service handles individual service lifecycle
 type Service interface {
-	Start(ctx context.Context, name, tier string) error
-	Stop(name string)
-	Restart(ctx context.Context, name string)
+	Start(ctx context.Context, tier string, svc bus.Service) error
+	Stop(id string)
+	Restart(ctx context.Context, svc bus.Service)
+	Resume(ctx context.Context, svc bus.Service)
+}
+
+// ServiceParams contains dependencies for creating a Service
+type ServiceParams struct {
+	fx.In
+
+	Config      *config.Config
+	Lifecycle   lifecycle.Lifecycle
+	Readiness   readiness.Readiness
+	Registry    registry.Registry
+	Guard       Guard
+	Bus         bus.Bus
+	Broadcaster relay.Broadcaster
+	Logger      logger.Logger
 }
 
 type service struct {
@@ -54,37 +71,28 @@ type service struct {
 }
 
 // NewService creates a new service instance
-func NewService(
-	cfg *config.Config,
-	lc lifecycle.Lifecycle,
-	rd readiness.Readiness,
-	reg registry.Registry,
-	guard Guard,
-	b bus.Bus,
-	broadcaster relay.Broadcaster,
-	log logger.Logger,
-) Service {
+func NewService(p ServiceParams) Service {
 	return &service{
-		cfg:         cfg,
-		lifecycle:   lc,
-		readiness:   rd,
-		registry:    reg,
-		guard:       guard,
-		bus:         b,
-		broadcaster: broadcaster,
-		log:         log.WithComponent("SERVICE"),
+		cfg:         p.Config,
+		lifecycle:   p.Lifecycle,
+		readiness:   p.Readiness,
+		registry:    p.Registry,
+		guard:       p.Guard,
+		bus:         p.Bus,
+		broadcaster: p.Broadcaster,
+		log:         p.Logger.WithComponent("SERVICE"),
 	}
 }
 
 // Start starts a service with retry logic
-func (s *service) Start(ctx context.Context, name, tier string) error {
-	cfg := s.cfg.Services[name]
+func (s *service) Start(ctx context.Context, tier string, svc bus.Service) error {
+	cfg := s.cfg.Services[svc.Name]
 
 	var lastErr error
 
 	for attempt := 1; attempt <= s.cfg.Retry.Attempts; attempt++ {
 		if attempt > 1 {
-			s.log.Info().Msgf("Retrying service '%s' (attempt %d/%d)", name, attempt, s.cfg.Retry.Attempts)
+			s.log.Info().Msgf("Retrying service '%s' (attempt %d/%d)", svc.Name, attempt, s.cfg.Retry.Attempts)
 
 			select {
 			case <-time.After(s.cfg.Retry.Backoff):
@@ -93,25 +101,25 @@ func (s *service) Start(ctx context.Context, name, tier string) error {
 			}
 		}
 
-		proc, err := s.doStart(ctx, name, tier, cfg)
+		proc, err := s.doStart(ctx, tier, svc, cfg)
 		if err != nil {
 			lastErr = err
 
 			continue
 		}
 
-		s.registry.Add(name, proc, tier)
-		s.watchForExit(proc)
+		s.registry.Add(tier, svc, proc)
+		s.watchForExit(svc.ID, proc)
 
 		return nil
 	}
 
 	err := fmt.Errorf("%w after %d attempts: %w", errors.ErrMaxRetriesExceeded, s.cfg.Retry.Attempts, lastErr)
-	s.log.Error().Err(err).Msgf("Failed to start service '%s'", name)
+	s.log.Error().Err(err).Msgf("Failed to start service '%s'", svc.Name)
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceFailed,
 		Data: bus.ServiceFailed{
-			ServiceEvent: bus.ServiceEvent{Service: name, Tier: tier},
+			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: tier},
 			Error:        err,
 		},
 		Critical: true,
@@ -121,49 +129,51 @@ func (s *service) Start(ctx context.Context, name, tier string) error {
 }
 
 // Stop stops a running service
-func (s *service) Stop(name string) {
-	lookup := s.registry.Get(name)
+func (s *service) Stop(id string) {
+	lookup := s.registry.Get(id)
 	if !lookup.Exists {
 		return
 	}
 
-	s.log.Info().Msgf("Stopping service '%s'", name)
+	svc := bus.Service{ID: id, Name: lookup.Name}
+
+	s.log.Info().Msgf("Stopping service '%s'", lookup.Name)
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceStopping,
 		Data: bus.ServiceStopping{
-			ServiceEvent: bus.ServiceEvent{Service: name, Tier: lookup.Tier},
+			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: lookup.Tier},
 		},
 		Critical: true,
 	})
 
-	s.doStop(name, lookup.Proc)
+	s.doStop(id, lookup.Proc)
 
-	s.log.Info().Msgf("Service '%s' stopped", name)
+	s.log.Info().Msgf("Service '%s' stopped", lookup.Name)
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceStopped,
 		Data: bus.ServiceStopped{
-			ServiceEvent: bus.ServiceEvent{Service: name, Tier: lookup.Tier},
+			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: lookup.Tier},
 		},
 		Critical: true,
 	})
 }
 
 // Restart restarts a service with guard protection
-func (s *service) Restart(ctx context.Context, name string) {
-	if !s.guard.Lock(name) {
-		s.log.Info().Msgf("Service '%s' restart already in progress, skipping", name)
+func (s *service) Restart(ctx context.Context, svc bus.Service) {
+	if !s.guard.Lock(svc.ID) {
+		s.log.Info().Msgf("Service '%s' restart already in progress, skipping", svc.Name)
 
 		return
 	}
-	defer s.guard.Unlock(name)
+	defer s.guard.Unlock(svc.ID)
 
-	cfg, tier := s.getConfig(name)
+	cfg, tier := s.getConfig(svc.Name)
 	if cfg == nil {
-		s.log.Error().Msgf("Service configuration for '%s' not found", name)
+		s.log.Error().Msgf("Service configuration for '%s' not found", svc.Name)
 		s.bus.Publish(bus.Message{
 			Type: bus.EventServiceFailed,
 			Data: bus.ServiceFailed{
-				ServiceEvent: bus.ServiceEvent{Service: name, Tier: ""},
+				ServiceEvent: bus.ServiceEvent{Service: svc, Tier: ""},
 				Error:        errors.ErrServiceNotFound,
 			},
 			Critical: true,
@@ -172,28 +182,28 @@ func (s *service) Restart(ctx context.Context, name string) {
 		return
 	}
 
-	s.log.Info().Msgf("Restarting service '%s'", name)
+	s.log.Info().Msgf("Restarting service '%s'", svc.Name)
 
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceRestarting,
 		Data: bus.ServiceRestarting{
-			ServiceEvent: bus.ServiceEvent{Service: name, Tier: tier},
+			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: tier},
 		},
 		Critical: true,
 	})
 
-	if lookup := s.registry.Get(name); lookup.Exists {
-		s.log.Info().Msgf("Stopping service '%s' before restart", name)
-		s.doStop(name, lookup.Proc)
+	if lookup := s.registry.Get(svc.ID); lookup.Exists {
+		s.log.Info().Msgf("Stopping service '%s' before restart", svc.Name)
+		s.doStop(svc.ID, lookup.Proc)
 	}
 
-	proc, err := s.doStart(ctx, name, tier, cfg)
+	proc, err := s.doStart(ctx, tier, svc, cfg)
 	if err != nil {
-		s.log.Error().Err(err).Msgf("Failed to restart service '%s'", name)
+		s.log.Error().Err(err).Msgf("Failed to restart service '%s'", svc.Name)
 		s.bus.Publish(bus.Message{
 			Type: bus.EventServiceFailed,
 			Data: bus.ServiceFailed{
-				ServiceEvent: bus.ServiceEvent{Service: name, Tier: tier},
+				ServiceEvent: bus.ServiceEvent{Service: svc, Tier: tier},
 				Error:        err,
 			},
 			Critical: true,
@@ -202,20 +212,48 @@ func (s *service) Restart(ctx context.Context, name string) {
 		return
 	}
 
-	s.registry.Add(name, proc, tier)
-	s.watchForExit(proc)
+	s.registry.Add(tier, svc, proc)
+	s.watchForExit(svc.ID, proc)
+}
+
+// Resume starts a stopped or failed service with guard protection
+func (s *service) Resume(ctx context.Context, svc bus.Service) {
+	if !s.guard.Lock(svc.ID) {
+		s.log.Info().Msgf("Service '%s' start already in progress, skipping", svc.Name)
+
+		return
+	}
+	defer s.guard.Unlock(svc.ID)
+
+	cfg, tier := s.getConfig(svc.Name)
+	if cfg == nil {
+		s.log.Error().Msgf("Service configuration for '%s' not found", svc.Name)
+		s.bus.Publish(bus.Message{
+			Type: bus.EventServiceFailed,
+			Data: bus.ServiceFailed{
+				ServiceEvent: bus.ServiceEvent{Service: svc, Tier: ""},
+				Error:        errors.ErrServiceNotFound,
+			},
+			Critical: true,
+		})
+
+		return
+	}
+
+	//nolint:errcheck // errors published to bus internally by Start
+	s.Start(ctx, tier, svc)
 }
 
 // doStart creates, starts, and waits for a service to be ready
-func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Service) (process.Process, error) {
+func (s *service) doStart(ctx context.Context, tier string, svc bus.Service, cfg *config.Service) (process.Process, error) {
 	startTime := time.Now()
 
-	serviceDir, envFile, err := s.resolvePaths(name, cfg.Dir)
+	serviceDir, envFile, err := s.resolvePaths(svc.Name, cfg.Dir)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.preFlightCheck(name, cfg.Readiness); err != nil {
+	if err := s.preFlightCheck(svc.Name, cfg.Readiness); err != nil {
 		return nil, err
 	}
 
@@ -240,19 +278,19 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 		return nil, fmt.Errorf("%w: %w", errors.ErrFailedToStartCommand, err)
 	}
 
-	s.log.Info().Msgf("Started service '%s' (PID: %d) in directory: %s", name, cmd.Process.Pid, serviceDir)
+	s.log.Info().Msgf("Started service '%s' (PID: %d) in directory: %s", svc.Name, cmd.Process.Pid, serviceDir)
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
 		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: name, Tier: tier},
+			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: tier},
 			PID:          cmd.Process.Pid,
 			Attempt:      1,
 		},
 		Critical: true,
 	})
 
-	proc := s.setupStreams(name, cmd, stdoutPipe, stderrPipe)
-	s.setupReadinessCheck(ctx, name, cfg, proc)
+	proc := s.setupStreams(svc.Name, cmd, stdoutPipe, stderrPipe)
+	s.setupReadinessCheck(ctx, svc, cfg, proc)
 
 	if err := s.waitForReady(ctx, proc, cfg); err != nil {
 		_ = s.lifecycle.Terminate(proc, config.ShutdownTimeout)
@@ -263,7 +301,7 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceReady,
 		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: name, Tier: tier},
+			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: tier},
 			Duration:     time.Since(startTime),
 		},
 		Critical: true,
@@ -273,13 +311,13 @@ func (s *service) doStart(ctx context.Context, name, tier string, cfg *config.Se
 }
 
 // doStop terminates a running process
-func (s *service) doStop(name string, proc process.Process) {
-	s.registry.Detach(name)
+func (s *service) doStop(id string, proc process.Process) {
+	s.registry.Detach(id)
 
 	_ = s.lifecycle.Terminate(proc, config.ShutdownTimeout)
 	<-proc.Done()
 
-	s.registry.Remove(name, proc)
+	s.registry.Remove(id, proc)
 }
 
 // resolvePaths validates and returns absolute paths for service directory and env file
@@ -337,7 +375,7 @@ func (s *service) setupStreams(name string, cmd *exec.Cmd, stdoutPipe, stderrPip
 }
 
 // setupReadinessCheck configures the appropriate readiness check
-func (s *service) setupReadinessCheck(ctx context.Context, name string, cfg *config.Service, proc process.Process) {
+func (s *service) setupReadinessCheck(ctx context.Context, svc bus.Service, cfg *config.Service, proc process.Process) {
 	stdout := proc.StdoutReader()
 	stderr := proc.StderrReader()
 
@@ -355,10 +393,10 @@ func (s *service) setupReadinessCheck(ctx context.Context, name string, cfg *con
 		go drainPipe(stdout)
 		go drainPipe(stderr)
 
-		go s.readiness.Check(ctx, name, cfg, proc)
+		go s.readiness.Check(ctx, svc, cfg, proc)
 	case config.TypeLog:
 		go func() {
-			s.readiness.Check(ctx, name, cfg, proc)
+			s.readiness.Check(ctx, svc, cfg, proc)
 
 			go drainPipe(stdout)
 			go drainPipe(stderr)
@@ -390,22 +428,24 @@ func (s *service) waitForReady(ctx context.Context, proc process.Process, cfg *c
 }
 
 // watchForExit monitors process and handles unexpected exits
-func (s *service) watchForExit(proc process.Process) {
+func (s *service) watchForExit(id string, proc process.Process) {
 	go func() {
 		<-proc.Done()
 
-		result := s.registry.Remove(proc.Name(), proc)
+		result := s.registry.Remove(id, proc)
 		if !result.Removed || !result.UnexpectedExit {
 			return
 		}
 
-		s.log.Info().Msgf("Service '%s' exited unexpectedly", proc.Name())
+		svc := bus.Service{ID: id, Name: result.Name}
 
-		if s.isWatched(proc.Name()) {
+		s.log.Info().Msgf("Service '%s' exited unexpectedly", result.Name)
+
+		if s.isWatched(result.Name) {
 			s.bus.Publish(bus.Message{
 				Type: bus.EventServiceFailed,
 				Data: bus.ServiceFailed{
-					ServiceEvent: bus.ServiceEvent{Service: proc.Name(), Tier: result.Tier},
+					ServiceEvent: bus.ServiceEvent{Service: svc, Tier: result.Tier},
 					Error:        errors.ErrUnexpectedExit,
 				},
 				Critical: true,
@@ -414,7 +454,7 @@ func (s *service) watchForExit(proc process.Process) {
 			s.bus.Publish(bus.Message{
 				Type: bus.EventServiceStopped,
 				Data: bus.ServiceStopped{
-					ServiceEvent: bus.ServiceEvent{Service: proc.Name(), Tier: result.Tier},
+					ServiceEvent: bus.ServiceEvent{Service: svc, Tier: result.Tier},
 					Unexpected:   true,
 				},
 				Critical: true,
@@ -542,7 +582,7 @@ func (s *service) extractAddress(r *config.Readiness) string {
 	}
 }
 
-// extractFromURL extracts host:port from URL (e.g., "http://localhost:8080/health" → "localhost:8080")
+// extractFromURL extracts host:port from URL (e.g., "http://localhost:8080/health" -> "localhost:8080")
 func extractFromURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {

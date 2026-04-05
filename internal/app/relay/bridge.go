@@ -12,7 +12,6 @@ type Bridge struct {
 	b           bus.Bus
 	broadcaster Broadcaster
 	formatter   *bus.Formatter
-	cancel      context.CancelFunc
 }
 
 // NewBridge creates a new bus-to-relay bridge
@@ -24,21 +23,11 @@ func NewBridge(b bus.Bus, broadcaster Broadcaster, formatter *bus.Formatter) *Br
 	}
 }
 
-// Start subscribes to the bus synchronously and begins forwarding in a goroutine
-func (br *Bridge) Start() {
-	ctx, cancel := context.WithCancel(context.Background())
-	br.cancel = cancel
-
+// Start subscribes to the bus and begins forwarding in a goroutine
+func (br *Bridge) Start(ctx context.Context) {
 	ch := br.b.Subscribe(ctx)
 
 	go br.forward(ctx, ch)
-}
-
-// Stop cancels the bridge context and unsubscribes from the bus
-func (br *Bridge) Stop() {
-	if br.cancel != nil {
-		br.cancel()
-	}
 }
 
 // forward reads bus events from the channel and broadcasts them

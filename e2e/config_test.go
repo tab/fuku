@@ -26,7 +26,8 @@ func Test_YmlConfig_StartServices(t *testing.T) {
 	output := runner.Output()
 
 	assert.Contains(t, output, "profile_resolved profile=default")
-	assert.Contains(t, output, "service_ready service=echo-api")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=echo-api")
 }
 
 func Test_ConfigFlag_CrossDirectory(t *testing.T) {
@@ -48,7 +49,8 @@ func Test_ConfigFlag_CrossDirectory(t *testing.T) {
 	output := runner.Output()
 
 	assert.Contains(t, output, "profile_resolved profile=default")
-	assert.Contains(t, output, "service_ready service=echo-api")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=echo-api")
 }
 
 func Test_ConfigFlag_RelativePath(t *testing.T) {
@@ -67,7 +69,8 @@ func Test_ConfigFlag_RelativePath(t *testing.T) {
 	output := runner.Output()
 
 	assert.Contains(t, output, "profile_resolved profile=default")
-	assert.Contains(t, output, "service_ready service=echo-api")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=echo-api")
 }
 
 func Test_NoConfigFile(t *testing.T) {

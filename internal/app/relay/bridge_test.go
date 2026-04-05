@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"io"
 	"sync"
 	"testing"
@@ -91,19 +92,22 @@ func Test_Bridge_StartStop(t *testing.T) {
 	b := bus.NewBus(cfg, formatter, log)
 	defer b.Close()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	bridge := NewBridge(b, broadcaster, formatter)
-	bridge.Start()
+	bridge.Start(ctx)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
 		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 		},
 	})
 
 	messages := broadcaster.waitForMessages(1)
 
-	bridge.Stop()
+	cancel()
 
 	require.GreaterOrEqual(t, len(messages), 1)
 	assert.Equal(t, config.AppName, messages[0].service)
@@ -121,13 +125,16 @@ func Test_Bridge_ForwardsMultipleEvents(t *testing.T) {
 	b := bus.NewBus(cfg, formatter, log)
 	defer b.Close()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	bridge := NewBridge(b, broadcaster, formatter)
-	bridge.Start()
+	bridge.Start(ctx)
 
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
 		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 			PID:          1234,
 		},
 	})
@@ -135,13 +142,13 @@ func Test_Bridge_ForwardsMultipleEvents(t *testing.T) {
 	b.Publish(bus.Message{
 		Type: bus.EventServiceReady,
 		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 		},
 	})
 
 	messages := broadcaster.waitForMessages(2)
 
-	bridge.Stop()
+	cancel()
 
 	require.GreaterOrEqual(t, len(messages), 2)
 	assert.Contains(t, messages[0].message, "service_starting")
@@ -159,13 +166,9 @@ func Test_Bridge_StopsCleanly(t *testing.T) {
 	b := bus.NewBus(cfg, formatter, log)
 	defer b.Close()
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	bridge := NewBridge(b, broadcaster, formatter)
-	bridge.Start()
-	bridge.Stop()
-}
-
-func Test_Bridge_Stop_NilCancel(t *testing.T) {
-	bridge := &Bridge{}
-
-	bridge.Stop()
+	bridge.Start(ctx)
+	cancel()
 }

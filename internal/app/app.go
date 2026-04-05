@@ -69,3 +69,18 @@ func Register(lifecycle fx.Lifecycle, app *App) {
 		},
 	})
 }
+
+// provideContext creates a background context cancelled on FX shutdown
+func provideContext(lc fx.Lifecycle) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	lc.Append(fx.Hook{
+		OnStop: func(_ context.Context) error {
+			cancel()
+
+			return nil
+		},
+	})
+
+	return ctx
+}

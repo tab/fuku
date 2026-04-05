@@ -29,6 +29,7 @@ var Module = fx.Options(
 	tracer.Module,
 	watcher.Module,
 	wire.Module,
+	fx.Provide(provideContext),
 	fx.Provide(NewApp),
 	fx.Invoke(Register),
 )

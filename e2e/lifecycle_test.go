@@ -51,8 +51,9 @@ func Test_Lifecycle_RapidRestart(t *testing.T) {
 
 			output := runner.Output()
 
-			assert.Contains(t, output, "service_ready service=auth-api")
-			assert.Contains(t, output, "service_ready service=user-api")
+			assert.Contains(t, output, "service_ready")
+			assert.Contains(t, output, "service=auth-api")
+			assert.Contains(t, output, "service=user-api")
 			assert.NotContains(t, output, "No services found")
 		})
 	}
@@ -84,8 +85,9 @@ func Test_Lifecycle_PreflightCleansUpOrphans(t *testing.T) {
 	output := second.Output()
 
 	assert.Contains(t, output, "profile_resolved profile=default")
-	assert.Contains(t, output, "service_ready service=auth-api")
-	assert.Contains(t, output, "service_ready service=user-api")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=auth-api")
+	assert.Contains(t, output, "service=user-api")
 	assert.NotContains(t, output, "No services found")
 }
 

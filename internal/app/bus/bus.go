@@ -100,19 +100,21 @@ type PreflightComplete struct {
 	Duration time.Duration
 }
 
+// Service identifies a service in the system
+type Service struct {
+	ID   string
+	Name string
+}
+
 // Tier represents a group of services that start together
 type Tier struct {
+	ID       string
 	Name     string
-	Services []string
+	Services []Service
 }
 
 // TierStarting indicates a tier is beginning its startup sequence
 type TierStarting struct {
-	Name string
-}
-
-// Payload contains a simple name identifier for events
-type Payload struct {
 	Name string
 }
 
@@ -125,8 +127,18 @@ type TierReady struct {
 
 // ServiceEvent is the base struct for service-related events
 type ServiceEvent struct {
-	Service string
+	Service Service
 	Tier    string
+}
+
+// ServiceName returns the service name
+func (e ServiceEvent) ServiceName() string {
+	return e.Service.Name
+}
+
+// ServiceID returns the service UUID
+func (e ServiceEvent) ServiceID() string {
+	return e.Service.ID
 }
 
 // ServiceStarting indicates a service is starting with attempt and process info
@@ -138,7 +150,7 @@ type ServiceStarting struct {
 
 // ReadinessComplete indicates a readiness check has finished successfully
 type ReadinessComplete struct {
-	Service  string
+	Service  Service
 	Type     string
 	Duration time.Duration
 }
@@ -178,7 +190,7 @@ type Signal struct {
 
 // WatchTriggered indicates file changes detected for a watched service
 type WatchTriggered struct {
-	Service      string
+	Service      Service
 	ChangedFiles []string
 }
 

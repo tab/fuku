@@ -36,8 +36,8 @@ func Test_HandleProfileResolved(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "dev",
 			Tiers: []bus.Tier{
-				{Name: "tier1", Services: []string{"db"}},
-				{Name: "tier2", Services: []string{"api", "web"}},
+				{Name: "tier1", Services: []bus.Service{{Name: "db"}}},
+				{Name: "tier2", Services: []bus.Service{{Name: "api"}, {Name: "web"}}},
 			},
 		},
 	}
@@ -95,7 +95,7 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "profile1",
 			Tiers: []bus.Tier{
-				{Name: "tier1", Services: []string{"db", "api", "web"}},
+				{Name: "tier1", Services: []bus.Service{{Name: "db"}, {Name: "api"}, {Name: "web"}}},
 			},
 		},
 	}
@@ -111,7 +111,7 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "profile2",
 			Tiers: []bus.Tier{
-				{Name: "tier1", Services: []string{"storage", "cache"}},
+				{Name: "tier1", Services: []bus.Service{{Name: "storage"}, {Name: "cache"}}},
 			},
 		},
 	}
@@ -145,7 +145,7 @@ func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "dev",
-			Tiers:   []bus.Tier{{Name: "tier1", Services: []string{"db"}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{Name: "db"}}}},
 		},
 	}
 
@@ -173,7 +173,7 @@ func Test_HandleProfileResolved_PreservesReadyState(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "dev",
-			Tiers:   []bus.Tier{{Name: "tier1", Services: []string{"db"}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{Name: "db"}}}},
 		},
 	}
 
@@ -208,7 +208,7 @@ func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "new-profile",
-			Tiers:   []bus.Tier{{Name: "tier1", Services: []string{"new-service"}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{Name: "new-service"}}}},
 		},
 	}
 
@@ -296,7 +296,7 @@ func Test_HandleServiceStarting(t *testing.T) {
 	event := bus.Message{
 		Timestamp: time.Now(),
 		Type:      bus.EventServiceStarting,
-		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "tier1"}, PID: 1234},
+		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}, Tier: "tier1"}, PID: 1234},
 	}
 
 	result := m.handleServiceStarting(event)
@@ -335,7 +335,7 @@ func Test_HandleServiceReady(t *testing.T) {
 	event := bus.Message{
 		Timestamp: time.Now(),
 		Type:      bus.EventServiceReady,
-		Data:      bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: "api"}},
+		Data:      bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}}},
 	}
 
 	result := m.handleServiceReady(event)
@@ -375,7 +375,7 @@ func Test_HandleServiceFailed(t *testing.T) {
 	testErr := assert.AnError
 	event := bus.Message{
 		Type: bus.EventServiceFailed,
-		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: "api"}, Error: testErr},
+		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}}, Error: testErr},
 	}
 
 	result := m.handleServiceFailed(event)
@@ -411,7 +411,7 @@ func Test_HandleServiceStopped(t *testing.T) {
 
 	mockController.EXPECT().HandleStopped(gomock.Any(), service).Return(false)
 
-	event := bus.Message{Type: bus.EventServiceStopped, Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: "api"}}}
+	event := bus.Message{Type: bus.EventServiceStopped, Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}}}}
 	result := m.handleServiceStopped(event)
 
 	assert.False(t, result.loader.Active)
@@ -433,7 +433,7 @@ func Test_HandleWatchStarted(t *testing.T) {
 
 	event := bus.Message{
 		Type: bus.EventWatchStarted,
-		Data: bus.Payload{Name: "api"},
+		Data: bus.Service{Name: "api"},
 	}
 
 	result := m.handleWatchStarted(event)
@@ -458,7 +458,7 @@ func Test_HandleWatchStarted_UnknownService(t *testing.T) {
 
 	event := bus.Message{
 		Type: bus.EventWatchStarted,
-		Data: bus.Payload{Name: "unknown"},
+		Data: bus.Service{Name: "unknown"},
 	}
 
 	result := m.handleWatchStarted(event)
@@ -473,7 +473,7 @@ func Test_HandleWatchStopped(t *testing.T) {
 
 	event := bus.Message{
 		Type: bus.EventWatchStopped,
-		Data: bus.Payload{Name: "api"},
+		Data: bus.Service{Name: "api"},
 	}
 
 	result := m.handleWatchStopped(event)
@@ -498,7 +498,7 @@ func Test_HandleWatchStopped_UnknownService(t *testing.T) {
 
 	event := bus.Message{
 		Type: bus.EventWatchStopped,
-		Data: bus.Payload{Name: "unknown"},
+		Data: bus.Service{Name: "unknown"},
 	}
 
 	result := m.handleWatchStopped(event)

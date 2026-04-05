@@ -10,7 +10,6 @@
 package relay
 
 import (
-	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -50,82 +49,4 @@ func (m *MockBroadcaster) Broadcast(service, message string) {
 func (mr *MockBroadcasterMockRecorder) Broadcast(service, message any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Broadcast", reflect.TypeOf((*MockBroadcaster)(nil).Broadcast), service, message)
-}
-
-// MockServer is a mock of Server interface.
-type MockServer struct {
-	ctrl     *gomock.Controller
-	recorder *MockServerMockRecorder
-	isgomock struct{}
-}
-
-// MockServerMockRecorder is the mock recorder for MockServer.
-type MockServerMockRecorder struct {
-	mock *MockServer
-}
-
-// NewMockServer creates a new mock instance.
-func NewMockServer(ctrl *gomock.Controller) *MockServer {
-	mock := &MockServer{ctrl: ctrl}
-	mock.recorder = &MockServerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockServer) EXPECT() *MockServerMockRecorder {
-	return m.recorder
-}
-
-// Broadcast mocks base method.
-func (m *MockServer) Broadcast(service, message string) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Broadcast", service, message)
-}
-
-// Broadcast indicates an expected call of Broadcast.
-func (mr *MockServerMockRecorder) Broadcast(service, message any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Broadcast", reflect.TypeOf((*MockServer)(nil).Broadcast), service, message)
-}
-
-// SocketPath mocks base method.
-func (m *MockServer) SocketPath() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SocketPath")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// SocketPath indicates an expected call of SocketPath.
-func (mr *MockServerMockRecorder) SocketPath() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SocketPath", reflect.TypeOf((*MockServer)(nil).SocketPath))
-}
-
-// Start mocks base method.
-func (m *MockServer) Start(ctx context.Context, profile string, services []string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", ctx, profile, services)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Start indicates an expected call of Start.
-func (mr *MockServerMockRecorder) Start(ctx, profile, services any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockServer)(nil).Start), ctx, profile, services)
-}
-
-// Stop mocks base method.
-func (m *MockServer) Stop() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Stop indicates an expected call of Stop.
-func (mr *MockServerMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockServer)(nil).Stop))
 }
