@@ -13,7 +13,7 @@ import (
 
 // TUI defines the interface for terminal UI operations
 type TUI interface {
-	Execute() (exitCode int, err error)
+	Execute(ctx context.Context) (exitCode int, err error)
 }
 
 // tui represents the terminal UI for the application
@@ -49,9 +49,7 @@ func NewTUI(
 }
 
 // Execute processes the parsed command and executes the appropriate handler
-func (t *tui) Execute() (int, error) {
-	ctx := context.Background()
-
+func (t *tui) Execute(ctx context.Context) (int, error) {
 	t.bus.Publish(bus.Message{
 		Type: bus.EventCommandStarted,
 		Data: bus.CommandStarted{
@@ -65,7 +63,7 @@ func (t *tui) Execute() (int, error) {
 	case CommandStop:
 		return t.handleStop(ctx, t.cmd.Profile)
 	case CommandLogs:
-		return t.handleLogs()
+		return t.handleLogs(ctx)
 	default:
 		return t.handleRun(ctx, t.cmd.Profile)
 	}
@@ -140,6 +138,6 @@ func (t *tui) runWithUI(ctx context.Context, profile string) (int, error) {
 }
 
 // handleLogs streams logs from a running fuku instance
-func (t *tui) handleLogs() (int, error) {
-	return t.streamer.Run(t.cmd.Profile, t.cmd.Services), nil
+func (t *tui) handleLogs(ctx context.Context) (int, error) {
+	return t.streamer.Run(ctx, t.cmd.Profile, t.cmd.Services), nil
 }

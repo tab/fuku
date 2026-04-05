@@ -31,6 +31,8 @@ func startBridge(lc fx.Lifecycle, ctx context.Context, bridge *Bridge) {
 func startServer(lc fx.Lifecycle, ctx context.Context, server *Server) {
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
+			server.Subscribe(ctx)
+
 			go server.Run(ctx)
 
 			return nil

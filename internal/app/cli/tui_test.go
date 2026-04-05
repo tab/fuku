@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
@@ -154,7 +155,7 @@ func Test_Execute(t *testing.T) {
 
 			tt.before()
 
-			exitCode, err := tu.Execute()
+			exitCode, err := tu.Execute(t.Context())
 
 			w.Close()
 
@@ -219,13 +220,53 @@ func Test_Execute_LogsMode(t *testing.T) {
 				log:      mockLogger,
 			}
 
-			mockLogsScreen.EXPECT().Run(tt.profile, tt.services).Return(0)
+			mockLogsScreen.EXPECT().Run(gomock.Any(), tt.profile, tt.services).Return(0)
 
-			exitCode, err := tu.Execute()
+			exitCode, err := tu.Execute(t.Context())
 
 			assert.Equal(t, 0, exitCode)
 			require.NoError(t, err)
 		})
+	}
+}
+
+func Test_Execute_LogsMode_RespectsContextCancellation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogsScreen := logs.NewMockScreen(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	mockLogsScreen.EXPECT().Run(gomock.Any(), "", []string{"api"}).DoAndReturn(
+		func(ctx context.Context, _ string, _ []string) int {
+			<-ctx.Done()
+
+			return 0
+		},
+	)
+
+	tu := &tui{
+		cmd:      &Options{Type: CommandLogs, Profile: "", Services: []string{"api"}},
+		bus:      bus.NoOp(),
+		streamer: mockLogsScreen,
+		log:      mockLogger,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+
+	go func() {
+		tu.Execute(ctx)
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Execute did not return after context cancellation")
 	}
 }
 
@@ -333,7 +374,7 @@ func Test_runWithUI_UICreationError(t *testing.T) {
 		},
 	}
 
-	exitCode, err := tu.runWithUI(context.Background(), "test")
+	exitCode, err := tu.runWithUI(t.Context(), "test")
 
 	assert.Equal(t, 1, exitCode)
 	require.Error(t, err)
@@ -371,7 +412,7 @@ func Test_runWithUI_RunnerError(t *testing.T) {
 
 	os.Stdout = w
 
-	exitCode, err := tu.runWithUI(context.Background(), "test")
+	exitCode, err := tu.runWithUI(t.Context(), "test")
 
 	w.Close()
 
@@ -413,7 +454,7 @@ func Test_runWithUI_Success(t *testing.T) {
 		},
 	}
 
-	exitCode, err := tu.runWithUI(context.Background(), "test")
+	exitCode, err := tu.runWithUI(t.Context(), "test")
 
 	inputR.Close()
 
