@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -22,15 +23,9 @@ type Broadcaster interface {
 }
 
 // Server manages the Unix socket server for log streaming
-type Server interface {
-	Broadcaster
-	Start(ctx context.Context, profile string, services []string) error
-	Stop() error
-	SocketPath() string
-}
-
-// server implements the Server interface
-type server struct {
+type Server struct {
+	bus         bus.Bus
+	cancel      context.CancelFunc
 	socketPath  string
 	profile     string
 	services    []string
@@ -41,13 +36,13 @@ type server struct {
 	running     atomic.Bool
 	wg          sync.WaitGroup
 	connID      atomic.Int64
-	cancel      context.CancelFunc
 	log         logger.Logger
 }
 
 // NewServer creates a new log streaming server
-func NewServer(cfg *config.Config, log logger.Logger) Server {
-	return &server{
+func NewServer(cfg *config.Config, b bus.Bus, log logger.Logger) *Server {
+	return &Server{
+		bus:         b,
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log.WithComponent("HUB")),
@@ -56,19 +51,74 @@ func NewServer(cfg *config.Config, log logger.Logger) Server {
 }
 
 // SocketPath returns the socket path for this server
-func (s *server) SocketPath() string {
+func (s *Server) SocketPath() string {
 	return s.socketPath
 }
 
-// Start starts the Unix socket server
-func (s *server) Start(ctx context.Context, profile string, services []string) error {
-	s.profile = profile
-	s.services = services
-	s.socketPath = SocketPathForProfile(config.SocketDir, profile)
+// Run subscribes to the bus and starts the server when the profile is resolved
+func (s *Server) Run(ctx context.Context) {
+	ch := s.bus.Subscribe(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+
+			if msg.Type != bus.EventProfileResolved {
+				continue
+			}
+
+			data, ok := msg.Data.(bus.ProfileResolved)
+			if !ok {
+				continue
+			}
+
+			s.activate(ctx, data)
+
+			return
+		}
+	}
+}
+
+// activate starts the server with profile data from the bus event
+func (s *Server) activate(ctx context.Context, data bus.ProfileResolved) {
+	s.profile = data.Profile
+
+	s.services = make([]string, 0)
+
+	for _, tier := range data.Tiers {
+		for _, svc := range tier.Services {
+			s.services = append(s.services, svc.Name)
+		}
+	}
+
+	if err := Cleanup(config.SocketDir); err != nil {
+		s.log.Warn().Err(err).Msg("Socket cleanup failed, continuing startup")
+	}
+
+	if err := s.start(ctx); err != nil {
+		s.log.Warn().Err(err).Msg("Failed to start logs server, continuing without it")
+	}
+}
+
+// Broadcast sends a log message to all connected clients
+func (s *Server) Broadcast(service, message string) {
+	if s.running.Load() {
+		s.hub.Broadcast(service, message)
+	}
+}
+
+func (s *Server) start(ctx context.Context) error {
+	s.socketPath = SocketPathForProfile(config.SocketDir, s.profile)
 
 	conn, err := net.DialTimeout("unix", s.socketPath, config.SocketDialTimeout)
 	if err == nil {
 		conn.Close()
+
 		return fmt.Errorf("%w: %s", errors.ErrSocketAlreadyInUse, s.socketPath)
 	}
 
@@ -85,24 +135,24 @@ func (s *server) Start(ctx context.Context, profile string, services []string) e
 	s.running.Store(true)
 	s.log.Info().Msgf("Server listening on %s", s.socketPath)
 
-	serverCtx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
 	s.wg.Go(func() {
-		s.hub.Run(serverCtx)
+		s.hub.Run(ctx)
 	})
 
 	s.wg.Go(func() {
-		s.acceptConnections(serverCtx)
+		s.acceptConnections(ctx)
 	})
 
 	return nil
 }
 
-// Stop stops the server and cleans up resources
-func (s *server) Stop() error {
+// Stop cancels server goroutines, closes the listener, waits for connections to drain, and removes the socket file
+func (s *Server) Stop() {
 	if !s.running.Load() {
-		return nil
+		return
 	}
 
 	s.running.Store(false)
@@ -122,19 +172,9 @@ func (s *server) Stop() error {
 	}
 
 	s.log.Info().Msg("Server stopped")
-
-	return nil
 }
 
-// Broadcast sends a log message to all connected clients
-func (s *server) Broadcast(service, message string) {
-	if s.running.Load() {
-		s.hub.Broadcast(service, message)
-	}
-}
-
-// acceptConnections handles incoming client connections
-func (s *server) acceptConnections(ctx context.Context) {
+func (s *Server) acceptConnections(ctx context.Context) {
 	for s.running.Load() {
 		conn, err := s.listener.Accept()
 		if err != nil && s.running.Load() {
@@ -155,8 +195,7 @@ func (s *server) acceptConnections(ctx context.Context) {
 	}
 }
 
-// handleConnection processes a single client connection
-func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
+func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
 	connID := s.connID.Add(1)
@@ -170,17 +209,20 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
 		s.log.Debug().Err(err).Msgf("Client %s disconnected before subscribing", clientID)
+
 		return
 	}
 
 	var req SubscribeRequest
 	if err := json.Unmarshal(line, &req); err != nil {
 		s.log.Error().Err(err).Msgf("Failed to parse subscribe request from %s", clientID)
+
 		return
 	}
 
 	if req.Type != MessageSubscribe {
 		s.log.Error().Msgf("Expected subscribe message from %s, got %s", clientID, req.Type)
+
 		return
 	}
 
@@ -204,8 +246,7 @@ func (s *server) handleConnection(ctx context.Context, conn net.Conn) {
 	<-done
 }
 
-// writePump reads messages from SendChan and writes them to the connection
-func (s *server) writePump(ctx context.Context, conn net.Conn, client *ClientConn) {
+func (s *Server) writePump(ctx context.Context, conn net.Conn, client *ClientConn) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -218,6 +259,7 @@ func (s *server) writePump(ctx context.Context, conn net.Conn, client *ClientCon
 			data, err := json.Marshal(msg)
 			if err != nil {
 				s.log.Error().Err(err).Msgf("Failed to marshal message for %s", client.ID)
+
 				continue
 			}
 
@@ -225,19 +267,20 @@ func (s *server) writePump(ctx context.Context, conn net.Conn, client *ClientCon
 
 			if err := conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout)); err != nil {
 				s.log.Debug().Err(err).Msgf("Client %s disconnected", client.ID)
+
 				return
 			}
 
 			if _, err := conn.Write(data); err != nil {
 				s.log.Debug().Err(err).Msgf("Client %s disconnected", client.ID)
+
 				return
 			}
 		}
 	}
 }
 
-// hello sends a status message to a newly connected client
-func (s *server) hello(conn net.Conn, clientID string) {
+func (s *Server) hello(conn net.Conn, clientID string) {
 	status := StatusMessage{
 		Type:     MessageStatus,
 		Version:  config.Version,
@@ -248,6 +291,7 @@ func (s *server) hello(conn net.Conn, clientID string) {
 	data, err := json.Marshal(status)
 	if err != nil {
 		s.log.Error().Err(err).Msgf("Failed to marshal status for %s", clientID)
+
 		return
 	}
 
@@ -255,6 +299,7 @@ func (s *server) hello(conn net.Conn, clientID string) {
 
 	if err := conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout)); err != nil {
 		s.log.Debug().Err(err).Msgf("Failed to set write deadline for %s", clientID)
+
 		return
 	}
 

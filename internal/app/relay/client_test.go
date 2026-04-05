@@ -68,14 +68,13 @@ func Test_Client_Connect_Success(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	c := NewClient()
 
-	err = c.Connect(srv.SocketPath())
+	err := c.Connect(srv.SocketPath())
 	require.NoError(t, err)
 
 	err = c.Close()
@@ -110,13 +109,12 @@ func Test_Client_Subscribe(t *testing.T) {
 			srv := newTestServer(t)
 			profile := uniqueProfile(t)
 
-			err := srv.Start(t.Context(), profile, []string{"api", "web"})
-			require.NoError(t, err)
-
+			cancel := startTestServer(t, srv, profile, []string{"api", "web"})
 			defer srv.Stop()
+			defer cancel()
 
 			c := NewClient()
-			err = c.Connect(srv.SocketPath())
+			err := c.Connect(srv.SocketPath())
 			require.NoError(t, err)
 
 			defer c.Close()
@@ -131,13 +129,12 @@ func Test_Client_Subscribe_ClosedConnection(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	c := NewClient()
-	err = c.Connect(srv.SocketPath())
+	err := c.Connect(srv.SocketPath())
 	require.NoError(t, err)
 
 	err = c.Close()
@@ -152,13 +149,12 @@ func Test_Client_Stream_ReceivesLogMessages(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	c := NewClient()
-	err = c.Connect(srv.SocketPath())
+	err := c.Connect(srv.SocketPath())
 	require.NoError(t, err)
 
 	defer c.Close()
@@ -204,13 +200,12 @@ func Test_Client_Stream_ContextCancellation(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api"})
 	defer srv.Stop()
+	defer cancel()
 
 	c := NewClient()
-	err = c.Connect(srv.SocketPath())
+	err := c.Connect(srv.SocketPath())
 	require.NoError(t, err)
 
 	defer c.Close()
@@ -346,13 +341,12 @@ func Test_Client_Stream_ReceivesStatusMessage(t *testing.T) {
 	srv := newTestServer(t)
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api", "web"})
-	require.NoError(t, err)
-
+	cancel := startTestServer(t, srv, profile, []string{"api", "web"})
 	defer srv.Stop()
+	defer cancel()
 
 	c := NewClient()
-	err = c.Connect(srv.SocketPath())
+	err := c.Connect(srv.SocketPath())
 	require.NoError(t, err)
 
 	defer c.Close()
@@ -454,7 +448,7 @@ func Test_Client_Close_WithConnection(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	srv := &server{
+	srv := &Server{
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log),
@@ -463,10 +457,16 @@ func Test_Client_Close_WithConnection(t *testing.T) {
 
 	profile := uniqueProfile(t)
 
-	err := srv.Start(t.Context(), profile, []string{"api"})
+	srv.profile = profile
+	srv.services = []string{"api"}
+
+	ctx, cancel := context.WithCancel(t.Context())
+
+	err := srv.start(ctx)
 	require.NoError(t, err)
 
 	defer srv.Stop()
+	defer cancel()
 
 	c := NewClient()
 	err = c.Connect(srv.SocketPath())

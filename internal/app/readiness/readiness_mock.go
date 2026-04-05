@@ -11,6 +11,7 @@ package readiness
 
 import (
 	context "context"
+	bus "fuku/internal/app/bus"
 	process "fuku/internal/app/process"
 	config "fuku/internal/config"
 	io "io"
@@ -45,15 +46,15 @@ func (m *MockReadiness) EXPECT() *MockReadinessMockRecorder {
 }
 
 // Check mocks base method.
-func (m *MockReadiness) Check(ctx context.Context, name string, service *config.Service, proc process.Process) {
+func (m *MockReadiness) Check(ctx context.Context, svc bus.Service, service *config.Service, proc process.Process) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Check", ctx, name, service, proc)
+	m.ctrl.Call(m, "Check", ctx, svc, service, proc)
 }
 
 // Check indicates an expected call of Check.
-func (mr *MockReadinessMockRecorder) Check(ctx, name, service, proc any) *gomock.Call {
+func (mr *MockReadinessMockRecorder) Check(ctx, svc, service, proc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Check", reflect.TypeOf((*MockReadiness)(nil).Check), ctx, name, service, proc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Check", reflect.TypeOf((*MockReadiness)(nil).Check), ctx, svc, service, proc)
 }
 
 // CheckHTTP mocks base method.

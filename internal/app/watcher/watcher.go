@@ -22,7 +22,7 @@ type Watcher interface {
 
 // watcher holds state for a single watched service
 type watcher struct {
-	name      string
+	svc       bus.Service
 	root      string
 	shared    []string
 	list      []string
@@ -81,11 +81,11 @@ func (m *manager) handleServiceEvent(ctx context.Context, msg bus.Message) {
 	switch msg.Type {
 	case bus.EventServiceReady:
 		if data, ok := msg.Data.(bus.ServiceReady); ok {
-			m.startWatching(ctx, data.Service)
+			m.startWatching(ctx, bus.Service{ID: data.Service.ID, Name: data.Service.Name})
 		}
 	case bus.EventServiceStopped:
 		if data, ok := msg.Data.(bus.ServiceStopped); ok {
-			m.stopWatching(data.Service)
+			m.stopWatching(data.Service.ID)
 		}
 		// NOTE: We intentionally don't stop watching on EventServiceFailed
 		// This allows the next file change to trigger a restart attempt
@@ -93,8 +93,8 @@ func (m *manager) handleServiceEvent(ctx context.Context, msg bus.Message) {
 }
 
 // startWatching starts watching files for a service
-func (m *manager) startWatching(ctx context.Context, serviceName string) {
-	serviceCfg, exists := m.cfg.Services[serviceName]
+func (m *manager) startWatching(ctx context.Context, svc bus.Service) {
+	serviceCfg, exists := m.cfg.Services[svc.Name]
 	if !exists || serviceCfg.Watch == nil {
 		return
 	}
@@ -106,26 +106,26 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 		return
 	}
 
-	if _, exists := m.watchers[serviceName]; exists {
+	if _, exists := m.watchers[svc.ID]; exists {
 		return
 	}
 
 	matcher, err := NewMatcher(serviceCfg.Watch.Include, serviceCfg.Watch.Ignore)
 	if err != nil {
-		m.log.Warn().Err(err).Msgf("Failed to create matcher for service '%s'", serviceName)
+		m.log.Warn().Err(err).Msgf("Failed to create matcher for service '%s'", svc.Name)
 		return
 	}
 
 	root, err := filepath.Abs(serviceCfg.Dir)
 	if err != nil {
-		m.log.Warn().Err(err).Msgf("Failed to get absolute path for service '%s'", serviceName)
+		m.log.Warn().Err(err).Msgf("Failed to get absolute path for service '%s'", svc.Name)
 		return
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 
 	w := &watcher{
-		name:    serviceName,
+		svc:     svc,
 		root:    root,
 		matcher: matcher,
 		cancel:  cancel,
@@ -137,13 +137,13 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 	}
 
 	w.debouncer = NewDebouncer(debounce, func(files []string) {
-		m.emitEvent(serviceName, files)
+		m.emitEvent(svc, files)
 	})
 
-	dirs, err := m.registerRecursive(root, serviceName, matcher)
+	dirs, err := m.registerRecursive(root, svc.ID, matcher)
 	if err != nil {
 		cancel()
-		m.log.Warn().Err(err).Msgf("Failed to add directories for service '%s'", serviceName)
+		m.log.Warn().Err(err).Msgf("Failed to add directories for service '%s'", svc.Name)
 
 		return
 	}
@@ -155,27 +155,27 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 
 		absShared, err := filepath.Abs(sharedPath)
 		if err != nil {
-			m.log.Warn().Err(err).Msgf("Failed to resolve shared path '%s' for service '%s'", sharedPath, serviceName)
+			m.log.Warn().Err(err).Msgf("Failed to resolve shared path '%s' for service '%s'", sharedPath, svc.Name)
 			continue
 		}
 
 		w.shared = append(w.shared, absShared)
 
-		sharedDirs, err := m.registerRecursive(absShared, serviceName, matcher)
+		sharedDirs, err := m.registerRecursive(absShared, svc.ID, matcher)
 		if err != nil {
-			m.log.Warn().Err(err).Msgf("Failed to add shared directory '%s' for service '%s'", absShared, serviceName)
+			m.log.Warn().Err(err).Msgf("Failed to add shared directory '%s' for service '%s'", absShared, svc.Name)
 			continue
 		}
 
 		w.list = append(w.list, sharedDirs...)
 	}
 
-	m.watchers[serviceName] = w
-	m.log.Info().Msgf("Started watching service '%s' in %s", serviceName, root)
+	m.watchers[svc.ID] = w
+	m.log.Info().Msgf("Started watching service '%s' in %s", svc.Name, root)
 
 	m.bus.Publish(bus.Message{
 		Type: bus.EventWatchStarted,
-		Data: bus.Payload{Name: serviceName},
+		Data: bus.Service{ID: svc.ID, Name: svc.Name},
 	})
 
 	go func() {
@@ -185,23 +185,23 @@ func (m *manager) startWatching(ctx context.Context, serviceName string) {
 }
 
 // stopWatching stops watching files for a service
-func (m *manager) stopWatching(serviceName string) {
+func (m *manager) stopWatching(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	w, exists := m.watchers[serviceName]
+	w, exists := m.watchers[id]
 	if !exists {
 		return
 	}
 
 	w.cancel()
 	m.unregisterAll(w)
-	delete(m.watchers, serviceName)
-	m.log.Info().Msgf("Stopped watching service '%s'", serviceName)
+	delete(m.watchers, id)
+	m.log.Info().Msgf("Stopped watching service '%s'", w.svc.Name)
 
 	m.bus.Publish(bus.Message{
 		Type: bus.EventWatchStopped,
-		Data: bus.Payload{Name: serviceName},
+		Data: bus.Service{ID: id, Name: w.svc.Name},
 	})
 }
 
@@ -216,9 +216,9 @@ func (m *manager) Close() {
 
 	m.closed = true
 
-	for name, w := range m.watchers {
+	for id, w := range m.watchers {
 		w.cancel()
-		delete(m.watchers, name)
+		delete(m.watchers, id)
 	}
 
 	m.fsWatcher.Close()
@@ -259,8 +259,8 @@ func (m *manager) handleEvent(event fsnotify.Event) {
 
 	m.mu.RLock()
 
-	for _, serviceName := range m.registry[dir] {
-		w, exists := m.watchers[serviceName]
+	for _, serviceID := range m.registry[dir] {
+		w, exists := m.watchers[serviceID]
 		if !exists {
 			continue
 		}
@@ -286,7 +286,7 @@ func (m *manager) handleEvent(event fsnotify.Event) {
 	}
 }
 
-// findTargets returns all services that should watch the new directory (called under RLock)
+// findTargets returns all service IDs that should watch the new directory (called under RLock)
 func (m *manager) findTargets(path string) (string, []string) {
 	info, err := os.Stat(path)
 	if err != nil || !info.IsDir() {
@@ -297,8 +297,8 @@ func (m *manager) findTargets(path string) (string, []string) {
 	subscribers := m.registry[parentDir]
 	targets := make([]string, 0, len(subscribers))
 
-	for _, serviceName := range subscribers {
-		w, exists := m.watchers[serviceName]
+	for _, serviceID := range subscribers {
+		w, exists := m.watchers[serviceID]
 		if !exists {
 			continue
 		}
@@ -312,14 +312,14 @@ func (m *manager) findTargets(path string) (string, []string) {
 			continue
 		}
 
-		targets = append(targets, serviceName)
+		targets = append(targets, serviceID)
 	}
 
 	return path, targets
 }
 
 // register adds a directory to the watch list for specified services (acquires write lock)
-func (m *manager) register(path string, serviceNames []string) {
+func (m *manager) register(path string, serviceIDs []string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -328,14 +328,14 @@ func (m *manager) register(path string, serviceNames []string) {
 		return
 	}
 
-	for _, serviceName := range serviceNames {
-		w, exists := m.watchers[serviceName]
+	for _, serviceID := range serviceIDs {
+		w, exists := m.watchers[serviceID]
 		if !exists {
 			continue
 		}
 
 		w.list = append(w.list, path)
-		m.registry[path] = append(m.registry[path], serviceName)
+		m.registry[path] = append(m.registry[path], serviceID)
 	}
 }
 
@@ -360,7 +360,7 @@ func relativeToBase(w *watcher, path string) (string, bool) {
 }
 
 // emitEvent publishes a watch triggered event to the bus
-func (m *manager) emitEvent(serviceName string, files []string) {
+func (m *manager) emitEvent(svc bus.Service, files []string) {
 	m.mu.RLock()
 	closed := m.closed
 	m.mu.RUnlock()
@@ -371,13 +371,13 @@ func (m *manager) emitEvent(serviceName string, files []string) {
 
 	m.bus.Publish(bus.Message{
 		Type:     bus.EventWatchTriggered,
-		Data:     bus.WatchTriggered{Service: serviceName, ChangedFiles: files},
+		Data:     bus.WatchTriggered{Service: svc, ChangedFiles: files},
 		Critical: true,
 	})
 }
 
 // registerRecursive adds a directory and all subdirectories to the watch list and returns the added paths
-func (m *manager) registerRecursive(dir string, serviceName string, matcher Matcher) ([]string, error) {
+func (m *manager) registerRecursive(dir string, serviceID string, matcher Matcher) ([]string, error) {
 	var dirs []string
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -397,7 +397,7 @@ func (m *manager) registerRecursive(dir string, serviceName string, matcher Matc
 			m.log.Warn().Err(err).Msgf("Failed to watch directory: %s", path)
 		} else {
 			dirs = append(dirs, path)
-			m.registry[path] = append(m.registry[path], serviceName)
+			m.registry[path] = append(m.registry[path], serviceID)
 		}
 
 		return nil
@@ -436,14 +436,14 @@ func isRelevantEvent(event fsnotify.Event) bool {
 // unregisterAll removes all tracked directories for a watcher from fsnotify and registry
 func (m *manager) unregisterAll(w *watcher) {
 	for _, dir := range w.list {
-		if m.unregister(dir, w.name) {
+		if m.unregister(dir, w.svc.ID) {
 			_ = m.fsWatcher.Remove(dir)
 		}
 	}
 }
 
 // unregister removes a service from a directory's registry, returning true if it should be removed from fsnotify
-func (m *manager) unregister(dir, serviceName string) bool {
+func (m *manager) unregister(dir, serviceID string) bool {
 	subscribers := m.registry[dir]
 	if len(subscribers) == 0 {
 		return true
@@ -451,9 +451,9 @@ func (m *manager) unregister(dir, serviceName string) bool {
 
 	n := 0
 
-	for _, name := range subscribers {
-		if name != serviceName {
-			subscribers[n] = name
+	for _, id := range subscribers {
+		if id != serviceID {
+			subscribers[n] = id
 			n++
 		}
 	}

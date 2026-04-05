@@ -54,14 +54,14 @@ func Test_Controller_Start(t *testing.T) {
 		},
 		{
 			name:           "nil FSM",
-			service:        &ServiceState{Name: "api", Status: StatusStopped},
+			service:        &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStopped},
 			before:         func() {},
 			expectedStatus: StatusStopped,
 		},
 		{
 			name: "service not stopped",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
@@ -74,7 +74,7 @@ func Test_Controller_Start(t *testing.T) {
 		{
 			name: "service stopped - publishes command",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStopped}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStopped}
 				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
@@ -82,7 +82,7 @@ func Test_Controller_Start(t *testing.T) {
 			before: func() {
 				mockCmd.EXPECT().Publish(bus.Message{
 					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Data: bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expectedStatus: StatusStopped,
@@ -90,7 +90,7 @@ func Test_Controller_Start(t *testing.T) {
 		{
 			name: "service failed - publishes command",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusFailed}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusFailed}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Failed)
@@ -100,7 +100,7 @@ func Test_Controller_Start(t *testing.T) {
 			before: func() {
 				mockCmd.EXPECT().Publish(bus.Message{
 					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Data: bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expectedStatus: StatusFailed,
@@ -140,11 +140,11 @@ func Test_Controller_Stop(t *testing.T) {
 		expectedStatus Status
 	}{
 		{name: "nil service", service: nil},
-		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusRunning}, expectedStatus: StatusRunning},
+		{name: "nil FSM", service: &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}, expectedStatus: StatusRunning},
 		{
 			name: "service not running",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStopped}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStopped}
 				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
@@ -154,7 +154,7 @@ func Test_Controller_Stop(t *testing.T) {
 		{
 			name: "service running - publishes command only",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
@@ -197,11 +197,11 @@ func Test_Controller_Restart(t *testing.T) {
 		expectedStatus Status
 	}{
 		{name: "nil service", service: nil},
-		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusRunning}, expectedStatus: StatusRunning},
+		{name: "nil FSM", service: &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}, expectedStatus: StatusRunning},
 		{
 			name: "service starting - cannot restart",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStarting}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStarting}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 
@@ -212,7 +212,7 @@ func Test_Controller_Restart(t *testing.T) {
 		{
 			name: "service running - restarts",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
@@ -224,7 +224,7 @@ func Test_Controller_Restart(t *testing.T) {
 		{
 			name: "service failed - restarts",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusFailed}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusFailed}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Failed)
@@ -236,7 +236,7 @@ func Test_Controller_Restart(t *testing.T) {
 		{
 			name: "service stopped - restarts",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStopped}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStopped}
 				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
@@ -271,14 +271,14 @@ func Test_Controller_Stop_PublishesCommand(t *testing.T) {
 	c := NewController(mockCmd)
 	ctx := context.Background()
 
-	service := &ServiceState{Name: "api", Status: StatusRunning}
+	service := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}
 	service.FSM = newServiceFSM(service, loader, log)
 	_ = service.FSM.Event(ctx, Start)
 	_ = service.FSM.Event(ctx, Started)
 
 	mockCmd.EXPECT().Publish(bus.Message{
 		Type: bus.CommandStopService,
-		Data: bus.Payload{Name: "api"},
+		Data: bus.Service{ID: "test-id-api", Name: "api"},
 	})
 
 	c.Stop(ctx, service)
@@ -310,7 +310,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 		{
 			name: "running service",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
@@ -320,7 +320,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 			before: func() {
 				mockCmd.EXPECT().Publish(bus.Message{
 					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Data: bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expectedState: Restarting,
@@ -328,7 +328,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 		{
 			name: "failed service",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusFailed}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusFailed}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Failed)
@@ -338,7 +338,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 			before: func() {
 				mockCmd.EXPECT().Publish(bus.Message{
 					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Data: bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expectedState: Restarting,
@@ -346,7 +346,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 		{
 			name: "stopped service",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStopped}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStopped}
 				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
@@ -354,7 +354,7 @@ func Test_Controller_Restart_PublishesCommand(t *testing.T) {
 			before: func() {
 				mockCmd.EXPECT().Publish(bus.Message{
 					Type: bus.CommandRestartService,
-					Data: bus.Payload{Name: "api"},
+					Data: bus.Service{ID: "test-id-api", Name: "api"},
 				})
 			},
 			expectedState: Restarting,
@@ -407,7 +407,7 @@ func Test_Controller_HandleStarting(t *testing.T) {
 		{name: "nil service", service: nil, pid: 1234},
 		{
 			name:           "nil FSM - sets PID only",
-			service:        &ServiceState{Name: "api", Status: StatusStarting},
+			service:        &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStarting},
 			pid:            1234,
 			expectedPID:    1234,
 			expectedStatus: StatusStarting,
@@ -415,7 +415,7 @@ func Test_Controller_HandleStarting(t *testing.T) {
 		{
 			name: "with FSM - sets PID and transitions",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStopped}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStopped}
 				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
@@ -462,11 +462,11 @@ func Test_Controller_HandleReady(t *testing.T) {
 		expectedStatus Status
 	}{
 		{name: "nil service", service: nil},
-		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusStarting}, expectedStatus: StatusStarting},
+		{name: "nil FSM", service: &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStarting}, expectedStatus: StatusStarting},
 		{
 			name: "with FSM - transitions to ready",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStarting}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStarting}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 
@@ -508,11 +508,11 @@ func Test_Controller_HandleFailed(t *testing.T) {
 		expectedStatus Status
 	}{
 		{name: "nil service", service: nil},
-		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusStarting}, expectedStatus: StatusStarting},
+		{name: "nil FSM", service: &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStarting}, expectedStatus: StatusStarting},
 		{
 			name: "with FSM - transitions to failed",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStarting}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStarting}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 
@@ -554,11 +554,11 @@ func Test_Controller_HandleStopping(t *testing.T) {
 		expectedStatus Status
 	}{
 		{name: "nil service", service: nil},
-		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusRunning}, expectedStatus: StatusRunning},
+		{name: "nil FSM", service: &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}, expectedStatus: StatusRunning},
 		{
 			name: "with FSM - transitions to stopping",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
@@ -601,11 +601,11 @@ func Test_Controller_HandleRestarting(t *testing.T) {
 		expectedState string
 	}{
 		{name: "nil service", service: nil},
-		{name: "nil FSM", service: &ServiceState{Name: "api", Status: StatusRunning}},
+		{name: "nil FSM", service: &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}},
 		{
 			name: "running service - transitions to restarting",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
@@ -617,7 +617,7 @@ func Test_Controller_HandleRestarting(t *testing.T) {
 		{
 			name: "failed service - transitions to restarting",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusFailed}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusFailed}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Failed)
@@ -629,7 +629,7 @@ func Test_Controller_HandleRestarting(t *testing.T) {
 		{
 			name: "stopped service - transitions to restarting",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusStopped}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusStopped}
 				s.FSM = newServiceFSM(s, loader, log)
 
 				return s
@@ -676,7 +676,7 @@ func Test_Controller_HandleStopped(t *testing.T) {
 		{name: "nil service", service: nil, expectedResult: false},
 		{
 			name:           "nil FSM - marks stopped",
-			service:        &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, CPU: 10.5, MEM: 1000}},
+			service:        &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234, CPU: 10.5, MEM: 1000}},
 			expectedResult: false,
 			expectedStatus: StatusStopped,
 			expectedPID:    0,
@@ -686,7 +686,7 @@ func Test_Controller_HandleStopped(t *testing.T) {
 		{
 			name: "FSM in stopping state - transitions to stopped",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)
@@ -701,7 +701,7 @@ func Test_Controller_HandleStopped(t *testing.T) {
 		{
 			name: "FSM in restarting state - returns true",
 			service: func() *ServiceState {
-				s := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
+				s := &ServiceState{ID: "test-id-api", Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
 				s.FSM = newServiceFSM(s, loader, log)
 				_ = s.FSM.Event(ctx, Start)
 				_ = s.FSM.Event(ctx, Started)

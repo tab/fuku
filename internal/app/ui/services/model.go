@@ -48,6 +48,7 @@ type ServiceMonitor struct {
 
 // ServiceState represents the state of a service
 type ServiceState struct {
+	ID       string
 	Name     string
 	Tier     string
 	Status   Status

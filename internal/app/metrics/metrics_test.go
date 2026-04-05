@@ -52,7 +52,7 @@ func Test_Collector_Run_HandlesMessagesAndChannelClose(t *testing.T) {
 	ch <- bus.Message{
 		Type: bus.EventServiceFailed,
 		Data: bus.ServiceFailed{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 		},
 	}
 
@@ -81,8 +81,8 @@ func Test_Handle_ProfileResolved(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "default",
 			Tiers: []bus.Tier{
-				{Name: "foundation", Services: []string{"db", "cache"}},
-				{Name: "platform", Services: []string{"api"}},
+				{Name: "foundation", Services: []bus.Service{{ID: "test-id-db", Name: "db"}, {ID: "test-id-cache", Name: "cache"}}},
+				{Name: "platform", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}},
 			},
 			Duration: 50 * time.Millisecond,
 		},
@@ -130,7 +130,7 @@ func Test_Handle_ReadinessComplete(t *testing.T) {
 	c.handle(ctx, bus.Message{
 		Type: bus.EventReadinessComplete,
 		Data: bus.ReadinessComplete{
-			Service:  "api",
+			Service:  bus.Service{ID: "test-id-api", Name: "api"},
 			Type:     "http",
 			Duration: 50 * time.Millisecond,
 		},
@@ -154,7 +154,7 @@ func Test_Handle_ServiceReady(t *testing.T) {
 	c.handle(ctx, bus.Message{
 		Type: bus.EventServiceReady,
 		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 			Duration:     100 * time.Millisecond,
 		},
 	})
@@ -177,7 +177,7 @@ func Test_Handle_ServiceFailed(t *testing.T) {
 	c.handle(ctx, bus.Message{
 		Type: bus.EventServiceFailed,
 		Data: bus.ServiceFailed{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 			Error:        assert.AnError,
 		},
 	})
@@ -190,7 +190,7 @@ func Test_Handle_ServiceRestarting(t *testing.T) {
 	c.handle(ctx, bus.Message{
 		Type: bus.EventServiceRestarting,
 		Data: bus.ServiceRestarting{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 		},
 	})
 }
@@ -202,7 +202,7 @@ func Test_Handle_WatchTriggered(t *testing.T) {
 	c.handle(ctx, bus.Message{
 		Type: bus.EventWatchTriggered,
 		Data: bus.WatchTriggered{
-			Service:      "api",
+			Service:      bus.Service{ID: "test-id-api", Name: "api"},
 			ChangedFiles: []string{"main.go"},
 		},
 	})
@@ -235,7 +235,7 @@ func Test_Handle_ServiceStopped_Unexpected(t *testing.T) {
 	c.handle(ctx, bus.Message{
 		Type: bus.EventServiceStopped,
 		Data: bus.ServiceStopped{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 			Unexpected:   true,
 		},
 	})
@@ -248,7 +248,7 @@ func Test_Handle_ServiceStopped_Expected(t *testing.T) {
 	c.handle(ctx, bus.Message{
 		Type: bus.EventServiceStopped,
 		Data: bus.ServiceStopped{
-			ServiceEvent: bus.ServiceEvent{Service: "api", Tier: "platform"},
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
 			Unexpected:   false,
 		},
 	})

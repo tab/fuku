@@ -43,7 +43,8 @@ func Test_Tier_StartsInOrder(t *testing.T) {
 	assert.Contains(t, edgeSection, "tier_ready", "edge should become ready")
 
 	// Service events
-	assert.Contains(t, output, "service_ready service=postgres")
-	assert.Contains(t, output, "service_ready service=redis")
-	assert.Contains(t, output, "service_ready service=gateway")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=postgres")
+	assert.Contains(t, output, "service=redis")
+	assert.Contains(t, output, "service=gateway")
 }

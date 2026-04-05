@@ -146,11 +146,11 @@ type monitoredService struct {
 // statsWorkerCmd schedules a single stats collection and returns the result
 func statsWorkerCmd(ctx context.Context, mon monitor.Monitor, services []monitoredService, offset int) tea.Cmd {
 	return tea.Tick(components.StatsPollingInterval, func(t time.Time) tea.Msg {
-		batchCtx, cancel := context.WithTimeout(ctx, components.StatsBatchTimeout)
+		ctx, cancel := context.WithTimeout(ctx, components.StatsBatchTimeout)
 		defer cancel()
 
-		stats, nextOffset := collectStats(batchCtx, mon, services, offset)
-		appCPU, appMEM := collectAppStats(batchCtx, mon)
+		stats, nextOffset := collectStats(ctx, mon, services, offset)
+		appCPU, appMEM := collectAppStats(ctx, mon)
 
 		return statsUpdateMsg{
 			Stats:      stats,

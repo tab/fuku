@@ -273,18 +273,24 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 
 	m.state.tiers = make([]Tier, len(data.Tiers))
 	for i, tier := range data.Tiers {
-		m.log.Debug().Msgf("TUI: Adding tier %s with %d services: %v", tier.Name, len(tier.Services), tier.Services)
+		names := make([]string, len(tier.Services))
+		for j, svc := range tier.Services {
+			names[j] = svc.Name
+		}
 
-		m.state.tiers[i] = Tier{Name: tier.Name, Services: tier.Services, Ready: false}
-		for _, serviceName := range tier.Services {
+		m.log.Debug().Msgf("TUI: Adding tier %s with %d services: %v", tier.Name, len(tier.Services), names)
+
+		m.state.tiers[i] = Tier{Name: tier.Name, Services: names, Ready: false}
+		for _, svc := range tier.Services {
 			service := &ServiceState{
-				Name:   serviceName,
+				ID:     svc.ID,
+				Name:   svc.Name,
 				Tier:   tier.Name,
 				Status: StatusStarting,
 				Blink:  components.NewBlink(),
 			}
 			service.FSM = newServiceFSM(service, m.loader, m.log)
-			m.state.services[serviceName] = service
+			m.state.services[svc.Name] = service
 		}
 	}
 
@@ -351,7 +357,7 @@ func (m Model) handleServiceStarting(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.ServiceName()]; exists {
 		service.Monitor.StartTime = msg.Timestamp
 		service.Tier = data.Tier
 		m.controller.HandleStarting(m.ctx, service, data.PID)
@@ -367,10 +373,10 @@ func (m Model) handleServiceReady(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.ServiceName()]; exists {
 		service.Monitor.ReadyTime = msg.Timestamp
 
-		m.loader.Stop(data.Service)
+		m.loader.Stop(data.ServiceName())
 		m.controller.HandleReady(m.ctx, service)
 	}
 
@@ -384,9 +390,9 @@ func (m Model) handleServiceFailed(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.ServiceName()]; exists {
 		service.Error = data.Error
-		m.loader.Stop(data.Service)
+		m.loader.Stop(data.ServiceName())
 		m.controller.HandleFailed(m.ctx, service)
 	}
 
@@ -400,7 +406,7 @@ func (m Model) handleServiceStopping(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.ServiceName()]; exists {
 		m.controller.HandleStopping(m.ctx, service)
 	}
 
@@ -414,7 +420,7 @@ func (m Model) handleServiceRestarting(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service]; exists {
+	if service, exists := m.state.services[data.ServiceName()]; exists {
 		m.controller.HandleRestarting(m.ctx, service)
 	}
 
@@ -428,14 +434,14 @@ func (m Model) handleServiceStopped(msg bus.Message) Model {
 		return m
 	}
 
-	service, exists := m.state.services[data.Service]
+	service, exists := m.state.services[data.ServiceName()]
 	if !exists {
 		return m
 	}
 
 	wasRestarting := m.controller.HandleStopped(m.ctx, service)
 	if !wasRestarting {
-		m.loader.Stop(data.Service)
+		m.loader.Stop(data.ServiceName())
 	}
 
 	return m
@@ -443,7 +449,7 @@ func (m Model) handleServiceStopped(msg bus.Message) Model {
 
 // handleWatchStarted updates a service when file watching starts
 func (m Model) handleWatchStarted(msg bus.Message) Model {
-	data, ok := msg.Data.(bus.Payload)
+	data, ok := msg.Data.(bus.Service)
 	if !ok {
 		return m
 	}
@@ -459,7 +465,7 @@ func (m Model) handleWatchStarted(msg bus.Message) Model {
 
 // handleWatchStopped updates a service when file watching stops
 func (m Model) handleWatchStopped(msg bus.Message) Model {
-	data, ok := msg.Data.(bus.Payload)
+	data, ok := msg.Data.(bus.Service)
 	if !ok {
 		return m
 	}

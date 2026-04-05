@@ -16,8 +16,9 @@ type Tracer interface {
 }
 
 type tracer struct {
-	trace *sentry.Span
-	tiers []bus.Tier
+	trace     *sentry.Span
+	tiers     []bus.Tier
+	tierIndex map[string]int
 }
 
 // NewTracer creates a new bus-driven tracer
@@ -90,6 +91,11 @@ func (t *tracer) handleProfileResolved(msg bus.Message) {
 	}
 
 	t.tiers = data.Tiers
+	t.tierIndex = make(map[string]int, len(data.Tiers))
+
+	for i, tier := range data.Tiers {
+		t.tierIndex[tier.Name] = i
+	}
 
 	span := t.trace.StartChild(sentry.OpDiscovery,
 		withStartTime(msg.Timestamp.Add(-data.Duration)),
@@ -125,10 +131,8 @@ func (t *tracer) handleTierReady(msg bus.Message) {
 }
 
 func (t *tracer) tierPosition(name string) (int, int) {
-	for i, tier := range t.tiers {
-		if tier.Name == name {
-			return i + 1, len(t.tiers)
-		}
+	if i, exists := t.tierIndex[name]; exists {
+		return i + 1, len(t.tiers)
 	}
 
 	return 0, len(t.tiers)

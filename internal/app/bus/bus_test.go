@@ -41,7 +41,7 @@ func Test_Bus_PublishSubscribe(t *testing.T) {
 
 	b.Publish(Message{
 		Type: EventServiceReady,
-		Data: ServiceReady{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
+		Data: ServiceReady{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}},
 	})
 
 	select {
@@ -49,7 +49,7 @@ func Test_Bus_PublishSubscribe(t *testing.T) {
 		assert.Equal(t, EventServiceReady, msg.Type)
 		data, ok := msg.Data.(ServiceReady)
 		assert.True(t, ok)
-		assert.Equal(t, "api", data.Service)
+		assert.Equal(t, "api", data.Service.Name)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected message")
 	}
@@ -181,13 +181,13 @@ func Test_Bus_Command(t *testing.T) {
 
 	b.Publish(Message{
 		Type: CommandStopService,
-		Data: Payload{Name: "api"},
+		Data: Service{Name: "api"},
 	})
 
 	select {
 	case msg := <-ch:
 		assert.Equal(t, CommandStopService, msg.Type)
-		data, ok := msg.Data.(Payload)
+		data, ok := msg.Data.(Service)
 		assert.True(t, ok)
 		assert.Equal(t, "api", data.Name)
 	case <-time.After(100 * time.Millisecond):
@@ -243,8 +243,13 @@ func Test_Bus_Publish_WithLoggerAndFormatter(t *testing.T) {
 
 	b.Publish(Message{
 		Type: EventServiceReady,
-		Data: ServiceReady{ServiceEvent: ServiceEvent{Service: "api", Tier: "platform"}},
+		Data: ServiceReady{ServiceEvent: ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}},
 	})
+}
+
+func Test_ServiceEvent_ServiceName(t *testing.T) {
+	e := ServiceEvent{Service: Service{ID: "test-id-api", Name: "api"}, Tier: "platform"}
+	assert.Equal(t, "api", e.ServiceName())
 }
 
 func Test_Bus_Close_AlreadyClosed(t *testing.T) {

@@ -38,8 +38,9 @@ func Test_DefaultTier_StartsConcurrently(t *testing.T) {
 	assert.Contains(t, output, "tier_ready")
 
 	// Service events
-	assert.Contains(t, output, "service_ready service=auth-api")
-	assert.Contains(t, output, "service_ready service=user-api")
+	assert.Contains(t, output, "service_ready")
+	assert.Contains(t, output, "service=auth-api")
+	assert.Contains(t, output, "service=user-api")
 }
 
 func Test_DefaultTier_GracefulShutdown(t *testing.T) {

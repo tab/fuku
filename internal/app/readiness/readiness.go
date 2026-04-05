@@ -22,7 +22,7 @@ type Readiness interface {
 	CheckHTTP(ctx context.Context, url string, timeout, interval time.Duration, done <-chan struct{}) error
 	CheckTCP(ctx context.Context, address string, timeout, interval time.Duration, done <-chan struct{}) error
 	CheckLog(ctx context.Context, pattern string, stdout, stderr *io.PipeReader, timeout time.Duration, done <-chan struct{}) error
-	Check(ctx context.Context, name string, service *config.Service, proc process.Process)
+	Check(ctx context.Context, svc bus.Service, service *config.Service, proc process.Process)
 }
 
 // readiness implements the Readiness interface
@@ -44,7 +44,7 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 	client := &http.Client{Timeout: interval}
 	deadline := time.Now().Add(timeout)
 
-	reqCtx, cancel := r.contextWithDone(ctx, done)
+	ctx, cancel := r.contextWithDone(ctx, done)
 	defer cancel()
 
 	for {
@@ -52,7 +52,7 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 			return fmt.Errorf("%w: HTTP check after %v", errors.ErrReadinessTimeout, timeout)
 		}
 
-		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return fmt.Errorf("%w: %w", errors.ErrFailedToCreateRequest, err)
 		}
@@ -68,12 +68,12 @@ func (r *readiness) CheckHTTP(ctx context.Context, url string, timeout, interval
 		}
 
 		select {
-		case <-reqCtx.Done():
+		case <-ctx.Done():
 			if r.isDone(done) {
 				return errors.ErrProcessExited
 			}
 
-			return reqCtx.Err()
+			return ctx.Err()
 		case <-time.After(interval):
 		}
 	}
@@ -106,7 +106,7 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 	go scanStream(stdout)
 	go scanStream(stderr)
 
-	reqCtx, cancel := r.contextWithDone(ctx, done)
+	ctx, cancel := r.contextWithDone(ctx, done)
 	defer cancel()
 
 	duration := max(time.Until(deadline), 0)
@@ -114,12 +114,12 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 	select {
 	case <-matched:
 		return nil
-	case <-reqCtx.Done():
+	case <-ctx.Done():
 		if r.isDone(done) {
 			return errors.ErrProcessExited
 		}
 
-		return reqCtx.Err()
+		return ctx.Err()
 	case <-time.After(duration):
 		return fmt.Errorf("%w: log pattern check after %v", errors.ErrReadinessTimeout, timeout)
 	}
@@ -129,7 +129,7 @@ func (r *readiness) CheckLog(ctx context.Context, pattern string, stdout, stderr
 func (r *readiness) CheckTCP(ctx context.Context, address string, timeout, interval time.Duration, done <-chan struct{}) error {
 	deadline := time.Now().Add(timeout)
 
-	reqCtx, cancel := r.contextWithDone(ctx, done)
+	ctx, cancel := r.contextWithDone(ctx, done)
 	defer cancel()
 
 	for {
@@ -144,23 +144,23 @@ func (r *readiness) CheckTCP(ctx context.Context, address string, timeout, inter
 		}
 
 		select {
-		case <-reqCtx.Done():
+		case <-ctx.Done():
 			if r.isDone(done) {
 				return errors.ErrProcessExited
 			}
 
-			return reqCtx.Err()
+			return ctx.Err()
 		case <-time.After(interval):
 		}
 	}
 }
 
 // Check performs the appropriate readiness check for a service
-func (r *readiness) Check(ctx context.Context, name string, service *config.Service, proc process.Process) {
+func (r *readiness) Check(ctx context.Context, svc bus.Service, service *config.Service, proc process.Process) {
 	startTime := time.Now()
 
 	options := service.Readiness
-	r.log.Info().Msgf("Starting %s readiness check for service '%s'", options.Type, name)
+	r.log.Info().Msgf("Starting %s readiness check for service '%s'", options.Type, svc.Name)
 
 	var err error
 
@@ -178,14 +178,14 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 	}
 
 	if err != nil {
-		r.log.Error().Err(err).Msgf("Readiness check failed for service '%s'", name)
+		r.log.Error().Err(err).Msgf("Readiness check failed for service '%s'", svc.Name)
 	} else {
-		r.log.Info().Msgf("Service '%s' is ready", name)
+		r.log.Info().Msgf("Service '%s' is ready", svc.Name)
 
 		r.bus.Publish(bus.Message{
 			Type: bus.EventReadinessComplete,
 			Data: bus.ReadinessComplete{
-				Service:  name,
+				Service:  svc,
 				Type:     options.Type,
 				Duration: time.Since(startTime),
 			},
@@ -197,20 +197,20 @@ func (r *readiness) Check(ctx context.Context, name string, service *config.Serv
 
 // contextWithDone creates a context that cancels when either ctx is cancelled or done is closed
 func (r *readiness) contextWithDone(ctx context.Context, done <-chan struct{}) (context.Context, context.CancelFunc) {
-	newCtx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
 	stopped := make(chan struct{})
 
 	go func() {
 		select {
 		case <-done:
 			cancel()
-		case <-newCtx.Done():
+		case <-ctx.Done():
 		}
 
 		close(stopped)
 	}()
 
-	return newCtx, func() {
+	return ctx, func() {
 		cancel()
 		<-stopped
 	}

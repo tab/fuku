@@ -44,7 +44,7 @@ func (c *controller) Start(ctx context.Context, service *ServiceState) {
 
 	c.bus.Publish(bus.Message{
 		Type: bus.CommandRestartService,
-		Data: bus.Payload{Name: service.Name},
+		Data: bus.Service{ID: service.ID, Name: service.Name},
 	})
 }
 
@@ -60,7 +60,7 @@ func (c *controller) Stop(ctx context.Context, service *ServiceState) {
 
 	c.bus.Publish(bus.Message{
 		Type: bus.CommandStopService,
-		Data: bus.Payload{Name: service.Name},
+		Data: bus.Service{ID: service.ID, Name: service.Name},
 	})
 }
 
@@ -80,7 +80,7 @@ func (c *controller) Restart(ctx context.Context, service *ServiceState) {
 
 	c.bus.Publish(bus.Message{
 		Type: bus.CommandRestartService,
-		Data: bus.Payload{Name: service.Name},
+		Data: bus.Service{ID: service.ID, Name: service.Name},
 	})
 }
 

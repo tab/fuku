@@ -9,6 +9,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
+	"io"
+
+	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
@@ -31,13 +34,30 @@ func Test_startBridge(t *testing.T) {
 	bridge := NewBridge(b, mockBroadcaster, formatter)
 
 	lc := &testLifecycle{}
-	startBridge(lc, bridge)
+	ctx := context.Background()
+	startBridge(lc, ctx, bridge)
 
 	require.Len(t, lc.hooks, 1)
 
 	err := lc.hooks[0].OnStart(context.Background())
 	require.NoError(t, err)
+}
 
-	err = lc.hooks[0].OnStop(context.Background())
+func Test_startServer(t *testing.T) {
+	cfg := config.DefaultConfig()
+	b := bus.NoOp()
+	log := logger.NewLoggerWithOutput(cfg, io.Discard)
+
+	server := NewServer(cfg, b, log)
+
+	lc := &testLifecycle{}
+	ctx := context.Background()
+	startServer(lc, ctx, server)
+
+	require.Len(t, lc.hooks, 1)
+	require.NotNil(t, lc.hooks[0].OnStart)
+	require.NotNil(t, lc.hooks[0].OnStop)
+
+	err := lc.hooks[0].OnStop(context.Background())
 	require.NoError(t, err)
 }
