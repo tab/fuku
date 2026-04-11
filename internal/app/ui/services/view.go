@@ -72,15 +72,38 @@ func (m Model) renderVersion() string {
 	return m.theme.PanelMutedStyle.Render("v" + config.Version)
 }
 
-// renderAppStats renders fuku's own CPU and memory usage
+// renderAppStats renders fuku's own CPU and memory usage with optional API indicator
 func (m Model) renderAppStats() string {
-	if m.state.appCPU == 0 && m.state.appMEM == 0 {
+	var parts []string
+
+	if m.api != nil {
+		if addr := m.api.Address(); addr != "" {
+			dot := m.renderAPIDot()
+			parts = append(parts, dot+" "+m.theme.PanelMutedStyle.Render(addr))
+		}
+	}
+
+	if m.state.appCPU != 0 || m.state.appMEM != 0 {
+		parts = append(parts, m.theme.PanelMutedStyle.Render(
+			fmt.Sprintf("cpu %s • mem %s", formatCPU(m.state.appCPU), formatMEM(m.state.appMEM)),
+		))
+	}
+
+	if len(parts) == 0 {
 		return ""
 	}
 
-	return m.theme.PanelMutedStyle.Render(
-		fmt.Sprintf("cpu %s • mem %s", formatCPU(m.state.appCPU), formatMEM(m.state.appMEM)),
-	)
+	return strings.Join(parts, m.theme.PanelMutedStyle.Render(" • "))
+}
+
+// renderAPIDot renders the colored dot indicator for API health
+func (m Model) renderAPIDot() string {
+	switch m.state.apiStatus {
+	case apiStatusReady:
+		return m.theme.APIDotConnected.Render(components.IndicatorDot)
+	default:
+		return m.theme.APIDotDisconnected.Render(components.IndicatorDot)
+	}
 }
 
 // renderHelp renders the help text with keybindings
@@ -110,7 +133,8 @@ func (m Model) renderTitle() string {
 		return b.String()
 	}
 
-	return fmt.Sprintf("%s • %s", "profile", m.state.profile)
+	//nolint:perfsprint // readability over micro-optimization
+	return m.theme.PanelMutedStyle.Render(fmt.Sprintf("profile • %s", m.state.profile))
 }
 
 // renderServices renders the services list or empty state
@@ -151,8 +175,8 @@ func (m Model) renderTier(tier Tier, currentIdx *int) string {
 
 	rows = append(rows, components.TierHeaderStyle.Width(rowWidth).Render(tier.Name))
 
-	for _, serviceName := range tier.Services {
-		service, exists := m.state.services[serviceName]
+	for _, serviceID := range tier.Services {
+		service, exists := m.state.services[serviceID]
 		if !exists {
 			continue
 		}
@@ -175,21 +199,11 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 		defaultIndicator = components.IndicatorSelected
 	}
 
-	if service.FSM == nil {
-		if service.Watching && service.Status == StatusRunning {
-			return m.getWatchIndicator(isSelected)
-		}
-
-		return defaultIndicator
-	}
-
-	state := service.FSM.Current()
-
-	if state == Running && service.Watching {
+	if service.Status == StatusRunning && service.Watching {
 		return m.getWatchIndicator(isSelected)
 	}
 
-	if state != Starting && state != Stopping && state != Restarting {
+	if service.Status != StatusStarting && service.Status != StatusStopping && service.Status != StatusRestarting {
 		return defaultIndicator
 	}
 
@@ -207,10 +221,10 @@ func (m Model) getServiceIndicator(service *ServiceState, isSelected bool) strin
 // getWatchIndicator returns the styled watch indicator
 func (m Model) getWatchIndicator(isSelected bool) string {
 	if isSelected {
-		return components.IndicatorWatch
+		return components.IndicatorDot
 	}
 
-	return m.theme.IndicatorWatchStyle.Render(components.IndicatorWatch)
+	return m.theme.IndicatorDotStyle.Render(components.IndicatorDot)
 }
 
 // renderServiceRow renders a single service row with all columns

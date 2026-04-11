@@ -74,3 +74,17 @@ const (
 const (
 	WatchDebounce = 500 * time.Millisecond
 )
+
+// API server settings
+const (
+	APIPortRetries       = 10
+	APIReadHeaderTimeout = 5 * time.Second
+	StoreSampleInterval  = 2 * time.Second
+	StoreSampleTimeout   = 200 * time.Millisecond
+)
+
+// Loopback hostnames (not available as stdlib constants)
+const (
+	LoopbackHostname     = "localhost"
+	LoopbackIPv6Hostname = "ip6-localhost"
+)

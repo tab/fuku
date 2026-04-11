@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"io"
 	"testing"
 	"time"
@@ -10,9 +9,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/ui/components"
 	"fuku/internal/config/logger"
 )
 
@@ -29,6 +30,7 @@ func Test_HandleProfileResolved(t *testing.T) {
 
 	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	m.state.tiers = make([]Tier, 0)
 
 	event := bus.Message{
@@ -36,8 +38,8 @@ func Test_HandleProfileResolved(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "dev",
 			Tiers: []bus.Tier{
-				{Name: "tier1", Services: []bus.Service{{Name: "db"}}},
-				{Name: "tier2", Services: []bus.Service{{Name: "api"}, {Name: "web"}}},
+				{Name: "tier1", Services: []bus.Service{{ID: "test-id-db", Name: "db"}}},
+				{Name: "tier2", Services: []bus.Service{{ID: "test-id-api", Name: "api"}, {ID: "test-id-web", Name: "web"}}},
 			},
 		},
 	}
@@ -47,13 +49,16 @@ func Test_HandleProfileResolved(t *testing.T) {
 	assert.Len(t, result.state.tiers, 2)
 	assert.Equal(t, "tier1", result.state.tiers[0].Name)
 	assert.Equal(t, "tier2", result.state.tiers[1].Name)
-	assert.Equal(t, []string{"db"}, result.state.tiers[0].Services)
-	assert.Equal(t, []string{"api", "web"}, result.state.tiers[1].Services)
+	assert.Equal(t, []string{"test-id-db"}, result.state.tiers[0].Services)
+	assert.Equal(t, []string{"test-id-api", "test-id-web"}, result.state.tiers[1].Services)
 	assert.Len(t, result.state.services, 3)
-	assert.NotNil(t, result.state.services["db"])
-	assert.NotNil(t, result.state.services["api"])
-	assert.NotNil(t, result.state.services["web"])
-	assert.Equal(t, StatusStarting, result.state.services["db"].Status)
+	assert.NotNil(t, result.state.services["test-id-db"])
+	assert.NotNil(t, result.state.services["test-id-api"])
+	assert.NotNil(t, result.state.services["test-id-web"])
+	assert.Equal(t, StatusStarting, result.state.services["test-id-db"].Status)
+	assert.NotNil(t, result.state.services["test-id-db"].Blink)
+	assert.NotNil(t, result.state.services["test-id-api"].Blink)
+	assert.NotNil(t, result.state.services["test-id-web"].Blink)
 }
 
 func Test_HandleProfileResolved_InvalidData(t *testing.T) {
@@ -69,6 +74,7 @@ func Test_HandleProfileResolved_InvalidData(t *testing.T) {
 
 	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	m.state.tiers = make([]Tier, 0)
 	event := bus.Message{Type: bus.EventProfileResolved, Data: "invalid"}
 	result := m.handleProfileResolved(event)
@@ -88,6 +94,7 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 
 	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	m.state.tiers = make([]Tier, 0)
 
 	event1 := bus.Message{
@@ -95,34 +102,34 @@ func Test_HandleProfileResolved_ClearsStaleServices(t *testing.T) {
 		Data: bus.ProfileResolved{
 			Profile: "profile1",
 			Tiers: []bus.Tier{
-				{Name: "tier1", Services: []bus.Service{{Name: "db"}, {Name: "api"}, {Name: "web"}}},
+				{Name: "tier1", Services: []bus.Service{{ID: "test-id-db", Name: "db"}, {ID: "test-id-api", Name: "api"}, {ID: "test-id-web", Name: "web"}}},
 			},
 		},
 	}
 
 	result := m.handleProfileResolved(event1)
 	assert.Len(t, result.state.services, 3, "First profile should have 3 services")
-	assert.NotNil(t, result.state.services["db"])
-	assert.NotNil(t, result.state.services["api"])
-	assert.NotNil(t, result.state.services["web"])
+	assert.NotNil(t, result.state.services["test-id-db"])
+	assert.NotNil(t, result.state.services["test-id-api"])
+	assert.NotNil(t, result.state.services["test-id-web"])
 
 	event2 := bus.Message{
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "profile2",
 			Tiers: []bus.Tier{
-				{Name: "tier1", Services: []bus.Service{{Name: "storage"}, {Name: "cache"}}},
+				{Name: "tier1", Services: []bus.Service{{ID: "test-id-storage", Name: "storage"}, {ID: "test-id-cache", Name: "cache"}}},
 			},
 		},
 	}
 
 	result = result.handleProfileResolved(event2)
 	assert.Len(t, result.state.services, 2, "Second profile should have exactly 2 services, not 5")
-	assert.NotNil(t, result.state.services["storage"])
-	assert.NotNil(t, result.state.services["cache"])
-	assert.Nil(t, result.state.services["db"], "Old service 'db' should be removed")
-	assert.Nil(t, result.state.services["api"], "Old service 'api' should be removed")
-	assert.Nil(t, result.state.services["web"], "Old service 'web' should be removed")
+	assert.NotNil(t, result.state.services["test-id-storage"])
+	assert.NotNil(t, result.state.services["test-id-cache"])
+	assert.Nil(t, result.state.services["test-id-db"], "Old service 'db' should be removed")
+	assert.Nil(t, result.state.services["test-id-api"], "Old service 'api' should be removed")
+	assert.Nil(t, result.state.services["test-id-web"], "Old service 'web' should be removed")
 }
 
 func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
@@ -138,6 +145,7 @@ func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
 
 	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	m.state.tiers = make([]Tier, 0)
 	m.state.selected = 5
 
@@ -145,7 +153,7 @@ func Test_HandleProfileResolved_ResetsSelection(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "dev",
-			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{Name: "db"}}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{ID: "test-id-db", Name: "db"}}}},
 		},
 	}
 
@@ -166,6 +174,7 @@ func Test_HandleProfileResolved_PreservesReadyState(t *testing.T) {
 
 	m := Model{log: mockLog, loader: NewLoader()}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	m.state.tiers = make([]Tier, 0)
 	m.state.ready = true
 
@@ -173,7 +182,7 @@ func Test_HandleProfileResolved_PreservesReadyState(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "dev",
-			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{Name: "db"}}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{ID: "test-id-db", Name: "db"}}}},
 		},
 	}
 
@@ -198,6 +207,7 @@ func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
 
 	m := Model{log: mockLog, loader: loader}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	m.state.tiers = make([]Tier, 0)
 
 	assert.True(t, loader.Active, "Loader should be active before reload")
@@ -208,7 +218,7 @@ func Test_HandleProfileResolved_ClearsLoaderQueue(t *testing.T) {
 		Type: bus.EventProfileResolved,
 		Data: bus.ProfileResolved{
 			Profile: "new-profile",
-			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{Name: "new-service"}}}},
+			Tiers:   []bus.Tier{{Name: "tier1", Services: []bus.Service{{ID: "test-id-new-service", Name: "new-service"}}}},
 		},
 	}
 
@@ -224,6 +234,7 @@ func Test_HandleTierStarting(t *testing.T) {
 		{Name: "tier1", Ready: true},
 		{Name: "tier2", Ready: true},
 	}
+	m.state.tierIndex = map[string]int{"tier1": 0, "tier2": 1}
 
 	event := bus.Message{Type: bus.EventTierStarting, Data: bus.TierStarting{Name: "tier1"}}
 	result := m.handleTierStarting(event)
@@ -246,6 +257,7 @@ func Test_HandleTierReady(t *testing.T) {
 		{Name: "tier1", Ready: false},
 		{Name: "tier2", Ready: false},
 	}
+	m.state.tierIndex = map[string]int{"tier1": 0, "tier2": 1}
 
 	event := bus.Message{Type: bus.EventTierReady, Data: bus.TierReady{Name: "tier2"}}
 	result := m.handleTierReady(event)
@@ -263,90 +275,132 @@ func Test_HandleTierReady_InvalidData(t *testing.T) {
 }
 
 func Test_HandleServiceStarting(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockCmd := bus.NewMockBus(ctrl)
-	mockController := NewMockController(ctrl)
-	mockLog := logger.NewMockLogger(ctrl)
-	noopLogger := zerolog.New(io.Discard)
-	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
-	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
-	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
-	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
-
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	service := &ServiceState{Name: "api", Status: StatusStopped}
-	m := Model{
-		ctx:        context.Background(),
-		loader:     loader,
-		bus:        mockCmd,
-		controller: mockController,
-		log:        mockLog,
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusStopped,
+		Blink:  components.NewBlink(),
 	}
-	m.state.services = map[string]*ServiceState{"api": service}
-	service.FSM = newServiceFSM(service, loader, mockLog)
 
-	mockController.EXPECT().HandleStarting(gomock.Any(), service, 1234).Do(
-		func(_ context.Context, s *ServiceState, pid int) {
-			s.Monitor.PID = pid
-		},
-	)
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+	m.state.restarting = make(map[string]bool)
 
+	now := time.Now()
 	event := bus.Message{
-		Timestamp: time.Now(),
+		Timestamp: now,
 		Type:      bus.EventServiceStarting,
-		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}, Tier: "tier1"}, PID: 1234},
+		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "tier1"}, PID: 1234},
 	}
 
 	result := m.handleServiceStarting(event)
 
-	assert.Equal(t, "tier1", result.state.services["api"].Tier)
-	assert.Equal(t, 1234, result.state.services["api"].Monitor.PID)
+	assert.Equal(t, StatusStarting, result.state.services["test-id-api"].Status)
+	assert.Equal(t, "tier1", result.state.services["test-id-api"].Tier)
+	assert.Equal(t, 1234, result.state.services["test-id-api"].PID)
+	assert.Equal(t, now, result.state.services["test-id-api"].StartTime)
+	require.NoError(t, result.state.services["test-id-api"].Error)
+	assert.True(t, result.loader.Has("test-id-api"))
+	assert.True(t, result.loader.Active)
 }
 
 func Test_HandleServiceStarting_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	event := bus.Message{Type: bus.EventServiceStarting, Data: "invalid"}
 	result := m.handleServiceStarting(event)
 	assert.False(t, result.loader.Active)
 }
 
-func Test_HandleServiceReady(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockController := NewMockController(ctrl)
+func Test_HandleServiceStarting_ClearsRestartingFlag(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "starting api…")
-
-	service := &ServiceState{Name: "api", Status: StatusStarting}
-	m := Model{
-		ctx:        context.Background(),
-		loader:     loader,
-		controller: mockController,
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusStopped,
+		Blink:  components.NewBlink(),
 	}
-	m.state.services = map[string]*ServiceState{"api": service}
 
-	mockController.EXPECT().HandleReady(gomock.Any(), service)
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+	m.state.restarting = map[string]bool{"api": true}
 
 	event := bus.Message{
 		Timestamp: time.Now(),
+		Type:      bus.EventServiceStarting,
+		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "tier1"}, PID: 5678},
+	}
+
+	result := m.handleServiceStarting(event)
+
+	assert.False(t, result.state.restarting["test-id-api"])
+}
+
+func Test_HandleServiceStarting_DoesNotDuplicateLoader(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start("test-id-api", "starting api…")
+
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusStopped,
+		Blink:  components.NewBlink(),
+	}
+
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+	m.state.restarting = make(map[string]bool)
+
+	event := bus.Message{
+		Timestamp: time.Now(),
+		Type:      bus.EventServiceStarting,
+		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "tier1"}, PID: 1234},
+	}
+
+	result := m.handleServiceStarting(event)
+
+	count := 0
+
+	for _, item := range result.loader.queue {
+		if item.Service == "test-id-api" {
+			count++
+		}
+	}
+
+	assert.Equal(t, 1, count, "Loader should not have duplicate entries for the same service")
+}
+
+func Test_HandleServiceReady(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start("test-id-api", "starting api...")
+
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusStarting,
+		Blink:  components.NewBlink(),
+	}
+
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+
+	now := time.Now()
+	event := bus.Message{
+		Timestamp: now,
 		Type:      bus.EventServiceReady,
-		Data:      bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}}},
+		Data:      bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
 	}
 
 	result := m.handleServiceReady(event)
 
+	assert.Equal(t, StatusRunning, result.state.services["test-id-api"].Status)
+	assert.Equal(t, now, result.state.services["test-id-api"].ReadyTime)
 	assert.False(t, result.loader.Active)
-	assert.NotZero(t, result.state.services["api"].Monitor.ReadyTime)
+	assert.False(t, result.loader.Has("test-id-api"))
 }
 
 func Test_HandleServiceReady_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "starting api…")
+	loader.Start("test-id-api", "starting api...")
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
 	event := bus.Message{Type: bus.EventServiceReady, Data: "invalid"}
@@ -355,73 +409,238 @@ func Test_HandleServiceReady_InvalidData(t *testing.T) {
 }
 
 func Test_HandleServiceFailed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockController := NewMockController(ctrl)
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "starting api…")
+	loader.Start("test-id-api", "starting api...")
 
-	service := &ServiceState{Name: "api", Status: StatusStarting}
-	m := Model{
-		ctx:        context.Background(),
-		loader:     loader,
-		controller: mockController,
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusStarting,
+		Blink:  components.NewBlink(),
 	}
-	m.state.services = map[string]*ServiceState{"api": service}
 
-	mockController.EXPECT().HandleFailed(gomock.Any(), service)
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+	m.state.restarting = make(map[string]bool)
 
 	testErr := assert.AnError
 	event := bus.Message{
 		Type: bus.EventServiceFailed,
-		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}}, Error: testErr},
+		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}, Error: testErr},
 	}
 
 	result := m.handleServiceFailed(event)
 
+	assert.Equal(t, StatusFailed, result.state.services["test-id-api"].Status)
+	assert.Equal(t, testErr, result.state.services["test-id-api"].Error)
 	assert.False(t, result.loader.Active)
-	assert.Equal(t, testErr, result.state.services["api"].Error)
+	assert.False(t, result.loader.Has("test-id-api"))
 }
 
 func Test_HandleServiceFailed_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	event := bus.Message{Type: bus.EventServiceFailed, Data: "invalid"}
 	result := m.handleServiceFailed(event)
 	assert.Empty(t, result.state.services)
 }
 
-func Test_HandleServiceStopped(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockController := NewMockController(ctrl)
+func Test_HandleServiceFailed_ClearsRestartingFlag(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start("api", "stopping api…")
+	loader.Start("test-id-api", "restarting api...")
 
-	service := &ServiceState{Name: "api", Status: StatusRunning, Monitor: ServiceMonitor{PID: 1234}}
-	m := Model{
-		ctx:        context.Background(),
-		loader:     loader,
-		controller: mockController,
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusStarting,
+		Blink:  components.NewBlink(),
 	}
-	m.state.services = map[string]*ServiceState{"api": service}
 
-	mockController.EXPECT().HandleStopped(gomock.Any(), service).Return(false)
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+	m.state.restarting = map[string]bool{"api": true}
 
-	event := bus.Message{Type: bus.EventServiceStopped, Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{Name: "api"}}}}
-	result := m.handleServiceStopped(event)
+	event := bus.Message{
+		Type: bus.EventServiceFailed,
+		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}, Error: assert.AnError},
+	}
 
+	result := m.handleServiceFailed(event)
+
+	assert.False(t, result.state.restarting["test-id-api"])
+}
+
+func Test_HandleServiceStopping(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusRunning,
+		Blink:  components.NewBlink(),
+	}
+
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+
+	event := bus.Message{
+		Type: bus.EventServiceStopping,
+		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
+	}
+
+	result := m.handleServiceStopping(event)
+
+	assert.Equal(t, StatusStopping, result.state.services["test-id-api"].Status)
+	assert.True(t, result.loader.Active)
+	assert.True(t, result.loader.Has("test-id-api"))
+}
+
+func Test_HandleServiceStopping_InvalidData(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.services = make(map[string]*ServiceState)
+	event := bus.Message{Type: bus.EventServiceStopping, Data: "invalid"}
+	result := m.handleServiceStopping(event)
 	assert.False(t, result.loader.Active)
+}
+
+func Test_HandleServiceStopping_DoesNotDuplicateLoader(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start("test-id-api", "stopping api…")
+
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusRunning,
+		Blink:  components.NewBlink(),
+	}
+
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+
+	event := bus.Message{
+		Type: bus.EventServiceStopping,
+		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
+	}
+
+	result := m.handleServiceStopping(event)
+
+	count := 0
+
+	for _, item := range result.loader.queue {
+		if item.Service == "test-id-api" {
+			count++
+		}
+	}
+
+	assert.Equal(t, 1, count, "Loader should not have duplicate entries for the same service")
+}
+
+func Test_HandleServiceRestarting(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	service := &ServiceState{
+		Name:   "api",
+		Status: StatusRunning,
+		Blink:  components.NewBlink(),
+	}
+
+	m := Model{loader: loader}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
+	m.state.restarting = make(map[string]bool)
+
+	event := bus.Message{
+		Type: bus.EventServiceRestarting,
+		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
+	}
+
+	result := m.handleServiceRestarting(event)
+
+	assert.Equal(t, StatusRestarting, result.state.services["test-id-api"].Status)
+	assert.True(t, result.state.restarting["test-id-api"])
+	assert.True(t, result.loader.Active)
+	assert.True(t, result.loader.Has("test-id-api"))
+}
+
+func Test_HandleServiceRestarting_InvalidData(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
+	event := bus.Message{Type: bus.EventServiceRestarting, Data: "invalid"}
+	result := m.handleServiceRestarting(event)
+	assert.False(t, result.loader.Active)
+	assert.Empty(t, result.state.restarting)
+}
+
+func Test_HandleServiceStopped(t *testing.T) {
+	tests := []struct {
+		name          string
+		restarting    bool
+		loaderActive  bool
+		loaderHasItem bool
+	}{
+		{
+			name:          "Not restarting stops loader",
+			restarting:    false,
+			loaderActive:  false,
+			loaderHasItem: false,
+		},
+		{
+			name:          "Restarting keeps loader",
+			restarting:    true,
+			loaderActive:  true,
+			loaderHasItem: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+			loader.Start("test-id-api", "stopping api...")
+
+			service := &ServiceState{
+				Name:   "api",
+				Status: StatusRunning,
+				PID:    1234,
+				Blink:  components.NewBlink(),
+			}
+
+			m := Model{loader: loader}
+			m.state.services = map[string]*ServiceState{"test-id-api": service}
+			m.state.restarting = map[string]bool{"test-id-api": tt.restarting}
+
+			event := bus.Message{
+				Type: bus.EventServiceStopped,
+				Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
+			}
+
+			result := m.handleServiceStopped(event)
+
+			assert.Equal(t, StatusStopped, result.state.services["test-id-api"].Status)
+			assert.Equal(t, tt.loaderActive, result.loader.Active)
+			assert.Equal(t, tt.loaderHasItem, result.loader.Has("test-id-api"))
+		})
+	}
 }
 
 func Test_HandleServiceStopped_InvalidData(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader}
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	event := bus.Message{Type: bus.EventServiceStopped, Data: "invalid"}
+	result := m.handleServiceStopped(event)
+	assert.Empty(t, result.state.services)
+}
+
+func Test_HandleServiceStopped_UnknownService(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
+
+	event := bus.Message{
+		Type: bus.EventServiceStopped,
+		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-unknown", Name: "unknown"}}},
+	}
+
 	result := m.handleServiceStopped(event)
 	assert.Empty(t, result.state.services)
 }
@@ -429,27 +648,27 @@ func Test_HandleServiceStopped_InvalidData(t *testing.T) {
 func Test_HandleWatchStarted(t *testing.T) {
 	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: false}
 	m := Model{}
-	m.state.services = map[string]*ServiceState{"api": service}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{
 		Type: bus.EventWatchStarted,
-		Data: bus.Service{Name: "api"},
+		Data: bus.Service{ID: "test-id-api", Name: "api"},
 	}
 
 	result := m.handleWatchStarted(event)
 
-	assert.True(t, result.state.services["api"].Watching)
+	assert.True(t, result.state.services["test-id-api"].Watching)
 }
 
 func Test_HandleWatchStarted_InvalidData(t *testing.T) {
 	service := &ServiceState{Name: "api", Status: StatusRunning, Watching: false}
 	m := Model{}
-	m.state.services = map[string]*ServiceState{"api": service}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{Type: bus.EventWatchStarted, Data: "invalid"}
 	result := m.handleWatchStarted(event)
 
-	assert.False(t, result.state.services["api"].Watching)
+	assert.False(t, result.state.services["test-id-api"].Watching)
 }
 
 func Test_HandleWatchStarted_UnknownService(t *testing.T) {
@@ -469,27 +688,27 @@ func Test_HandleWatchStarted_UnknownService(t *testing.T) {
 func Test_HandleWatchStopped(t *testing.T) {
 	service := &ServiceState{Name: "api", Status: StatusStopped, Watching: true}
 	m := Model{}
-	m.state.services = map[string]*ServiceState{"api": service}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{
 		Type: bus.EventWatchStopped,
-		Data: bus.Service{Name: "api"},
+		Data: bus.Service{ID: "test-id-api", Name: "api"},
 	}
 
 	result := m.handleWatchStopped(event)
 
-	assert.False(t, result.state.services["api"].Watching)
+	assert.False(t, result.state.services["test-id-api"].Watching)
 }
 
 func Test_HandleWatchStopped_InvalidData(t *testing.T) {
 	service := &ServiceState{Name: "api", Status: StatusStopped, Watching: true}
 	m := Model{}
-	m.state.services = map[string]*ServiceState{"api": service}
+	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{Type: bus.EventWatchStopped, Data: "invalid"}
 	result := m.handleWatchStopped(event)
 
-	assert.True(t, result.state.services["api"].Watching)
+	assert.True(t, result.state.services["test-id-api"].Watching)
 }
 
 func Test_HandleWatchStopped_UnknownService(t *testing.T) {
@@ -508,7 +727,7 @@ func Test_HandleWatchStopped_UnknownService(t *testing.T) {
 
 func Test_HandlePhaseChanged_PhaseStopped(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start(loaderKeyShutdown, "shutting down…")
+	loader.Start(loaderKeyShutdown, "shutting down...")
 
 	m := Model{loader: loader}
 	m.state.shuttingDown = true
@@ -613,7 +832,7 @@ func Test_HandleKeyPress_QuitStartsGracefulShutdown(t *testing.T) {
 
 	assert.True(t, result.state.shuttingDown)
 	assert.True(t, result.loader.Active)
-	assert.Equal(t, "shutting down all services…", result.loader.Message())
+	assert.Equal(t, "shutting down all services\u2026", result.loader.Message())
 	assert.NotNil(t, cmd)
 }
 
@@ -700,7 +919,7 @@ func Test_HandlePreflightStarted(t *testing.T) {
 
 	assert.True(t, result.loader.Active)
 	assert.True(t, result.loader.Has(loaderKeyPreflight))
-	assert.Equal(t, "preflight: scanning processes…", result.loader.Message())
+	assert.Equal(t, "preflight: scanning processes\u2026", result.loader.Message())
 }
 
 func Test_HandlePreflightKill(t *testing.T) {
@@ -713,7 +932,7 @@ func Test_HandlePreflightKill(t *testing.T) {
 	result := m.handlePreflightKill(event)
 
 	assert.True(t, result.loader.Active)
-	assert.Equal(t, "preflight: stopping api…", result.loader.Message())
+	assert.Equal(t, "preflight: stopping api\u2026", result.loader.Message())
 }
 
 func Test_HandlePreflightKill_InvalidData(t *testing.T) {
@@ -726,12 +945,12 @@ func Test_HandlePreflightKill_InvalidData(t *testing.T) {
 	result := m.handlePreflightKill(event)
 
 	assert.True(t, result.loader.Active)
-	assert.Equal(t, "preflight: scanning processes…", result.loader.Message())
+	assert.Equal(t, "preflight: scanning processes\u2026", result.loader.Message())
 }
 
 func Test_HandlePreflightComplete(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-	loader.Start(loaderKeyPreflight, "preflight: stopping api…")
+	loader.Start(loaderKeyPreflight, "preflight: stopping api...")
 
 	m := Model{loader: loader}
 
@@ -750,7 +969,7 @@ func Test_HandleSignal(t *testing.T) {
 
 	assert.True(t, result.state.shuttingDown)
 	assert.True(t, result.loader.Active)
-	assert.Equal(t, "shutting down all services…", result.loader.Message())
+	assert.Equal(t, "shutting down all services\u2026", result.loader.Message())
 }
 
 func toKeyMsg(s string) tea.KeyPressMsg {

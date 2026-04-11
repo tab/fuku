@@ -2,10 +2,29 @@ package metrics
 
 import (
 	"context"
+	"strings"
 
 	"fuku/internal/app/bus"
 	"fuku/internal/config/sentry"
 )
+
+// normalizePath replaces the service ID segment in API paths to bound metric cardinality
+func normalizePath(path string) string {
+	const prefix = "/api/v1/services/"
+
+	_, rest, found := strings.Cut(path, prefix)
+	if !found {
+		return path
+	}
+
+	slash := strings.IndexByte(rest, '/')
+	switch slash {
+	case -1:
+		return prefix + ":id"
+	default:
+		return prefix + ":id" + rest[slash:]
+	}
+}
 
 // Collector subscribes to bus events and emits metrics
 type Collector interface {
@@ -66,6 +85,12 @@ func (c *collector) handle(ctx context.Context, msg bus.Message) {
 		c.handlePhaseChanged(ctx, msg)
 	case bus.EventResourceSample:
 		c.handleResourceSample(ctx, msg)
+	case bus.EventAPIStarted:
+		c.handleAPIStarted(ctx)
+	case bus.EventAPIStopped:
+		c.handleAPIStopped(ctx)
+	case bus.EventAPIRequest:
+		c.handleAPIRequest(ctx, msg)
 	}
 }
 
@@ -188,6 +213,37 @@ func (c *collector) handleResourceSample(ctx context.Context, msg bus.Message) {
 	meter := sentry.NewMeter(ctx)
 	meter.Distribution(sentry.MetricFukuCPU, data.CPU, sentry.WithUnit(sentry.UnitPercent))
 	meter.Distribution(sentry.MetricFukuMemory, data.MEM, sentry.WithUnit(sentry.UnitMegabyte))
+}
+
+func (c *collector) handleAPIStarted(ctx context.Context) {
+	sentry.NewMeter(ctx).Gauge(sentry.MetricAPIEnabled, 1)
+}
+
+func (c *collector) handleAPIStopped(ctx context.Context) {
+	sentry.NewMeter(ctx).Gauge(sentry.MetricAPIEnabled, 0)
+}
+
+func (c *collector) handleAPIRequest(ctx context.Context, msg bus.Message) {
+	data, ok := msg.Data.(bus.APIRequest)
+	if !ok {
+		return
+	}
+
+	attrs := sentry.WithAttributes(
+		sentry.StringAttr(sentry.TagMethod, data.Method),
+		sentry.StringAttr(sentry.TagPath, normalizePath(data.Path)),
+		sentry.IntAttr(sentry.TagStatus, data.Status),
+	)
+
+	meter := sentry.NewMeter(ctx)
+	meter.Count(sentry.MetricAPIRequests, 1, attrs)
+	meter.Distribution(sentry.MetricAPIRequestDuration, float64(data.Duration.Milliseconds()),
+		sentry.WithUnit(sentry.UnitMillisecond), attrs,
+	)
+
+	if data.Status == 401 {
+		meter.Count(sentry.MetricAPIAuthFailures, 1)
+	}
 }
 
 func (c *collector) handlePhaseChanged(ctx context.Context, msg bus.Message) {

@@ -9,6 +9,8 @@ import (
 	"fuku/internal/app/errors"
 )
 
+const testToken = "test-token"
+
 func Test_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -238,6 +240,115 @@ func Test_Validate(t *testing.T) {
 			}(),
 			expectError: true,
 			errorMsg:    "service api",
+		},
+		{
+			name: "valid server configuration",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "127.0.0.1:9876"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "valid server configuration with IPv6 loopback",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "[::1]:9876"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name:        "server without listen address is disabled",
+			config:      DefaultConfig(),
+			expectError: false,
+		},
+		{
+			name: "valid server configuration with localhost",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "localhost:9876"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "server with listen but no token",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "127.0.0.1:9876"
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "server.auth.token is required",
+		},
+		{
+			name: "server with non-loopback address",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "0.0.0.0:9876"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must bind to a loopback address",
+		},
+		{
+			name: "server with invalid listen address",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "not-valid"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
+			name: "server with out-of-range port",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "127.0.0.1:99999"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
+			name: "server with zero port",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = "127.0.0.1:0"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
+			name: "server with empty host",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = ":9876"
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "api listen must be a valid host:port address",
 		},
 	}
 

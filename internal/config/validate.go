@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"fuku/internal/app/errors"
@@ -18,6 +20,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.validateLogs(); err != nil {
+		return err
+	}
+
+	if err := c.validateServer(); err != nil {
 		return err
 	}
 
@@ -75,6 +81,42 @@ func (c *Config) validateLogs() error {
 	}
 
 	return nil
+}
+
+// validateServer validates the built-in HTTP API server configuration
+func (c *Config) validateServer() error {
+	if c.Server.Listen == "" {
+		return nil
+	}
+
+	if c.Server.Auth.Token == "" {
+		return errors.ErrAPITokenRequired
+	}
+
+	host, portStr, err := net.SplitHostPort(c.Server.Listen)
+	if err != nil || host == "" {
+		return errors.ErrAPIInvalidListen
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return errors.ErrAPIInvalidListen
+	}
+
+	if !isLoopback(host) {
+		return errors.ErrAPINotLoopback
+	}
+
+	return nil
+}
+
+// isLoopback checks whether a host is a loopback IP literal or known loopback hostname
+func isLoopback(host string) bool {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+
+	return host == LoopbackHostname || host == LoopbackIPv6Hostname
 }
 
 // validateCommand validates the command configuration

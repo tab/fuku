@@ -234,6 +234,33 @@ func Test_Resume_GuardLocked(t *testing.T) {
 	s.Resume(ctx, bus.Service{ID: "test-id-api", Name: "api"})
 }
 
+func Test_Resume_AlreadyRegistered(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	mockGuard := NewMockGuard(ctrl)
+	mockGuard.EXPECT().Lock("test-id-api").Return(true)
+	mockGuard.EXPECT().Unlock("test-id-api")
+
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().Get("test-id-api").Return(registry.Lookup{Exists: true, Name: "api"})
+
+	s := &service{
+		cfg:      cfg,
+		guard:    mockGuard,
+		registry: mockRegistry,
+		bus:      bus.NoOp(),
+		log:      mockLog,
+	}
+
+	ctx := context.Background()
+	s.Resume(ctx, bus.Service{ID: "test-id-api", Name: "api"})
+}
+
 func Test_Resume_ConfigNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -246,11 +273,15 @@ func Test_Resume_ConfigNotFound(t *testing.T) {
 	mockGuard.EXPECT().Lock("test-id-api").Return(true)
 	mockGuard.EXPECT().Unlock("test-id-api")
 
+	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().Get("test-id-api").Return(registry.Lookup{Exists: false})
+
 	s := &service{
-		cfg:   cfg,
-		guard: mockGuard,
-		bus:   bus.NoOp(),
-		log:   mockLog,
+		cfg:      cfg,
+		guard:    mockGuard,
+		registry: mockRegistry,
+		bus:      bus.NoOp(),
+		log:      mockLog,
 	}
 
 	ctx := context.Background()
@@ -287,6 +318,7 @@ func Test_Resume_Success(t *testing.T) {
 	mockBroadcaster.EXPECT().Broadcast(gomock.Any(), gomock.Any()).AnyTimes()
 
 	mockRegistry := registry.NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().Get("test-id-api").Return(registry.Lookup{Exists: false})
 	mockRegistry.EXPECT().Add("platform", bus.Service{ID: "test-id-api", Name: "api"}, gomock.Any())
 	mockRegistry.EXPECT().Remove("test-id-api", gomock.Any()).Return(registry.RemoveResult{Removed: true, Name: "api", UnexpectedExit: true}).AnyTimes()
 

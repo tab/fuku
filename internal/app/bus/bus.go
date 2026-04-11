@@ -34,10 +34,14 @@ const (
 	EventWatchStarted      MessageType = "watch_started"
 	EventWatchStopped      MessageType = "watch_stopped"
 	EventResourceSample    MessageType = "resource_sample"
+	EventAPIStarted        MessageType = "api_started"
+	EventAPIStopped        MessageType = "api_stopped"
+	EventAPIRequest        MessageType = "api_request"
 )
 
 // Command types
 const (
+	CommandStartService   MessageType = "cmd_start_service"
 	CommandStopService    MessageType = "cmd_stop_service"
 	CommandRestartService MessageType = "cmd_restart_service"
 	CommandStopAll        MessageType = "cmd_stop_all"
@@ -198,6 +202,22 @@ type WatchTriggered struct {
 type ResourceSample struct {
 	CPU float64
 	MEM float64
+}
+
+// APIStarted indicates the API server has started listening
+type APIStarted struct {
+	Listen string
+}
+
+// APIStopped indicates the API server has shut down
+type APIStopped struct{}
+
+// APIRequest contains metrics for a completed API request
+type APIRequest struct {
+	Method   string
+	Path     string
+	Status   int
+	Duration time.Duration
 }
 
 // Bus handles pub/sub messaging
