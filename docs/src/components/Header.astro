@@ -6,9 +6,10 @@ interface Props {
   section?: "features" | "docs" | "about" | "why";
   sectionNav?: NavItem[];
   current?: string;
+  wide?: boolean;
 }
 
-const { section, sectionNav, current } = Astro.props;
+const { section, sectionNav, current, wide } = Astro.props;
 const base = import.meta.env.BASE_URL;
 
 const mainLinks = [
@@ -23,7 +24,7 @@ const mainLinks = [
 <header class="topbar">
   <input type="checkbox" id="mobile-toggle" class="mobile-toggle" aria-label="Toggle menu" />
 
-  <div class="topbar-inner">
+  <div class:list={["topbar-inner", { wide }]}>
     <div class="topbar-left">
       <a href={`${base}`} class="logo">fuku</a>
 
@@ -103,6 +104,10 @@ const mainLinks = [
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .topbar-inner.wide {
+    max-width: none;
   }
 
   .topbar-left {

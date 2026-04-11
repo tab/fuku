@@ -19,6 +19,7 @@
 - **Pre-flight Cleanup** - Automatic detection and termination of orphaned processes before starting services
 - **Hot-Reload** - Automatic service restart on file changes
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
+- **REST API** - Control and monitor services via HTTP with token authentication
 
 ## Installation
 
@@ -59,6 +60,10 @@ fuku --no-ui run core           # Flags work in any position
 
 # Use short aliases
 fuku r core                     # Same as 'fuku run core'
+
+# Stop services for a profile (kills processes in service directories)
+fuku stop                       # Default profile
+fuku stop core                  # Specific profile
 
 # Stream logs from running instance (in separate terminal)
 fuku logs                       # All services
@@ -149,6 +154,11 @@ profiles:
 logging:
   format: console
   level: info
+
+server:
+  listen: "127.0.0.1:9876"
+  auth:
+    token: "dev-token"
 ```
 
 For the full configuration reference, examples, and advanced patterns see the [documentation](https://getfuku.sh/docs/configuration/).
@@ -160,6 +170,7 @@ Full documentation is available at **[getfuku.sh](https://getfuku.sh)**:
 - [Getting Started](https://getfuku.sh/docs/getting-started/) - First steps with fuku
 - [Configuration](https://getfuku.sh/docs/configuration/) - All config options explained
 - [CLI Reference](https://getfuku.sh/docs/cli/) - Commands, flags, and aliases
+- [REST API](https://getfuku.sh/docs/api/) - HTTP endpoints for service control
 - [Examples](https://getfuku.sh/docs/examples/) - Real-world configuration patterns
 - [Troubleshooting](https://getfuku.sh/docs/troubleshooting/) - Common issues and solutions
 
