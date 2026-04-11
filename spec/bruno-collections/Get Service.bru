@@ -1,0 +1,20 @@
+meta {
+  name: Get Service
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{BASE_URL}}/services/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 0b887151-24ec-48c1-9566-b3fea2de58fa
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
