@@ -7,22 +7,18 @@ import (
 )
 
 // Module provides the metrics collector for dependency injection
-var Module = fx.Module("metrics",
+var Module = fx.Options(
 	fx.Provide(NewCollector),
-	fx.Invoke(func(lc fx.Lifecycle, c Collector) {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		lc.Append(fx.Hook{
-			OnStart: func(_ context.Context) error {
-				go c.Run(ctx)
-
-				return nil
-			},
-			OnStop: func(_ context.Context) error {
-				cancel()
-
-				return nil
-			},
-		})
-	}),
+	fx.Invoke(startCollector),
 )
+
+// startCollector starts the metrics collector as part of the FX lifecycle
+func startCollector(lc fx.Lifecycle, ctx context.Context, c Collector) {
+	lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error {
+			go c.Run(ctx)
+
+			return nil
+		},
+	})
+}
