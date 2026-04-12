@@ -62,7 +62,7 @@ func (s *Server) Start() {
 	authedMux.HandleFunc("POST /api/v1/services/{id}/restart", h.handleRestartService)
 
 	token := s.cfg.ServerToken()
-	mux.Handle("/", authMiddleware(token, authedMux))
+	mux.Handle("/api/v1/", authMiddleware(token, authedMux))
 
 	ln, addr := s.listen()
 	if ln == nil {
