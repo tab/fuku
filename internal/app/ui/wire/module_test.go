@@ -8,9 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
+	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/services"
+	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
@@ -20,12 +23,16 @@ func Test_NewUI(t *testing.T) {
 
 	mockBus := bus.NewMockBus(ctrl)
 	mockController := services.NewMockController(ctrl)
+	mockStore := registry.NewMockStore(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
 	params := UIParams{
+		Config:     &config.Config{},
+		API:        api.NewMockListener(ctrl),
 		Bus:        mockBus,
 		Controller: mockController,
+		Store:      mockStore,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
 		Logger:     mockLogger,
@@ -41,6 +48,7 @@ func Test_UI_CreateProgram(t *testing.T) {
 
 	mockBus := bus.NewMockBus(ctrl)
 	mockController := services.NewMockController(ctrl)
+	mockStore := registry.NewMockStore(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
@@ -49,14 +57,19 @@ func Test_UI_CreateProgram(t *testing.T) {
 	msgChan := make(chan bus.Message)
 	close(msgChan)
 
+	mockAPI := api.NewMockListener(ctrl)
+
 	mockBus.EXPECT().Subscribe(ctx).Return(msgChan)
 	mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 	params := UIParams{
+		Config:     &config.Config{},
+		API:        mockAPI,
 		Bus:        mockBus,
 		Controller: mockController,
+		Store:      mockStore,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
 		Logger:     mockLogger,
@@ -70,6 +83,18 @@ func Test_UI_CreateProgram(t *testing.T) {
 }
 
 func Test_UI_MultipleProfiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBus := bus.NewMockBus(ctrl)
+	mockController := services.NewMockController(ctrl)
+	mockStore := registry.NewMockStore(ctrl)
+	mockMonitor := monitor.NewMockMonitor(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	componentLogger := logger.NewMockLogger(ctrl)
+
+	ctx := context.Background()
+
 	tests := []struct {
 		name    string
 		profile string
@@ -81,18 +106,10 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockBus := bus.NewMockBus(ctrl)
-			mockController := services.NewMockController(ctrl)
-			mockMonitor := monitor.NewMockMonitor(ctrl)
-			mockLogger := logger.NewMockLogger(ctrl)
-			componentLogger := logger.NewMockLogger(ctrl)
-
-			ctx := context.Background()
 			msgChan := make(chan bus.Message)
 			close(msgChan)
+
+			mockAPI := api.NewMockListener(ctrl)
 
 			mockBus.EXPECT().Subscribe(ctx).Return(msgChan)
 			mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
@@ -100,8 +117,11 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 			componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
 
 			params := UIParams{
+				Config:     &config.Config{},
+				API:        mockAPI,
 				Bus:        mockBus,
 				Controller: mockController,
+				Store:      mockStore,
 				Monitor:    mockMonitor,
 				Loader:     services.NewLoader(),
 				Logger:     mockLogger,

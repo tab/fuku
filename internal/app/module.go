@@ -5,6 +5,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
 	"fuku/internal/app/cli"
 	"fuku/internal/app/logs"
@@ -20,6 +21,7 @@ import (
 
 // Module provides the fx dependency injection options for the app package
 var Module = fx.Options(
+	api.Module,
 	bus.Module,
 	cli.Module,
 	logs.Module,
@@ -35,4 +37,5 @@ var Module = fx.Options(
 	fx.Provide(func(root *Root) context.Context { return root.Context() }),
 	fx.Provide(NewApp),
 	fx.Invoke(Register),
+	fx.Invoke(RegisterAPI),
 )

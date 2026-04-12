@@ -368,3 +368,113 @@ func Test_Handle_UnhandledEvent(t *testing.T) {
 		Data: bus.Signal{Name: "SIGTERM"},
 	})
 }
+
+func Test_NormalizePath(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		expect string
+	}{
+		{
+			name:   "no UUID",
+			input:  "/api/v1/status",
+			expect: "/api/v1/status",
+		},
+		{
+			name:   "service by ID",
+			input:  "/api/v1/services/550e8400-e29b-41d4-a716-446655440000",
+			expect: "/api/v1/services/:id",
+		},
+		{
+			name:   "service action",
+			input:  "/api/v1/services/550e8400-e29b-41d4-a716-446655440000/start",
+			expect: "/api/v1/services/:id/start",
+		},
+		{
+			name:   "services list",
+			input:  "/api/v1/services",
+			expect: "/api/v1/services",
+		},
+		{
+			name:   "non-UUID ID",
+			input:  "/api/v1/services/not-a-uuid",
+			expect: "/api/v1/services/:id",
+		},
+		{
+			name:   "uppercase UUID",
+			input:  "/api/v1/services/550E8400-E29B-41D4-A716-446655440000/restart",
+			expect: "/api/v1/services/:id/restart",
+		},
+		{
+			name:   "other path untouched",
+			input:  "/api/v1/live",
+			expect: "/api/v1/live",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expect, normalizePath(tt.input))
+		})
+	}
+}
+
+func Test_Handle_APIStarted(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventAPIStarted,
+		Data: bus.APIStarted{Listen: "127.0.0.1:9876"},
+	})
+}
+
+func Test_Handle_APIStopped(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventAPIStopped,
+		Data: bus.APIStopped{},
+	})
+}
+
+func Test_Handle_APIRequest(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventAPIRequest,
+		Data: bus.APIRequest{
+			Method:   "GET",
+			Path:     "/api/v1/status",
+			Status:   200,
+			Duration: 5 * time.Millisecond,
+		},
+	})
+}
+
+func Test_Handle_APIRequest_AuthFailure(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventAPIRequest,
+		Data: bus.APIRequest{
+			Method:   "GET",
+			Path:     "/api/v1/status",
+			Status:   401,
+			Duration: 1 * time.Millisecond,
+		},
+	})
+}
+
+func Test_Handle_APIRequest_InvalidData(t *testing.T) {
+	c := &collector{}
+	ctx := context.Background()
+
+	c.handle(ctx, bus.Message{
+		Type: bus.EventAPIRequest,
+		Data: "invalid",
+	})
+}

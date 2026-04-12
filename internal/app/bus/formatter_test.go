@@ -132,6 +132,12 @@ func Test_FormatEvent(t *testing.T) {
 			contains: []string{"resource_sample", "cpu=2.5%", "mem=64.0MB"},
 		},
 		{
+			name:     "APIRequest",
+			msgType:  EventAPIRequest,
+			data:     APIRequest{Method: "GET", Path: "/api/v1/status", Status: 200, Duration: 5 * time.Millisecond},
+			contains: []string{"api_request", "method=GET", "path=/api/v1/status", "status=200"},
+		},
+		{
 			name:     "Unknown",
 			msgType:  "unknown",
 			data:     struct{ Foo string }{Foo: "bar"},

@@ -9,31 +9,27 @@ import (
 )
 
 // Module provides the resource sampler for dependency injection
-var Module = fx.Module("sampler",
+var Module = fx.Options(
 	fx.Provide(
 		fx.Annotate(
 			NewSampler,
 			fx.ParamTags(``, `name:"sampler"`),
 		),
 	),
-	fx.Invoke(func(lc fx.Lifecycle, cfg *config.Config, s Sampler) {
-		if cfg.TelemetryDisabled() {
-			return
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		lc.Append(fx.Hook{
-			OnStart: func(_ context.Context) error {
-				go s.Run(ctx)
-
-				return nil
-			},
-			OnStop: func(_ context.Context) error {
-				cancel()
-
-				return nil
-			},
-		})
-	}),
+	fx.Invoke(startSampler),
 )
+
+// startSampler starts the resource sampler as part of the FX lifecycle
+func startSampler(lc fx.Lifecycle, ctx context.Context, cfg *config.Config, s Sampler) {
+	if cfg.TelemetryDisabled() {
+		return
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error {
+			go s.Run(ctx)
+
+			return nil
+		},
+	})
+}

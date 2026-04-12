@@ -11,8 +11,9 @@ import (
 
 // Stats contains process resource statistics
 type Stats struct {
-	CPU float64
-	MEM float64 // in MB
+	CPU    float64
+	MEM    float64 // in MB
+	RawMEM uint64  // in bytes
 }
 
 // Monitor provides process resource monitoring
@@ -69,6 +70,7 @@ func (m *monitor) GetStats(ctx context.Context, pid int) (Stats, error) {
 	memInfo, err := proc.MemoryInfoWithContext(ctx)
 	if err == nil {
 		stats.MEM = float64(memInfo.RSS) / 1024 / 1024
+		stats.RawMEM = memInfo.RSS
 	}
 
 	return stats, nil

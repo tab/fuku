@@ -8,9 +8,7 @@ const (
 	UITicksPerSecond = int(time.Second / UITickInterval) // 1000/100 = 10
 	TipRotationTicks = 10 * UITicksPerSecond
 
-	StatsPollingInterval = 1 * time.Second
-	StatsCallTimeout     = 100 * time.Millisecond
-	StatsBatchTimeout    = 900 * time.Millisecond
+	StatsCallTimeout = 100 * time.Millisecond
 )
 
 // Panel layout constants
@@ -37,7 +35,7 @@ const (
 const (
 	IndicatorSelected = "›"
 	IndicatorEmpty    = " "
-	IndicatorWatch    = "◉"
+	IndicatorDot      = "◉"
 )
 
 // Table layout constants

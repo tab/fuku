@@ -158,6 +158,19 @@ profiles:
 
   <hr />
 
+  <h2>Server</h2>
+
+  <p>
+    Built-in REST API for external control. Disabled by default. When <code>server.listen</code> is set, <code>server.auth.token</code> is required. Probes (<code>/api/v1/live</code>, <code>/api/v1/ready</code>) are unauthenticated; all other endpoints require a bearer token.
+  </p>
+
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`server:
+  listen: "127.0.0.1:9876"        # TCP address to bind (must be loopback)
+  auth:
+    token: "my-dev-token"          # Bearer token for authentication`} />
+
+  <hr />
+
   <h2>Local Overrides</h2>
 
   <p>
@@ -317,5 +330,10 @@ logs:
 
 logging:
   format: console
-  level: info`} />
+  level: info
+
+server:
+  listen: "127.0.0.1:9876"
+  auth:
+    token: "my-dev-token"`} />
 </DocsLayout>

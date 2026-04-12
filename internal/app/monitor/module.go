@@ -2,7 +2,7 @@ package monitor
 
 import "go.uber.org/fx"
 
-// Module provides the monitor and its dependencies
+// Module provides the monitor for dependency injection
 var Module = fx.Options(
 	fx.Provide(
 		NewMonitor,

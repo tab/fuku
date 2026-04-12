@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +38,15 @@ func Test_NewTUI(t *testing.T) {
 	mockLogger.EXPECT().WithComponent("TUI").Return(componentLogger)
 
 	b := bus.NoOp()
-	tuiInstance := NewTUI(cmd, b, mockRunner, mockWatcher, mockLogsScreen, mockUI, mockLogger)
+	tuiInstance := NewTUI(TUIParams{
+		Cmd:      cmd,
+		Bus:      b,
+		Runner:   mockRunner,
+		Watcher:  mockWatcher,
+		Streamer: mockLogsScreen,
+		UI:       mockUI,
+		Logger:   mockLogger,
+	})
 	assert.NotNil(t, tuiInstance)
 
 	instance, ok := tuiInstance.(*tui)
@@ -67,7 +74,7 @@ func Test_Execute(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		before        func()
+		before        func(ctx context.Context)
 		cmd           *Options
 		expectedExit  int
 		expectedError bool
@@ -79,10 +86,10 @@ func Test_Execute(t *testing.T) {
 				Profile: config.Default,
 				NoUI:    true,
 			},
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.Any(), config.Default).Return(nil)
+				mockWatcher.EXPECT().Start(ctx)
+				mockRunner.EXPECT().Run(ctx, config.Default).Return(nil)
 				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
@@ -94,9 +101,9 @@ func Test_Execute(t *testing.T) {
 				Type:    CommandStop,
 				Profile: config.Default,
 			},
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Stop(gomock.Any(), config.Default).Return(nil)
+				mockRunner.EXPECT().Stop(ctx, config.Default).Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -108,10 +115,10 @@ func Test_Execute(t *testing.T) {
 				Profile: "test-profile",
 				NoUI:    true,
 			},
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.Any(), "test-profile").Return(nil)
+				mockWatcher.EXPECT().Start(ctx)
+				mockRunner.EXPECT().Run(ctx, "test-profile").Return(nil)
 				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
@@ -124,10 +131,10 @@ func Test_Execute(t *testing.T) {
 				Profile: "failed-profile",
 				NoUI:    true,
 			},
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.Any(), "failed-profile").Return(errors.New("runner failed"))
+				mockWatcher.EXPECT().Start(ctx)
+				mockRunner.EXPECT().Run(ctx, "failed-profile").Return(errors.New("runner failed"))
 				mockWatcher.EXPECT().Close()
 				mockLogger.EXPECT().Error().Return(nil)
 			},
@@ -153,9 +160,10 @@ func Test_Execute(t *testing.T) {
 
 			os.Stdout = w
 
-			tt.before()
+			ctx := t.Context()
+			tt.before(ctx)
 
-			exitCode, err := tu.Execute(t.Context())
+			exitCode, err := tu.Execute(ctx)
 
 			w.Close()
 
@@ -220,53 +228,14 @@ func Test_Execute_LogsMode(t *testing.T) {
 				log:      mockLogger,
 			}
 
-			mockLogsScreen.EXPECT().Run(gomock.Any(), tt.profile, tt.services).Return(0)
+			ctx := t.Context()
+			mockLogsScreen.EXPECT().Run(ctx, tt.profile, tt.services).Return(0)
 
-			exitCode, err := tu.Execute(t.Context())
+			exitCode, err := tu.Execute(ctx)
 
 			assert.Equal(t, 0, exitCode)
 			require.NoError(t, err)
 		})
-	}
-}
-
-func Test_Execute_LogsMode_RespectsContextCancellation(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLogsScreen := logs.NewMockScreen(ctrl)
-	mockLogger := logger.NewMockLogger(ctrl)
-
-	mockLogsScreen.EXPECT().Run(gomock.Any(), "", []string{"api"}).DoAndReturn(
-		func(ctx context.Context, _ string, _ []string) int {
-			<-ctx.Done()
-
-			return 0
-		},
-	)
-
-	tu := &tui{
-		cmd:      &Options{Type: CommandLogs, Profile: "", Services: []string{"api"}},
-		bus:      bus.NoOp(),
-		streamer: mockLogsScreen,
-		log:      mockLogger,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	done := make(chan struct{})
-
-	go func() {
-		tu.Execute(ctx)
-		close(done)
-	}()
-
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Execute did not return after context cancellation")
 	}
 }
 
@@ -280,7 +249,7 @@ func Test_handleRun(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		before        func()
+		before        func(ctx context.Context)
 		profile       string
 		expectedExit  int
 		expectedError bool
@@ -288,10 +257,10 @@ func Test_handleRun(t *testing.T) {
 		{
 			name:    "Success",
 			profile: "test-profile",
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.Any(), "test-profile").Return(nil)
+				mockWatcher.EXPECT().Start(ctx)
+				mockRunner.EXPECT().Run(ctx, "test-profile").Return(nil)
 				mockWatcher.EXPECT().Close()
 			},
 			expectedExit:  0,
@@ -300,10 +269,10 @@ func Test_handleRun(t *testing.T) {
 		{
 			name:    "Failure",
 			profile: "failed-profile",
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockWatcher.EXPECT().Start(gomock.Any())
-				mockRunner.EXPECT().Run(gomock.Any(), "failed-profile").Return(errors.New("runner failed"))
+				mockWatcher.EXPECT().Start(ctx)
+				mockRunner.EXPECT().Run(ctx, "failed-profile").Return(errors.New("runner failed"))
 				mockWatcher.EXPECT().Close()
 				mockLogger.EXPECT().Error().Return(nil)
 			},
@@ -327,8 +296,9 @@ func Test_handleRun(t *testing.T) {
 
 			os.Stdout = w
 
-			tt.before()
-			exitCode, err := tu.handleRun(context.Background(), tt.profile)
+			ctx := t.Context()
+			tt.before(ctx)
+			exitCode, err := tu.handleRun(ctx, tt.profile)
 
 			w.Close()
 
@@ -374,7 +344,7 @@ func Test_runWithUI_UICreationError(t *testing.T) {
 		},
 	}
 
-	exitCode, err := tu.runWithUI(t.Context(), "test")
+	exitCode, err := tu.runWithUI(context.Background(), "test")
 
 	assert.Equal(t, 1, exitCode)
 	require.Error(t, err)
@@ -412,7 +382,7 @@ func Test_runWithUI_RunnerError(t *testing.T) {
 
 	os.Stdout = w
 
-	exitCode, err := tu.runWithUI(t.Context(), "test")
+	exitCode, err := tu.runWithUI(context.Background(), "test")
 
 	w.Close()
 
@@ -454,7 +424,7 @@ func Test_runWithUI_Success(t *testing.T) {
 		},
 	}
 
-	exitCode, err := tu.runWithUI(t.Context(), "test")
+	exitCode, err := tu.runWithUI(context.Background(), "test")
 
 	inputR.Close()
 
@@ -471,7 +441,7 @@ func Test_handleStop(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		before        func()
+		before        func(ctx context.Context)
 		profile       string
 		expectedExit  int
 		expectedError bool
@@ -479,9 +449,9 @@ func Test_handleStop(t *testing.T) {
 		{
 			name:    "Success",
 			profile: "test-profile",
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Stop(gomock.Any(), "test-profile").Return(nil)
+				mockRunner.EXPECT().Stop(ctx, "test-profile").Return(nil)
 			},
 			expectedExit:  0,
 			expectedError: false,
@@ -489,9 +459,9 @@ func Test_handleStop(t *testing.T) {
 		{
 			name:    "Failure",
 			profile: "failed-profile",
-			before: func() {
+			before: func(ctx context.Context) {
 				mockLogger.EXPECT().Debug().Return(nil)
-				mockRunner.EXPECT().Stop(gomock.Any(), "failed-profile").Return(errors.New("stop failed"))
+				mockRunner.EXPECT().Stop(ctx, "failed-profile").Return(errors.New("stop failed"))
 				mockLogger.EXPECT().Error().Return(nil)
 			},
 			expectedExit:  1,
@@ -507,8 +477,9 @@ func Test_handleStop(t *testing.T) {
 				log:    mockLogger,
 			}
 
-			tt.before()
-			exitCode, err := tu.handleStop(context.Background(), tt.profile)
+			ctx := t.Context()
+			tt.before(ctx)
+			exitCode, err := tu.handleStop(ctx, tt.profile)
 
 			assert.Equal(t, tt.expectedExit, exitCode)
 

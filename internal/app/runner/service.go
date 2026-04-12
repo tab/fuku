@@ -225,6 +225,12 @@ func (s *service) Resume(ctx context.Context, svc bus.Service) {
 	}
 	defer s.guard.Unlock(svc.ID)
 
+	if lookup := s.registry.Get(svc.ID); lookup.Exists {
+		s.log.Info().Msgf("Service '%s' is already registered, skipping start", svc.Name)
+
+		return
+	}
+
 	cfg, tier := s.getConfig(svc.Name)
 	if cfg == nil {
 		s.log.Error().Msgf("Service configuration for '%s' not found", svc.Name)

@@ -333,6 +333,50 @@ func Test_HandleCommand_StopService(t *testing.T) {
 	assert.False(t, result)
 }
 
+func Test_HandleCommand_StartService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Services["api"] = &config.Service{Dir: "api", Tier: "platform"}
+
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Warn().Return(nil).AnyTimes()
+
+	done := make(chan struct{})
+	mockService := NewMockService(ctrl)
+	mockService.EXPECT().Resume(gomock.Any(), bus.Service{ID: "test-id-api", Name: "api"}).Do(func(_ context.Context, _ bus.Service) {
+		close(done)
+	})
+
+	mockWorkerPool := worker.NewMockPool(ctrl)
+	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
+	mockWorkerPool.EXPECT().Release()
+
+	r := &runner{
+		cfg:       cfg,
+		discovery: discovery.NewMockDiscovery(ctrl),
+		preflight: preflight.NewMockPreflight(ctrl),
+		service:   mockService,
+		worker:    mockWorkerPool,
+		registry:  registry.NewMockRegistry(ctrl),
+		bus:       bus.NoOp(),
+		log:       mockLog,
+	}
+
+	ctx := context.Background()
+	cmd := bus.Message{Type: bus.CommandStartService, Data: bus.Service{ID: "test-id-api", Name: "api"}}
+	result := r.handleCommand(ctx, cmd)
+
+	assert.False(t, result)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("resume was not called")
+	}
+}
+
 func Test_HandleCommand_RestartService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -349,12 +393,16 @@ func Test_HandleCommand_RestartService(t *testing.T) {
 		close(done)
 	})
 
+	mockWorkerPool := worker.NewMockPool(ctrl)
+	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
+	mockWorkerPool.EXPECT().Release()
+
 	r := &runner{
 		cfg:       cfg,
 		discovery: discovery.NewMockDiscovery(ctrl),
 		preflight: preflight.NewMockPreflight(ctrl),
 		service:   mockService,
-		worker:    worker.NewMockPool(ctrl),
+		worker:    mockWorkerPool,
 		registry:  registry.NewMockRegistry(ctrl),
 		bus:       bus.NoOp(),
 		log:       mockLog,

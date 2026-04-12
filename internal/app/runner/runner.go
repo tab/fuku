@@ -309,11 +309,25 @@ func (r *runner) handleCommand(ctx context.Context, msg bus.Message) bool {
 	switch msg.Type {
 	case bus.CommandStopService:
 		r.service.Stop(data.ID)
+	case bus.CommandStartService:
+		go r.runWithWorker(ctx, data, r.service.Resume)
 	case bus.CommandRestartService:
-		go r.service.Restart(ctx, data)
+		go r.runWithWorker(ctx, data, r.service.Restart)
 	}
 
 	return false
+}
+
+// runWithWorker acquires a worker slot before running a service action
+func (r *runner) runWithWorker(ctx context.Context, svc bus.Service, action func(context.Context, bus.Service)) {
+	if err := r.worker.Acquire(ctx); err != nil {
+		r.log.Warn().Err(err).Msgf("Failed to acquire worker for service '%s'", svc.Name)
+
+		return
+	}
+	defer r.worker.Release()
+
+	action(ctx, svc)
 }
 
 // startAllTiers starts services tier by tier

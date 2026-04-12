@@ -36,7 +36,9 @@ type Theme struct {
 	ErrorStyle           lipgloss.Style
 	EmptyStateStyle      lipgloss.Style
 	IndicatorActiveStyle lipgloss.Style
-	IndicatorWatchStyle  lipgloss.Style
+	IndicatorDotStyle    lipgloss.Style
+	APIDotConnected      lipgloss.Style
+	APIDotDisconnected   lipgloss.Style
 
 	// Shared styles (TUI tips + logs banner)
 	HelpKeyStyle  lipgloss.Style
@@ -88,7 +90,9 @@ func NewTheme(isDark bool) Theme {
 		ErrorStyle:           lipgloss.NewStyle().Foreground(fgStatusError),
 		EmptyStateStyle:      lipgloss.NewStyle().Foreground(fgMuted).Padding(0, 1),
 		IndicatorActiveStyle: lipgloss.NewStyle().Foreground(fgStatusWarning),
-		IndicatorWatchStyle:  lipgloss.NewStyle().Foreground(fgStatusRunning),
+		IndicatorDotStyle:    lipgloss.NewStyle().Foreground(fgStatusRunning),
+		APIDotConnected:      lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#0284c7"), lipgloss.Color("#38bdf8"))),
+		APIDotDisconnected:   lipgloss.NewStyle().Foreground(fgBorder),
 	}
 }
 

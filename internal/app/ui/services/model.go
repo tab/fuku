@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"os"
 	"time"
@@ -10,24 +11,33 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/looplab/fsm"
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/monitor"
+	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config/logger"
 )
 
-// Status represents the status of a service
-type Status string
+// apiHealthStatus represents the API server health state
+type apiHealthStatus int
 
-// Status values for service lifecycle
 const (
-	StatusStarting Status = "starting"
-	StatusRunning  Status = "running"
-	StatusStopping Status = "stopping"
-	StatusFailed   Status = "failed"
-	StatusStopped  Status = "stopped"
+	apiStatusDown  apiHealthStatus = iota // API server not started
+	apiStatusReady                        // API server bound and serving
+)
+
+// Status is a type alias for registry.Status
+type Status = registry.Status
+
+// Status values re-exported from registry for convenience
+const (
+	StatusStarting   = registry.StatusStarting
+	StatusRunning    = registry.StatusRunning
+	StatusStopping   = registry.StatusStopping
+	StatusRestarting = registry.StatusRestarting
+	StatusFailed     = registry.StatusFailed
+	StatusStopped    = registry.StatusStopped
 )
 
 // Tier represents a tier in the UI
@@ -37,59 +47,25 @@ type Tier struct {
 	Ready    bool
 }
 
-// ServiceMonitor contains runtime monitoring data for a service
-type ServiceMonitor struct {
+// ServiceState represents the state of a service in the UI
+type ServiceState struct {
+	ID        string
+	Name      string
+	Tier      string
+	Status    Status
+	Watching  bool
+	Error     error
 	PID       int
 	CPU       float64
 	MEM       float64
 	StartTime time.Time
 	ReadyTime time.Time
+	Blink     *components.Blink
 }
 
-// ServiceState represents the state of a service
-type ServiceState struct {
-	ID       string
-	Name     string
-	Tier     string
-	Status   Status
-	Watching bool
-	Error    error
-	FSM      *fsm.FSM
-	Monitor  ServiceMonitor
-	Blink    *components.Blink
-}
-
-// MarkStarting sets the service status to starting and clears any previous error
-func (s *ServiceState) MarkStarting() {
-	s.Status = StatusStarting
-	s.Error = nil
-}
-
-// MarkRunning sets the service status to ready (running)
-func (s *ServiceState) MarkRunning() {
-	s.Status = StatusRunning
-}
-
-// MarkStopping sets the service status to stopping
-func (s *ServiceState) MarkStopping() {
-	s.Status = StatusStopping
-}
-
-// MarkStopped sets the service status to stopped and clears PID
-func (s *ServiceState) MarkStopped() {
-	s.Status = StatusStopped
-	s.Monitor.PID = 0
-}
-
-// MarkFailed sets the service status to failed and clears PID
-func (s *ServiceState) MarkFailed() {
-	s.Status = StatusFailed
-	s.Monitor.PID = 0
-}
-
-// IsNil returns true if the service or its FSM is nil (handles nil receiver)
-func (s *ServiceState) IsNil() bool {
-	return s == nil || s.FSM == nil
+// APIListener exposes the bound API server address
+type APIListener interface {
+	Address() string
 }
 
 // Model represents the Bubble Tea model for the services UI
@@ -97,7 +73,9 @@ type Model struct {
 	ctx        context.Context
 	bus        bus.Bus
 	controller Controller
+	store      registry.Store
 	monitor    monitor.Monitor
+	api        APIListener
 	loader     *Loader
 	msgChan    <-chan bus.Message
 
@@ -107,12 +85,17 @@ type Model struct {
 		profile      string
 		phase        bus.Phase
 		tiers        []Tier
+		tierIndex    map[string]int
 		services     map[string]*ServiceState
+		serviceIDs   []string
+		restarting   map[string]bool
 		selected     int
 		ready        bool
 		shuttingDown bool
 		appCPU       float64
 		appMEM       float64
+		now          time.Time
+		apiStatus    apiHealthStatus
 	}
 
 	ui struct {
@@ -136,7 +119,9 @@ func NewModel(
 	profile string,
 	b bus.Bus,
 	controller Controller,
-	monitor monitor.Monitor,
+	store registry.Store,
+	mon monitor.Monitor,
+	apiListener APIListener,
 	loader *Loader,
 	log logger.Logger,
 ) Model {
@@ -152,7 +137,9 @@ func NewModel(
 		ctx:        ctx,
 		bus:        b,
 		controller: controller,
-		monitor:    monitor,
+		store:      store,
+		monitor:    mon,
+		api:        apiListener,
 		loader:     loader,
 		msgChan:    msgChan,
 		log:        log,
@@ -162,7 +149,9 @@ func NewModel(
 	m.state.profile = profile
 	m.state.phase = bus.PhaseStartup
 	m.state.tiers = make([]Tier, 0)
+	m.state.tierIndex = make(map[string]int)
 	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
 	m.state.selected = 0
 	m.state.ready = false
 	m.state.shuttingDown = false
@@ -186,7 +175,6 @@ func (m Model) Init() tea.Cmd {
 		m.loader.Model.Tick,
 		waitForMsgCmd(m.msgChan),
 		tickCmd(),
-		statsWorkerCmd(m.ctx, m.monitor, m.buildMonitoredList(), 0),
 		requestBackgroundColorCmd,
 	)
 }
@@ -198,33 +186,16 @@ func requestBackgroundColorCmd() tea.Msg {
 
 // getSelectedService returns the currently selected service state
 func (m Model) getSelectedService() *ServiceState {
-	if m.state.selected < 0 {
+	if m.state.selected < 0 || m.state.selected >= len(m.state.serviceIDs) {
 		return nil
 	}
 
-	idx := 0
-
-	for _, tier := range m.state.tiers {
-		for _, serviceName := range tier.Services {
-			if idx == m.state.selected {
-				return m.state.services[serviceName]
-			}
-
-			idx++
-		}
-	}
-
-	return nil
+	return m.state.services[m.state.serviceIDs[m.state.selected]]
 }
 
 // getTotalServices returns the total count of services
 func (m Model) getTotalServices() int {
-	total := 0
-	for _, tier := range m.state.tiers {
-		total += len(tier.Services)
-	}
-
-	return total
+	return len(m.state.serviceIDs)
 }
 
 // getReadyServices returns the count of services in ready state
@@ -307,4 +278,30 @@ func (m *Model) updateServicesContent() {
 
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 	m.ui.servicesViewport.SetContent(content)
+}
+
+// refreshFromStore updates service state from the store snapshots
+func (m *Model) refreshFromStore() {
+	snapshots := m.store.Services()
+
+	for _, snap := range snapshots {
+		service, exists := m.state.services[snap.ID]
+		if !exists {
+			continue
+		}
+
+		service.Status = snap.Status
+		service.PID = snap.PID
+		service.CPU = snap.CPU
+		service.MEM = float64(snap.Memory) / 1024 / 1024
+		service.StartTime = snap.StartTime
+		service.Watching = snap.Watching
+
+		switch {
+		case snap.Error != "":
+			service.Error = errors.New(snap.Error)
+		default:
+			service.Error = nil
+		}
+	}
 }

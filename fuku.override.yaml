@@ -22,6 +22,11 @@ x-watch: &watch
     - "examples/bookstore/pkg/common"
   debounce: 1s
 
+server:
+  listen: "localhost:1234"
+  auth:
+    token: "secret-token"
+
 services:
   auth:
     tier: platform

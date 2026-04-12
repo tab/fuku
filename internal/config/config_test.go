@@ -154,6 +154,62 @@ func Test_TelemetryDisabled(t *testing.T) {
 	}
 }
 
+func Test_ServerListen(t *testing.T) {
+	tests := []struct {
+		name   string
+		listen string
+		want   string
+	}{
+		{
+			name:   "configured address",
+			listen: "127.0.0.1:9876",
+			want:   "127.0.0.1:9876",
+		},
+		{
+			name:   "empty returns empty",
+			listen: "",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Server.Listen = tt.listen
+
+			assert.Equal(t, tt.want, cfg.ServerListen())
+		})
+	}
+}
+
+func Test_ServerToken(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+		want  string
+	}{
+		{
+			name:  "configured token",
+			token: "my-secret",
+			want:  "my-secret",
+		},
+		{
+			name:  "empty returns empty",
+			token: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Server.Auth.Token = tt.token
+
+			assert.Equal(t, tt.want, cfg.ServerToken())
+		})
+	}
+}
+
 func Test_NormalizeTier(t *testing.T) {
 	tests := []struct {
 		name     string
