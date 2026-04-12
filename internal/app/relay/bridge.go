@@ -41,6 +41,10 @@ func (br *Bridge) forward(ctx context.Context, ch <-chan bus.Message) {
 				return
 			}
 
+			if msg.Type == bus.EventServiceMetrics {
+				continue
+			}
+
 			text := br.formatter.Format(msg.Type, msg.Data)
 			br.broadcaster.Broadcast(config.AppName, text)
 		}

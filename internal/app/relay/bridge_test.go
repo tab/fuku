@@ -155,6 +155,45 @@ func Test_Bridge_ForwardsMultipleEvents(t *testing.T) {
 	assert.Contains(t, messages[1].message, "service_ready")
 }
 
+func Test_Bridge_FiltersServiceMetrics(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Logs.Buffer = 10
+
+	log := logger.NewLoggerWithOutput(cfg, io.Discard)
+	formatter := bus.NewFormatter(logger.NewEventLogger())
+	broadcaster := newCaptureBroadcaster()
+
+	b := bus.NewBus(cfg, formatter, log)
+	defer b.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bridge := NewBridge(b, broadcaster, formatter)
+	bridge.Start(ctx)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceMetrics,
+		Data: bus.ServiceMetricsBatch{Samples: []bus.ServiceMetrics{
+			{Service: bus.Service{ID: "test-id-api", Name: "api"}, CPU: 2.5, Memory: 67108864},
+		}},
+	})
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
+		},
+	})
+
+	messages := broadcaster.waitForMessages(1)
+
+	cancel()
+
+	require.Len(t, messages, 1)
+	assert.Contains(t, messages[0].message, "service_ready")
+}
+
 func Test_Bridge_StopsCleanly(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Logs.Buffer = 10

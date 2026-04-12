@@ -140,7 +140,12 @@ func Test_Register_OnStop_CancelsContextAndUnblocksApp(t *testing.T) {
 	})
 
 	mockSentry := sentry.NewMockSentry(ctrl)
-	mockSentry.EXPECT().Flush()
+
+	flushed := make(chan struct{})
+
+	mockSentry.EXPECT().Flush().Do(func() {
+		close(flushed)
+	})
 
 	root := NewRoot()
 	app := NewApp(mockTUI, mockSentry, &noopShutdowner{})
@@ -169,6 +174,12 @@ func Test_Register_OnStop_CancelsContextAndUnblocksApp(t *testing.T) {
 		require.NoError(t, err)
 	case <-time.After(time.Second):
 		t.Fatal("OnStop did not return after cancelling root context")
+	}
+
+	select {
+	case <-flushed:
+	case <-time.After(time.Second):
+		t.Fatal("Flush was not called")
 	}
 }
 

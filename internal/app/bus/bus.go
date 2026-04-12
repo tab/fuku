@@ -34,6 +34,7 @@ const (
 	EventWatchStarted      MessageType = "watch_started"
 	EventWatchStopped      MessageType = "watch_stopped"
 	EventResourceSample    MessageType = "resource_sample"
+	EventServiceMetrics    MessageType = "service_metrics"
 	EventAPIStarted        MessageType = "api_started"
 	EventAPIStopped        MessageType = "api_stopped"
 	EventAPIRequest        MessageType = "api_request"
@@ -202,6 +203,18 @@ type WatchTriggered struct {
 type ResourceSample struct {
 	CPU float64
 	MEM float64
+}
+
+// ServiceMetricsBatch contains per-service CPU and memory readings from a sample cycle
+type ServiceMetricsBatch struct {
+	Samples []ServiceMetrics
+}
+
+// ServiceMetrics contains a single service's CPU and memory readings
+type ServiceMetrics struct {
+	Service Service
+	CPU     float64
+	Memory  uint64
 }
 
 // APIStarted indicates the API server has started listening

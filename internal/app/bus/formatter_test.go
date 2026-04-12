@@ -132,6 +132,15 @@ func Test_FormatEvent(t *testing.T) {
 			contains: []string{"resource_sample", "cpu=2.5%", "mem=64.0MB"},
 		},
 		{
+			name:    "ServiceMetricsBatch",
+			msgType: EventServiceMetrics,
+			data: ServiceMetricsBatch{Samples: []ServiceMetrics{
+				{Service: Service{ID: "test-id-api", Name: "api"}, CPU: 3.2, Memory: 67108864},
+				{Service: Service{ID: "test-id-web", Name: "web"}, CPU: 1.5, Memory: 33554432},
+			}},
+			contains: []string{"service_metrics", "services=2"},
+		},
+		{
 			name:     "APIRequest",
 			msgType:  EventAPIRequest,
 			data:     APIRequest{Method: "GET", Path: "/api/v1/status", Status: 200, Duration: 5 * time.Millisecond},

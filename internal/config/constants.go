@@ -87,7 +87,7 @@ const (
 const (
 	StreamingConnections = 10
 	StreamingBuffer      = 1000
-	StreamingKeepalive      = 15 * time.Second
+	StreamingKeepalive   = 15 * time.Second
 )
 
 // Loopback hostnames (not available as stdlib constants)
