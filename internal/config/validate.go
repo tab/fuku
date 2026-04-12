@@ -107,6 +107,31 @@ func (c *Config) validateServer() error {
 		return errors.ErrAPINotLoopback
 	}
 
+	return c.validateStreaming()
+}
+
+// validateStreaming validates and applies defaults for streaming configuration
+func (c *Config) validateStreaming() error {
+	s := &c.Server.Streaming
+
+	if s.Connections == nil {
+		v := StreamingConnections
+		s.Connections = &v
+	}
+
+	if s.Buffer == nil {
+		v := StreamingBuffer
+		s.Buffer = &v
+	}
+
+	if *s.Connections <= 0 {
+		return errors.ErrStreamingInvalidConnections
+	}
+
+	if *s.Buffer <= 0 {
+		return errors.ErrStreamingInvalidBuffer
+	}
+
 	return nil
 }
 

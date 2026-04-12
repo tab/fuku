@@ -210,6 +210,64 @@ func Test_ServerToken(t *testing.T) {
 	}
 }
 
+func intPtr(v int) *int { return &v }
+
+func Test_ServerStreamingConnections(t *testing.T) {
+	tests := []struct {
+		name string
+		max  *int
+		want int
+	}{
+		{
+			name: "configured value",
+			max:  intPtr(20),
+			want: 20,
+		},
+		{
+			name: "nil returns default",
+			max:  nil,
+			want: StreamingConnections,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Server.Streaming.Connections = tt.max
+
+			assert.Equal(t, tt.want, cfg.ServerStreamingConnections())
+		})
+	}
+}
+
+func Test_ServerStreamingBuffer(t *testing.T) {
+	tests := []struct {
+		name   string
+		buffer *int
+		want   int
+	}{
+		{
+			name:   "configured value",
+			buffer: intPtr(2000),
+			want:   2000,
+		},
+		{
+			name:   "nil returns default",
+			buffer: nil,
+			want:   StreamingBuffer,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Server.Streaming.Buffer = tt.buffer
+
+			assert.Equal(t, tt.want, cfg.ServerStreamingBuffer())
+		})
+	}
+}
+
 func Test_NormalizeTier(t *testing.T) {
 	tests := []struct {
 		name     string

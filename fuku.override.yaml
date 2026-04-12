@@ -26,6 +26,9 @@ server:
   listen: "localhost:1234"
   auth:
     token: "secret-token"
+  streaming:
+    connections: 10
+    buffer: 1000
 
 services:
   auth:
