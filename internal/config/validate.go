@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -124,11 +125,11 @@ func (c *Config) validateStreaming() error {
 		s.Buffer = &v
 	}
 
-	if *s.Connections <= 0 {
+	if *s.Connections <= 0 || *s.Connections > math.MaxInt32 {
 		return errors.ErrStreamingInvalidConnections
 	}
 
-	if *s.Buffer <= 0 {
+	if *s.Buffer <= 0 || *s.Buffer > math.MaxInt32 {
 		return errors.ErrStreamingInvalidBuffer
 	}
 

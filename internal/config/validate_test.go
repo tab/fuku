@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -421,6 +422,32 @@ func Test_Validate(t *testing.T) {
 				cfg.Server.Listen = testListen
 				cfg.Server.Auth.Token = testToken
 				cfg.Server.Streaming.Buffer = intPtr(-1)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming buffer must be greater than 0",
+		},
+		{
+			name: "streaming with connections exceeding int32",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Connections = intPtr(math.MaxInt32 + 1)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming connections must be greater than 0",
+		},
+		{
+			name: "streaming with buffer exceeding int32",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Buffer = intPtr(math.MaxInt32 + 1)
 
 				return cfg
 			}(),
