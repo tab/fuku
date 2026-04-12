@@ -59,8 +59,9 @@ func Test_DefaultTier_GracefulShutdown(t *testing.T) {
 	output := runner.Output()
 
 	// Shutdown
-	assert.Contains(t, output, "signal signal=terminated")
-	assert.Contains(t, output, "Received signal terminated, shutting down services")
+	assert.Contains(t, output, "phase=stopping")
+	assert.Contains(t, output, "All services stopped")
+	assert.Contains(t, output, "phase=stopped")
 }
 
 func Test_DefaultTier_LogsCommand(t *testing.T) {
