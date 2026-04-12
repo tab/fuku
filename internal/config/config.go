@@ -55,6 +55,24 @@ func (c *Config) ServerToken() string {
 	return c.Server.Auth.Token
 }
 
+// ServerStreamingConnections returns the max concurrent streaming connections
+func (c *Config) ServerStreamingConnections() int {
+	if c.Server.Streaming.Connections == nil {
+		return StreamingConnections
+	}
+
+	return *c.Server.Streaming.Connections
+}
+
+// ServerStreamingBuffer returns the event stream ring buffer size
+func (c *Config) ServerStreamingBuffer() int {
+	if c.Server.Streaming.Buffer == nil {
+		return StreamingBuffer
+	}
+
+	return *c.Server.Streaming.Buffer
+}
+
 // ApplyDefaults applies default configuration to services
 func (c *Config) ApplyDefaults() {
 	for name, service := range c.Services {
@@ -172,4 +190,11 @@ type Server struct {
 	Auth   struct {
 		Token string `yaml:"token"`
 	} `yaml:"auth"`
+	Streaming Streaming `yaml:"streaming"`
+}
+
+// Streaming represents streaming endpoint configuration (SSE + WebSocket)
+type Streaming struct {
+	Connections *int `yaml:"connections"`
+	Buffer      *int `yaml:"buffer"`
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 )
 
 const testToken = "test-token"
+const testListen = "127.0.0.1:9876"
 
 func Test_Validate(t *testing.T) {
 	tests := []struct {
@@ -245,7 +247,7 @@ func Test_Validate(t *testing.T) {
 			name: "valid server configuration",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.Server.Listen = "127.0.0.1:9876"
+				cfg.Server.Listen = testListen
 				cfg.Server.Auth.Token = testToken
 
 				return cfg
@@ -283,7 +285,7 @@ func Test_Validate(t *testing.T) {
 			name: "server with listen but no token",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.Server.Listen = "127.0.0.1:9876"
+				cfg.Server.Listen = testListen
 
 				return cfg
 			}(),
@@ -350,6 +352,118 @@ func Test_Validate(t *testing.T) {
 			expectError: true,
 			errorMsg:    "api listen must be a valid host:port address",
 		},
+		{
+			name: "streaming defaults applied when section absent",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "streaming with valid custom values",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Connections = intPtr(20)
+				cfg.Server.Streaming.Buffer = intPtr(5000)
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "streaming with explicit zero connections",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Connections = intPtr(0)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming connections must be greater than 0",
+		},
+		{
+			name: "streaming with explicit zero buffer",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Buffer = intPtr(0)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming buffer must be greater than 0",
+		},
+		{
+			name: "streaming with negative connections",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Connections = intPtr(-1)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming connections must be greater than 0",
+		},
+		{
+			name: "streaming with negative buffer",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Buffer = intPtr(-1)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming buffer must be greater than 0",
+		},
+		{
+			name: "streaming with connections exceeding int32",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Connections = intPtr(math.MaxInt32 + 1)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming connections must be greater than 0",
+		},
+		{
+			name: "streaming with buffer exceeding int32",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Listen = testListen
+				cfg.Server.Auth.Token = testToken
+				cfg.Server.Streaming.Buffer = intPtr(math.MaxInt32 + 1)
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "streaming buffer must be greater than 0",
+		},
+		{
+			name: "streaming ignored when server disabled",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Server.Streaming.Connections = intPtr(-1)
+
+				return cfg
+			}(),
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -364,6 +478,19 @@ func Test_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_ValidateStreaming_DefaultsApplied(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Server.Listen = testListen
+	cfg.Server.Auth.Token = testToken
+
+	require.NoError(t, cfg.Validate())
+
+	require.NotNil(t, cfg.Server.Streaming.Connections)
+	require.NotNil(t, cfg.Server.Streaming.Buffer)
+	assert.Equal(t, StreamingConnections, *cfg.Server.Streaming.Connections)
+	assert.Equal(t, StreamingBuffer, *cfg.Server.Streaming.Buffer)
 }
 
 func Test_ValidateCommand(t *testing.T) {

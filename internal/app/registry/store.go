@@ -534,12 +534,33 @@ func (s *store) sampleStats(ctx context.Context) {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
-	for id, st := range stats {
-		if svc, exists := s.services[id]; exists && svc.pid == pids[id] {
-			svc.cpu = st.CPU
-			svc.memory = st.RawMEM
+	samples := make([]bus.ServiceMetrics, 0, len(stats))
+
+	for id, stat := range stats {
+		service, exists := s.services[id]
+		if !exists || service.pid != pids[id] {
+			continue
 		}
+
+		service.cpu = stat.CPU
+		service.memory = stat.RawMEM
+
+		if service.status.IsRunning() {
+			samples = append(samples, bus.ServiceMetrics{
+				Service: bus.Service{ID: service.id, Name: service.name},
+				CPU:     stat.CPU,
+				Memory:  stat.RawMEM,
+			})
+		}
+	}
+
+	s.mu.Unlock()
+
+	if len(samples) > 0 {
+		s.bus.Publish(bus.Message{
+			Type: bus.EventServiceMetrics,
+			Data: bus.ServiceMetricsBatch{Samples: samples},
+		})
 	}
 }

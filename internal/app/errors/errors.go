@@ -41,6 +41,9 @@ var (
 	ErrAPINotRestartable  = errors.New("service cannot be restarted")
 	ErrAPINotAccepting    = errors.New("instance is not accepting actions")
 
+	ErrStreamingInvalidConnections = errors.New("streaming connections must be greater than 0")
+	ErrStreamingInvalidBuffer      = errors.New("streaming buffer must be greater than 0")
+
 	ErrInvalidCommand       = errors.New("command must not be whitespace-only when provided")
 	ErrWatchIncludeRequired = errors.New("watch configuration requires include field")
 	ErrInvalidLogsOutput    = errors.New("invalid service logs output value (must be 'stdout' or 'stderr')")

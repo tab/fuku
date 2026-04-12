@@ -83,6 +83,13 @@ const (
 	StoreSampleTimeout   = 200 * time.Millisecond
 )
 
+// Streaming settings (SSE + WebSocket)
+const (
+	StreamingConnections = 10
+	StreamingBuffer      = 1000
+	StreamingKeepalive   = 15 * time.Second
+)
+
 // Loopback hostnames (not available as stdlib constants)
 const (
 	LoopbackHostname     = "localhost"
