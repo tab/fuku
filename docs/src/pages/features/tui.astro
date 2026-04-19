@@ -110,6 +110,8 @@ const nav = getFeaturesNav(base);
               <span class="help-sep">&bull;</span>
               <span class="help-key">r</span> <span class="help-desc">restart</span>
               <span class="help-sep">&bull;</span>
+              <span class="help-key">/</span> <span class="help-desc">filter</span>
+              <span class="help-sep">&bull;</span>
               <span class="help-key">q</span> <span class="help-desc">quit</span>
             </span>
             <span class="help-right">
@@ -124,6 +126,20 @@ const nav = getFeaturesNav(base);
   <h2>Keyboard Controls</h2>
 
   <KeyboardControls />
+
+  <h2>Service Filter</h2>
+
+  <p>
+    Press <code>/</code> to enter filter mode. Type a query to narrow the service list by name &mdash; matching is case-insensitive and works on partial names.
+  </p>
+
+  <p>
+    While typing, use <code>&uarr;</code>/<code>&darr;</code> arrow keys to navigate filtered results. Press <code>Enter</code> to confirm the filter and switch to full navigation (<code>j</code>/<code>k</code>, <code>s</code>, <code>r</code>). Press <code>Esc</code> to clear the filter and restore the full list.
+  </p>
+
+  <p>
+    The filter bar appears in the bottom border alongside CPU/memory stats. A cursor (<code>_</code>) indicates active input mode.
+  </p>
 
   <h2>Resource Monitoring</h2>
 

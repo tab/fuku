@@ -13,9 +13,11 @@ import (
 
 func Test_GetTotalServices(t *testing.T) {
 	tests := []struct {
-		name       string
-		serviceIDs []string
-		want       int
+		name        string
+		serviceIDs  []string
+		filteredIDs []string
+		filterQuery string
+		want        int
 	}{
 		{
 			name:       "empty",
@@ -32,12 +34,28 @@ func Test_GetTotalServices(t *testing.T) {
 			serviceIDs: []string{"id-api", "id-db", "id-cache"},
 			want:       3,
 		},
+		{
+			name:        "uses filtered IDs when filtering",
+			serviceIDs:  []string{"id-api", "id-db", "id-cache"},
+			filteredIDs: []string{"id-api"},
+			filterQuery: "api",
+			want:        1,
+		},
+		{
+			name:        "empty filter query uses all IDs",
+			serviceIDs:  []string{"id-api", "id-db"},
+			filteredIDs: []string{"id-api"},
+			filterQuery: "",
+			want:        2,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
 			m.state.serviceIDs = tt.serviceIDs
+			m.state.filteredIDs = tt.filteredIDs
+			m.state.filterQuery = tt.filterQuery
 			assert.Equal(t, tt.want, m.getTotalServices())
 		})
 	}
@@ -45,37 +63,133 @@ func Test_GetTotalServices(t *testing.T) {
 
 func Test_GetReadyServices(t *testing.T) {
 	tests := []struct {
-		name     string
-		services map[string]*ServiceState
-		want     int
+		name       string
+		serviceIDs []string
+		services   map[string]*ServiceState
+		want       int
 	}{
 		{
-			name:     "empty services",
-			services: map[string]*ServiceState{},
-			want:     0,
+			name:       "empty services",
+			serviceIDs: []string{},
+			services:   map[string]*ServiceState{},
+			want:       0,
 		},
 		{
-			name:     "no ready services",
-			services: map[string]*ServiceState{"id-api": {Status: StatusStarting}, "id-db": {Status: StatusFailed}},
-			want:     0,
+			name:       "no ready services",
+			serviceIDs: []string{"id-api", "id-db"},
+			services:   map[string]*ServiceState{"id-api": {Status: StatusStarting}, "id-db": {Status: StatusFailed}},
+			want:       0,
 		},
 		{
-			name:     "some ready",
-			services: map[string]*ServiceState{"id-api": {Status: StatusRunning}, "id-db": {Status: StatusStarting}},
-			want:     1,
+			name:       "some ready",
+			serviceIDs: []string{"id-api", "id-db"},
+			services:   map[string]*ServiceState{"id-api": {Status: StatusRunning}, "id-db": {Status: StatusStarting}},
+			want:       1,
 		},
 		{
-			name:     "all ready",
-			services: map[string]*ServiceState{"id-api": {Status: StatusRunning}, "id-db": {Status: StatusRunning}},
-			want:     2,
+			name:       "all ready",
+			serviceIDs: []string{"id-api", "id-db"},
+			services:   map[string]*ServiceState{"id-api": {Status: StatusRunning}, "id-db": {Status: StatusRunning}},
+			want:       2,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{}
+			m.state.serviceIDs = tt.serviceIDs
 			m.state.services = tt.services
 			assert.Equal(t, tt.want, m.getReadyServices())
+		})
+	}
+}
+
+func Test_GetAllReadyServices(t *testing.T) {
+	tests := []struct {
+		name        string
+		serviceIDs  []string
+		services    map[string]*ServiceState
+		filterQuery string
+		filteredIDs []string
+		want        int
+	}{
+		{
+			name:       "counts all ready services",
+			serviceIDs: []string{"id-api", "id-db"},
+			services: map[string]*ServiceState{
+				"id-api": {Status: StatusRunning},
+				"id-db":  {Status: StatusRunning},
+			},
+			want: 2,
+		},
+		{
+			name:       "counts only running services",
+			serviceIDs: []string{"id-api", "id-db"},
+			services: map[string]*ServiceState{
+				"id-api": {Status: StatusRunning},
+				"id-db":  {Status: StatusFailed},
+			},
+			want: 1,
+		},
+		{
+			name:        "ignores filter and counts all services",
+			serviceIDs:  []string{"id-api", "id-db", "id-web"},
+			filteredIDs: []string{"id-api"},
+			filterQuery: "api",
+			services: map[string]*ServiceState{
+				"id-api": {Status: StatusRunning},
+				"id-db":  {Status: StatusRunning},
+				"id-web": {Status: StatusFailed},
+			},
+			want: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.state.serviceIDs = tt.serviceIDs
+			m.state.services = tt.services
+			m.state.filterQuery = tt.filterQuery
+			m.state.filteredIDs = tt.filteredIDs
+			assert.Equal(t, tt.want, m.getAllReadyServices())
+		})
+	}
+}
+
+func Test_IsFiltering(t *testing.T) {
+	tests := []struct {
+		name        string
+		filterQuery string
+		want        bool
+	}{
+		{
+			name:        "empty query",
+			filterQuery: "",
+			want:        false,
+		},
+		{
+			name:        "non-empty query",
+			filterQuery: "api",
+			want:        true,
+		},
+		{
+			name:        "whitespace only normalizes to empty",
+			filterQuery: " ",
+			want:        false,
+		},
+		{
+			name:        "separator only normalizes to empty",
+			filterQuery: "---",
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.state.filterQuery = tt.filterQuery
+			assert.Equal(t, tt.want, m.isFiltering())
 		})
 	}
 }
@@ -89,9 +203,11 @@ func Test_GetSelectedService(t *testing.T) {
 	serviceIDs := []string{"id-db", "id-api", "id-web"}
 
 	tests := []struct {
-		name     string
-		selected int
-		want     string
+		name        string
+		selected    int
+		filterQuery string
+		filteredIDs []string
+		want        string
 	}{
 		{
 			name:     "first service",
@@ -118,6 +234,20 @@ func Test_GetSelectedService(t *testing.T) {
 			selected: 10,
 			want:     "",
 		},
+		{
+			name:        "uses filtered IDs when filtering",
+			selected:    0,
+			filterQuery: "web",
+			filteredIDs: []string{"id-web"},
+			want:        "web",
+		},
+		{
+			name:        "out of bounds in filtered list",
+			selected:    5,
+			filterQuery: "web",
+			filteredIDs: []string{"id-web"},
+			want:        "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -126,6 +256,8 @@ func Test_GetSelectedService(t *testing.T) {
 			m.state.services = services
 			m.state.serviceIDs = serviceIDs
 			m.state.selected = tt.selected
+			m.state.filterQuery = tt.filterQuery
+			m.state.filteredIDs = tt.filteredIDs
 
 			result := m.getSelectedService()
 			if tt.want == "" {

@@ -21,11 +21,13 @@ func (m Model) View() tea.View {
 	panelWidth := m.ui.width
 	panelHeight := m.ui.height - components.PanelHeightPadding
 
+	m.ui.servicesKeys.ClearFilter.SetEnabled(m.state.filterQuery != "")
+
 	panel := components.RenderPanel(components.PanelOptions{
 		Title:   m.renderTitle(),
 		Content: m.renderServices(),
 		Status:  m.renderStatus(),
-		Stats:   m.renderAppStats(),
+		Stats:   m.renderBottomLeft(),
 		Version: m.renderVersion(),
 		Help:    m.renderHelp(),
 		Tips:    m.renderTip(),
@@ -41,8 +43,8 @@ func (m Model) View() tea.View {
 
 // renderStatus renders the status bar with phase and service counts
 func (m Model) renderStatus() string {
-	ready := m.getReadyServices()
-	total := m.getTotalServices()
+	ready := m.getAllReadyServices()
+	total := len(m.state.serviceIDs)
 
 	phaseStr := string(m.state.phase)
 	phaseStyle := m.theme.PhaseMutedStyle
@@ -143,7 +145,50 @@ func (m Model) renderServices() string {
 		return m.theme.EmptyStateStyle.Render("no services configured")
 	}
 
+	if m.isFiltering() && len(m.state.filteredIDs) == 0 {
+		return m.theme.EmptyStateStyle.Render("no matching services")
+	}
+
 	return m.ui.servicesViewport.View()
+}
+
+// renderBottomLeft combines the filter bar and app stats for the bottom border
+func (m Model) renderBottomLeft() string {
+	filterBar := m.renderFilterBar()
+	appStats := m.renderAppStats()
+
+	switch {
+	case filterBar != "" && appStats != "":
+		return filterBar + m.theme.PanelMutedStyle.Render(" • ") + appStats
+	case filterBar != "":
+		return filterBar
+	default:
+		return appStats
+	}
+}
+
+// renderFilterBar renders the filter input indicator
+func (m Model) renderFilterBar() string {
+	if !m.state.filterActive && m.state.filterQuery == "" {
+		return ""
+	}
+
+	query := m.state.filterQuery
+
+	maxLen := max(m.ui.width/3-4, 0)
+	if maxLen > 0 {
+		runes := []rune(query)
+		if len(runes) > maxLen {
+			query = string(runes[:maxLen])
+		}
+	}
+
+	text := "/ " + query
+	if m.state.filterActive {
+		text += "_"
+	}
+
+	return m.theme.PanelMutedStyle.Render(text)
 }
 
 // getRowWidth returns the available width for service rows

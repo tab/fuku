@@ -103,6 +103,24 @@ func Test_RenderStatus_PhaseColors(t *testing.T) {
 	}
 }
 
+func Test_RenderStatus_ShowsGlobalCountsWhenFiltering(t *testing.T) {
+	m := Model{}
+	m.state.phase = bus.PhaseRunning
+	m.state.serviceIDs = []string{"id-svc1", "id-svc2", "id-svc3"}
+	m.state.services = map[string]*ServiceState{
+		"id-svc1": {Status: StatusRunning},
+		"id-svc2": {Status: StatusFailed},
+		"id-svc3": {Status: StatusRunning},
+	}
+	m.state.filterQuery = "svc1"
+	m.state.filteredIDs = []string{"id-svc1"}
+	m.state.filteredTiers = []Tier{{Name: "tier1", Services: []string{"id-svc1"}}}
+	m.theme = components.DefaultTheme()
+
+	result := m.renderStatus()
+	assert.Contains(t, result, "2/3 ready")
+}
+
 func Test_RenderServices_Empty(t *testing.T) {
 	m := Model{}
 	m.state.tiers = []Tier{}
@@ -836,4 +854,216 @@ func Test_RenderAppStats(t *testing.T) {
 			assert.Equal(t, tt.want, m.renderAppStats())
 		})
 	}
+}
+
+func Test_RenderServices_FilteredNoMatches(t *testing.T) {
+	m := Model{}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.state.services = map[string]*ServiceState{"api": {Name: "api", Status: StatusRunning}}
+	m.state.filterQuery = "nonexistent"
+	m.state.filteredIDs = []string{}
+	m.state.filteredTiers = []Tier{}
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+
+	result := m.renderServices()
+	assert.Contains(t, result, "no matching services")
+}
+
+func Test_RenderServices_FilteredWithMatches(t *testing.T) {
+	m := Model{}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api", "web"}}}
+	m.state.services = map[string]*ServiceState{
+		"api": {Name: "api", Status: StatusRunning},
+		"web": {Name: "web", Status: StatusRunning},
+	}
+	m.state.filterQuery = "api"
+	m.state.filteredIDs = []string{"api"}
+	m.state.filteredTiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+	m.ui.layout = layoutForWidth(80)
+	m.theme = components.DefaultTheme()
+	m.updateServicesContent()
+
+	result := m.renderServices()
+	assert.Contains(t, result, "api")
+	assert.NotContains(t, result, "web")
+	assert.NotContains(t, result, "no matching services")
+	assert.NotContains(t, result, "no services configured")
+}
+
+func Test_RenderFilterBar(t *testing.T) {
+	tests := []struct {
+		name         string
+		filterActive bool
+		filterQuery  string
+		wantEmpty    bool
+		wantContains string
+	}{
+		{
+			name:         "no filter active and no query",
+			filterActive: false,
+			filterQuery:  "",
+			wantEmpty:    true,
+		},
+		{
+			name:         "filter active with empty query shows cursor",
+			filterActive: true,
+			filterQuery:  "",
+			wantContains: "/ _",
+		},
+		{
+			name:         "filter active with query shows cursor",
+			filterActive: true,
+			filterQuery:  "api",
+			wantContains: "/ api_",
+		},
+		{
+			name:         "filter not active but query retained without cursor",
+			filterActive: false,
+			filterQuery:  "web",
+			wantContains: "/ web",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.theme = components.DefaultTheme()
+			m.state.filterActive = tt.filterActive
+			m.state.filterQuery = tt.filterQuery
+
+			result := m.renderFilterBar()
+
+			if tt.wantEmpty {
+				assert.Empty(t, result)
+			} else {
+				assert.Contains(t, result, tt.wantContains)
+			}
+		})
+	}
+}
+
+func Test_View_FilterBarInBottomBorder(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.ready = true
+	m.state.profile = "default"
+	m.state.phase = bus.PhaseRunning
+	m.state.services = map[string]*ServiceState{"api": {Name: "api", Status: StatusRunning}}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.state.serviceIDs = []string{"api"}
+	m.state.filterQuery = "api"
+	m.state.filterActive = true
+	m.state.filteredIDs = []string{"api"}
+	m.state.filteredTiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.ui.width = 100
+	m.ui.height = 50
+	m.ui.layout = layoutForWidth(100 - components.PanelInnerPadding)
+	m.ui.help = help.New()
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(80), viewport.WithHeight(30))
+	m.theme = components.DefaultTheme()
+
+	result := m.View()
+
+	assert.Contains(t, result.Content, "/ api_")
+	assert.Contains(t, result.Content, "profile")
+}
+
+func Test_RenderBottomLeft_CombinesFilterAndStats(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.state.filterQuery = "svc"
+	m.state.filterActive = false
+	m.state.appCPU = 5.0
+	m.state.appMEM = 128
+	m.ui.width = 100
+
+	result := m.renderBottomLeft()
+
+	assert.Contains(t, result, "/ svc")
+	assert.Contains(t, result, "cpu 5.0%")
+	assert.Contains(t, result, "mem 128MB")
+}
+
+func Test_RenderBottomLeft_FilterOnlyWhenNoStats(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.state.filterQuery = "web"
+	m.state.filterActive = false
+	m.ui.width = 100
+
+	result := m.renderBottomLeft()
+
+	assert.Contains(t, result, "/ web")
+}
+
+func Test_RenderBottomLeft_StatsOnlyWhenNoFilter(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.state.appCPU = 2.0
+	m.state.appMEM = 64
+
+	result := m.renderBottomLeft()
+
+	assert.Contains(t, result, "cpu 2.0%")
+	assert.NotContains(t, result, "/")
+}
+
+func Test_RenderFilterBar_TruncatesLongQuery(t *testing.T) {
+	m := Model{}
+	m.theme = components.DefaultTheme()
+	m.ui.width = 40
+	m.state.filterActive = true
+	m.state.filterQuery = "this-is-a-very-long-service-name-filter-query"
+
+	result := m.renderFilterBar()
+
+	assert.Contains(t, result, "/ this")
+	assert.NotContains(t, result, "filter-query")
+}
+
+func Test_UpdateServicesContent_UsesFilteredTiers(t *testing.T) {
+	m := Model{}
+	m.state.tiers = []Tier{
+		{Name: "tier1", Services: []string{"api", "web"}},
+		{Name: "tier2", Services: []string{"db"}},
+	}
+	m.state.services = map[string]*ServiceState{
+		"api": {Name: "api", Status: StatusRunning},
+		"web": {Name: "web", Status: StatusRunning},
+		"db":  {Name: "db", Status: StatusRunning},
+	}
+	m.state.serviceIDs = []string{"api", "web", "db"}
+	m.state.filterQuery = "api"
+	m.state.filteredIDs = []string{"api"}
+	m.state.filteredTiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.ui.width = 100
+	m.ui.layout = layoutForWidth(92)
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(92), viewport.WithHeight(20))
+	m.theme = components.DefaultTheme()
+
+	m.updateServicesContent()
+
+	content := m.ui.servicesViewport.View()
+	assert.Contains(t, content, "api")
+	assert.NotContains(t, content, "db")
+}
+
+func Test_UpdateServicesContent_EmptyFilterClearsViewport(t *testing.T) {
+	m := Model{}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.state.services = map[string]*ServiceState{
+		"api": {Name: "api", Status: StatusRunning},
+	}
+	m.state.filterQuery = "nonexistent"
+	m.state.filteredIDs = []string{}
+	m.state.filteredTiers = []Tier{}
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+
+	m.updateServicesContent()
+
+	content := m.ui.servicesViewport.View()
+	assert.NotContains(t, content, "api")
+	assert.NotContains(t, content, "tier1")
 }

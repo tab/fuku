@@ -313,6 +313,7 @@
 - `internal/app/ui/components/blink_test.go` - Blink animation testing
 - `internal/app/ui/components/layout_test.go` - Layout component testing
 - `internal/app/ui/services/controller_test.go` - Service controller testing
+- `internal/app/ui/services/filter_test.go` - Service filter matching and filtering functions
 - `internal/app/ui/services/helpers_test.go` - Service helper functions testing
 - `internal/app/ui/services/keys_test.go` - Services view key bindings
 - `internal/app/ui/services/loader_test.go` - Loader queue operations
