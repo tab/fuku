@@ -96,6 +96,13 @@ type Model struct {
 		appMEM       float64
 		now          time.Time
 		apiStatus    apiHealthStatus
+
+		filterQuery            string
+		filterActive           bool
+		filteredIDs            []string
+		filteredTiers          []Tier
+		preFilterSelectedID    string
+		lastFilteredSelectedID string
 	}
 
 	ui struct {
@@ -184,31 +191,70 @@ func requestBackgroundColorCmd() tea.Msg {
 	return tea.RequestBackgroundColor()
 }
 
+// isFiltering returns true when an effective filter query is applied
+func (m Model) isFiltering() bool {
+	return normalizeQuery(m.state.filterQuery) != ""
+}
+
+// activeServiceIDs returns filteredIDs when filtering, otherwise serviceIDs
+func (m Model) activeServiceIDs() []string {
+	if m.isFiltering() {
+		return m.state.filteredIDs
+	}
+
+	return m.state.serviceIDs
+}
+
 // getSelectedService returns the currently selected service state
 func (m Model) getSelectedService() *ServiceState {
-	if m.state.selected < 0 || m.state.selected >= len(m.state.serviceIDs) {
+	ids := m.activeServiceIDs()
+	if m.state.selected < 0 || m.state.selected >= len(ids) {
 		return nil
 	}
 
-	return m.state.services[m.state.serviceIDs[m.state.selected]]
+	return m.state.services[ids[m.state.selected]]
 }
 
 // getTotalServices returns the total count of services
 func (m Model) getTotalServices() int {
-	return len(m.state.serviceIDs)
+	return len(m.activeServiceIDs())
 }
 
 // getReadyServices returns the count of services in ready state
 func (m Model) getReadyServices() int {
 	count := 0
 
-	for _, service := range m.state.services {
-		if service.Status == StatusRunning {
+	for _, id := range m.activeServiceIDs() {
+		service, exists := m.state.services[id]
+		if exists && service.Status == StatusRunning {
 			count++
 		}
 	}
 
 	return count
+}
+
+// getAllReadyServices returns the count of all services in ready state regardless of filter
+func (m Model) getAllReadyServices() int {
+	count := 0
+
+	for _, id := range m.state.serviceIDs {
+		service, exists := m.state.services[id]
+		if exists && service.Status == StatusRunning {
+			count++
+		}
+	}
+
+	return count
+}
+
+// activeTiers returns filteredTiers when filtering, otherwise tiers
+func (m Model) activeTiers() []Tier {
+	if m.isFiltering() {
+		return m.state.filteredTiers
+	}
+
+	return m.state.tiers
 }
 
 // calculateScrollOffset calculates the scroll offset to ensure the selected service is visible
@@ -220,7 +266,7 @@ func (m Model) calculateScrollOffset() int {
 	lineNumber := 1
 	currentIdx := 0
 
-	for i, tier := range m.state.tiers {
+	for i, tier := range m.activeTiers() {
 		tierStartLine := lineNumber
 
 		if i > 0 {
@@ -261,18 +307,20 @@ func (m Model) calculateScrollOffset() int {
 
 // updateServicesContent builds the full services content and sets it in the viewport
 func (m *Model) updateServicesContent() {
-	if len(m.state.tiers) == 0 {
+	tiers := m.activeTiers()
+
+	if len(tiers) == 0 {
 		m.ui.servicesViewport.SetContent("")
 
 		return
 	}
 
-	sections := make([]string, 0, len(m.state.tiers)+1)
+	sections := make([]string, 0, len(tiers)+1)
 	sections = append(sections, m.renderColumnHeaders())
 
 	currentIdx := 0
 
-	for _, tier := range m.state.tiers {
+	for _, tier := range tiers {
 		sections = append(sections, m.renderTier(tier, &currentIdx))
 	}
 

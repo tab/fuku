@@ -131,6 +131,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.state.filterActive {
+		return m.handleFilterInput(msg)
+	}
+
 	switch {
 	case key.Matches(msg, m.ui.servicesKeys.Quit):
 		m.state.shuttingDown = true
@@ -151,6 +155,16 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.ui.servicesKeys.Restart):
 		return m.handleRestartKey()
 
+	case key.Matches(msg, m.ui.servicesKeys.Filter):
+		return m.handleFilterKey()
+
+	case key.Matches(msg, m.ui.servicesKeys.ClearFilter):
+		if m.state.filterQuery != "" {
+			m.clearFilter()
+
+			return m, nil
+		}
+
 	case key.Matches(msg, m.ui.servicesKeys.ToggleTips):
 		m.ui.showTips = !m.ui.showTips
 		return m, nil
@@ -166,6 +180,135 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handleFilterKey enters filter input mode
+func (m Model) handleFilterKey() (tea.Model, tea.Cmd) {
+	m.state.filterActive = true
+
+	ids := m.activeServiceIDs()
+	if m.state.selected >= 0 && m.state.selected < len(ids) {
+		m.state.preFilterSelectedID = ids[m.state.selected]
+	}
+
+	return m, nil
+}
+
+// clearFilter exits filter mode, restores the full list, and preserves selection on the same service
+func (m *Model) clearFilter() {
+	var previousID string
+
+	if m.state.filteredIDs != nil && m.state.selected >= 0 && m.state.selected < len(m.state.filteredIDs) {
+		previousID = m.state.filteredIDs[m.state.selected]
+	}
+
+	if previousID == "" && m.state.filteredIDs == nil && m.state.selected >= 0 && m.state.selected < len(m.state.serviceIDs) {
+		previousID = m.state.serviceIDs[m.state.selected]
+	}
+
+	if previousID == "" {
+		previousID = m.state.lastFilteredSelectedID
+	}
+
+	if previousID == "" {
+		previousID = m.state.preFilterSelectedID
+	}
+
+	m.state.filterActive = false
+	m.state.filterQuery = ""
+	m.state.filteredIDs = nil
+	m.state.filteredTiers = nil
+	m.state.preFilterSelectedID = ""
+	m.state.lastFilteredSelectedID = ""
+
+	m.state.selected = 0
+
+	for i, id := range m.state.serviceIDs {
+		if id == previousID {
+			m.state.selected = i
+
+			break
+		}
+	}
+
+	m.updateServicesContent()
+	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
+}
+
+// handleFilterInput processes key events while in filter input mode
+func (m Model) handleFilterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.Code {
+	case tea.KeyEscape:
+		m.clearFilter()
+
+		return m, nil
+
+	case tea.KeyEnter:
+		m.state.filterActive = false
+
+		return m, nil
+
+	case tea.KeyBackspace:
+		if len(m.state.filterQuery) > 0 {
+			runes := []rune(m.state.filterQuery)
+			m.state.filterQuery = string(runes[:len(runes)-1])
+			m.applyFilter()
+		}
+
+		return m, nil
+
+	case tea.KeyUp:
+		return m.handleUpKey()
+
+	case tea.KeyDown:
+		return m.handleDownKey()
+
+	default:
+		if msg.Text != "" {
+			m.state.filterQuery += msg.Text
+			m.applyFilter()
+		}
+
+		return m, nil
+	}
+}
+
+// applyFilter recomputes filteredIDs and filteredTiers from the current query and adjusts selection
+func (m *Model) applyFilter() {
+	var previousID string
+
+	ids := m.state.filteredIDs
+	if ids == nil {
+		ids = m.state.serviceIDs
+	}
+
+	if m.state.selected >= 0 && m.state.selected < len(ids) {
+		previousID = ids[m.state.selected]
+	}
+
+	if previousID == "" {
+		previousID = m.state.lastFilteredSelectedID
+	}
+
+	m.state.filteredIDs = filterServiceIDs(m.state.filterQuery, m.state.serviceIDs, m.state.services)
+	m.state.filteredTiers = filterTiers(m.state.filterQuery, m.state.tiers, m.state.services)
+
+	m.state.selected = 0
+
+	for i, id := range m.state.filteredIDs {
+		if id == previousID {
+			m.state.selected = i
+
+			break
+		}
+	}
+
+	if previousID != "" {
+		m.state.lastFilteredSelectedID = previousID
+	}
+
+	m.updateServicesContent()
+	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
 }
 
 // handleUpKey moves selection up one service
@@ -289,6 +432,12 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 	m.state.restarting = make(map[string]bool)
 	m.state.serviceIDs = nil
 	m.state.selected = 0
+	m.state.filterQuery = ""
+	m.state.filterActive = false
+	m.state.filteredIDs = nil
+	m.state.filteredTiers = nil
+	m.state.preFilterSelectedID = ""
+	m.state.lastFilteredSelectedID = ""
 	m.loader.StopAll()
 
 	m.state.tiers = make([]Tier, len(data.Tiers))

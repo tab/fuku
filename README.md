@@ -89,6 +89,7 @@ pgup/pgdn        Scroll viewport
 home/end         Jump to start/end
 r                Restart selected service
 s                Stop/start selected service
+/                Filter services by name
 q                Quit (stops all services)
 ```
 

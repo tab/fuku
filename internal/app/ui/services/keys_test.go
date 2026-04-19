@@ -24,6 +24,8 @@ func Test_DefaultKeyMap(t *testing.T) {
 	assert.Contains(t, km.Stop.Keys(), "s")
 	assert.Contains(t, km.Restart.Keys(), "r")
 	assert.Contains(t, km.ToggleTips.Keys(), "t")
+	assert.Contains(t, km.Filter.Keys(), "/")
+	assert.Contains(t, km.ClearFilter.Keys(), "esc")
 	assert.Contains(t, km.Quit.Keys(), "q")
 	assert.Contains(t, km.ForceQuit.Keys(), "ctrl+c")
 }
@@ -32,13 +34,15 @@ func Test_KeyMap_ShortHelp(t *testing.T) {
 	km := DefaultKeyMap()
 	bindings := km.ShortHelp()
 
-	assert.Len(t, bindings, 6)
+	assert.Len(t, bindings, 8)
 	assert.Equal(t, km.Up, bindings[0])
 	assert.Equal(t, km.Down, bindings[1])
 	assert.Equal(t, km.Stop, bindings[2])
 	assert.Equal(t, km.Restart, bindings[3])
-	assert.Equal(t, km.ToggleTips, bindings[4])
-	assert.Equal(t, km.Quit, bindings[5])
+	assert.Equal(t, km.Filter, bindings[4])
+	assert.Equal(t, km.ClearFilter, bindings[5])
+	assert.Equal(t, km.ToggleTips, bindings[6])
+	assert.Equal(t, km.Quit, bindings[7])
 }
 
 func Test_KeyMap_FullHelp(t *testing.T) {
@@ -46,11 +50,13 @@ func Test_KeyMap_FullHelp(t *testing.T) {
 	bindings := km.FullHelp()
 
 	assert.Len(t, bindings, 1)
-	assert.Len(t, bindings[0], 6)
+	assert.Len(t, bindings[0], 8)
 	assert.Equal(t, km.Up, bindings[0][0])
 	assert.Equal(t, km.Down, bindings[0][1])
 	assert.Equal(t, km.Stop, bindings[0][2])
 	assert.Equal(t, km.Restart, bindings[0][3])
-	assert.Equal(t, km.ToggleTips, bindings[0][4])
-	assert.Equal(t, km.Quit, bindings[0][5])
+	assert.Equal(t, km.Filter, bindings[0][4])
+	assert.Equal(t, km.ClearFilter, bindings[0][5])
+	assert.Equal(t, km.ToggleTips, bindings[0][6])
+	assert.Equal(t, km.Quit, bindings[0][7])
 }
