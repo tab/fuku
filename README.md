@@ -10,7 +10,7 @@
 
 ## Features
 
-- **Interactive TUI** - Real-time service monitoring with status, CPU, memory, and uptime
+- **Interactive TUI** - Real-time service monitoring with status, readiness timeline, CPU, memory, and uptime
 - **Service Orchestration** - Tier-based startup ordering
 - **Service Control** - Start, stop, and restart services interactively
 - **Graceful Shutdown** - SIGTERM with timeout before force kill
