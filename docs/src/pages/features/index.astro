@@ -1,6 +1,5 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import FeatureCard from "../../components/FeatureCard.astro";
 import { getFeatures } from "../../data/features";
 import { getFeaturesNav } from "../../data/nav";
 
@@ -8,6 +7,8 @@ const base = import.meta.env.BASE_URL;
 const current = `${base}features/`;
 const features = getFeatures(base);
 const nav = getFeaturesNav(base);
+
+const kickers = ["01", "02", "03", "04", "05", "06"];
 ---
 
 <DocsLayout
@@ -18,11 +19,16 @@ const nav = getFeaturesNav(base);
   section="features"
 >
   <h1>Features</h1>
-  <p class="lead">Everything fuku does to make local development easier.</p>
+  <p class="lead">Six pillars. Each solves a real, daily annoyance – they compose into one calm dev loop.</p>
 
   <div class="feature-grid">
-    {features.map((f) => (
-      <FeatureCard feature={f} showIcon />
+    {features.map((f, i) => (
+      <a href={f.href} class="feature-card">
+        <div class="card-num">{kickers[i]}</div>
+        <h3>{f.title}</h3>
+        <p>{f.description}</p>
+        <span class="card-link">Learn more &rarr;</span>
+      </a>
     ))}
   </div>
 </DocsLayout>
@@ -30,12 +36,68 @@ const nav = getFeaturesNav(base);
 <style>
   .feature-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
     margin-top: 32px;
   }
 
-  @media (max-width: 768px) {
+  .feature-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 28px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--text-muted);
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+
+  .card-num {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    color: var(--blue);
+    letter-spacing: 0.15em;
+  }
+
+  .feature-card h3 {
+    font-family: var(--heading);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0;
+    color: var(--text);
+  }
+
+  .feature-card p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .card-link {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--blue);
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  @media (max-width: 900px) {
+    .feature-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 600px) {
     .feature-grid {
       grid-template-columns: 1fr;
     }

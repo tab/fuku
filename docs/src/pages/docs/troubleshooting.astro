@@ -17,10 +17,12 @@ const nav = getDocsNav(base);
   section="docs"
   breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Troubleshooting", href: current }]}
 >
+  <span class="kicker">// docs &middot; troubleshooting</span>
   <h1>Troubleshooting</h1>
   <p class="lead">Common issues and practical workarounds.</p>
 
-  <h2>Hot-Reload and Branch Switching</h2>
+  <div class="section-eyebrow">Hot-reload</div>
+  <h2>Hot-reload and branch switching.</h2>
 
   <p>
     If you enable <code>watch</code> on all services and frequently switch branches, pull, or merge, fuku will detect hundreds of file changes at once. Even with debouncing, this can cause a cascade of restarts and readiness check timeouts.
@@ -36,7 +38,8 @@ const nav = getDocsNav(base);
 
   <hr />
 
-  <h2>Readiness Check Timeouts</h2>
+  <div class="section-eyebrow">Readiness</div>
+  <h2>Readiness check timeouts.</h2>
 
   <p>
     If a service fails readiness checks, fuku retries up to the configured limit and then marks it as failed. Common causes:
@@ -61,7 +64,8 @@ const nav = getDocsNav(base);
 
   <hr />
 
-  <h2>Orphaned Processes</h2>
+  <div class="section-eyebrow">Processes</div>
+  <h2>Orphaned processes.</h2>
 
   <p>
     If fuku is killed abruptly (e.g., <code>kill -9</code>, terminal crash), child processes may keep running. You can clean them up with:
@@ -79,7 +83,8 @@ lsof -i :3000`} />
 
   <hr />
 
-  <h2>Port Conflicts</h2>
+  <div class="section-eyebrow">Networking</div>
+  <h2>Port conflicts.</h2>
 
   <p>
     If a service fails to start with "address already in use", another process is occupying the port. This often happens after an unclean shutdown.
@@ -97,7 +102,8 @@ kill $(lsof -t -i :8000)`} />
 
   <hr />
 
-  <h2>High CPU from File Watching</h2>
+  <div class="section-eyebrow">Performance</div>
+  <h2>High CPU from file watching.</h2>
 
   <p>
     Watching large directories (e.g., <code>node_modules</code>, <code>vendor</code>) causes high CPU usage from filesystem event processing. Make sure your <code>ignore</code> patterns exclude these:
@@ -118,7 +124,8 @@ kill $(lsof -t -i :8000)`} />
 
   <hr />
 
-  <h2>Services Starting in Wrong Order</h2>
+  <div class="section-eyebrow">Ordering</div>
+  <h2>Services starting in wrong order.</h2>
 
   <p>
     If a service tries to connect to a dependency that isn't ready yet, check your tier configuration. Services in earlier tiers start first and must pass readiness checks before the next tier begins.
@@ -127,12 +134,13 @@ kill $(lsof -t -i :8000)`} />
   <ul>
     <li>Make sure dependencies are in an <strong>earlier tier</strong> than the services that need them.</li>
     <li>Add <strong>readiness checks</strong> to dependencies so fuku waits until they're actually accepting connections, not just started.</li>
-    <li>Without readiness checks, fuku only waits for the process to start — which doesn't mean the service is ready.</li>
+    <li>Without readiness checks, fuku only waits for the process to start – which doesn't mean the service is ready.</li>
   </ul>
 
   <hr />
 
-  <h2>Log Output is Noisy</h2>
+  <div class="section-eyebrow">Logging</div>
+  <h2>Log output is noisy.</h2>
 
   <p>
     When running many services, interleaved logs can be hard to read. Options:

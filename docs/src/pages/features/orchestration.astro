@@ -18,10 +18,12 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Orchestration", href: current }]}
 >
+  <span class="kicker">// features &middot; orchestration</span>
   <h1>Orchestration</h1>
-  <p class="lead">Tier-based startup ordering ensures dependencies are ready before dependent services begin.</p>
+  <p class="lead">Foundation, then platform, then edge. Services in the same tier launch concurrently. The next tier waits for the previous to be ready.</p>
 
-  <h2>How It Works</h2>
+  <div class="section-eyebrow">How it works</div>
+  <h2>Three tiers. Bounded concurrency.</h2>
 
   <p>
     Services are grouped into tiers. fuku starts all services in the first tier, waits for them to become ready (via readiness checks or process start), then moves to the next tier. Within each tier, services start concurrently up to the configured worker limit.
@@ -46,7 +48,8 @@ const nav = getFeaturesNav(base);
 </pre>
   </Terminal>
 
-  <h2>Configuration</h2>
+  <div class="section-eyebrow">Configuration</div>
+  <h2>Declared in fuku.yaml.</h2>
 
   <p>Assign tiers to services in <code>fuku.yaml</code>. The tier order is determined by first occurrence in the file:</p>
 
@@ -57,7 +60,7 @@ const nav = getFeaturesNav(base);
 
   gateway:
     dir: gateway
-    tier: foundation            # Same tier — starts with auth
+    tier: foundation            # Same tier – starts with auth
 
   api:
     dir: backend/api
@@ -67,21 +70,23 @@ const nav = getFeaturesNav(base);
     dir: frontend
     tier: edge                  # Starts after platform is ready`} />
 
-  <h2>Key Details</h2>
+  <div class="section-eyebrow">Details</div>
+  <h2>Key details.</h2>
 
   <ul>
     <li>Tier order is defined by first appearance in the YAML file</li>
     <li>Services within each tier are sorted alphabetically by name</li>
     <li>Services without a tier go to a <code>default</code> tier that runs last</li>
     <li>Tier names are case-insensitive and whitespace is trimmed</li>
-    <li>You can use any tier names — <code>infrastructure</code>, <code>middleware</code>, <code>api</code>, <code>frontend</code>, etc.</li>
+    <li>You can use any tier names – <code>infrastructure</code>, <code>middleware</code>, <code>api</code>, <code>frontend</code>, etc.</li>
   </ul>
 
   <hr />
 
-  <h2>Profiles</h2>
+  <div class="section-eyebrow">Profiles</div>
+  <h2>Run subsets of services.</h2>
 
-  <p>Profiles let you group services for batch operations — run only what you need:</p>
+  <p>Profiles let you group services for batch operations – run only what you need:</p>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`profiles:
   default: "*"                  # All services
@@ -100,7 +105,8 @@ const nav = getFeaturesNav(base);
 </pre>
   </Terminal>
 
-  <h2>Concurrency</h2>
+  <div class="section-eyebrow">Concurrency</div>
+  <h2>Worker pool control.</h2>
 
   <p>Control how many services start in parallel within a tier:</p>
 

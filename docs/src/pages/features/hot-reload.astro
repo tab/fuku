@@ -18,10 +18,12 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Hot-Reload", href: current }]}
 >
+  <span class="kicker">// features &middot; hot-reload</span>
   <h1>Hot-Reload</h1>
-  <p class="lead">Automatically restart services when source files change.</p>
+  <p class="lead">Edit a file, save, fuku restarts the affected service. Debouncing prevents storms. Shared paths handle cross-service deps.</p>
 
-  <h2>How It Works</h2>
+  <div class="section-eyebrow">How it works</div>
+  <h2>Native fsnotify, debounced.</h2>
 
   <p>
     fuku watches file system events in your service directories and restarts the affected service when matching files change. A debounce timer prevents restart storms when multiple files change at once (e.g., during a <code>git checkout</code>).
@@ -42,7 +44,8 @@ const nav = getFeaturesNav(base);
 </pre>
   </Terminal>
 
-  <h2>Configuration</h2>
+  <div class="section-eyebrow">Configuration</div>
+  <h2>Per-service watch config.</h2>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   api:
@@ -71,7 +74,7 @@ const nav = getFeaturesNav(base);
       </tr>
       <tr>
         <td><code>shared</code></td>
-        <td>Paths outside the service directory — changes here also trigger a restart</td>
+        <td>Paths outside the service directory – changes here also trigger a restart</td>
       </tr>
       <tr>
         <td><code>debounce</code></td>
@@ -80,10 +83,11 @@ const nav = getFeaturesNav(base);
     </tbody>
   </table>
 
-  <h2>Shared Paths</h2>
+  <div class="section-eyebrow">Cross-service</div>
+  <h2>Shared paths.</h2>
 
   <p>
-    If multiple services depend on a shared library (e.g., <code>pkg/common</code>), add it to <code>shared</code>. When files in that path change, the service restarts — even though the files are outside its own directory.
+    If multiple services depend on a shared library (e.g., <code>pkg/common</code>), add it to <code>shared</code>. When files in that path change, the service restarts – even though the files are outside its own directory.
   </p>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`services:

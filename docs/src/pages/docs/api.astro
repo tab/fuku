@@ -147,7 +147,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "start-service", method: "POST", path: "/api/v1/services/:id/start", apiPath: "/api/v1/services/:id/start",
-    description: "Starts a stopped or failed service. Asynchronous — poll GET /services/:id for completion.",
+    description: "Starts a stopped or failed service. Asynchronous – poll GET /services/:id for completion.",
     hasId: true,
     responses: [
       { status: "accepted", code: "202", body: startJson },
@@ -160,7 +160,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "stop-service", method: "POST", path: "/api/v1/services/:id/stop", apiPath: "/api/v1/services/:id/stop",
-    description: "Stops a running service. Asynchronous — poll GET /services/:id for completion.",
+    description: "Stops a running service. Asynchronous – poll GET /services/:id for completion.",
     hasId: true,
     responses: [
       { status: "accepted", code: "202", body: stopJson },
@@ -173,7 +173,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "restart-service", method: "POST", path: "/api/v1/services/:id/restart", apiPath: "/api/v1/services/:id/restart",
-    description: "Restarts a running, stopped, or failed service. Asynchronous — poll GET /services/:id for completion.",
+    description: "Restarts a running, stopped, or failed service. Asynchronous – poll GET /services/:id for completion.",
     hasId: true,
     responses: [
       { status: "accepted", code: "202", body: restartJson },

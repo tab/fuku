@@ -17,10 +17,12 @@ const nav = getDocsNav(base);
   section="docs"
   breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "CLI Commands", href: current }]}
 >
+  <span class="kicker">// docs &middot; cli</span>
   <h1>CLI Commands</h1>
   <p class="lead">Command reference, flags, TUI controls, and environment file loading.</p>
 
-  <h2>Commands</h2>
+  <div class="section-eyebrow">Reference</div>
+  <h2>Commands.</h2>
 
   <table>
     <thead>
@@ -66,7 +68,8 @@ const nav = getDocsNav(base);
 
   <hr />
 
-  <h2>Flags</h2>
+  <div class="section-eyebrow">Options</div>
+  <h2>Flags.</h2>
 
   <table>
     <thead>
@@ -97,7 +100,8 @@ fuku --no-ui run core        # Same result`} />
 
   <hr />
 
-  <h2>Usage Examples</h2>
+  <div class="section-eyebrow">Examples</div>
+  <h2>Usage examples.</h2>
 
   <CodeTerminal code={`# Run with TUI (default profile)
 fuku
@@ -107,6 +111,10 @@ fuku run core --no-ui
 
 # Use short aliases
 fuku r core
+
+# Stop services for a profile
+fuku stop                       # Default profile
+fuku stop core                  # Specific profile
 
 # Stream logs from running instance (separate terminal)
 fuku logs                       # All services
@@ -127,7 +135,8 @@ fuku version`} />
 
   <hr />
 
-  <h2>TUI Controls</h2>
+  <div class="section-eyebrow">Keyboard</div>
+  <h2>TUI controls.</h2>
 
   <p>When running with the interactive TUI (default), use these keyboard shortcuts:</p>
 
@@ -135,7 +144,8 @@ fuku version`} />
 
   <hr />
 
-  <h2>Environment File Loading</h2>
+  <div class="section-eyebrow">Environment</div>
+  <h2>Environment file loading.</h2>
 
   <p>fuku automatically loads environment files using <a href="https://github.com/joho/godotenv" target="_blank" rel="noopener">godotenv</a>, in this order (later files take precedence):</p>
 

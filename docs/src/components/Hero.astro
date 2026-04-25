@@ -3,84 +3,136 @@ const base = import.meta.env.BASE_URL;
 ---
 
 <section class="hero">
-  <div class="container">
-    <h1 class="title">fuku</h1>
-    <p class="subtitle">Service orchestrator for local development</p>
-    <p class="description">
-      Lightweight CLI tool for running and managing multiple local services.
-      Tier-based startup ordering, interactive TUI, hot-reload, and readiness
-      checks — all from a single YAML config.
-    </p>
-    <div class="actions">
-      <a href={`${base}docs/getting-started/`} class="btn btn-primary">Get Started</a>
-      <a
-        href="https://github.com/tab/fuku"
-        target="_blank"
-        rel="noopener"
-        class="btn btn-secondary"
-      >
-        GitHub
-      </a>
+  <div class="hero-inner">
+    <div class="hero-text">
+      <h1 class="title">
+        All services<br />
+        <span class="title-accent">one terminal</span>
+      </h1>
+      <p class="description">
+        Lightweight CLI tool for running and managing multiple local services.
+        Tier-based startup ordering, interactive TUI, hot-reload, and readiness
+        checks – all from a single YAML config.
+      </p>
+      <div class="actions">
+        <a href={`${base}docs/getting-started/`} class="btn btn-primary">Get Started <span class="arrow">&rarr;</span></a>
+        <a
+          href="https://github.com/tab/fuku"
+          target="_blank"
+          rel="noopener"
+          class="btn btn-ghost"
+        >
+          GitHub
+        </a>
+      </div>
+      <div class="install-hint">
+        <span class="dollar">$</span>
+        <span class="install-cmd">brew install tab/apps/fuku</span>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <slot />
     </div>
   </div>
 </section>
 
 <style>
   .hero {
-    padding: 80px 0 80px;
-    text-align: center;
+    padding: 72px 56px;
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+
+  .hero-inner {
+    display: grid;
+    grid-template-columns: 3fr 7fr;
+    gap: 64px;
+    align-items: center;
+  }
+
+  .hero-visual {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--blue);
+    padding: 6px 12px;
+    border: 1px solid color-mix(in srgb, var(--blue) 25%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--blue) 6%, transparent);
+    margin-bottom: 24px;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .eyebrow-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--blue);
   }
 
   .title {
-    font-size: 5rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    background: var(--hero-gradient);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    line-height: 1.1;
-    animation: gradient-shift 6s ease-in-out infinite,
-      fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    font-family: var(--heading);
+    font-weight: 600;
+    font-size: 3rem;
+    line-height: 1.0;
+    letter-spacing: -0.045em;
+    margin: 0 0 20px;
+    color: var(--text);
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
   }
 
-  .subtitle {
-    font-size: 1.5rem;
-    color: var(--text);
-    margin-top: 16px;
+  .title-accent {
+    font-family: var(--mono);
     font-weight: 500;
-    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+    color: var(--blue);
   }
 
   .description {
-    max-width: 600px;
-    margin: 20px auto 0;
+    font-size: 1.2rem;
+    line-height: 1.55;
     color: var(--text-muted);
-    font-size: 1.1rem;
-    line-height: 1.7;
-    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+    max-width: 480px;
+    margin: 0;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
   }
 
   .actions {
-    margin-top: 40px;
     display: flex;
-    gap: 16px;
-    justify-content: center;
+    gap: 12px;
+    margin-top: 36px;
     flex-wrap: wrap;
-    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
   }
 
-  @keyframes gradient-shift {
-    0% {
-      background-position: 0% center;
-    }
-    50% {
-      background-position: 100% center;
-    }
-    100% {
-      background-position: 0% center;
-    }
+  .install-hint {
+    margin-top: 24px;
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+  }
+
+  .install-cmd {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
   }
 
   @keyframes fade-up {
@@ -95,17 +147,15 @@ const base = import.meta.env.BASE_URL;
   }
 
   .btn {
-    position: relative;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-width: 160px;
-    padding: 12px 28px;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 600;
+    gap: 8px;
+    padding: 13px 22px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 500;
     text-decoration: none;
-    transition: transform 0.2s, box-shadow 0.3s;
+    transition: transform 0.15s, opacity 0.15s;
   }
 
   .btn:hover {
@@ -114,89 +164,42 @@ const base = import.meta.env.BASE_URL;
   }
 
   .btn-primary {
-    background: var(--gradient);
-    color: #fff;
-    box-shadow: var(--btn-primary-shadow);
+    background: var(--text);
+    color: var(--bg);
   }
 
-  .btn-primary::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    padding: 1px;
-    background: linear-gradient(
-      180deg,
-      var(--btn-shine) 0%,
-      transparent 60%
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .btn-primary:hover {
-    box-shadow: var(--btn-primary-hover-shadow);
-  }
-
-  .btn-secondary {
-    background: var(--glass-bg);
+  .btn-ghost {
+    background: transparent;
     color: var(--text);
-    border: 1px solid var(--glass-border);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    box-shadow: var(--glass-glow);
+    border: 1px solid var(--border);
   }
 
-  :global([data-theme="light"]) .btn-secondary {
-    background: #1a1a2e;
-    color: #fff;
-    border-color: #1a1a2e;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  .btn-ghost:hover {
+    border-color: var(--text-muted);
   }
 
-  :global([data-theme="light"]) .btn-secondary:hover {
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-  }
+  @media (max-width: 1024px) {
+    .hero-inner {
+      grid-template-columns: 1fr;
+      gap: 48px;
+    }
 
-  .btn-secondary::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    padding: 1px;
-    background: linear-gradient(
-      180deg,
-      var(--glass-shine) 0%,
-      transparent 50%
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .btn-secondary:hover {
-    border-color: var(--card-hover-border);
-    box-shadow: var(--btn-secondary-hover-shadow);
+    .hero-visual {
+      justify-content: center;
+    }
   }
 
   @media (max-width: 768px) {
     .hero {
-      padding: 48px 0 48px;
+      padding: 48px 24px;
     }
 
     .title {
-      font-size: 3.5rem;
+      font-size: 2.25rem;
     }
 
-    .subtitle {
-      font-size: 1.2rem;
+    .description {
+      font-size: 1.05rem;
     }
   }
 </style>

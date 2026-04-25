@@ -19,10 +19,12 @@ const installMethods = getInstallMethods();
   section="docs"
   breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Getting Started", href: current }]}
 >
+  <span class="kicker">// docs &middot; getting started</span>
   <h1>Getting Started</h1>
   <p class="lead">Install fuku and get your services running in minutes.</p>
 
-  <h2>Installation</h2>
+  <div class="section-eyebrow">Installation</div>
+  <h2>Three ways to install.</h2>
 
   {installMethods.map((method) => (
     <>
@@ -33,7 +35,8 @@ const installMethods = getInstallMethods();
 
   <hr />
 
-  <h2>Quick Start</h2>
+  <div class="section-eyebrow">Quick start</div>
+  <h2>Your first run.</h2>
 
   <ol>
     <li><strong>Generate a config file</strong> in your project root:</li>
@@ -58,7 +61,8 @@ fuku run core --no-ui`} />
 
   <hr />
 
-  <h2>Service Requirements</h2>
+  <div class="section-eyebrow">Services</div>
+  <h2>Service requirements.</h2>
 
   <p>
     By default, fuku executes <code>make run</code> inside each service's directory. You can override this with a custom <code>command</code>:
@@ -70,7 +74,7 @@ fuku run core --no-ui`} />
     command: go run cmd/main.go    # Custom command (runs via sh -c)
   worker:
     dir: ./worker
-    # No command — uses "make run" (requires Makefile)`} />
+    # No command – uses "make run" (requires Makefile)`} />
 
   <p>
     When using the default <code>make run</code>, each service directory must contain a <code>Makefile</code> with a <code>run</code> target:

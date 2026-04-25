@@ -6,14 +6,15 @@ import Terminal from "../Terminal.astro";
   <div class="panel">
     <div class="panel-border">
       <div class="border-top">
-        <span class="panel-title">services</span>
+        <span class="panel-title-muted">profile &bull; default</span>
         <span class="border-spacer"></span>
-        <span class="status-text">4/4 ready</span>
+        <span class="status-text"><span class="running">running</span> 4/4 ready</span>
       </div>
 
       <div class="panel-content">
         <div class="row header-row">
           <span class="col-name"></span>
+          <span class="col-timeline"></span>
           <span class="col-status">status</span>
           <span class="col-cpu">cpu</span>
           <span class="col-mem">mem</span>
@@ -22,6 +23,7 @@ import Terminal from "../Terminal.astro";
         <div class="tier">foundation</div>
         <div class="row selected">
           <span class="col-name"><span class="indicator">&#9673;</span> auth</span>
+          <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
           <span class="col-status running">running</span>
           <span class="col-cpu dim">0.3%</span>
           <span class="col-mem dim">24MB</span>
@@ -30,12 +32,14 @@ import Terminal from "../Terminal.astro";
         <div class="tier">platform</div>
         <div class="row">
           <span class="col-name"><span class="indicator">&#9673;</span> api</span>
+          <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
           <span class="col-status running">running</span>
           <span class="col-cpu dim">1.2%</span>
           <span class="col-mem dim">32MB</span>
         </div>
         <div class="row">
           <span class="col-name"><span class="indicator">&#9673;</span> worker</span>
+          <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
           <span class="col-status running">running</span>
           <span class="col-cpu dim">0.4%</span>
           <span class="col-mem dim">28MB</span>
@@ -44,6 +48,7 @@ import Terminal from "../Terminal.astro";
         <div class="tier">edge</div>
         <div class="row">
           <span class="col-name"><span class="indicator">&#9673;</span> web</span>
+          <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
           <span class="col-status running">running</span>
           <span class="col-cpu dim">4.2%</span>
           <span class="col-mem dim">120MB</span>
@@ -66,6 +71,10 @@ import Terminal from "../Terminal.astro";
         <span class="help-key">s</span> <span class="help-desc">stop/start</span>
         <span class="help-sep">&bull;</span>
         <span class="help-key">r</span> <span class="help-desc">restart</span>
+        <span class="help-sep">&bull;</span>
+        <span class="help-key">ctrl+r</span> <span class="help-desc">restart failed</span>
+        <span class="help-sep">&bull;</span>
+        <span class="help-key">/</span> <span class="help-desc">filter</span>
         <span class="help-sep">&bull;</span>
         <span class="help-key">q</span> <span class="help-desc">quit</span>
       </span>
@@ -105,9 +114,8 @@ import Terminal from "../Terminal.astro";
     padding: 0 !important;
   }
 
-  .panel-title {
-    color: #7D56F4;
-    font-weight: bold;
+  .panel-title-muted {
+    color: #6c7086;
   }
 
   .panel-content {
@@ -139,10 +147,15 @@ import Terminal from "../Terminal.astro";
 
   .header-row { color: #6c7086; }
 
-  .col-name { width: 46%; }
-  .col-status { width: 24%; }
-  .col-cpu { width: 15%; text-align: right; }
-  .col-mem { width: 15%; text-align: right; }
+  .col-name { width: 26%; }
+  .col-timeline { width: 30%; letter-spacing: 0.5px; font-size: 0.82em; }
+  .col-status { width: 18%; }
+  .col-cpu { width: 13%; text-align: right; }
+  .col-mem { width: 13%; text-align: right; }
+
+  .tl-running { color: #16a34a; }
+  .tl-starting { color: #f9e2af; }
+  .tl-empty { color: #4a4a4a; }
 
   .tier {
     color: #7D56F4;
@@ -179,6 +192,8 @@ import Terminal from "../Terminal.astro";
   }
 
   @media (max-width: 480px) {
+    .col-timeline { display: none; }
+
     .help-footer {
       display: none;
     }

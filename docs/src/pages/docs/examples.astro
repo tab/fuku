@@ -17,10 +17,12 @@ const nav = getDocsNav(base);
   section="docs"
   breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Examples", href: current }]}
 >
+  <span class="kicker">// docs &middot; examples</span>
   <h1>Examples</h1>
   <p class="lead">Real-world configuration patterns for common project setups.</p>
 
-  <h2>E-commerce Platform</h2>
+  <div class="section-eyebrow">E-commerce</div>
+  <h2>E-commerce platform.</h2>
 
   <p>
     A Go microservices platform with 5 tiers, readiness checks, hot-reload, and multiple profiles.
@@ -78,7 +80,7 @@ x-watch: &watch
   </p>
 
   <CodeEditor title="fuku.yaml (continued)" lang="yaml" code={`services:
-  # Foundation — auth, users, shared infrastructure
+  # Foundation – auth, users, shared infrastructure
   auth-service:
     dir: auth-service
     tier: foundation
@@ -104,7 +106,7 @@ x-watch: &watch
       address: "localhost:3003"
     logs: *logs
 
-  # Core — main business entities
+  # Core – main business entities
   catalog-service:
     dir: catalog-service
     tier: core
@@ -130,7 +132,7 @@ x-watch: &watch
       address: "localhost:3006"
     logs: *logs
 
-  # Platform — payments, shipping, notifications
+  # Platform – payments, shipping, notifications
   payments-service:
     dir: payments-service
     tier: platform
@@ -159,7 +161,7 @@ x-watch: &watch
       <<: *readiness-http
       url: "http://localhost:3010/health"
 
-  # Background — workers, async processing
+  # Background – workers, async processing
   worker:
     dir: worker
     tier: background
@@ -168,7 +170,7 @@ x-watch: &watch
       pattern: "Worker started"
     logs: *logs
 
-  # Edge — client-facing API gateways
+  # Edge – client-facing API gateways
   storefront-api:
     dir: storefront-api
     tier: edge
@@ -278,7 +280,8 @@ fuku run checkout --no-ui`} />
 
   <hr />
 
-  <h2>Key Patterns</h2>
+  <div class="section-eyebrow">Patterns</div>
+  <h2>Key patterns.</h2>
 
   <h3>YAML Anchors for DRY Config</h3>
 
@@ -293,17 +296,17 @@ fuku run checkout --no-ui`} />
   </p>
 
   <ul>
-    <li><strong>foundation</strong> — auth, users, inventory</li>
-    <li><strong>core</strong> — main business entities (catalog, orders, cart)</li>
-    <li><strong>platform</strong> — payments, shipping, notifications, search</li>
-    <li><strong>background</strong> — workers, async processors</li>
-    <li><strong>edge</strong> — APIs, frontends</li>
+    <li><strong>foundation</strong> – auth, users, inventory</li>
+    <li><strong>core</strong> – main business entities (catalog, orders, cart)</li>
+    <li><strong>platform</strong> – payments, shipping, notifications, search</li>
+    <li><strong>background</strong> – workers, async processors</li>
+    <li><strong>edge</strong> – APIs, frontends</li>
   </ul>
 
   <h3>Custom Commands</h3>
 
   <p>
-    By default, fuku runs <code>make run</code> in each service directory. The <code>command</code> option lets you override this with any shell command — useful for running the same codebase in a different mode, spinning up tooling, or wrapping a service with extra steps.
+    By default, fuku runs <code>make run</code> in each service directory. The <code>command</code> option lets you override this with any shell command – useful for running the same codebase in a different mode, spinning up tooling, or wrapping a service with extra steps.
   </p>
 
   <p>
@@ -337,11 +340,11 @@ profiles:
   docs: [backend, backend-swagger]`} />
 
   <p>
-    Run <code>fuku run docs</code> and you get your backend plus live Swagger UI at <code>localhost:8080</code> — all managed by fuku.
+    Run <code>fuku run docs</code> and you get your backend plus live Swagger UI at <code>localhost:8080</code> – all managed by fuku.
   </p>
 
   <p>
-    Single containers work well with <code>command</code> because fuku owns the process — it can stop, restart, and check readiness of each container individually. Avoid running Docker Compose inside fuku: compose manages its own process tree, so fuku loses visibility into individual container health, logs get duplicated, and hot-reload restarts the entire stack instead of a single service.
+    Single containers work well with <code>command</code> because fuku owns the process – it can stop, restart, and check readiness of each container individually. Avoid running Docker Compose inside fuku: compose manages its own process tree, so fuku loses visibility into individual container health, logs get duplicated, and hot-reload restarts the entire stack instead of a single service.
   </p>
 
   <p>
@@ -357,8 +360,8 @@ profiles:
   <h3>Readiness Check Types</h3>
 
   <ul>
-    <li><strong>TCP</strong> — best for gRPC services. Checks if the port is accepting connections.</li>
-    <li><strong>HTTP</strong> — best for REST APIs. Hits a health endpoint.</li>
-    <li><strong>Log</strong> — best for workers and services without a network interface. Matches a log pattern.</li>
+    <li><strong>TCP</strong> – best for gRPC services. Checks if the port is accepting connections.</li>
+    <li><strong>HTTP</strong> – best for REST APIs. Hits a health endpoint.</li>
+    <li><strong>Log</strong> – best for workers and services without a network interface. Matches a log pattern.</li>
   </ul>
 </DocsLayout>

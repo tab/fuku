@@ -5,6 +5,16 @@ import { getDocsNav } from "../../data/nav";
 const base = import.meta.env.BASE_URL;
 const current = `${base}docs/`;
 const nav = getDocsNav(base);
+
+const cards = [
+  { href: `${base}docs/getting-started/`, num: "01", title: "Getting Started", desc: "Install fuku and get your services running in minutes." },
+  { href: `${base}docs/configuration/`, num: "02", title: "Configuration", desc: "Complete reference for fuku.yaml – services, tiers, profiles, and more." },
+  { href: `${base}docs/cli/`, num: "03", title: "CLI Commands", desc: "All available commands, flags, and short aliases." },
+  { href: `${base}docs/api/`, num: "04", title: "REST API", desc: "Observe and control services from IDE plugins, desktop apps, and CLI tools." },
+  { href: `${base}docs/examples/`, num: "05", title: "Examples", desc: "Real-world configuration patterns for common project setups." },
+  { href: `${base}docs/troubleshooting/`, num: "06", title: "Troubleshooting", desc: "Common issues and how to resolve them." },
+  { href: `${base}docs/privacy/`, num: "07", title: "Privacy", desc: "What fuku collects and how to opt out." },
+];
 ---
 
 <DocsLayout
@@ -18,147 +28,82 @@ const nav = getDocsNav(base);
   <p class="lead">Learn how to install, configure, and use fuku.</p>
 
   <div class="doc-grid">
-    <a href={`${base}docs/getting-started/`} class="doc-card">
-      <div class="icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
-      </div>
-      <h3>Getting Started</h3>
-      <p>Install fuku and get your services running in minutes.</p>
-    </a>
-    <a href={`${base}docs/configuration/`} class="doc-card">
-      <div class="icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-      </div>
-      <h3>Configuration</h3>
-      <p>Complete reference for fuku.yaml — services, tiers, profiles, and more.</p>
-    </a>
-    <a href={`${base}docs/cli/`} class="doc-card">
-      <div class="icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="4 17 10 11 4 5"/>
-          <line x1="12" y1="19" x2="20" y2="19"/>
-        </svg>
-      </div>
-      <h3>CLI Commands</h3>
-      <p>All available commands, flags, and short aliases.</p>
-    </a>
-    <a href={`${base}docs/api/`} class="doc-card">
-      <div class="icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4 11a9 9 0 0 1 9 9"/>
-          <path d="M4 4a16 16 0 0 1 16 16"/>
-          <circle cx="5" cy="19" r="1"/>
-        </svg>
-      </div>
-      <h3>REST API</h3>
-      <p>Observe and control services from IDE plugins, desktop apps, and CLI tools.</p>
-    </a>
-    <a href={`${base}docs/examples/`} class="doc-card">
-      <div class="icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-        </svg>
-      </div>
-      <h3>Examples</h3>
-      <p>Real-world configuration patterns for common project setups.</p>
-    </a>
-    <a href={`${base}docs/troubleshooting/`} class="doc-card">
-      <div class="icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </div>
-      <h3>Troubleshooting</h3>
-      <p>Common issues and how to resolve them.</p>
-    </a>
-    <a href={`${base}docs/privacy/`} class="doc-card">
-      <div class="icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-      </div>
-      <h3>Privacy</h3>
-      <p>What fuku collects and how to opt out.</p>
-    </a>
+    {cards.map((c) => (
+      <a href={c.href} class="doc-card">
+        <div class="card-num">{c.num}</div>
+        <h3>{c.title}</h3>
+        <p>{c.desc}</p>
+        <span class="card-link">Read &rarr;</span>
+      </a>
+    ))}
   </div>
 </DocsLayout>
 
 <style>
   .doc-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
     margin-top: 32px;
   }
 
   .doc-card {
-    display: block;
-    background: var(--glass-card-bg);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    border: 1px solid var(--glass-card-border);
-    border-radius: 16px;
-    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 28px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     text-decoration: none;
-    overflow: hidden;
-    position: relative;
-    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 0.35s ease;
-  }
-
-  .doc-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 50%;
-    border-radius: 16px 16px 0 0;
-    background: linear-gradient(180deg, var(--glass-card-shine) 0%, transparent 100%);
-    pointer-events: none;
+    color: inherit;
+    transition: border-color 0.15s, transform 0.15s;
   }
 
   .doc-card:hover {
-    transform: translateY(-4px) scale(1.01);
-    border-color: var(--glass-card-hover-border);
-    box-shadow: var(--glass-card-shadow);
+    border-color: var(--text-muted);
+    transform: translateY(-2px);
     text-decoration: none;
   }
 
-  .icon {
-    position: relative;
+  .card-num {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
     color: var(--blue);
-    margin-bottom: 16px;
+    letter-spacing: 0.15em;
   }
 
   .doc-card h3 {
-    position: relative;
-    font-size: 1.05rem;
+    font-family: var(--heading);
+    font-size: 1.25rem;
     font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0;
     color: var(--text);
-    margin-bottom: 8px;
   }
 
   .doc-card p {
-    position: relative;
     font-size: 0.9rem;
     color: var(--text-muted);
-    line-height: 1.6;
+    line-height: 1.55;
     margin: 0;
   }
 
-  @media (max-width: 768px) {
+  .card-link {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--blue);
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  @media (max-width: 900px) {
+    .doc-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 600px) {
     .doc-grid {
       grid-template-columns: 1fr;
     }

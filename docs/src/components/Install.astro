@@ -5,8 +5,8 @@ import { getInstallMethods } from "../data/install";
 const methods = getInstallMethods();
 ---
 
-<section class="install" id="install">
-  <div class="container">
+<section class="install-section" id="install">
+  <div class="install-inner">
     <h2 class="section-title">Install</h2>
 
     {methods.map((method) => (
@@ -15,14 +15,26 @@ const methods = getInstallMethods();
         <CodeTerminal code={method.code} />
       </div>
     ))}
-
   </div>
 </section>
 
 <style>
+  .install-section {
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+  }
+
+  .install-inner {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 100px 56px;
+  }
+
   .section-title {
+    font-family: var(--heading);
     font-size: 2rem;
-    font-weight: 700;
+    font-weight: 600;
+    letter-spacing: -0.025em;
     text-align: center;
     margin-bottom: 48px;
   }
@@ -33,6 +45,7 @@ const methods = getInstallMethods();
   }
 
   h3 {
+    font-family: var(--heading);
     font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 16px;
