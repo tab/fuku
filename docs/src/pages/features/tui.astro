@@ -18,10 +18,12 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Interactive TUI", href: current }]}
 >
+  <span class="kicker">// features &middot; tui</span>
   <h1>Interactive TUI</h1>
-  <p class="lead">A terminal dashboard for managing your services in real time.</p>
+  <p class="lead">A real-time dashboard for every service. CPU, memory, uptime, logs – keyboard-driven, no mouse, no context switch.</p>
 
-  <h2>Service Dashboard</h2>
+  <div class="section-eyebrow">Service Dashboard</div>
+  <h2>Six services, one screen.</h2>
 
   <p>
     When you run <code>fuku</code> (or <code>fuku run</code>), it launches an interactive terminal UI showing all services, their status, resource usage, and uptime.
@@ -58,7 +60,7 @@ const nav = getFeaturesNav(base);
               <div class="tier">foundation</div>
               <div class="row selected">
                 <span class="col-name"><span class="indicator">&#9673;</span> auth</span>
-                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
+                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">0.3%</span>
                 <span class="col-mem dim">24MB</span>
@@ -69,7 +71,7 @@ const nav = getFeaturesNav(base);
               <div class="tier">platform</div>
               <div class="row">
                 <span class="col-name"><span class="indicator">&#9673;</span> api</span>
-                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
+                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">1.2%</span>
                 <span class="col-mem dim">32MB</span>
@@ -78,7 +80,7 @@ const nav = getFeaturesNav(base);
               </div>
               <div class="row">
                 <span class="col-name"><span class="indicator">&#9673;</span> worker</span>
-                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
+                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">0.4%</span>
                 <span class="col-mem dim">28MB</span>
@@ -89,7 +91,7 @@ const nav = getFeaturesNav(base);
               <div class="tier">edge</div>
               <div class="row">
                 <span class="col-name"><span class="indicator">&#9673;</span> web</span>
-                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
+                <span class="col-timeline"><span class="tl-starting">&#9646;&#9646;&#9646;</span><span class="tl-running">&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;&#9646;</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">4.2%</span>
                 <span class="col-mem dim">120MB</span>
@@ -127,11 +129,13 @@ const nav = getFeaturesNav(base);
     </div>
   </div>
 
-  <h2>Keyboard Controls</h2>
+  <div class="section-eyebrow">Key bindings</div>
+  <h2>Built for the keyboard.</h2>
 
   <KeyboardControls />
 
-  <h2>Service Filter</h2>
+  <div class="section-eyebrow">Filtering</div>
+  <h2>Find services fast.</h2>
 
   <p>
     Press <code>/</code> to enter filter mode. Type a query to narrow the service list by name &mdash; matching is case-insensitive and works on partial names.
@@ -145,13 +149,15 @@ const nav = getFeaturesNav(base);
     The filter bar appears in the bottom border alongside CPU/memory stats. A cursor (<code>_</code>) indicates active input mode.
   </p>
 
-  <h2>Resource Monitoring</h2>
+  <div class="section-eyebrow">Monitoring</div>
+  <h2>Live CPU and memory.</h2>
 
   <p>
     The TUI shows real-time CPU and memory usage for each service, sampled periodically via <code>gopsutil</code>. Aggregate CPU and memory are displayed in the bottom border.
   </p>
 
-  <h2>No-UI Mode</h2>
+  <div class="section-eyebrow">Plain mode</div>
+  <h2>No-UI mode.</h2>
 
   <p>
     If you prefer plain log output without the interactive dashboard, use <code>--no-ui</code>:
@@ -159,7 +165,7 @@ const nav = getFeaturesNav(base);
 
   <CodeTerminal code={`fuku run core --no-ui`} />
 
-  <p>This streams service logs directly to your terminal with service name prefixes — useful for CI, scripting, or when you want simple output.</p>
+  <p>This streams service logs directly to your terminal with service name prefixes – useful for CI, scripting, or when you want simple output.</p>
 
   <GetStartedCTA />
 </DocsLayout>

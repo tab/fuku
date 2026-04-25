@@ -15,36 +15,36 @@ const base = import.meta.env.BASE_URL;
   <main>
     <!-- ─── Hero ─── -->
     <section class="hero">
-      <div class="container">
-        <p class="hero-eyebrow">Local development orchestrator</p>
+      <div class="inner">
+        <div class="hero-eyebrow">// local development orchestrator</div>
         <h1 class="hero-title">
-          Why fuku
+          Why <span class="hero-accent">fuku</span>
         </h1>
         <p class="hero-desc">
-          Run all your services as native processes with proper startup ordering,<br class="hide-mobile"/>
+          Run all your services as native processes with proper startup ordering,
           readiness checks, and a live dashboard. No Docker required.
         </p>
       </div>
     </section>
 
-    <!-- ─── The number ─── -->
-    <section class="bignum-section">
-      <div class="container">
-        <div class="bignum-grid">
-          <div class="bignum-card glass-card reveal" data-delay="0">
-            <span class="bignum gradient-text" data-count="30" data-suffix="x">0x</span>
-            <span class="bignum-label">less memory than Compose</span>
-            <span class="bignum-detail">~60 MB vs ~2 GB for 50 services</span>
+    <!-- ─── Stats ─── -->
+    <section class="stats-section">
+      <div class="inner">
+        <div class="stats-grid reveal">
+          <div class="stat-cell">
+            <span class="stat-big" data-count="30" data-suffix="×">0×</span>
+            <span class="stat-label">less memory than Compose</span>
+            <span class="stat-detail">~60 MB vs ~2 GB for 50 services</span>
           </div>
-          <div class="bignum-card glass-card reveal" data-delay="100">
-            <span class="bignum gradient-text" data-count="0">0</span>
-            <span class="bignum-label">Docker dependencies</span>
-            <span class="bignum-detail">Native processes, no VM, no daemon</span>
+          <div class="stat-cell">
+            <span class="stat-big" data-count="0">0</span>
+            <span class="stat-label">Docker dependencies</span>
+            <span class="stat-detail">Native processes, no VM, no daemon</span>
           </div>
-          <div class="bignum-card glass-card reveal" data-delay="200">
-            <span class="bignum gradient-text" data-count="1">1</span>
-            <span class="bignum-label">command to start everything</span>
-            <span class="bignum-detail">Tier-based ordering with readiness checks</span>
+          <div class="stat-cell">
+            <span class="stat-big" data-count="1">1</span>
+            <span class="stat-label">command to start everything</span>
+            <span class="stat-detail">Tier-based ordering with readiness checks</span>
           </div>
         </div>
       </div>
@@ -52,196 +52,133 @@ const base = import.meta.env.BASE_URL;
 
     <!-- ─── Memory visual ─── -->
     <section class="mem-section">
-      <div class="container narrow">
-        <div class="section-header center">
-          <span class="section-label">Resource usage</span>
-          <h2>Memory comparison</h2>
+      <div class="inner">
+        <div class="section-label">// resource usage</div>
+        <h2 class="section-h2">Memory comparison</h2>
+        <p class="section-sub">50 services, same workload, four runtimes. fuku runs them as native processes.</p>
+
+        <div class="mem-toggles" id="mem-toggles">
+          <button class="mem-toggle active" data-runtime="go"><span class="mem-toggle-swatch go"></span>Go<span class="mem-toggle-count">50 services</span></button>
+          <button class="mem-toggle" data-runtime="node"><span class="mem-toggle-swatch node"></span>Node.js<span class="mem-toggle-count">50 services</span></button>
+          <button class="mem-toggle" data-runtime="python"><span class="mem-toggle-swatch python"></span>Python<span class="mem-toggle-count">50 services</span></button>
+          <button class="mem-toggle" data-runtime="ruby"><span class="mem-toggle-swatch ruby"></span>Ruby<span class="mem-toggle-count">50 services</span></button>
         </div>
 
-        <div class="mem-visual glass-card reveal" id="mem-visual">
-          <div class="mem-tabs" id="mem-tabs">
-            <button class="mem-tab active" data-runtime="go">Go<span class="mem-tab-count">50 services</span></button>
-            <button class="mem-tab" data-runtime="node">Node.js<span class="mem-tab-count">30 services</span></button>
-            <button class="mem-tab" data-runtime="python">Python<span class="mem-tab-count">20 services</span></button>
-            <button class="mem-tab" data-runtime="ruby">Ruby<span class="mem-tab-count">15 services</span></button>
-          </div>
-
-          <div class="mem-bars">
-            <div class="mem-row">
-              <div class="mem-label">
-                <span class="mem-tool">Docker Compose</span>
-                <span class="mem-val" id="mem-compose-val">0 MB</span>
-              </div>
-              <div class="mem-track">
-                <div class="mem-bar bar-compose bar-paused" id="mem-compose-bar"></div>
-              </div>
-              <span class="mem-footnote" id="mem-compose-note">+ Docker Desktop VM: 2-4 GB</span>
+        <div class="mem-bars" id="mem-visual">
+          <div class="mem-row">
+            <div class="mem-label">
+              <span class="mem-tool">Docker Compose</span>
+              <span class="mem-val-info"><span class="mem-val" id="mem-compose-val">~2 GB containers</span><span class="mem-val-dim" id="mem-compose-note">+ ~2 GB Docker Desktop VM</span></span>
             </div>
-            <div class="mem-row">
-              <div class="mem-label">
-                <span class="mem-tool highlight">fuku</span>
-                <span class="mem-val highlight" id="mem-fuku-val">0 MB</span>
-              </div>
-              <div class="mem-track">
-                <div class="mem-bar bar-fuku bar-paused" id="mem-fuku-bar"></div>
-              </div>
-              <span class="mem-footnote" id="mem-fuku-note">No VM, no container runtime</span>
+            <div class="mem-track">
+              <div class="mem-bar bar-compose-vm" id="mem-compose-vm" style="width: 0;" data-target-width="25%"><span class="bar-label">Docker Desktop VM</span></div>
+              <div class="mem-bar bar-compose-containers" id="mem-compose-bar" style="width: 0;" data-target-width="24.4%"><span class="bar-label">containers</span></div>
             </div>
           </div>
+          <div class="mem-row">
+            <div class="mem-label">
+              <span class="mem-tool">fuku <span class="mem-runtime-badge" id="mem-runtime-badge">Go</span></span>
+              <span class="mem-val-info"><span class="mem-val" id="mem-fuku-val">~60 MB total</span><span class="mem-val-dim" id="mem-fuku-note">No VM, no container runtime</span></span>
+            </div>
+            <div class="mem-track" id="mem-fuku-track">
+              <div style="height: 100%; background: #00ADD8; width: 0; transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);" data-target-width="0.6%"></div>
+            </div>
+          </div>
+        </div>
 
-          <p class="mem-estimate" id="mem-estimate"></p>
+        <div class="mem-axis">
+          <span>0 MB</span><span>2 GB</span><span>4 GB</span><span>6 GB</span><span>8 GB</span>
         </div>
       </div>
     </section>
 
     <!-- ─── When to use ─── -->
     <section class="when-section">
-      <div class="container narrow">
-        <div class="section-header center">
-          <span class="section-label">Use cases</span>
-          <h2>When to use fuku</h2>
-        </div>
+      <div class="inner">
+        <div class="section-label">// use cases</div>
+        <h2 class="section-h2">When to use fuku</h2>
 
-        <div class="when-cards">
-          <div class="glass-card when-card reveal-left">
-            <div class="when-stripe stripe-red"></div>
-            <div class="when-body">
-              <span class="when-badge badge-red">Keep it simple</span>
-              <p class="when-quote">A backend and a frontend. Two terminal tabs. Done.</p>
-              <p class="when-verdict">You don't need fuku.</p>
-            </div>
+        <div class="when-grid">
+          <div class="when-card when-simple reveal-left">
+            <div class="when-kicker">Keep it simple</div>
+            <h3>A backend and a frontend.</h3>
+            <p>Two terminal tabs. Done.</p>
+            <span class="when-pill">You don't need fuku.</span>
           </div>
-          <div class="when-arrow reveal" data-delay="150">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-          <div class="glass-card when-card when-card-yes reveal-right">
-            <div class="when-stripe stripe-green"></div>
-            <div class="when-body">
-              <span class="when-badge badge-green">complex configuration</span>
-              <ul class="when-list">
-                <li>Multiple backend services with dependencies</li>
-                <li>BFF layer between APIs and the UI</li>
-                <li>Several frontends — SPA, docs, Swagger</li>
-                <li>Gateways, mock servers, infrastructure</li>
-              </ul>
-            </div>
+          <div class="when-card when-complex reveal-right">
+            <div class="when-kicker accent">Complex configuration</div>
+            <h3>You want fuku.</h3>
+            <ul class="when-list">
+              <li><span class="check">&#10003;</span>Multiple backend services with dependencies</li>
+              <li><span class="check">&#10003;</span>BFF layer between APIs and the UI</li>
+              <li><span class="check">&#10003;</span>Several frontends – SPA, docs, Swagger</li>
+              <li><span class="check">&#10003;</span>Gateways, mock servers, infrastructure</li>
+            </ul>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ─── Problem → Solution ─── -->
+    <!-- ─── Tradeoffs ─── -->
     <section class="vs-section">
-      <div class="container">
-        <div class="section-header center">
-          <span class="section-label">Docker Compose vs fuku</span>
-          <h2>Local development tradeoffs</h2>
-          <p class="section-sub">Compose runs containers. fuku runs native processes. Here's what that means day to day.</p>
-        </div>
+      <div class="inner">
+        <div class="section-label">// docker compose vs fuku</div>
+        <h2 class="section-h2">Local development tradeoffs</h2>
+        <p class="section-sub">Compose runs containers. fuku runs native processes. Here's what that means day to day.</p>
 
-        <div class="vs-grid">
-          <div class="vs-pair reveal" data-delay="0">
-            <div class="vs-problem">
-              <div class="vs-icon vs-icon-red">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-              </div>
-              <div>
-                <h3>~2 GB+ container memory</h3>
-                <p>Plus 2-4 GB for the Docker Desktop VM on macOS</p>
-              </div>
+        <div class="vs-table reveal">
+          <div class="vs-header">
+            <span>Docker Compose</span>
+            <span class="vs-header-accent">fuku</span>
+          </div>
+          <div class="vs-row">
+            <div class="vs-cell">
+              <h4>~2 GB+ container memory</h4>
+              <p>Plus 2–4 GB for the Docker Desktop VM on macOS</p>
             </div>
-            <div class="vs-solution">
-              <div class="vs-icon vs-icon-blue">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div>
-                <h3>~60 MB total</h3>
-                <p>Native processes. No VM, no daemon, no overhead.</p>
-              </div>
+            <div class="vs-cell vs-cell-accent">
+              <h4>~60 MB total</h4>
+              <p>Native processes. No VM, no daemon, no overhead.</p>
             </div>
           </div>
-
-          <div class="vs-pair reveal" data-delay="80">
-            <div class="vs-problem">
-              <div class="vs-icon vs-icon-red">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              </div>
-              <div>
-                <h3>Minutes to start</h3>
-                <p>Image pulls, layer extraction, network setup, cgroup init</p>
-              </div>
+          <div class="vs-row">
+            <div class="vs-cell">
+              <h4>Minutes to start</h4>
+              <p>Image pulls, layer extraction, network setup, cgroup init</p>
             </div>
-            <div class="vs-solution">
-              <div class="vs-icon vs-icon-blue">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div>
-                <h3>Seconds to start</h3>
-                <p>Native fork and exec. No container initialization.</p>
-              </div>
+            <div class="vs-cell vs-cell-accent">
+              <h4>Seconds to start</h4>
+              <p>Native fork and exec. No container initialization.</p>
             </div>
           </div>
-
-          <div class="vs-pair reveal" data-delay="160">
-            <div class="vs-problem">
-              <div class="vs-icon vs-icon-red">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-              </div>
-              <div>
-                <h3>Broken file watching</h3>
-                <p>macOS VM proxies FS events. Latency. Missed changes.</p>
-              </div>
+          <div class="vs-row">
+            <div class="vs-cell">
+              <h4>Broken file watching</h4>
+              <p>macOS VM proxies FS events. Latency. Missed changes.</p>
             </div>
-            <div class="vs-solution">
-              <div class="vs-icon vs-icon-blue">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div>
-                <h3>Instant hot-reload</h3>
-                <p>Native fsnotify. Debounced. Configurable per-service.</p>
-              </div>
+            <div class="vs-cell vs-cell-accent">
+              <h4>Instant hot-reload</h4>
+              <p>Native fsnotify. Debounced. Configurable per-service.</p>
             </div>
           </div>
-
-          <div class="vs-pair reveal" data-delay="240">
-            <div class="vs-problem">
-              <div class="vs-icon vs-icon-red">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-              </div>
-              <div>
-                <h3>depends_on ≠ ready</h3>
-                <p>Container started doesn't mean service is accepting requests</p>
-              </div>
+          <div class="vs-row">
+            <div class="vs-cell">
+              <h4>depends_on ≠ ready</h4>
+              <p>Container started doesn't mean service is accepting requests</p>
             </div>
-            <div class="vs-solution">
-              <div class="vs-icon vs-icon-blue">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div>
-                <h3>Real readiness gates</h3>
-                <p>HTTP, TCP, and log pattern checks. Tier-based startup ordering.</p>
-              </div>
+            <div class="vs-cell vs-cell-accent">
+              <h4>Real readiness gates</h4>
+              <p>HTTP, TCP, and log pattern checks. Tier-based startup.</p>
             </div>
           </div>
-
-          <div class="vs-pair reveal" data-delay="320">
-            <div class="vs-problem">
-              <div class="vs-icon vs-icon-red">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              </div>
-              <div>
-                <h3>Interleaved log noise</h3>
-                <p>No overview. No controls. grep your way through stdout.</p>
-              </div>
+          <div class="vs-row vs-row-last">
+            <div class="vs-cell">
+              <h4>Interleaved log noise</h4>
+              <p>No overview. No controls. grep your way through stdout.</p>
             </div>
-            <div class="vs-solution">
-              <div class="vs-icon vs-icon-blue">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div>
-                <h3>Live TUI dashboard</h3>
-                <p>Per-service status, CPU/memory, restart controls, log filtering.</p>
-              </div>
+            <div class="vs-cell vs-cell-accent">
+              <h4>Live TUI dashboard</h4>
+              <p>Per-service status, CPU/memory, restart controls, log filtering.</p>
             </div>
           </div>
         </div>
@@ -249,54 +186,52 @@ const base = import.meta.env.BASE_URL;
     </section>
 
     <!-- ─── Comparison table ─── -->
-    <section class="table-section">
-      <div class="container">
-        <div class="section-header center">
-          <span class="section-label">Comparison</span>
-          <h2>Feature matrix</h2>
-        </div>
+    <section class="matrix-section">
+      <div class="inner">
+        <div class="section-label">// comparison</div>
+        <h2 class="section-h2">Feature matrix</h2>
 
-        <div class="table-wrap glass-card reveal">
-          <table class="cmp">
-            <thead>
-              <tr>
-                <th class="fc"></th>
-                <th>Foreman</th>
-                <th>Overmind</th>
-                <th>Compose</th>
-                <th class="hl">fuku</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td class="fc">Native processes</td><td><span class="ic y"></span></td><td><span class="ic y"></span></td><td><span class="ic n"></span><span class="tn">Containers</span></td><td class="hl"><span class="ic y"></span></td></tr>
-              <tr><td class="fc">Startup ordering</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">depends_on</span></td><td class="hl"><span class="ic y"></span><span class="tn">Tier-based</span></td></tr>
-              <tr><td class="fc">Readiness checks</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">Extra config</span></td><td class="hl"><span class="ic y"></span><span class="tn">HTTP, TCP, log</span></td></tr>
-              <tr><td class="fc">Interactive TUI</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td class="hl"><span class="ic y"></span></td></tr>
-              <tr><td class="fc">CPU/memory monitoring</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">docker stats</span></td><td class="hl"><span class="ic y"></span><span class="tn">Built-in</span></td></tr>
-              <tr><td class="fc">Hot-reload</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic p"></span><span class="tn">Volume mounts</span></td><td class="hl"><span class="ic y"></span><span class="tn">Built-in</span></td></tr>
-              <tr><td class="fc">Service profiles</td><td><span class="ic n"></span></td><td><span class="ic n"></span></td><td><span class="ic y"></span></td><td class="hl"><span class="ic y"></span></td></tr>
-              <tr><td class="fc">Per-process terminal</td><td><span class="ic n"></span></td><td><span class="ic y"></span><span class="tn">tmux</span></td><td><span class="ic p"></span><span class="tn">docker exec</span></td><td class="hl"><span class="ic n"></span></td></tr>
-              <tr><td class="fc">Log streaming</td><td><span class="ic p"></span><span class="tn">stdout</span></td><td><span class="ic p"></span><span class="tn">stdout</span></td><td><span class="ic p"></span><span class="tn">docker logs</span></td><td class="hl"><span class="ic y"></span><span class="tn">Socket-based</span></td></tr>
-              <tr><td class="fc">Config format</td><td><span class="tl">Procfile</span></td><td><span class="tl">Procfile</span></td><td><span class="tl">YAML</span></td><td class="hl"><span class="tl">YAML</span></td></tr>
-              <tr><td class="fc">Requires Docker</td><td><span class="ic y"></span><span class="tn">No</span></td><td><span class="ic y"></span><span class="tn">No</span></td><td><span class="ic n"></span><span class="tn">Required</span></td><td class="hl"><span class="ic y"></span><span class="tn">No</span></td></tr>
-            </tbody>
-            <tfoot>
-              <tr><td class="fc">Memory (~50 services)</td><td><span class="mv">~60 MB</span></td><td><span class="mv">~60 MB</span></td><td><span class="mv bad">~2 GB+</span></td><td class="hl"><span class="mv good">~60 MB</span></td></tr>
-            </tfoot>
-          </table>
+        <div class="matrix reveal">
+          <div class="mx-head">
+            <span></span>
+            <span>Foreman</span>
+            <span>Overmind</span>
+            <span>Compose</span>
+            <span class="mx-accent">fuku</span>
+          </div>
+          <div class="mx-row"><span class="mx-feat">Native processes</span><span class="mx-y">&#10003;</span><span class="mx-y">&#10003;</span><span class="mx-label">Containers</span><span class="mx-y mx-accent-y">&#10003;</span></div>
+          <div class="mx-row mx-alt"><span class="mx-feat">Startup ordering</span><span class="mx-n">&mdash;</span><span class="mx-n">&mdash;</span><span class="mx-label">depends_on</span><span class="mx-label accent">Tier-based</span></div>
+          <div class="mx-row"><span class="mx-feat">Readiness checks</span><span class="mx-n">&mdash;</span><span class="mx-n">&mdash;</span><span class="mx-label">Extra config</span><span class="mx-label accent">HTTP, TCP, log</span></div>
+          <div class="mx-row mx-alt"><span class="mx-feat">Interactive TUI</span><span class="mx-n">&mdash;</span><span class="mx-n">&mdash;</span><span class="mx-n">&mdash;</span><span class="mx-y mx-accent-y">&#10003;</span></div>
+          <div class="mx-row"><span class="mx-feat">CPU/memory monitoring</span><span class="mx-n">&mdash;</span><span class="mx-n">&mdash;</span><span class="mx-label">docker stats</span><span class="mx-label accent">Built-in</span></div>
+          <div class="mx-row mx-alt"><span class="mx-feat">Hot-reload</span><span class="mx-n">&mdash;</span><span class="mx-n">&mdash;</span><span class="mx-label">Volume mounts</span><span class="mx-label accent">Built-in</span></div>
+          <div class="mx-row"><span class="mx-feat">Service profiles</span><span class="mx-n">&mdash;</span><span class="mx-n">&mdash;</span><span class="mx-y">&#10003;</span><span class="mx-y mx-accent-y">&#10003;</span></div>
+          <div class="mx-row mx-alt"><span class="mx-feat">Per-process terminal</span><span class="mx-n">&mdash;</span><span class="mx-label">tmux</span><span class="mx-label">docker exec</span><span class="mx-y mx-accent-y">&#10003;</span></div>
+          <div class="mx-row"><span class="mx-feat">Log streaming</span><span class="mx-label">stdout</span><span class="mx-label">stdout</span><span class="mx-label">docker logs</span><span class="mx-label accent">Socket-based</span></div>
+          <div class="mx-row mx-alt"><span class="mx-feat">Config format</span><span class="mx-label">Procfile</span><span class="mx-label">Procfile</span><span class="mx-label">YAML</span><span class="mx-label accent">YAML</span></div>
+          <div class="mx-row"><span class="mx-feat">Requires Docker</span><span class="mx-label">No</span><span class="mx-label">No</span><span class="mx-label">Required</span><span class="mx-label accent">No</span></div>
+          <div class="mx-foot">
+            <span>Memory (~50 services)</span>
+            <span>~60 MB</span>
+            <span>~60 MB</span>
+            <span class="mx-bad">~2 GB+</span>
+            <span class="mx-good">~60 MB</span>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- ─── CTA ─── -->
     <section class="cta-section">
-      <div class="container narrow">
-        <div class="cta-card glass-card reveal">
-          <h2 class="cta-title">Try it out</h2>
-          <p class="cta-desc">Add a <code>fuku.yaml</code> to your project, list your services, and run <code>fuku</code>.</p>
+      <div class="inner">
+        <div class="cta-card reveal">
+          <div class="cta-text">
+            <div class="cta-eyebrow">// try it out</div>
+            <h2 class="cta-title">Add a fuku.yaml. List your services. Run fuku.</h2>
+          </div>
           <div class="cta-actions">
-            <a href={`${base}docs/getting-started/`} class="btn btn-primary">Getting started</a>
-            <a href={`${base}docs/configuration/`} class="btn btn-secondary">Configuration</a>
+            <a href={`${base}docs/getting-started/`} class="cta-btn-primary">Getting started &rarr;</a>
+            <a href={`${base}docs/configuration/`} class="cta-btn-ghost">Configuration</a>
           </div>
         </div>
       </div>
@@ -308,78 +243,32 @@ const base = import.meta.env.BASE_URL;
 
 <style>
   /* ── Layout ── */
-  .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
-  .narrow { max-width: 860px; }
-
-  .section-header { margin-bottom: 36px; }
-  .section-header.center { text-align: center; }
+  .inner { max-width: 1180px; margin: 0 auto; padding: 0 56px; }
 
   .section-label {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
     color: var(--blue);
-    margin-bottom: 10px;
+    margin-bottom: 14px;
   }
 
-  .section-header h2 {
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin-bottom: 8px;
+  .section-h2 {
+    font-family: var(--heading);
+    font-size: 2.75rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin: 0 0 12px;
   }
 
   .section-sub {
     color: var(--text-muted);
     font-size: 1.05rem;
     line-height: 1.6;
-    margin: 0;
-  }
-
-  .center .section-sub { max-width: 520px; margin: 0 auto; }
-
-  .hide-mobile { display: inline; }
-
-  /* ── Glass card ── */
-  .glass-card {
-    position: relative;
-    background: var(--glass-card-bg);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    border: 1px solid var(--glass-card-border);
-    border-radius: 16px;
-    overflow: hidden;
-    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 0.35s ease;
-  }
-
-  .glass-card::before {
-    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 50%;
-    border-radius: 16px 16px 0 0;
-    background: linear-gradient(180deg, var(--glass-card-shine) 0%, transparent 100%);
-    pointer-events: none;
-  }
-
-  .glass-card::after {
-    content: ""; position: absolute; inset: 0; border-radius: 16px; padding: 1px;
-    background: linear-gradient(180deg, var(--glass-card-ring-top) 0%, transparent 40%, transparent 60%, var(--glass-card-ring-bottom) 100%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
-  }
-
-  .gradient-text {
-    background: var(--gradient);
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  @keyframes gradient-shift {
-    0% { background-position: 0% center; }
-    50% { background-position: 100% center; }
-    100% { background-position: 0% center; }
+    max-width: 640px;
+    margin: 0 0 48px;
   }
 
   @keyframes fade-up {
@@ -387,12 +276,8 @@ const base = import.meta.env.BASE_URL;
     to { opacity: 1; transform: translateY(0); }
   }
 
-  @keyframes bar-grow { from { width: 0 !important; } }
-
   /* ── Scroll reveals ── */
-  .reveal,
-  .reveal-left,
-  .reveal-right {
+  .reveal, .reveal-left, .reveal-right {
     opacity: 0;
     transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
                 transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
@@ -402,165 +287,153 @@ const base = import.meta.env.BASE_URL;
   .reveal-left { transform: translateX(-32px); }
   .reveal-right { transform: translateX(32px); }
 
-  .reveal.visible,
-  .reveal-left.visible,
-  .reveal-right.visible {
+  .reveal.visible, .reveal-left.visible, .reveal-right.visible {
     opacity: 1;
     transform: translate(0, 0);
   }
 
-  .bar-paused {
-    width: 0 !important;
-  }
 
   /* ── Hero ── */
-  .hero {
-    padding: 80px 0 48px;
-    text-align: center;
-  }
+  .hero { padding: 100px 0 0; }
 
   .hero-eyebrow {
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
     color: var(--blue);
-    margin-bottom: 20px;
+    margin-bottom: 24px;
     animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   .hero-title {
-    font-size: 3.8rem;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    line-height: 1.08;
-    margin-bottom: 20px;
+    font-family: var(--heading);
+    font-size: 5.25rem;
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+    margin: 0 0 28px;
+    max-width: 1000px;
     animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
   }
 
+  .hero-accent {
+    color: var(--blue);
+    font-weight: 500;
+  }
+
   .hero-desc {
-    font-size: 1.12rem;
+    font-size: 1.35rem;
     color: var(--text-muted);
-    line-height: 1.7;
-    max-width: 600px;
-    margin: 0 auto 36px;
+    line-height: 1.5;
+    max-width: 720px;
+    margin: 0 0 72px;
     animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
   }
 
-  /* ── Big numbers ── */
-  .bignum-section {
-    padding: 0 0 72px;
-  }
+  /* ── Stats ── */
+  .stats-section { padding: 0 0 100px; }
 
-  .bignum-grid {
+  .stats-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    border-top: 1px solid var(--text);
+    border-bottom: 1px solid var(--text);
   }
 
-  .bignum-card {
-    padding: 32px 24px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
+  .stat-cell {
+    padding: 36px 32px;
+    border-right: 1px solid var(--border);
   }
 
-  .bignum-card:hover {
-    transform: translateY(-4px) scale(1.02);
-    border-color: var(--glass-card-hover-border);
-    box-shadow: var(--glass-card-shadow);
-  }
+  .stat-cell:last-child { border-right: none; }
 
-  .bignum {
-    font-size: 3.2rem;
-    font-weight: 800;
-    font-family: var(--mono);
-    letter-spacing: -0.04em;
-    line-height: 1;
-    position: relative;
-  }
-
-  .bignum-label {
-    font-size: 0.82rem;
-    color: var(--text);
+  .stat-big {
+    display: block;
+    font-size: 4.5rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    position: relative;
-    margin-top: 4px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-family: var(--mono);
+    color: var(--text);
   }
 
-  .bignum-detail {
-    font-size: 0.78rem;
+  .stat-label {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 14px;
+  }
+
+  .stat-detail {
+    display: block;
+    font-size: 0.85rem;
     color: var(--text-muted);
-    position: relative;
+    margin-top: 4px;
+    line-height: 1.5;
   }
 
-  /* ── Memory bars ── */
-  .mem-section {
-    padding: 72px 0;
-    background: var(--bg-elevated);
-  }
+  /* ── Memory comparison ── */
+  .mem-section { padding: 100px 0; }
 
-  .mem-visual {
-    padding: 36px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-
-  .mem-visual:hover { transform: none; }
-
-  .mem-tabs {
+  .mem-toggles {
     display: flex;
     gap: 6px;
-    position: relative;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
   }
 
-  .mem-tab {
-    flex: 1;
+  .mem-toggle {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 2px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 8px 14px;
     border-radius: 10px;
     border: 1px solid var(--border);
     background: transparent;
     color: var(--text-muted);
-    font-size: 0.88rem;
-    font-weight: 600;
+    font-size: 0.8125rem;
+    font-weight: 500;
     cursor: pointer;
     transition: color 0.2s, background 0.2s, border-color 0.2s;
   }
 
-  .mem-tab:hover {
+  .mem-toggle:hover {
     color: var(--text);
     background: var(--nav-hover-bg);
   }
 
-  .mem-tab.active {
+  .mem-toggle.active {
     color: var(--blue);
-    background: rgba(91, 140, 254, 0.08);
-    border-color: rgba(91, 140, 254, 0.25);
+    background: color-mix(in srgb, var(--blue) 8%, transparent);
+    border-color: color-mix(in srgb, var(--blue) 25%, transparent);
   }
 
-  .mem-tab-count {
-    font-size: 0.68rem;
-    font-weight: 500;
+  .mem-toggle-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .mem-toggle-swatch.go { background: #00ADD8; }
+  .mem-toggle-swatch.node { background: #5FA04E; }
+  .mem-toggle-swatch.python { background: #3776AB; }
+  .mem-toggle-swatch.ruby { background: #CC342D; }
+
+  .mem-toggle-count {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
     opacity: 0.7;
   }
 
   .mem-bars {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
   }
 
   .mem-row {
-    position: relative;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -573,433 +446,424 @@ const base = import.meta.env.BASE_URL;
   }
 
   .mem-tool {
-    font-size: 0.9rem;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text);
   }
 
-  .mem-tool.highlight {
-    color: var(--blue);
+  .mem-runtime-badge {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+    color: #00ADD8;
+    background: rgba(0, 173, 216, 0.1);
+  }
+
+  .mem-val-info {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
   }
 
   .mem-val {
-    font-size: 1.1rem;
-    font-weight: 700;
     font-family: var(--mono);
-    white-space: nowrap;
-    color: var(--text);
-    transition: opacity 0.15s;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
   }
 
-  .mem-val.highlight {
-    color: var(--blue);
+  .mem-val-dim {
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    color: color-mix(in srgb, var(--text) 35%, transparent);
   }
 
   .mem-track {
     height: 36px;
-    border-radius: 10px;
-    background: var(--code-bg);
+    display: flex;
+    border-radius: 8px;
     overflow: hidden;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
   }
 
   .mem-bar {
     height: 100%;
-    border-radius: 10px;
     transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .bar-compose {
-    width: 100%;
-    background: linear-gradient(90deg, rgba(249, 226, 175, 0.5) 0%, rgba(249, 226, 175, 0.2) 100%);
-    border: 1px solid rgba(249, 226, 175, 0.45);
-  }
 
-  .bar-fuku {
-    width: 5%;
-    min-width: 40px;
-    background: linear-gradient(90deg, rgba(90, 247, 142, 0.3) 0%, rgba(90, 247, 142, 0.1) 100%);
-    border: 1px solid rgba(90, 247, 142, 0.25);
-  }
-
-  .mem-footnote {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-  }
-
-  .mem-estimate {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    text-align: center;
-    margin: 0;
-    font-style: italic;
-  }
-
-  /* ── When ── */
-  .when-section {
-    padding: 72px 0;
-  }
-
-  .when-cards {
+  .bar-compose-containers {
+    background: #2a2a3a;
+    position: relative;
     display: flex;
-    align-items: stretch;
-    gap: 12px;
+    align-items: center;
   }
 
-  .when-card {
-    flex: 1;
+  .bar-compose-vm {
+    background: #1D63ED;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(255,255,255,.15) 6px, rgba(255,255,255,.15) 12px);
+    position: relative;
     display: flex;
+    align-items: center;
+  }
+
+  .bar-label {
+    font-family: var(--mono);
+    font-size: 0.625rem;
+    color: rgba(255, 255, 255, 0.7);
+    padding-left: 10px;
+    white-space: nowrap;
     overflow: hidden;
   }
 
-  .when-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--glass-card-hover-border);
-    box-shadow: var(--glass-card-shadow);
+  :global([data-theme="light"]) .bar-compose-containers { background: #11121a; }
+  :global([data-theme="light"]) .bar-compose-vm {
+    background: #1D63ED;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(255,255,255,.15) 6px, rgba(255,255,255,.15) 12px);
   }
 
-  .when-stripe {
-    width: 4px;
-    flex-shrink: 0;
-  }
+  .bar-fuku-go { background: #00ADD8; }
+  .bar-fuku-node { background: #5FA04E; }
+  .bar-fuku-python { background: #3776AB; }
+  .bar-fuku-ruby { background: #CC342D; }
 
-  .stripe-red { background: #ff6b6b; }
-  .stripe-green { background: #50c878; }
-
-  .when-body {
-    padding: 24px;
-    position: relative;
-    flex: 1;
-  }
-
-  .when-badge {
-    display: inline-block;
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 3px 10px;
-    border-radius: 4px;
-    margin-bottom: 14px;
-  }
-
-  .badge-red { background: rgba(255, 100, 100, 0.1); color: #ff6b6b; border: 1px solid rgba(255, 100, 100, 0.2); }
-  .badge-green { background: rgba(80, 200, 120, 0.1); color: #50c878; border: 1px solid rgba(80, 200, 120, 0.2); }
-
-  .when-quote {
-    font-size: 1rem;
-    color: var(--text);
-    line-height: 1.6;
-    margin-bottom: 8px;
-  }
-
-  .when-verdict {
-    font-size: 0.88rem;
+  .mem-axis {
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
     color: var(--text-muted);
-    font-style: italic;
-    margin: 0;
+  }
+
+  /* ── When ── */
+  .when-section { padding: 100px 0; }
+
+  .when-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 40px;
+  }
+
+  .when-card {
+    padding: 28px 32px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  .when-complex {
+    border-color: var(--blue);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--blue) 5%, transparent) 0%, transparent 100%);
+    box-shadow: 0 20px 50px -30px color-mix(in srgb, var(--blue) 40%, transparent);
+  }
+
+  .when-kicker {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .when-kicker.accent { color: var(--blue); }
+
+  .when-card h3 {
+    font-family: var(--heading);
+    font-size: 1.375rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0 0 10px;
+  }
+
+  .when-card p {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0 0 16px;
+  }
+
+  .when-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--border);
   }
 
   .when-list {
-    color: var(--text-muted);
-    padding-left: 16px;
+    list-style: none;
+    padding: 0;
     margin: 0;
-    line-height: 1.9;
-    font-size: 0.9rem;
-  }
-
-  .when-arrow {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
-  /* ── Problem → Solution pairs ── */
-  .vs-section {
-    padding: 72px 0;
-    background: var(--bg-elevated);
-  }
-
-  .vs-grid {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    max-width: 900px;
-    margin: 0 auto;
+    gap: 8px;
   }
 
-  .vs-pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-
-  .vs-problem,
-  .vs-solution {
+  .when-list li {
+    font-size: 0.95rem;
+    line-height: 1.5;
     display: flex;
-    gap: 14px;
-    padding: 20px 22px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
+    gap: 10px;
     align-items: flex-start;
   }
 
-  .vs-problem {
-    background: rgba(255, 100, 100, 0.02);
-    border-color: rgba(255, 100, 100, 0.1);
-  }
-
-  .vs-solution {
-    background: rgba(91, 140, 254, 0.02);
-    border-color: rgba(91, 140, 254, 0.1);
-  }
-
-  .vs-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .when-list .check {
+    color: var(--blue);
     flex-shrink: 0;
     margin-top: 2px;
   }
 
-  .vs-icon-red {
-    background: rgba(255, 100, 100, 0.1);
-    color: #ff6b6b;
-    border: 1px solid rgba(255, 100, 100, 0.2);
+  /* ── Tradeoffs table ── */
+  .vs-section { padding: 100px 0; }
+
+  .vs-table {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--bg-card);
+    margin-top: 48px;
   }
 
-  .vs-icon-blue {
-    background: rgba(91, 140, 254, 0.1);
-    color: var(--blue);
-    border: 1px solid rgba(91, 140, 254, 0.2);
+  .vs-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 14px 28px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
   }
 
-  .vs-problem h3,
-  .vs-solution h3 {
-    font-size: 0.88rem;
+  .vs-header-accent { color: var(--blue); }
+
+  .vs-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .vs-row-last { border-bottom: none; }
+
+  .vs-cell {
+    padding: 24px 28px;
+  }
+
+  .vs-cell:first-child {
+    border-right: 1px solid var(--border);
+  }
+
+  .vs-cell-accent {
+    background: color-mix(in srgb, var(--blue) 3%, transparent);
+  }
+
+  .vs-cell h4 {
+    font-size: 1.05rem;
     font-weight: 600;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
     color: var(--text);
-    margin-bottom: 3px;
   }
 
-  .vs-problem p,
-  .vs-solution p {
-    font-size: 0.8rem;
+  .vs-cell-accent h4 { color: var(--blue); }
+
+  .vs-cell p {
+    font-size: 0.875rem;
     color: var(--text-muted);
     line-height: 1.5;
     margin: 0;
   }
 
-  /* ── Table ── */
-  .table-section {
-    padding: 72px 0;
+  /* ── Feature matrix ── */
+  .matrix-section { padding: 100px 0; }
+
+  .matrix {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--bg-card);
+    margin-top: 40px;
   }
 
-  .table-wrap {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 0;
+  .mx-head, .mx-row, .mx-foot {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr;
+    align-items: center;
+    padding: 0 24px;
   }
 
-  .table-wrap:hover { transform: none; }
-
-  .cmp {
-    position: relative;
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
-  }
-
-  .cmp thead th {
-    padding: 16px 16px;
-    text-align: center;
-    font-size: 0.82rem;
-    font-weight: 700;
+  .mx-head {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
     color: var(--text-muted);
+    padding-top: 16px;
+    padding-bottom: 16px;
+    background: var(--bg-elevated);
     border-bottom: 1px solid var(--border);
-    white-space: nowrap;
   }
 
-  .cmp thead th.fc { text-align: left; width: 180px; }
+  .mx-accent { color: var(--blue); }
 
-  .cmp thead th.hl {
-    color: var(--blue);
-    position: relative;
-    background: rgba(91, 140, 254, 0.05);
+  .mx-row {
+    font-size: 0.875rem;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
   }
 
-  .cmp thead th.hl::before {
-    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: var(--gradient); border-radius: 3px 3px 0 0;
+  .mx-row:last-of-type { border-bottom: none; }
+
+  .mx-alt {
+    background: color-mix(in srgb, var(--text) 1.5%, transparent);
   }
 
-  .cmp tbody td {
-    padding: 11px 16px;
-    text-align: center;
-    border-bottom: 1px solid var(--table-border);
+  .mx-feat { font-weight: 500; color: var(--text); }
+
+  .mx-y { color: var(--text); font-weight: 600; }
+
+  .mx-n { color: color-mix(in srgb, var(--text) 25%, transparent); }
+
+  .mx-label {
+    font-family: var(--mono);
+    font-size: 0.75rem;
     color: var(--text-muted);
-    white-space: nowrap;
   }
 
-  .cmp tbody td.fc { text-align: left; font-weight: 500; color: var(--text); font-size: 0.86rem; }
-  .cmp tbody td.hl { background: rgba(91, 140, 254, 0.04); }
-  .cmp tbody tr:last-child td { border-bottom: none; }
-  .cmp tbody tr:hover td { background: var(--card-hover-bg); }
-  .cmp tbody tr:hover td.hl { background: rgba(91, 140, 254, 0.08); }
+  .mx-label.accent { color: var(--blue); font-weight: 600; }
 
-  .ic {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 20px; height: 20px; border-radius: 50%;
-    font-size: 0.65rem; font-weight: 700; vertical-align: middle;
+  .mx-accent-y { color: var(--blue); }
+
+  .mx-foot {
+    font-family: var(--mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    background: var(--text);
+    color: var(--bg);
   }
 
-  .ic.y { background: rgba(80, 200, 120, 0.15); color: #50c878; border: 1px solid rgba(80, 200, 120, 0.3); }
-  .ic.y::after { content: "\2713"; }
-  .ic.n { background: rgba(255, 100, 100, 0.1); color: #ff6b6b; border: 1px solid rgba(255, 100, 100, 0.2); }
-  .ic.n::after { content: "\2717"; }
-  .ic.p { background: rgba(255, 190, 60, 0.12); color: #f0a030; border: 1px solid rgba(255, 190, 60, 0.25); }
-  .ic.p::after { content: "~"; }
-  .tn { font-size: 0.76rem; color: var(--text-muted); margin-left: 5px; vertical-align: middle; }
-  .tl { font-size: 0.82rem; color: var(--text-muted); font-family: var(--mono); }
-
-  .cmp tfoot td {
-    padding: 14px 16px; text-align: center;
-    border-top: 1px solid var(--border); white-space: nowrap;
-  }
-  .cmp tfoot td.fc { text-align: left; font-weight: 600; color: var(--text); }
-  .cmp tfoot td.hl { background: rgba(91, 140, 254, 0.04); }
-  .mv { font-weight: 700; font-family: var(--mono); font-size: 0.95rem; color: var(--text); }
-  .mv.good { color: #50c878; }
-  .mv.bad { color: #ff6b6b; }
+  .mx-bad { color: #ff9b9b; }
+  .mx-good { color: var(--blue); }
 
   /* ── CTA ── */
-  .cta-section {
-    padding: 72px 0 80px;
-    background: var(--bg-elevated);
-  }
+  .cta-section { padding: 0 0 100px; }
 
   .cta-card {
-    padding: 56px 48px;
-    text-align: center;
+    padding: 56px;
+    background: var(--text);
+    color: var(--bg);
+    border-radius: 18px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 32px;
+    background-image: radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--blue) 25%, transparent), transparent 50%);
   }
 
-  .cta-card:hover { transform: none; }
+  .cta-eyebrow {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--blue);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
 
   .cta-title {
-    font-size: 1.8rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.3;
-    margin-bottom: 24px;
-    position: relative;
-  }
-
-  .cta-desc {
-    position: relative;
-    color: var(--text-muted);
-    font-size: 1.05rem;
-    line-height: 1.6;
-    margin-bottom: 28px;
-  }
-
-  .cta-desc code {
-    font-family: var(--mono);
-    font-size: 0.88em;
-    background: var(--code-bg);
-    border: 1px solid var(--code-border);
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: var(--text);
+    font-family: var(--heading);
+    font-size: 2.25rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    margin: 0;
+    line-height: 1.1;
   }
 
   .cta-actions {
     display: flex;
-    gap: 14px;
-    justify-content: center;
-    flex-wrap: wrap;
+    gap: 12px;
+    flex-shrink: 0;
   }
 
-  /* ── Buttons ── */
-  .btn {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 150px;
-    padding: 12px 28px;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 600;
+  .cta-btn-primary {
+    padding: 14px 22px;
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 500;
     text-decoration: none;
-    transition: transform 0.2s, box-shadow 0.3s;
+    transition: opacity 0.15s;
   }
-  .btn:hover { transform: translateY(-1px); text-decoration: none; }
 
-  .btn-primary { background: var(--gradient); color: #fff; box-shadow: var(--btn-primary-shadow); }
-  .btn-primary::before {
-    content: ""; position: absolute; inset: 0; border-radius: 12px; padding: 1px;
-    background: linear-gradient(180deg, var(--btn-shine) 0%, transparent 60%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
-  }
-  .btn-primary:hover { box-shadow: var(--btn-primary-hover-shadow); }
+  .cta-btn-primary:hover { opacity: 0.9; text-decoration: none; }
 
-  .btn-secondary {
-    background: var(--glass-bg); color: var(--text);
-    border: 1px solid var(--glass-border);
-    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
-    box-shadow: var(--glass-glow);
+  .cta-btn-ghost {
+    padding: 14px 22px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--bg);
+    font-size: 0.875rem;
+    text-decoration: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: border-color 0.15s;
   }
-  .btn-secondary::before {
-    content: ""; position: absolute; inset: 0; border-radius: 12px; padding: 1px;
-    background: linear-gradient(180deg, var(--glass-shine) 0%, transparent 50%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
-  }
-  .btn-secondary:hover { border-color: var(--card-hover-border); box-shadow: var(--btn-secondary-hover-shadow); }
 
-  :global([data-theme="light"]) .btn-secondary {
-    background: #1a1a2e; color: #fff; border-color: #1a1a2e; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  }
-  :global([data-theme="light"]) .btn-secondary:hover { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
+  .cta-btn-ghost:hover { border-color: rgba(255, 255, 255, 0.4); text-decoration: none; }
 
   /* ── Responsive ── */
   @media (max-width: 900px) {
-    .bignum-grid { grid-template-columns: 1fr; gap: 12px; max-width: 340px; margin: 0 auto; }
-    .bignum-card { flex-direction: row; gap: 16px; padding: 20px 24px; text-align: left; }
-    .bignum { font-size: 2.2rem; }
+    .inner { padding: 0 24px; }
 
-    .vs-pair { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .stat-cell { border-right: none; border-bottom: 1px solid var(--border); }
+    .stat-cell:last-child { border-bottom: none; }
+    .stat-big { font-size: 3rem; }
+
+    .when-grid { grid-template-columns: 1fr; }
+
+    .vs-row { grid-template-columns: 1fr; }
+    .vs-cell:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+    .vs-header { grid-template-columns: 1fr; gap: 4px; }
+
+    .cta-card { grid-template-columns: 1fr; text-align: center; }
+    .cta-actions { justify-content: center; }
   }
 
   @media (max-width: 768px) {
-    .hero { padding: 48px 0 32px; }
-    .hero-title { font-size: 2.4rem; }
-    .hero-desc { font-size: 1rem; }
-    .hide-mobile { display: none; }
+    .hero { padding: 56px 0 0; }
+    .hero-title { font-size: 2.75rem; }
+    .hero-desc { font-size: 1.05rem; margin-bottom: 48px; }
 
-    .mem-tabs { gap: 4px; }
-    .mem-tab { font-size: 0.78rem; padding: 8px 6px; }
-    .mem-tab-count { font-size: 0.6rem; }
-    .mem-val { font-size: 0.95rem; }
+    .mem-toggles { gap: 4px; }
+    .mem-toggle { font-size: 0.75rem; padding: 6px 10px; }
+    .mem-toggle-count { display: none; }
+    .mem-val-info { flex-direction: column; gap: 2px; }
 
-    .when-cards { flex-direction: column; }
-    .when-arrow { justify-content: center; transform: rotate(90deg); }
-
-    .table-wrap {
+    .matrix {
       margin-left: -24px; margin-right: -24px;
       border-radius: 0; border-left: none; border-right: none;
     }
-    .cmp { font-size: 0.78rem; }
-    .cmp thead th, .cmp tbody td, .cmp tfoot td { padding: 9px 8px; }
-    .tn { display: none; }
+    .mx-head, .mx-row, .mx-foot { font-size: 0.75rem; padding-left: 12px; padding-right: 12px; }
 
     .cta-card { padding: 40px 24px; }
-    .cta-title { font-size: 1.4rem; }
+    .cta-title { font-size: 1.5rem; }
   }
 </style>
 
@@ -1066,141 +930,119 @@ const base = import.meta.env.BASE_URL;
     els.forEach((el) => observer.observe(el));
   }
 
-  // ── Memory bars + value count-up ──
+  // ── Memory bars – toggles + scroll-triggered grow ──
   function initMemBars() {
     const section = document.getElementById("mem-visual");
     if (!section) return;
 
-    const runtimes: Record<string, {
-      composeMB: number;
-      fukuMB: number;
-      composeNote: string;
-      fukuNote: string;
-      estimate: string;
-    }> = {
+    const maxMb = 5400;
+
+    interface Runtime {
+      composeMb: number;
+      vmMb: number;
+      fukuMb: number;
+      composeLabel: string;
+      fukuLabel: string;
+      segments: { cls: string; mb: number; color: string }[];
+    }
+
+    const runtimes: Record<string, Runtime> = {
       go: {
-        composeMB: 2048,
-        fukuMB: 60,
-        composeNote: "+ Docker Desktop VM: 2-4 GB",
-        fukuNote: "No VM, no container runtime",
-        estimate: "",
+        composeMb: 2000, vmMb: 2048, fukuMb: 50,
+        composeLabel: "~2 GB containers", fukuLabel: "~50 MB total",
+        segments: [{ cls: "bar-fuku-go", mb: 50, color: "#00ADD8" }],
       },
       node: {
-        composeMB: 6400,
-        fukuMB: 2400,
-        composeNote: "+ Docker Desktop VM: 2-4 GB",
-        fukuNote: "No VM, no container runtime",
-        estimate: "Rough estimate: ~80 MB per Express service",
+        composeMb: 3500, vmMb: 2048, fukuMb: 2500,
+        composeLabel: "~3.5 GB containers", fukuLabel: "~2.5 GB total",
+        segments: [{ cls: "bar-fuku-node", mb: 2500, color: "#5FA04E" }],
       },
       python: {
-        composeMB: 5000,
-        fukuMB: 2000,
-        composeNote: "+ Docker Desktop VM: 2-4 GB",
-        fukuNote: "No VM, no container runtime",
-        estimate: "Rough estimate: ~100 MB per FastAPI service",
+        composeMb: 4500, vmMb: 2048, fukuMb: 3500,
+        composeLabel: "~4.5 GB containers", fukuLabel: "~3.5 GB total",
+        segments: [{ cls: "bar-fuku-python", mb: 3500, color: "#3776AB" }],
       },
       ruby: {
-        composeMB: 5250,
-        fukuMB: 2250,
-        composeNote: "+ Docker Desktop VM: 2-4 GB",
-        fukuNote: "No VM, no container runtime",
-        estimate: "Rough estimate: ~150 MB per Rails service (Puma single-mode)",
+        composeMb: 6000, vmMb: 2048, fukuMb: 5000,
+        composeLabel: "~6 GB containers", fukuLabel: "~5 GB total",
+        segments: [{ cls: "bar-fuku-ruby", mb: 5000, color: "#CC342D" }],
       },
     };
 
-    const composeVal = document.getElementById("mem-compose-val")!;
-    const fukuVal = document.getElementById("mem-fuku-val")!;
     const composeBar = document.getElementById("mem-compose-bar")!;
-    const fukuBar = document.getElementById("mem-fuku-bar")!;
+    const vmBar = document.getElementById("mem-compose-vm")!;
+    const fukuTrack = document.getElementById("mem-fuku-track")!;
+    const composeVal = document.getElementById("mem-compose-val")!;
     const composeNote = document.getElementById("mem-compose-note")!;
+    const fukuVal = document.getElementById("mem-fuku-val")!;
     const fukuNote = document.getElementById("mem-fuku-note")!;
-    const estimateEl = document.getElementById("mem-estimate")!;
+    const badge = document.getElementById("mem-runtime-badge")!;
 
-    function formatMB(mb: number): string {
-      if (mb >= 1024) return "~" + (mb / 1024).toFixed(1).replace(/\.0$/, "") + " GB";
-      return "~" + mb + " MB";
-    }
+    const badgeColors: Record<string, { color: string; bg: string; label: string }> = {
+      go:     { color: "#00ADD8", bg: "rgba(0, 173, 216, 0.1)",  label: "Go" },
+      node:   { color: "#5FA04E", bg: "rgba(95, 160, 78, 0.1)",  label: "Node.js" },
+      python: { color: "#3776AB", bg: "rgba(55, 118, 171, 0.1)", label: "Python" },
+      ruby:   { color: "#CC342D", bg: "rgba(204, 52, 45, 0.1)",  label: "Ruby" },
+    };
 
-    function animateValue(el: HTMLElement, from: number, to: number) {
-      const duration = 1200;
-      let start: number | null = null;
+    function applyRuntime(key: string) {
+      const r = runtimes[key];
+      const scale = 8192;
 
-      function step(timestamp: number) {
-        if (!start) start = timestamp;
-        const progress = Math.min((timestamp - start) / duration, 1);
-        const current = Math.round(from + easeOutExpo(progress) * (to - from));
-        el.textContent = formatMB(current);
-        if (progress < 1) requestAnimationFrame(step);
+      composeBar.style.width = (r.composeMb / scale) * 100 + "%";
+      vmBar.style.width = (r.vmMb / scale) * 100 + "%";
+      composeVal.textContent = r.composeLabel;
+      composeNote.textContent = "+ ~2 GB Docker Desktop VM";
+      fukuVal.textContent = r.fukuLabel;
+      fukuNote.textContent = "No VM, no container runtime";
+
+      const bc = badgeColors[key];
+      badge.textContent = bc.label;
+      badge.style.color = bc.color;
+      badge.style.background = bc.bg;
+
+      fukuTrack.innerHTML = "";
+      for (const seg of r.segments) {
+        const el = document.createElement("div");
+        el.style.height = "100%";
+        el.style.background = seg.color;
+        el.style.width = "0";
+        el.style.transition = "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)";
+        fukuTrack.appendChild(el);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.style.width = (seg.mb / scale) * 100 + "%";
+          });
+        });
       }
-
-      requestAnimationFrame(step);
     }
 
-    let currentCompose = 0;
-    let currentFuku = 0;
-    let activated = false;
-
-    function setRuntime(key: string, animate: boolean) {
-      const data = runtimes[key];
-      const maxMB = Math.max(...Object.values(runtimes).map((r) => r.composeMB));
-
-      const composePct = (data.composeMB / maxMB) * 100;
-      const fukuPct = Math.max((data.fukuMB / maxMB) * 100, 3);
-
-      if (animate) {
-        animateValue(composeVal, currentCompose, data.composeMB);
-        animateValue(fukuVal, currentFuku, data.fukuMB);
-      } else {
-        composeVal.textContent = formatMB(data.composeMB);
-        fukuVal.textContent = formatMB(data.fukuMB);
-      }
-
-      composeBar.classList.remove("bar-paused");
-      fukuBar.classList.remove("bar-paused");
-      composeBar.style.width = composePct + "%";
-      fukuBar.style.width = fukuPct + "%";
-
-      composeNote.textContent = data.composeNote;
-      fukuNote.textContent = data.fukuNote;
-      estimateEl.textContent = data.estimate;
-
-      currentCompose = data.composeMB;
-      currentFuku = data.fukuMB;
-    }
-
-    // Tab clicks
-    document.getElementById("mem-tabs")!.addEventListener("click", (e) => {
-      const tab = (e.target as HTMLElement).closest<HTMLElement>(".mem-tab");
-      if (!tab || tab.classList.contains("active")) return;
-
-      section.querySelectorAll(".mem-tab").forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-
-      setRuntime(tab.dataset.runtime!, true);
-    });
-
-    // Scroll trigger
-    const observer = new IntersectionObserver(
+    const growObserver = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !activated) {
-          activated = true;
-          observer.disconnect();
-          animateValue(composeVal, 0, runtimes.go.composeMB);
-          animateValue(fukuVal, 0, runtimes.go.fukuMB);
-
-          const maxMB = Math.max(...Object.values(runtimes).map((r) => r.composeMB));
-          composeBar.classList.remove("bar-paused");
-          fukuBar.classList.remove("bar-paused");
-          composeBar.style.width = (runtimes.go.composeMB / maxMB) * 100 + "%";
-          fukuBar.style.width = Math.max((runtimes.go.fukuMB / maxMB) * 100, 3) + "%";
-
-          currentCompose = runtimes.go.composeMB;
-          currentFuku = runtimes.go.fukuMB;
+        if (entries[0].isIntersecting) {
+          growObserver.disconnect();
+          requestAnimationFrame(() => {
+            section.querySelectorAll<HTMLElement>("[data-target-width]").forEach((el) => {
+              el.style.transition = "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)";
+              el.style.width = el.dataset.targetWidth!;
+            });
+          });
         }
       },
       { threshold: 0.3 }
     );
-    observer.observe(section);
+    growObserver.observe(section);
+
+    document.getElementById("mem-toggles")!.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>(".mem-toggle");
+      if (!btn || btn.classList.contains("active")) return;
+
+      document.querySelectorAll(".mem-toggle").forEach((t) => t.classList.remove("active"));
+      btn.classList.add("active");
+
+      applyRuntime(btn.dataset.runtime!);
+    });
+
   }
 
   animateCounters();

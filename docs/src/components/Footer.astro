@@ -3,72 +3,68 @@ const base = import.meta.env.BASE_URL;
 ---
 
 <footer class="footer">
-  <div class="container">
+  <div class="footer-inner">
+    <span>Made in Estonia</span>
     <div class="links">
-      <a href={`${base}docs/getting-started/`}>
-        Docs
-      </a>
+      <a href={`${base}docs/getting-started/`}>Docs</a>
       <span class="sep">&middot;</span>
-      <a href={`${base}docs/api/`}>
-        Developer API
-      </a>
+      <a href={`${base}docs/api/`}>Developer API</a>
       <span class="sep">&middot;</span>
-      <a href="https://github.com/tab/fuku" target="_blank" rel="noopener">
-        GitHub
-      </a>
+      <a href="https://github.com/tab/fuku" target="_blank" rel="noopener">GitHub</a>
       <span class="sep">&middot;</span>
-      <a
-        href="https://github.com/tab/fuku/releases"
-        target="_blank"
-        rel="noopener"
-      >
-        Releases
-      </a>
+      <a href="https://github.com/tab/fuku/releases" target="_blank" rel="noopener">Releases</a>
       <span class="sep">&middot;</span>
-      <a
-        href="https://github.com/tab/fuku/blob/master/LICENSE"
-        target="_blank"
-        rel="noopener"
-      >
-        MIT License
-      </a>
+      <a href="https://github.com/tab/fuku/blob/master/LICENSE" target="_blank" rel="noopener">MIT License</a>
     </div>
-    <p class="made">Made in Estonia</p>
   </div>
 </footer>
 
 <style>
   .footer {
-    padding: 40px 0;
     border-top: 1px solid var(--border);
-    text-align: center;
+  }
+
+  .footer-inner {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 32px 56px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
   }
 
   .links {
     display: flex;
     gap: 8px;
-    justify-content: center;
     align-items: center;
     flex-wrap: wrap;
-    margin-bottom: 16px;
   }
 
   .links a {
     color: var(--text-muted);
-    font-size: 0.9rem;
-    transition: color 0.2s;
+    text-decoration: none;
+    transition: color 0.15s;
   }
 
   .links a:hover {
     color: var(--text);
+    text-decoration: none;
   }
 
   .sep {
     color: var(--border);
   }
 
-  .made {
-    color: var(--text-muted);
-    font-size: 0.85rem;
+  @media (max-width: 768px) {
+    .footer-inner {
+      padding: 24px;
+      flex-direction: column;
+      text-align: center;
+    }
   }
 </style>

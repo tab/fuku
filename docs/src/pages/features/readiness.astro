@@ -18,10 +18,12 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Readiness Checks", href: current }]}
 >
+  <span class="kicker">// features &middot; readiness</span>
   <h1>Readiness Checks</h1>
-  <p class="lead">Confirm services are truly ready before starting dependent tiers.</p>
+  <p class="lead">A started process is not a healthy service. fuku polls until your service actually accepts requests.</p>
 
-  <h2>How It Works</h2>
+  <div class="section-eyebrow">How it works</div>
+  <h2>Poll until healthy.</h2>
 
   <p>
     When a service has a readiness check configured, fuku waits for it to pass before marking the service as ready. The next tier only begins after all services in the current tier are ready.
@@ -40,7 +42,8 @@ const nav = getFeaturesNav(base);
 </pre>
   </Terminal>
 
-  <h2>Check Types</h2>
+  <div class="section-eyebrow">Three check types</div>
+  <h2>Pick the one that matches your service.</h2>
 
   <h3>HTTP</h3>
 
@@ -80,7 +83,8 @@ const nav = getFeaturesNav(base);
       pattern: "gRPC server started"
       timeout: 30s`} />
 
-  <h2>Configuration Reference</h2>
+  <div class="section-eyebrow">Configuration</div>
+  <h2>Per-service, in fuku.yaml.</h2>
 
   <table>
     <thead>
@@ -117,7 +121,8 @@ const nav = getFeaturesNav(base);
     </tbody>
   </table>
 
-  <h2>Retry on Failure</h2>
+  <div class="section-eyebrow">Retries</div>
+  <h2>Automatic retry on failure.</h2>
 
   <p>If a readiness check times out, fuku can retry the service start based on your retry configuration:</p>
 

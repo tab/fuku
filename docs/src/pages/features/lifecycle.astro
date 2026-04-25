@@ -17,13 +17,15 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Lifecycle", href: current }]}
 >
+  <span class="kicker">// features &middot; lifecycle</span>
   <h1>Lifecycle</h1>
-  <p class="lead">Clean startup, graceful shutdown, and orphan process cleanup.</p>
+  <p class="lead">Ctrl+C and services stop in reverse tier order. Each receives SIGTERM with time to shut down gracefully.</p>
 
-  <h2>Graceful Shutdown</h2>
+  <div class="section-eyebrow">Shutdown</div>
+  <h2>Graceful, reverse-order.</h2>
 
   <p>
-    When you press <code>q</code> in the TUI or send SIGINT/SIGTERM, fuku performs a graceful shutdown — stopping services in reverse tier order so that dependent services stop before their dependencies.
+    When you press <code>q</code> in the TUI or send SIGINT/SIGTERM, fuku performs a graceful shutdown – stopping services in reverse tier order so that dependent services stop before their dependencies.
   </p>
 
   <Terminal title="fuku">
@@ -47,7 +49,8 @@ const nav = getFeaturesNav(base);
 </pre>
   </Terminal>
 
-  <h2>Shutdown Sequence</h2>
+  <div class="section-eyebrow">Sequence</div>
+  <h2>How shutdown works.</h2>
 
   <ol>
     <li>Services stop in <strong>reverse tier order</strong> (edge &rarr; platform &rarr; foundation)</li>
@@ -58,10 +61,11 @@ const nav = getFeaturesNav(base);
 
   <hr />
 
-  <h2>Pre-flight Cleanup</h2>
+  <div class="section-eyebrow">Preflight</div>
+  <h2>Orphan process cleanup.</h2>
 
   <p>
-    Before starting services, fuku automatically checks for orphaned processes from previous runs. This prevents port conflicts and zombie processes — common issues when a previous fuku session crashed or was killed with <code>kill -9</code>.
+    Before starting services, fuku automatically checks for orphaned processes from previous runs. This prevents port conflicts and zombie processes – common issues when a previous fuku session crashed or was killed with <code>kill -9</code>.
   </p>
 
   <Terminal title="fuku run default">
@@ -79,7 +83,7 @@ const nav = getFeaturesNav(base);
   </Terminal>
 
   <p>
-    Pre-flight checks each service directory for leftover PID files and kills any stale processes before starting fresh. This runs automatically — no configuration needed.
+    Pre-flight checks each service directory for leftover PID files and kills any stale processes before starting fresh. This runs automatically – no configuration needed.
   </p>
 
   <GetStartedCTA />

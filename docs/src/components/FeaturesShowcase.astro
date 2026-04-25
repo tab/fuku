@@ -11,18 +11,19 @@ const base = import.meta.env.BASE_URL;
 const features = getFeatures(base);
 
 const leads: Record<string, string> = {
-  terminal: "See every service at a glance — status, CPU, memory, and uptime in one dashboard. Stop, start, or restart any service with a single keystroke.",
-  layers: "Define tiers in <code>fuku.yaml</code> and fuku starts them in order — foundation first, then platform, then edge. Within each tier, services launch concurrently.",
+  terminal: "See every service at a glance – status, CPU, memory, and uptime in one dashboard. Stop, start, or restart any service with a single keystroke.",
+  layers: "Define tiers in <code>fuku.yaml</code> and fuku starts them in order – foundation first, then platform, then edge. Within each tier, services launch concurrently.",
   check: "A started process isn't always a ready process. fuku polls <code>HTTP</code> endpoints, <code>TCP</code> ports, or <code>log</code> output and only proceeds to the next tier when services are actually healthy.",
   refresh: "Edit a file, save, and fuku restarts the affected service automatically. Debouncing prevents restart storms, and shared path support handles cross-service dependencies.",
   scroll: "Open a second terminal and run <code>fuku logs</code> to stream output from running services. Filter by service name, see color-coded prefixes, and keep your TUI clean.",
-  shield: "<code>Ctrl+C</code> or press <code>q</code> and services stop in reverse tier order — edge first, then platform, then foundation. Each service receives <code>SIGTERM</code> with time to shut down gracefully.",
+  shield: "<code>Ctrl+C</code> or press <code>q</code> and services stop in reverse tier order – edge first, then platform, then foundation. Each service receives <code>SIGTERM</code> with time to shut down gracefully.",
 };
 ---
 
 <section class="features-showcase">
   <div class="container">
-    <h2 class="section-title">Features</h2>
+    <div class="section-eyebrow">// features</div>
+    <h2 class="section-title">One config. Six superpowers.<br/>Zero context-switching.</h2>
 
     {features.map((f, i) => (
       <div class:list={["feature-row", { reverse: i % 2 === 1 }]}>
@@ -188,11 +189,24 @@ const leads: Record<string, string> = {
 </script>
 
 <style>
+  .section-eyebrow {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 18px;
+  }
+
   .section-title {
-    font-size: 2rem;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 0;
+    font-family: var(--heading);
+    font-size: 3.25rem;
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+    max-width: 760px;
   }
 
   .feature-row {
@@ -215,7 +229,7 @@ const leads: Record<string, string> = {
     order: 1;
   }
 
-  /* Reveal animation — hidden state */
+  /* Reveal animation – hidden state */
   .reveal {
     opacity: 0;
     transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
@@ -239,7 +253,7 @@ const leads: Record<string, string> = {
     transform: translateX(-30px);
   }
 
-  /* Reveal animation — visible state */
+  /* Reveal animation – visible state */
   .reveal.visible {
     opacity: 1;
     transform: translateX(0);
@@ -255,30 +269,36 @@ const leads: Record<string, string> = {
   }
 
   .feature-info h3 {
-    font-size: 1.5rem;
-    font-weight: 700;
+    font-family: var(--heading);
+    font-size: 1.375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     margin-bottom: 12px;
     color: var(--text);
   }
 
   .feature-info p {
     color: var(--text-muted);
-    font-size: 1.05rem;
-    line-height: 1.7;
+    font-size: 0.95rem;
+    line-height: 1.6;
     margin-bottom: 20px;
   }
 
   .learn-more {
-    display: inline-block;
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--blue);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text);
     text-decoration: none;
-    transition: opacity 0.2s;
+    border-bottom: 1px solid var(--text);
+    padding-bottom: 2px;
+    transition: opacity 0.15s;
   }
 
   .learn-more:hover {
-    opacity: 0.8;
+    opacity: 0.7;
     text-decoration: none;
   }
 
@@ -321,11 +341,12 @@ const leads: Record<string, string> = {
     }
 
     .feature-info p {
-      font-size: 0.95rem;
+      font-size: 0.9rem;
     }
 
     .section-title {
-      margin-bottom: 40px;
+      font-size: 2rem;
+      margin-bottom: 24px;
     }
 
     .feature-demo :global(.terminal-content) {

@@ -26,7 +26,10 @@ const mainLinks = [
 
   <div class:list={["topbar-inner", { wide }]}>
     <div class="topbar-left">
-      <a href={`${base}`} class="logo">fuku</a>
+      <a href={`${base}`} class="logo">
+        <span class="brand-name">fuku</span>
+        <span class="brand-version">v0.18.0</span>
+      </a>
 
       <nav class="topbar-nav">
         <a href={`${base}why/`} class:list={["nav-link", { active: section === "why" }]}>Why</a>
@@ -41,11 +44,9 @@ const mainLinks = [
         href="https://github.com/tab/fuku"
         target="_blank"
         rel="noopener"
-        class="github-link"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-        </svg>
+        class="github-cta"
+      >GitHub
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
       </a>
       <label for="mobile-toggle" class="mobile-menu-btn">
         <svg class="icon-menu" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -97,9 +98,9 @@ const mainLinks = [
   }
 
   .topbar-inner {
-    max-width: 1200px;
+    max-width: 1320px;
     margin: 0 auto;
-    padding: 0 24px;
+    padding: 0 56px;
     height: 56px;
     display: flex;
     align-items: center;
@@ -113,48 +114,54 @@ const mainLinks = [
   .topbar-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 32px;
   }
 
   .logo {
-    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 0.875rem;
     font-weight: 700;
-    color: #e8e8ed;
+    color: var(--text);
     text-decoration: none;
-  }
-
-  :global([data-theme="light"]) .logo {
-    color: #1a1a2e;
   }
 
   .logo:hover {
     text-decoration: none;
   }
 
+  .brand-version {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
   .topbar-nav {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
   }
 
   .nav-link {
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-muted);
     text-decoration: none;
-    padding: 6px 14px;
+    padding: 6px 12px;
     border-radius: 8px;
-    transition: color 0.2s, background 0.2s;
+    transition: color 0.2s;
   }
 
   .nav-link:hover {
     color: var(--text);
-    background: var(--nav-hover-bg);
     text-decoration: none;
   }
 
   .nav-link.active {
     color: var(--text);
+    font-weight: 600;
   }
 
   .topbar-right {
@@ -163,17 +170,22 @@ const mainLinks = [
     gap: 12px;
   }
 
-  .github-link {
-    color: var(--text-muted);
-    transition: color 0.2s;
-    display: flex;
-    padding: 6px;
+  .github-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
     border-radius: 8px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: opacity 0.15s;
   }
 
-  .github-link:hover {
-    color: var(--text);
-    background: var(--nav-hover-bg);
+  .github-cta:hover {
+    opacity: 0.85;
     text-decoration: none;
   }
 
@@ -246,11 +258,15 @@ const mainLinks = [
   }
 
   @media (max-width: 768px) {
+    .topbar-inner {
+      padding: 0 24px;
+    }
+
     .topbar-nav {
       display: none;
     }
 
-    .github-link {
+    .github-cta {
       display: none;
     }
 

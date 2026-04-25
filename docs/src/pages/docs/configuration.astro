@@ -16,14 +16,16 @@ const nav = getDocsNav(base);
   section="docs"
   breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Configuration", href: current }]}
 >
+  <span class="kicker">// docs &middot; configuration</span>
   <h1>Configuration</h1>
-  <p class="lead">Complete reference for <code>fuku.yaml</code> — services, tiers, profiles, and more.</p>
+  <p class="lead">Complete reference for <code>fuku.yaml</code> – services, tiers, profiles, and more.</p>
 
   <p>
     Generate a config template with <code>fuku init</code>, or create <code>fuku.yaml</code> manually in your project root.
   </p>
 
-  <h2>Services</h2>
+  <div class="section-eyebrow">Services</div>
+  <h2>Service definitions.</h2>
 
   <p>Each service is defined with a name, directory, and optional settings:</p>
 
@@ -82,7 +84,8 @@ const nav = getDocsNav(base);
 
   <hr />
 
-  <h2>Tiers</h2>
+  <div class="section-eyebrow">Ordering</div>
+  <h2>Tiers.</h2>
 
   <p>
     Tiers control startup ordering. Services in earlier tiers start (and become ready) before later tiers begin. The order is determined by the first occurrence of each tier name in your config.
@@ -90,9 +93,9 @@ const nav = getDocsNav(base);
 
   <p>Common tier naming pattern:</p>
   <ul>
-    <li><strong>foundation</strong> — core services (auth, config, gateway)</li>
-    <li><strong>platform</strong> — business logic services</li>
-    <li><strong>edge</strong> — client-facing services</li>
+    <li><strong>foundation</strong> – core services (auth, config, gateway)</li>
+    <li><strong>platform</strong> – business logic services</li>
+    <li><strong>edge</strong> – client-facing services</li>
   </ul>
 
   <p>Key points:</p>
@@ -101,12 +104,13 @@ const nav = getDocsNav(base);
     <li>Services within each tier are sorted alphabetically by name</li>
     <li>Services without a tier are placed in a <code>default</code> tier that runs last</li>
     <li>Tier names are case-insensitive and whitespace is trimmed</li>
-    <li>You can use any tier names you want — <code>infrastructure</code>, <code>middleware</code>, <code>api</code>, <code>frontend</code>, etc.</li>
+    <li>You can use any tier names you want – <code>infrastructure</code>, <code>middleware</code>, <code>api</code>, <code>frontend</code>, etc.</li>
   </ul>
 
   <hr />
 
-  <h2>Profiles</h2>
+  <div class="section-eyebrow">Grouping</div>
+  <h2>Profiles.</h2>
 
   <p>Profiles group services for batch operations:</p>
 
@@ -118,8 +122,8 @@ profiles:
   backend: [auth, backend]      # Named list of services`} />
 
   <ul>
-    <li><code>"*"</code> — selects all defined services</li>
-    <li>A list of service names — selects only those services</li>
+    <li><code>"*"</code> – selects all defined services</li>
+    <li>A list of service names – selects only those services</li>
     <li>The <code>defaults.profiles</code> array controls which profiles run when you just type <code>fuku</code></li>
   </ul>
 
@@ -158,7 +162,8 @@ profiles:
 
   <hr />
 
-  <h2>Server</h2>
+  <div class="section-eyebrow">API</div>
+  <h2>Server.</h2>
 
   <p>
     Built-in REST API for external control. Disabled by default. When <code>server.listen</code> is set, <code>server.auth.token</code> is required. Probes (<code>/api/v1/live</code>, <code>/api/v1/ready</code>) are unauthenticated; all other endpoints require a bearer token.
@@ -171,7 +176,8 @@ profiles:
 
   <hr />
 
-  <h2>Local Overrides</h2>
+  <div class="section-eyebrow">Overrides</div>
+  <h2>Local overrides.</h2>
 
   <p>
     Create <code>fuku.override.yaml</code> (or <code>fuku.override.yml</code>) next to your base config to add local customizations without modifying the shared project config. Override files are typically <code>.gitignore</code>d.
@@ -227,13 +233,14 @@ logging:
     <li>Override loading is automatic when using default config discovery (<code>fuku.yaml</code> / <code>fuku.yml</code>)</li>
     <li>Explicit <code>--config</code> disables override loading entirely</li>
     <li>An override file without a base config is ignored</li>
-    <li>Null removal applies to the merged YAML — some removed keys may still have runtime defaults (e.g. <code>logging: null</code> still gets default log level)</li>
+    <li>Null removal applies to the merged YAML – some removed keys may still have runtime defaults (e.g. <code>logging: null</code> still gets default log level)</li>
     <li>If both <code>fuku.override.yaml</code> and <code>fuku.override.yml</code> exist, <code>.yaml</code> wins</li>
   </ul>
 
   <hr />
 
-  <h2>YAML Anchors</h2>
+  <div class="section-eyebrow">DRY config</div>
+  <h2>YAML anchors.</h2>
 
   <p>
     Use YAML anchors (<code>&amp;</code>) and merge keys (<code>&lt;&lt;: *</code>) to avoid repeating common configuration. Top-level keys prefixed with <code>x-</code> are ignored by fuku and serve as anchor definitions.
@@ -260,7 +267,8 @@ services:
 
   <hr />
 
-  <h2>Full Example</h2>
+  <div class="section-eyebrow">Reference</div>
+  <h2>Full example.</h2>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`version: 1
 
