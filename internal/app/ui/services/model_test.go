@@ -621,12 +621,13 @@ func Test_RefreshFromStore_UnchangedSnapshotKeepsOptimisticLoader(t *testing.T) 
 		},
 	}
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStore := registry.NewMockStore(ctrl)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockStore := registry.NewMockStore(ctrl)
 			mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
 				{
 					ID:           "id-api",

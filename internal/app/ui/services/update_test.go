@@ -3000,6 +3000,146 @@ func Test_ReconcileLifecycle_MissedStartup_RestartFailedBackfills(t *testing.T) 
 	assert.Equal(t, SlotStarting, slots[1])
 }
 
+func Test_HandleRestartFailedKey(t *testing.T) {
+	tests := []struct {
+		name         string
+		serviceIDs   []string
+		services     map[string]*ServiceState
+		filterQuery  string
+		filteredIDs  []string
+		expectCalls  []bus.Service
+		expectLoader []string
+		expectCmd    bool
+	}{
+		{
+			name:       "multiple failed services",
+			serviceIDs: []string{"id-api", "id-web", "id-db"},
+			services: map[string]*ServiceState{
+				"id-api": {ID: "id-api", Name: "api", Status: StatusFailed},
+				"id-web": {ID: "id-web", Name: "web", Status: StatusRunning},
+				"id-db":  {ID: "id-db", Name: "db", Status: StatusFailed},
+			},
+			expectCalls: []bus.Service{
+				{ID: "id-api", Name: "api"},
+				{ID: "id-db", Name: "db"},
+			},
+			expectLoader: []string{"id-api", "id-db"},
+			expectCmd:    true,
+		},
+		{
+			name:       "no failed services",
+			serviceIDs: []string{"id-api", "id-web"},
+			services: map[string]*ServiceState{
+				"id-api": {ID: "id-api", Name: "api", Status: StatusRunning},
+				"id-web": {ID: "id-web", Name: "web", Status: StatusStopped},
+			},
+			expectCalls:  nil,
+			expectLoader: nil,
+			expectCmd:    false,
+		},
+		{
+			name:       "mixed states - only failed restarted",
+			serviceIDs: []string{"id-api", "id-web", "id-db", "id-cache"},
+			services: map[string]*ServiceState{
+				"id-api":   {ID: "id-api", Name: "api", Status: StatusRunning},
+				"id-web":   {ID: "id-web", Name: "web", Status: StatusStopped},
+				"id-db":    {ID: "id-db", Name: "db", Status: StatusFailed},
+				"id-cache": {ID: "id-cache", Name: "cache", Status: StatusStarting},
+			},
+			expectCalls: []bus.Service{
+				{ID: "id-db", Name: "db"},
+			},
+			expectLoader: []string{"id-db"},
+			expectCmd:    true,
+		},
+		{
+			name:         "empty services",
+			serviceIDs:   []string{},
+			services:     map[string]*ServiceState{},
+			expectCalls:  nil,
+			expectLoader: nil,
+			expectCmd:    false,
+		},
+		{
+			name:       "filter applied - restarts all failed services regardless of filter",
+			serviceIDs: []string{"id-api", "id-web", "id-db"},
+			services: map[string]*ServiceState{
+				"id-api": {ID: "id-api", Name: "api", Status: StatusFailed},
+				"id-web": {ID: "id-web", Name: "web", Status: StatusFailed},
+				"id-db":  {ID: "id-db", Name: "db", Status: StatusFailed},
+			},
+			filterQuery: "api",
+			filteredIDs: []string{"id-api"},
+			expectCalls: []bus.Service{
+				{ID: "id-api", Name: "api"},
+				{ID: "id-web", Name: "web"},
+				{ID: "id-db", Name: "db"},
+			},
+			expectLoader: []string{"id-api", "id-web", "id-db"},
+			expectCmd:    true,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, svc := range tt.expectCalls {
+				mockController.EXPECT().Restart(svc)
+			}
+
+			loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+			m := Model{loader: loader, controller: mockController}
+			m.state.serviceIDs = tt.serviceIDs
+			m.state.services = tt.services
+			m.state.filterQuery = tt.filterQuery
+			m.state.filteredIDs = tt.filteredIDs
+
+			teaModel, cmd := m.handleRestartFailedKey()
+			result := teaModel.(Model)
+
+			for _, id := range tt.expectLoader {
+				assert.True(t, result.loader.Has(id))
+			}
+
+			if tt.expectCmd {
+				assert.NotNil(t, cmd)
+			} else {
+				assert.Nil(t, cmd)
+			}
+		})
+	}
+}
+
+func Test_HandleKeyPress_CtrlRRoutesToRestartFailed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockController := NewMockController(ctrl)
+	mockController.EXPECT().Restart(bus.Service{ID: "id-api", Name: "api"})
+
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+
+	m := Model{loader: loader, controller: mockController}
+	m.state.shuttingDown = false
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.state.serviceIDs = []string{"id-api"}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {ID: "id-api", Name: "api", Status: StatusFailed},
+	}
+
+	msg := tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl}
+	teaModel, cmd := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.True(t, result.loader.Has("id-api"))
+	assert.NotNil(t, cmd)
+}
+
 func toKeyMsg(s string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: rune(s[0]), Text: s}
 }

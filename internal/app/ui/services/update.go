@@ -153,6 +153,9 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.ui.servicesKeys.Stop):
 		return m.handleStopKey()
 
+	case key.Matches(msg, m.ui.servicesKeys.RestartFailed):
+		return m.handleRestartFailedKey()
+
 	case key.Matches(msg, m.ui.servicesKeys.Restart):
 		return m.handleRestartKey()
 
@@ -376,6 +379,29 @@ func (m Model) handleRestartKey() (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handleRestartFailedKey restarts all services in the failed state
+func (m Model) handleRestartFailedKey() (tea.Model, tea.Cmd) {
+	var restarted bool
+
+	for _, id := range m.state.serviceIDs {
+		svc := m.state.services[id]
+		if svc == nil || svc.Status != StatusFailed {
+			continue
+		}
+
+		m.controller.Restart(bus.Service{ID: svc.ID, Name: svc.Name})
+		m.loader.Start(svc.ID, fmt.Sprintf("restarting %s…", svc.Name))
+
+		restarted = true
+	}
+
+	if !restarted {
+		return m, nil
+	}
+
+	return m, m.loader.Model.Tick
 }
 
 // handleMessage dispatches bus messages to specific handlers
