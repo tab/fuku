@@ -16,47 +16,47 @@ func Test_ComputeTableLayout(t *testing.T) {
 		{
 			name:         "negative contentWidth clamped to zero",
 			contentWidth: -5,
-			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, StatusWidth: 0, MetricWidth: 0},
+			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, TimelineWidth: 0, StatusWidth: 0, MetricWidth: 0},
 		},
 		{
 			name:         "zero contentWidth",
 			contentWidth: 0,
-			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, StatusWidth: 0, MetricWidth: 0},
+			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, TimelineWidth: 0, StatusWidth: 0, MetricWidth: 0},
 		},
 		{
-			name:         "narrow terminal (72 cols)",
+			name:         "narrow terminal (72 cols) - timeline hidden",
 			contentWidth: 66,
-			want:         TableLayout{ContentWidth: 66, ServiceNameWidth: 29, StatusWidth: 13, MetricWidth: 6},
+			want:         TableLayout{ContentWidth: 66, ServiceNameWidth: 29, TimelineWidth: 0, StatusWidth: 13, MetricWidth: 6},
 		},
 		{
-			name:         "just below wide breakpoint",
+			name:         "medium terminal (97 cols) - timeline reduced",
 			contentWidth: 97,
-			want:         TableLayout{ContentWidth: 97, ServiceNameWidth: 42, StatusWidth: 19, MetricWidth: 9},
+			want:         TableLayout{ContentWidth: 97, ServiceNameWidth: 25, TimelineWidth: 16, TimelineGapWidth: 1, StatusWidth: 19, MetricWidth: 9},
 		},
 		{
-			name:         "at wide breakpoint (104 cols)",
+			name:         "medium terminal (98 cols) - timeline reduced",
 			contentWidth: 98,
-			want:         TableLayout{ContentWidth: 98, ServiceNameWidth: 43, StatusWidth: 19, MetricWidth: 9},
+			want:         TableLayout{ContentWidth: 98, ServiceNameWidth: 25, TimelineWidth: 17, TimelineGapWidth: 1, StatusWidth: 19, MetricWidth: 9},
 		},
 		{
-			name:         "exact 100 width",
+			name:         "medium terminal (100 cols) - timeline reduced",
 			contentWidth: 100,
-			want:         TableLayout{ContentWidth: 100, ServiceNameWidth: 40, StatusWidth: 20, MetricWidth: 10},
+			want:         TableLayout{ContentWidth: 100, ServiceNameWidth: 25, TimelineWidth: 14, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 10},
 		},
 		{
-			name:         "at 114 width (status capped)",
+			name:         "wide terminal (114 cols) - full timeline",
 			contentWidth: 114,
-			want:         TableLayout{ContentWidth: 114, ServiceNameWidth: 50, StatusWidth: 20, MetricWidth: 11},
+			want:         TableLayout{ContentWidth: 114, ServiceNameWidth: 29, TimelineWidth: 20, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 11},
 		},
 		{
-			name:         "at 120 width (both capped)",
+			name:         "wide terminal (120 cols) - full timeline",
 			contentWidth: 120,
-			want:         TableLayout{ContentWidth: 120, ServiceNameWidth: 52, StatusWidth: 20, MetricWidth: 12},
+			want:         TableLayout{ContentWidth: 120, ServiceNameWidth: 31, TimelineWidth: 20, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 12},
 		},
 		{
 			name:         "ultra-wide terminal (name absorbs extra)",
 			contentWidth: 200,
-			want:         TableLayout{ContentWidth: 200, ServiceNameWidth: 132, StatusWidth: 20, MetricWidth: 12},
+			want:         TableLayout{ContentWidth: 200, ServiceNameWidth: 111, TimelineWidth: 20, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 12},
 		},
 	}
 

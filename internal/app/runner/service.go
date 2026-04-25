@@ -252,8 +252,6 @@ func (s *service) Resume(ctx context.Context, svc bus.Service) {
 
 // doStart creates, starts, and waits for a service to be ready
 func (s *service) doStart(ctx context.Context, tier string, svc bus.Service, cfg *config.Service) (process.Process, error) {
-	startTime := time.Now()
-
 	serviceDir, envFile, err := s.resolvePaths(svc.Name, cfg.Dir)
 	if err != nil {
 		return nil, err
@@ -284,6 +282,8 @@ func (s *service) doStart(ctx context.Context, tier string, svc bus.Service, cfg
 		return nil, fmt.Errorf("%w: %w", errors.ErrFailedToStartCommand, err)
 	}
 
+	startedAt := time.Now()
+
 	s.log.Info().Msgf("Started service '%s' (PID: %d) in directory: %s", svc.Name, cmd.Process.Pid, serviceDir)
 	s.bus.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
@@ -291,6 +291,7 @@ func (s *service) doStart(ctx context.Context, tier string, svc bus.Service, cfg
 			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: tier},
 			PID:          cmd.Process.Pid,
 			Attempt:      1,
+			StartedAt:    startedAt,
 		},
 		Critical: true,
 	})
@@ -308,7 +309,9 @@ func (s *service) doStart(ctx context.Context, tier string, svc bus.Service, cfg
 		Type: bus.EventServiceReady,
 		Data: bus.ServiceReady{
 			ServiceEvent: bus.ServiceEvent{Service: svc, Tier: tier},
-			Duration:     time.Since(startTime),
+			PID:          cmd.Process.Pid,
+			StartedAt:    startedAt,
+			Duration:     time.Since(startedAt),
 		},
 		Critical: true,
 	})

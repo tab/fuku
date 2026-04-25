@@ -191,11 +191,14 @@ func Test_Store_ServiceFailed(t *testing.T) {
 		return found
 	}, testTimeout, testInterval)
 
+	startedAt := time.Now()
+
 	b.Publish(bus.Message{
 		Type: bus.EventServiceStarting,
 		Data: bus.ServiceStarting{
 			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
 			PID:          5678,
+			StartedAt:    startedAt,
 		},
 	})
 
@@ -213,6 +216,7 @@ func Test_Store_ServiceFailed(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, 0, svc.PID)
 	assert.True(t, svc.StartTime.IsZero())
+	assert.Equal(t, startedAt, svc.AttemptStartedAt)
 }
 
 func Test_Store_ServiceNotFound(t *testing.T) {
@@ -705,4 +709,125 @@ func Test_Store_ServiceRestarting(t *testing.T) {
 		svc, _ := s.Service("test-id-api")
 		return svc.Status == StatusRestarting
 	}, testTimeout, testInterval)
+}
+
+func Test_Store_ServiceRestarting_ClearsStartTimePreservesAttempt(t *testing.T) {
+	s, b := newTestStore(t, config.DefaultConfig())
+
+	b.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "default",
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		_, found := s.Service("test-id-api")
+		return found
+	}, testTimeout, testInterval)
+
+	startedAt := time.Now()
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceStarting,
+		Data: bus.ServiceStarting{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
+			PID:          1234,
+			StartedAt:    startedAt,
+		},
+	})
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
+			PID:          1234,
+			StartedAt:    startedAt,
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		svc, _ := s.Service("test-id-api")
+		return svc.Status == StatusRunning
+	}, testTimeout, testInterval)
+
+	svc, _ := s.Service("test-id-api")
+	assert.Equal(t, startedAt, svc.StartTime)
+	assert.Equal(t, startedAt, svc.AttemptStartedAt)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceRestarting,
+		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
+	})
+
+	require.Eventually(t, func() bool {
+		svc, _ := s.Service("test-id-api")
+		return svc.Status == StatusRestarting
+	}, testTimeout, testInterval)
+
+	svc, _ = s.Service("test-id-api")
+	assert.True(t, svc.StartTime.IsZero(), "StartTime must be cleared during restart")
+	assert.Equal(t, startedAt, svc.AttemptStartedAt, "AttemptStartedAt must be preserved during restart")
+	assert.InDelta(t, 0, svc.CPU, 0)
+	assert.Equal(t, uint64(0), svc.Memory)
+}
+
+func Test_Store_StaleLifecycleEventRejected(t *testing.T) {
+	s, b := newTestStore(t, config.DefaultConfig())
+
+	b.Publish(bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "default",
+			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
+				{ID: "test-id-api", Name: "api"},
+			}}},
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		_, found := s.Service("test-id-api")
+		return found
+	}, testTimeout, testInterval)
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceStarting,
+		Data: bus.ServiceStarting{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
+			PID:          1234,
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		svc, _ := s.Service("test-id-api")
+		return svc.Status == StatusStarting
+	}, testTimeout, testInterval)
+
+	svc, _ := s.Service("test-id-api")
+	startingSeq := svc.LifecycleSeq
+
+	startedAt := time.Now()
+
+	b.Publish(bus.Message{
+		Type: bus.EventServiceReady,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
+			PID:          1234,
+			StartedAt:    startedAt,
+		},
+	})
+
+	require.Eventually(t, func() bool {
+		svc, _ := s.Service("test-id-api")
+		return svc.Status == StatusRunning
+	}, testTimeout, testInterval)
+
+	svc, _ = s.Service("test-id-api")
+	assert.Greater(t, svc.LifecycleSeq, startingSeq)
+	assert.Equal(t, StatusRunning, svc.Status)
+	assert.Equal(t, 1234, svc.PID)
+	assert.Equal(t, startedAt, svc.StartTime)
 }

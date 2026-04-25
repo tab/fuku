@@ -40,6 +40,20 @@ type Theme struct {
 	APIDotConnected      lipgloss.Style
 	APIDotDisconnected   lipgloss.Style
 
+	// Timeline strip styles
+	TimelineRunningStyle  lipgloss.Style
+	TimelineStartingStyle lipgloss.Style
+	TimelineFailedStyle   lipgloss.Style
+	TimelineStoppedStyle  lipgloss.Style
+	TimelineEmptyStyle    lipgloss.Style
+
+	// Timeline strip styles (selected row)
+	TimelineSelectedRunningStyle  lipgloss.Style
+	TimelineSelectedStartingStyle lipgloss.Style
+	TimelineSelectedFailedStyle   lipgloss.Style
+	TimelineSelectedStoppedStyle  lipgloss.Style
+	TimelineSelectedEmptyStyle    lipgloss.Style
+
 	// Shared styles (TUI tips + logs banner)
 	HelpKeyStyle  lipgloss.Style
 	HelpDescStyle lipgloss.Style
@@ -93,6 +107,18 @@ func NewTheme(isDark bool) Theme {
 		IndicatorDotStyle:    lipgloss.NewStyle().Foreground(fgStatusRunning),
 		APIDotConnected:      lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#0284c7"), lipgloss.Color("#38bdf8"))),
 		APIDotDisconnected:   lipgloss.NewStyle().Foreground(fgBorder),
+
+		TimelineRunningStyle:  lipgloss.NewStyle().Foreground(fgStatusRunning),
+		TimelineStartingStyle: lipgloss.NewStyle().Foreground(fgStatusWarning),
+		TimelineFailedStyle:   lipgloss.NewStyle().Foreground(fgStatusError),
+		TimelineStoppedStyle:  lipgloss.NewStyle().Foreground(fgBorder),
+		TimelineEmptyStyle:    lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#b8b8b8"), lipgloss.Color("#4a4a4a"))),
+
+		TimelineSelectedRunningStyle:  lipgloss.NewStyle().Foreground(fgStatusRunning).Background(bgSelection),
+		TimelineSelectedStartingStyle: lipgloss.NewStyle().Foreground(fgStatusWarning).Background(bgSelection),
+		TimelineSelectedFailedStyle:   lipgloss.NewStyle().Foreground(fgStatusError).Background(bgSelection),
+		TimelineSelectedStoppedStyle:  lipgloss.NewStyle().Foreground(fgBorder).Background(bgSelection),
+		TimelineSelectedEmptyStyle:    lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#b8b8b8"), lipgloss.Color("#4a4a4a"))).Background(bgSelection),
 	}
 }
 

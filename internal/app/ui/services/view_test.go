@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
 	"charm.land/bubbles/v2/help"
@@ -252,7 +253,7 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 			m.ui.width = tt.viewportWidth + 8
 			m.ui.layout = layoutForWidth(tt.viewportWidth)
 			m.ui.servicesViewport.SetWidth(tt.viewportWidth)
-			service := &ServiceState{Name: tt.serviceName, Status: StatusRunning}
+			service := &ServiceState{Name: tt.serviceName, Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)}
 
 			result := m.renderServiceRow(service, false)
 
@@ -304,11 +305,12 @@ func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
 			m.theme = components.DefaultTheme()
 
 			service := &ServiceState{
-				Name:   tt.serviceName,
-				Status: StatusRunning,
-				PID:    12345,
-				CPU:    99.9,
-				MEM:    512,
+				Name:     tt.serviceName,
+				Status:   StatusRunning,
+				PID:      12345,
+				CPU:      99.9,
+				MEM:      512,
+				Timeline: NewTimeline(components.DefaultTimelineSlots),
 			}
 
 			header := m.renderColumnHeaders()
@@ -318,6 +320,62 @@ func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
 			assert.NotContains(t, row, "\n", "service row wraps")
 			assert.Equal(t, rowWidth, lipgloss.Width(header), "header width must equal rowWidth")
 			assert.Equal(t, rowWidth, lipgloss.Width(row), "service row width must equal rowWidth")
+		})
+	}
+}
+
+func Test_RenderServiceRow_SharedPrefixNamesDistinguishable(t *testing.T) {
+	tests := []struct {
+		name       string
+		panelWidth int
+	}{
+		{
+			name:       "72-col terminal",
+			panelWidth: 72,
+		},
+		{
+			name:       "84-col terminal",
+			panelWidth: 84,
+		},
+		{
+			name:       "90-col terminal",
+			panelWidth: 90,
+		},
+		{
+			name:       "104-col terminal",
+			panelWidth: 104,
+		},
+		{
+			name:       "120-col terminal",
+			panelWidth: 120,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rowWidth := tt.panelWidth - components.PanelInnerPadding
+
+			m := Model{}
+			m.ui.width = tt.panelWidth
+			m.ui.layout = layoutForWidth(rowWidth)
+			m.ui.servicesViewport.SetWidth(rowWidth)
+			m.theme = components.DefaultTheme()
+
+			svcA := &ServiceState{
+				Name:     "action-confirmation-management-service",
+				Status:   StatusRunning,
+				Timeline: NewTimeline(components.DefaultTimelineSlots),
+			}
+			svcB := &ServiceState{
+				Name:     "action-confirmation-metrics-service",
+				Status:   StatusRunning,
+				Timeline: NewTimeline(components.DefaultTimelineSlots),
+			}
+
+			rowA := m.renderServiceRow(svcA, false)
+			rowB := m.renderServiceRow(svcB, false)
+
+			assert.NotEqual(t, rowA, rowB, "shared-prefix names must produce different rows at %d columns", tt.panelWidth)
 		})
 	}
 }
@@ -353,6 +411,35 @@ func Test_RenderServiceRow_SelectedIndicator(t *testing.T) {
 
 	assert.Contains(t, notSelected, "  ")
 	assert.Contains(t, selected, components.IndicatorSelected+" ")
+}
+
+func Test_RenderServiceRow_SelectedBackgroundCoversFullWidth(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.width = 120
+	m.ui.layout = layoutForWidth(112)
+	m.ui.servicesViewport.SetWidth(112)
+
+	tl := NewTimeline(components.DefaultTimelineSlots)
+	for range 10 {
+		tl.Append(SlotRunning)
+	}
+
+	service := &ServiceState{
+		Name:     "api",
+		Status:   StatusRunning,
+		PID:      12345,
+		CPU:      1.5,
+		MEM:      64,
+		Timeline: tl,
+	}
+
+	row := m.renderServiceRow(service, true)
+
+	bgCode := "\x1b[48;5;235m"
+	parts := strings.Split(row, "running")
+	assert.Greater(t, len(parts), 1, "row must contain 'running' status")
+	assert.Contains(t, parts[1], bgCode, "selection background must cover metrics after timeline")
 }
 
 func Test_GetServiceDetails_WithError(t *testing.T) {
@@ -1048,6 +1135,172 @@ func Test_UpdateServicesContent_UsesFilteredTiers(t *testing.T) {
 	content := m.ui.servicesViewport.View()
 	assert.Contains(t, content, "api")
 	assert.NotContains(t, content, "db")
+}
+
+func Test_RenderTimeline_AllSlotTypes(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.layout = components.TableLayout{TimelineWidth: 5}
+
+	tl := NewTimeline(5)
+	tl.Append(SlotRunning)
+	tl.Append(SlotStarting)
+	tl.Append(SlotFailed)
+	tl.Append(SlotStopped)
+	tl.Append(SlotEmpty)
+
+	service := &ServiceState{Timeline: tl}
+
+	result := m.renderTimeline(service, false)
+
+	assert.Contains(t, result, theme.TimelineRunningStyle.Render(components.TimelineBlock))
+	assert.Contains(t, result, theme.TimelineStartingStyle.Render(components.TimelineBlock))
+	assert.Contains(t, result, theme.TimelineFailedStyle.Render(components.TimelineBlock))
+	assert.Contains(t, result, theme.TimelineStoppedStyle.Render(components.TimelineBlock))
+	assert.Contains(t, result, theme.TimelineEmptyStyle.Render(components.TimelineBlock))
+}
+
+func Test_RenderTimeline_SelectedUsesSelectedStyles(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.layout = components.TableLayout{TimelineWidth: 3}
+
+	tl := NewTimeline(3)
+	tl.Append(SlotRunning)
+	tl.Append(SlotFailed)
+	tl.Append(SlotStopped)
+
+	service := &ServiceState{Timeline: tl}
+
+	result := m.renderTimeline(service, true)
+
+	expected := theme.TimelineSelectedRunningStyle.Render(components.TimelineBlock) +
+		theme.TimelineSelectedFailedStyle.Render(components.TimelineBlock) +
+		theme.TimelineSelectedStoppedStyle.Render(components.TimelineBlock)
+	assert.Equal(t, expected, result)
+}
+
+func Test_RenderTimeline_ZeroWidthReturnsEmpty(t *testing.T) {
+	m := Model{}
+	m.ui.layout = components.TableLayout{TimelineWidth: 0}
+
+	service := &ServiceState{Timeline: NewTimeline(20)}
+
+	result := m.renderTimeline(service, false)
+	assert.Empty(t, result)
+}
+
+func Test_RenderTimeline_NilTimelineReturnsPadding(t *testing.T) {
+	m := Model{}
+	m.ui.layout = components.TableLayout{TimelineWidth: 10}
+
+	service := &ServiceState{Timeline: nil}
+
+	result := m.renderTimeline(service, false)
+	assert.Equal(t, strings.Repeat(" ", 10), result)
+}
+
+func Test_RenderTimeline_ReducedWidthShowsRecentSlots(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.layout = components.TableLayout{TimelineWidth: 5}
+
+	tl := NewTimeline(10)
+	for range 10 {
+		tl.Append(SlotRunning)
+	}
+
+	tl.Append(SlotFailed)
+
+	service := &ServiceState{Timeline: tl}
+
+	result := m.renderTimeline(service, false)
+
+	assert.Equal(t, 5, lipgloss.Width(result))
+	assert.Contains(t, result, theme.TimelineFailedStyle.Render(components.TimelineBlock))
+}
+
+func Test_RenderTimeline_ReducedWidthPartiallyFilled(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.layout = components.TableLayout{TimelineWidth: 5}
+
+	tl := NewTimeline(20)
+	tl.Append(SlotRunning)
+	tl.Append(SlotFailed)
+
+	service := &ServiceState{Timeline: tl}
+
+	result := m.renderTimeline(service, false)
+
+	assert.Equal(t, 5, lipgloss.Width(result))
+	assert.Contains(t, result, theme.TimelineRunningStyle.Render(components.TimelineBlock))
+	assert.Contains(t, result, theme.TimelineFailedStyle.Render(components.TimelineBlock))
+}
+
+func Test_RenderTimeline_SelectedUsesSelectionAwareStyles(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.layout = components.TableLayout{TimelineWidth: 5}
+
+	tl := NewTimeline(5)
+	tl.Append(SlotRunning)
+	tl.Append(SlotFailed)
+
+	service := &ServiceState{Timeline: tl}
+
+	result := m.renderTimeline(service, true)
+
+	runningBlock := theme.TimelineSelectedRunningStyle.Render(components.TimelineBlock)
+	failedBlock := theme.TimelineSelectedFailedStyle.Render(components.TimelineBlock)
+	emptyBlock := theme.TimelineSelectedEmptyStyle.Render(components.TimelineBlock)
+
+	expected := runningBlock + failedBlock + strings.Repeat(emptyBlock, 3)
+	assert.Equal(t, expected, result)
+}
+
+func Test_RenderServiceRow_WithTimeline(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.width = 120
+	m.ui.layout = layoutForWidth(112)
+	m.ui.servicesViewport.SetWidth(112)
+
+	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl.Append(SlotRunning)
+
+	service := &ServiceState{Name: "api", Status: StatusRunning, Timeline: tl}
+
+	result := m.renderServiceRow(service, false)
+
+	assert.Contains(t, result, "api")
+	assert.Contains(t, result, "running")
+	assert.Contains(t, result, components.TimelineBlock)
+}
+
+func Test_RenderServiceRow_ErrorRowStillShowsTimeline(t *testing.T) {
+	theme := components.DefaultTheme()
+	m := Model{theme: theme}
+	m.ui.width = 120
+	m.ui.layout = layoutForWidth(112)
+	m.ui.servicesViewport.SetWidth(112)
+
+	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl.Append(SlotFailed)
+
+	service := &ServiceState{
+		Name:     "api",
+		Status:   StatusFailed,
+		Error:    errors.ErrPortAlreadyInUse,
+		Timeline: tl,
+	}
+
+	result := m.renderServiceRow(service, false)
+
+	assert.Contains(t, result, "api")
+	assert.Contains(t, result, "failed")
+	assert.Contains(t, result, components.TimelineBlock)
+	assert.Contains(t, result, "port already in use")
 }
 
 func Test_UpdateServicesContent_EmptyFilterClearsViewport(t *testing.T) {

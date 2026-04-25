@@ -49,18 +49,27 @@ type Tier struct {
 
 // ServiceState represents the state of a service in the UI
 type ServiceState struct {
-	ID        string
-	Name      string
-	Tier      string
-	Status    Status
-	Watching  bool
-	Error     error
-	PID       int
-	CPU       float64
-	MEM       float64
-	StartTime time.Time
-	ReadyTime time.Time
-	Blink     *components.Blink
+	ID               string
+	Name             string
+	Tier             string
+	Status           Status
+	Watching         bool
+	Error            error
+	PID              int
+	CPU              float64
+	MEM              float64
+	StartTime        time.Time
+	AttemptStartedAt time.Time
+	ReadyTime        time.Time
+	LifecycleAt      time.Time
+	LifecycleSeq     uint64
+	BackfilledSeq    uint64
+	StartupSampled   int
+	StartupActive    bool
+	WatchAt          time.Time
+	WatchSeq         uint64
+	Blink            *components.Blink
+	Timeline         *Timeline
 }
 
 // APIListener exposes the bound API server address
@@ -328,7 +337,7 @@ func (m *Model) updateServicesContent() {
 	m.ui.servicesViewport.SetContent(content)
 }
 
-// refreshFromStore updates service state from the store snapshots
+// refreshFromStore reconciles service state from store snapshots
 func (m *Model) refreshFromStore() {
 	snapshots := m.store.Services()
 
@@ -338,18 +347,97 @@ func (m *Model) refreshFromStore() {
 			continue
 		}
 
-		service.Status = snap.Status
-		service.PID = snap.PID
+		m.reconcileLifecycle(service, snap)
+
+		if snap.WatchSeq >= service.WatchSeq {
+			service.WatchSeq = snap.WatchSeq
+			service.WatchAt = snap.WatchAt
+			service.Watching = snap.Watching
+		}
+	}
+}
+
+// reconcileLifecycle applies a store lifecycle snapshot when it is newer or same-event healing
+func (m *Model) reconcileLifecycle(service *ServiceState, snap registry.ServiceSnapshot) {
+	applyLifecycle := snap.LifecycleSeq > service.LifecycleSeq ||
+		(snap.LifecycleSeq == service.LifecycleSeq && snap.Status == service.Status)
+
+	if !applyLifecycle {
+		return
+	}
+
+	stateAdvanced := snap.LifecycleSeq > service.LifecycleSeq || snap.Status != service.Status
+	newProcess := service.AttemptStartedAt != snap.AttemptStartedAt
+
+	if newProcess {
+		service.StartupSampled = 0
+	}
+
+	if snap.Status == registry.StatusStarting {
+		service.StartupActive = true
+	}
+
+	//nolint:exhaustive // only running and terminal states need startup backfill
+	switch snap.Status {
+	case registry.StatusRunning:
+		backfillStartupHistory(service, snap.LifecycleSeq, snap.AttemptStartedAt, snap.LifecycleAt)
+		service.StartupActive = false
+	case registry.StatusFailed, registry.StatusStopped:
+		switch {
+		case !snap.AttemptStartedAt.IsZero() && snap.AttemptStartedAt != service.AttemptStartedAt:
+			backfillStartupHistory(service, snap.LifecycleSeq, snap.AttemptStartedAt, snap.LifecycleAt)
+		case service.StartupActive && !service.AttemptStartedAt.IsZero():
+			backfillStartupHistory(service, snap.LifecycleSeq, service.AttemptStartedAt, snap.LifecycleAt)
+		}
+
+		service.StartupActive = false
+	}
+
+	service.LifecycleSeq = snap.LifecycleSeq
+	service.LifecycleAt = snap.LifecycleAt
+	service.Status = snap.Status
+	service.PID = snap.PID
+	service.AttemptStartedAt = snap.AttemptStartedAt
+
+	if snap.Status == registry.StatusRestarting {
+		service.StartTime = time.Time{}
+	} else {
+		service.StartTime = snap.StartTime
+	}
+
+	switch {
+	case newProcess:
+		service.CPU = 0
+		service.MEM = 0
+	default:
 		service.CPU = snap.CPU
 		service.MEM = float64(snap.Memory) / 1024 / 1024
-		service.StartTime = snap.StartTime
-		service.Watching = snap.Watching
+	}
 
-		switch {
-		case snap.Error != "":
-			service.Error = errors.New(snap.Error)
-		default:
-			service.Error = nil
+	switch {
+	case snap.Error != "":
+		service.Error = errors.New(snap.Error)
+	default:
+		service.Error = nil
+	}
+
+	if stateAdvanced {
+		m.reconcileLifecycleEffects(service, snap.Status)
+	}
+}
+
+// reconcileLifecycleEffects syncs loader and restarting state with the reconciled status
+func (m *Model) reconcileLifecycleEffects(service *ServiceState, status registry.Status) {
+	//nolint:exhaustive // only terminal and restarting states need effect reconciliation
+	switch status {
+	case registry.StatusRunning, registry.StatusFailed:
+		delete(m.state.restarting, service.ID)
+		m.loader.Stop(service.ID)
+	case registry.StatusStopped:
+		if !m.state.restarting[service.ID] {
+			m.loader.Stop(service.ID)
 		}
+	case registry.StatusRestarting:
+		m.state.restarting[service.ID] = true
 	}
 }
