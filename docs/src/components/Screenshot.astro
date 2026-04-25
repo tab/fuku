@@ -15,7 +15,7 @@
           <div class="panel-border">
             <!-- Top border labels -->
             <div class="border-top">
-              <span class="panel-title">services</span>
+              <span class="panel-title-muted">profile • default</span>
               <span class="border-spacer"></span>
               <span class="status-text"><span class="starting">starting…</span> 4/5 ready</span>
             </div>
@@ -25,6 +25,7 @@
               <!-- Column headers -->
               <div class="row header-row">
                 <span class="col-name"></span>
+                <span class="col-timeline"></span>
                 <span class="col-status">status</span>
                 <span class="col-cpu">cpu</span>
                 <span class="col-mem">mem</span>
@@ -36,6 +37,7 @@
               <div class="tier">foundation</div>
               <div class="row">
                 <span class="col-name"><span class="indicator">◉</span> auth</span>
+                <span class="col-timeline"><span class="tl-starting">▮▮▮</span><span class="tl-running">▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">0.1%</span>
                 <span class="col-mem dim">2MB</span>
@@ -44,6 +46,7 @@
               </div>
               <div class="row">
                 <span class="col-name"><span class="indicator">◉</span> storage</span>
+                <span class="col-timeline"><span class="tl-starting">▮▮▮</span><span class="tl-running">▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">0.1%</span>
                 <span class="col-mem dim">2MB</span>
@@ -55,6 +58,7 @@
               <div class="tier">platform</div>
               <div class="row">
                 <span class="col-name"><span class="indicator">◉</span> api</span>
+                <span class="col-timeline"><span class="tl-starting">▮▮▮▮</span><span class="tl-running">▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">0.1%</span>
                 <span class="col-mem dim">2MB</span>
@@ -63,6 +67,7 @@
               </div>
               <div class="row">
                 <span class="col-name"><span class="indicator">◉</span> user</span>
+                <span class="col-timeline"><span class="tl-starting">▮▮▮▮</span><span class="tl-running">▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮</span></span>
                 <span class="col-status running">running</span>
                 <span class="col-cpu dim">0.1%</span>
                 <span class="col-mem dim">2MB</span>
@@ -74,6 +79,7 @@
               <div class="tier">edge</div>
               <div class="row">
                 <span class="col-name"><span class="indicator-blink"><span class="blink-glyph blink-a">◉</span><span class="blink-glyph blink-b">◯</span></span> frontend</span>
+                <span class="col-timeline"><span class="tl-starting">▮▮▮▮▮▮</span><span class="tl-empty">▮▮▮▮▮▮▮▮▮▮▮▮▮▮</span></span>
                 <span class="col-status starting">starting</span>
                 <span class="col-cpu dim"></span>
                 <span class="col-mem dim"></span>
@@ -84,7 +90,7 @@
 
             <!-- Bottom border labels -->
             <div class="border-bottom">
-              <span class="stats">cpu 6.2% • mem 25MB</span>
+              <span class="stats"><span class="api-dot">●</span> 127.0.0.1:9876 • cpu 6.2% • mem 25MB</span>
               <span class="border-spacer"></span>
               <span class="version">v0.18.0</span>
             </div>
@@ -101,12 +107,11 @@
               <span class="help-sep">•</span>
               <span class="help-key">r</span> <span class="help-desc">restart</span>
               <span class="help-sep">•</span>
-              <span class="help-key">t</span> <span class="help-desc">tips</span>
+              <span class="help-key">ctrl+r</span> <span class="help-desc">restart failed</span>
+              <span class="help-sep">•</span>
+              <span class="help-key">/</span> <span class="help-desc">filter</span>
               <span class="help-sep">•</span>
               <span class="help-key">q</span> <span class="help-desc">quit</span>
-            </span>
-            <span class="help-right">
-              <span class="help-desc">press</span> <span class="help-key">s</span> <span class="help-desc">to stop or start a service</span>
             </span>
           </div>
         </div>
@@ -202,9 +207,8 @@
     padding: 0 !important;
   }
 
-  .panel-title {
-    color: #7D56F4;
-    font-weight: bold;
+  .panel-title-muted {
+    color: #6c7086;
   }
 
   .panel-content {
@@ -248,12 +252,19 @@
     color: #6c7086;
   }
 
-  .col-name { width: 40%; position: relative; }
-  .col-status { width: 16%; position: relative; }
+  .col-name { width: 20%; position: relative; }
+  .col-timeline { width: 24%; letter-spacing: 0.5px; font-size: 0.82em; }
+  .col-status { width: 12%; position: relative; }
   .col-cpu { width: 10%; text-align: right; }
   .col-mem { width: 10%; text-align: right; }
   .col-pid { width: 12%; text-align: right; }
   .col-uptime { width: 12%; text-align: right; }
+
+  .tl-running { color: #16a34a; }
+  .tl-starting { color: #f9e2af; }
+  .tl-empty { color: #4a4a4a; }
+
+  .api-dot { color: #56b6c2; }
 
   .tier {
     color: #7D56F4;
@@ -338,6 +349,7 @@
       min-height: 240px;
     }
 
+    .col-timeline,
     .col-pid {
       display: none;
     }

@@ -209,8 +209,9 @@
    - Initial backoff duration (`retry.backoff`, default: 500ms)
 
 6. **Log Streaming Configuration**
-   - Buffer size (`logs.buffer`, default: 100)
-   - Controls socket log streaming buffer
+   - Buffer size (`logs.buffer`, default: 1000)
+   - History size (`logs.history`, default: 5000)
+   - Controls socket log streaming buffer and replay history
 
 7. **Watch Configuration (Hot-Reload)**
    - Per-service file watching with glob patterns (`watch.include`)

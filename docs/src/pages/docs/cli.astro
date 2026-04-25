@@ -108,6 +108,10 @@ fuku run core --no-ui
 # Use short aliases
 fuku r core
 
+# Stop services for a profile
+fuku stop                       # Default profile
+fuku stop core                  # Specific profile
+
 # Stream logs from running instance (separate terminal)
 fuku logs                       # All services
 fuku logs api auth              # Specific services
