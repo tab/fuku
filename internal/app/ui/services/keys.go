@@ -4,15 +4,16 @@ import "charm.land/bubbles/v2/key"
 
 // KeyMap defines the key bindings for the services view
 type KeyMap struct {
-	Up          key.Binding
-	Down        key.Binding
-	Stop        key.Binding
-	Restart     key.Binding
-	ToggleTips  key.Binding
-	Filter      key.Binding
-	ClearFilter key.Binding
-	Quit        key.Binding
-	ForceQuit   key.Binding
+	Up            key.Binding
+	Down          key.Binding
+	Stop          key.Binding
+	Restart       key.Binding
+	RestartFailed key.Binding
+	ToggleTips    key.Binding
+	Filter        key.Binding
+	ClearFilter   key.Binding
+	Quit          key.Binding
+	ForceQuit     key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings
@@ -33,6 +34,10 @@ func DefaultKeyMap() KeyMap {
 		Restart: key.NewBinding(
 			key.WithKeys("r"),
 			key.WithHelp("r", "restart"),
+		),
+		RestartFailed: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "restart failed"),
 		),
 		ToggleTips: key.NewBinding(
 			key.WithKeys("t"),
@@ -59,12 +64,12 @@ func DefaultKeyMap() KeyMap {
 
 // ShortHelp returns keybindings to be shown in the mini help view
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Stop, k.Restart, k.Filter, k.ClearFilter, k.ToggleTips, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Stop, k.Restart, k.RestartFailed, k.Filter, k.ClearFilter, k.Quit}
 }
 
 // FullHelp returns keybindings for the expanded help view
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Stop, k.Restart, k.Filter, k.ClearFilter, k.ToggleTips, k.Quit},
+		{k.Up, k.Down, k.Stop, k.Restart, k.RestartFailed, k.Filter, k.ClearFilter, k.Quit},
 	}
 }

@@ -82,16 +82,16 @@ func Test_screen_streamLogs(t *testing.T) {
 		},
 	}
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := relay.NewMockClient(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().Error().Return(nil).AnyTimes()
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockClient := relay.NewMockClient(ctrl)
-			mockLog := logger.NewMockLogger(ctrl)
-			mockLog.EXPECT().Error().Return(nil).AnyTimes()
-			mockLog.EXPECT().Info().Return(nil).AnyTimes()
-
 			tt.before(mockClient)
 
 			var buf bytes.Buffer
