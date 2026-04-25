@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## v0.19.0
+
+### Features
+- **feat:** Add REST API server with auth middleware
+- **feat:** Add service filter with vim-style search in TUI
+- **feat:** Add per-service readiness timeline in TUI
+- **feat:** Restart all failed services in TUI
+
+### Fixes
+- **fix:** Fix Backfill to use ring-buffer in TUI
+- **fix:** Scope auth middleware to API prefix
+
+### Refactor
+- **refactor:** Add start functions for lifecycle management
+- **refactor:** Use UUID service identity in bus
+
+### Build
+- **build:** Bump charm.land/bubbles/v2 from 2.0.0 to 2.1.0
+- **build:** Bump github.com/shirou/gopsutil/v4 from 4.26.2 to 4.26.3
+- **build:** Bump github.com/getsentry/sentry-go from 0.43.0 to 0.44.1
+
+### Chore
+- **chore:** Add API spec and bruno-collection
+- **chore:** Update documentation and README.md
+
+### Tests
+- **test:** Add REST API e2e tests
+
 ## v0.18.0
 
 ### Features

@@ -144,7 +144,7 @@ components:
       properties:
         version:
           type: string
-          example: "0.18.0"
+          example: "0.19.0"
         profile:
           type: string
           example: default

@@ -663,7 +663,7 @@ JSON lines over Unix socket:
 {"type":"subscribe","services":["api","db"]}
 
 // Server → Client (status - sent after subscribe)
-{"type":"status","version":"0.18.0","profile":"default","services":["api","db","web"]}
+{"type":"status","version":"0.19.0","profile":"default","services":["api","db","web"]}
 
 // Server → Client (log message)
 {"type":"log","service":"api","message":"Server started on :8080"}
