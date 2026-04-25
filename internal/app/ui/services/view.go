@@ -355,26 +355,43 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 		style = m.theme.SelectedRowStyle
 	}
 
-	row := m.buildServiceRow(nameCol, timelineCol, statusCol, details, service.Error != nil, isSelected, rowWidth)
+	row := m.buildServiceRow(rowParts{
+		name:       nameCol,
+		timeline:   timelineCol,
+		status:     statusCol,
+		details:    details,
+		hasError:   service.Error != nil,
+		isSelected: isSelected,
+	}, rowWidth)
 
 	return style.Width(rowWidth).Render(row)
 }
 
-// buildServiceRow positions details: errors left-aligned after status, metrics right-aligned to edge
-func (m Model) buildServiceRow(nameCol, timelineCol, statusCol, details string, hasError, isSelected bool, rowWidth int) string {
-	gap := strings.Repeat(" ", m.ui.layout.TimelineGapWidth)
-	tail := gap + statusCol + details
+// rowParts groups the column segments for a service row
+type rowParts struct {
+	name       string
+	timeline   string
+	status     string
+	details    string
+	hasError   bool
+	isSelected bool
+}
 
-	if hasError {
-		remaining := max(rowWidth-lipgloss.Width(nameCol)-lipgloss.Width(timelineCol), 0)
+// buildServiceRow positions details: errors left-aligned after status, metrics right-aligned to edge
+func (m Model) buildServiceRow(parts rowParts, rowWidth int) string {
+	gap := strings.Repeat(" ", m.ui.layout.TimelineGapWidth)
+	tail := gap + parts.status + parts.details
+
+	if parts.hasError {
+		remaining := max(rowWidth-lipgloss.Width(parts.name)-lipgloss.Width(parts.timeline), 0)
 		tail = components.PadRight(tail, remaining)
 	}
 
-	if isSelected && m.ui.layout.TimelineWidth > 0 {
+	if parts.isSelected && m.ui.layout.TimelineWidth > 0 {
 		tail = lipgloss.NewStyle().Background(m.theme.BgSelection).Render(tail)
 	}
 
-	return nameCol + timelineCol + tail
+	return parts.name + parts.timeline + tail
 }
 
 // getServiceDetails returns either error message or metrics columns

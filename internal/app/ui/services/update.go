@@ -699,13 +699,16 @@ func (m Model) handleWatchStarted(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.ID]; exists {
-		if msg.Seq > service.WatchSeq {
-			service.WatchSeq = msg.Seq
-			service.WatchAt = msg.Timestamp
-			service.Watching = true
-		}
+	service, exists := m.state.services[data.ID]
+	if !exists || msg.Seq <= service.WatchSeq {
+		m.updateServicesContent()
+
+		return m
 	}
+
+	service.WatchSeq = msg.Seq
+	service.WatchAt = msg.Timestamp
+	service.Watching = true
 
 	m.updateServicesContent()
 
@@ -719,13 +722,16 @@ func (m Model) handleWatchStopped(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.ID]; exists {
-		if msg.Seq > service.WatchSeq {
-			service.WatchSeq = msg.Seq
-			service.WatchAt = msg.Timestamp
-			service.Watching = false
-		}
+	service, exists := m.state.services[data.ID]
+	if !exists || msg.Seq <= service.WatchSeq {
+		m.updateServicesContent()
+
+		return m
 	}
+
+	service.WatchSeq = msg.Seq
+	service.WatchAt = msg.Timestamp
+	service.Watching = false
 
 	m.updateServicesContent()
 

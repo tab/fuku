@@ -436,10 +436,15 @@ func Test_RenderServiceRow_SelectedBackgroundCoversFullWidth(t *testing.T) {
 
 	row := m.renderServiceRow(service, true)
 
-	bgCode := "\x1b[48;5;235m"
-	parts := strings.Split(row, "running")
-	assert.Greater(t, len(parts), 1, "row must contain 'running' status")
-	assert.Contains(t, parts[1], bgCode, "selection background must cover metrics after timeline")
+	statusIndex := strings.Index(row, "running")
+	assert.NotEqual(t, -1, statusIndex, "row must contain 'running' status")
+
+	metricsIndex := strings.Index(row, "12345")
+	assert.NotEqual(t, -1, metricsIndex, "row must contain PID metrics")
+	assert.Greater(t, metricsIndex, statusIndex, "PID metrics must appear after status")
+
+	segment := row[statusIndex:metricsIndex]
+	assert.NotContains(t, segment, "\x1b[m", "selection background must not reset between status and metrics")
 }
 
 func Test_GetServiceDetails_WithError(t *testing.T) {

@@ -238,6 +238,48 @@ func Test_Timeline_Backfill(t *testing.T) {
 	}
 }
 
+func Test_Timeline_Backfill_EvictsOldSamplesOnFullStrip(t *testing.T) {
+	tl := NewTimeline(5)
+	for range 5 {
+		tl.Append(SlotRunning)
+	}
+
+	tl.Backfill(SlotStarting, 2)
+
+	assert.Equal(t, 5, tl.Count())
+
+	slots := tl.Slots()
+	assert.Equal(t, SlotRunning, slots[0])
+	assert.Equal(t, SlotRunning, slots[1])
+	assert.Equal(t, SlotRunning, slots[2])
+	assert.Equal(t, SlotStarting, slots[3])
+	assert.Equal(t, SlotStarting, slots[4])
+}
+
+func Test_BackfillStartupHistory_FullStrip(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tl := NewTimeline(5)
+	for range 5 {
+		tl.Append(SlotRunning)
+	}
+
+	svc := &ServiceState{
+		Timeline: tl,
+	}
+
+	backfillStartupHistory(svc, 1, t0, t0.Add(3*time.Second))
+
+	assert.Equal(t, 5, tl.Count())
+
+	slots := tl.Slots()
+	assert.Equal(t, SlotRunning, slots[0])
+	assert.Equal(t, SlotRunning, slots[1])
+	assert.Equal(t, SlotStarting, slots[2])
+	assert.Equal(t, SlotStarting, slots[3])
+	assert.Equal(t, SlotStarting, slots[4])
+}
+
 func Test_BackfillStartupHistory(t *testing.T) {
 	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 

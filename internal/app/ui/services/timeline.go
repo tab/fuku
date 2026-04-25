@@ -69,7 +69,7 @@ func (t *Timeline) Slots() []TimelineSlot {
 	return result
 }
 
-// Backfill appends n samples of the given slot, capped by remaining capacity
+// Backfill appends n samples of the given slot, capped by timeline capacity
 func (t *Timeline) Backfill(slot TimelineSlot, n int) {
 	for range min(n, t.capacity) {
 		t.Append(slot)
