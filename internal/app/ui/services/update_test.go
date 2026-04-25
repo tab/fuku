@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config/logger"
 )
@@ -323,10 +324,12 @@ func Test_HandleServiceStarting(t *testing.T) {
 	m.state.restarting = make(map[string]bool)
 
 	now := time.Now()
+	startedAt := now.Add(-time.Second)
 	event := bus.Message{
 		Timestamp: now,
+		Seq:       1,
 		Type:      bus.EventServiceStarting,
-		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "tier1"}, PID: 1234},
+		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "tier1"}, PID: 1234, StartedAt: startedAt},
 	}
 
 	result := m.handleServiceStarting(event)
@@ -334,7 +337,7 @@ func Test_HandleServiceStarting(t *testing.T) {
 	assert.Equal(t, StatusStarting, result.state.services["test-id-api"].Status)
 	assert.Equal(t, "tier1", result.state.services["test-id-api"].Tier)
 	assert.Equal(t, 1234, result.state.services["test-id-api"].PID)
-	assert.Equal(t, now, result.state.services["test-id-api"].StartTime)
+	assert.Equal(t, startedAt, result.state.services["test-id-api"].StartTime)
 	require.NoError(t, result.state.services["test-id-api"].Error)
 	assert.True(t, result.loader.Has("test-id-api"))
 	assert.True(t, result.loader.Active)
@@ -364,6 +367,7 @@ func Test_HandleServiceStarting_ClearsRestartingFlag(t *testing.T) {
 
 	event := bus.Message{
 		Timestamp: time.Now(),
+		Seq:       1,
 		Type:      bus.EventServiceStarting,
 		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "tier1"}, PID: 5678},
 	}
@@ -389,6 +393,7 @@ func Test_HandleServiceStarting_DoesNotDuplicateLoader(t *testing.T) {
 
 	event := bus.Message{
 		Timestamp: time.Now(),
+		Seq:       1,
 		Type:      bus.EventServiceStarting,
 		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "tier1"}, PID: 1234},
 	}
@@ -420,16 +425,27 @@ func Test_HandleServiceReady(t *testing.T) {
 	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	now := time.Now()
+	started := now.Add(-2 * time.Second)
 	event := bus.Message{
 		Timestamp: now,
+		Seq:       1,
 		Type:      bus.EventServiceReady,
-		Data:      bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "platform"},
+			PID:          5678,
+			StartedAt:    started,
+		},
 	}
 
 	result := m.handleServiceReady(event)
 
-	assert.Equal(t, StatusRunning, result.state.services["test-id-api"].Status)
-	assert.Equal(t, now, result.state.services["test-id-api"].ReadyTime)
+	svc := result.state.services["test-id-api"]
+	assert.Equal(t, StatusRunning, svc.Status)
+	assert.Equal(t, "platform", svc.Tier)
+	assert.Equal(t, 5678, svc.PID)
+	assert.Equal(t, started, svc.StartTime)
+	assert.Equal(t, now, svc.ReadyTime)
+	require.NoError(t, svc.Error)
 	assert.False(t, result.loader.Active)
 	assert.False(t, result.loader.Has("test-id-api"))
 }
@@ -460,6 +476,7 @@ func Test_HandleServiceFailed(t *testing.T) {
 
 	testErr := assert.AnError
 	event := bus.Message{
+		Seq:  1,
 		Type: bus.EventServiceFailed,
 		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}, Error: testErr},
 	}
@@ -497,6 +514,7 @@ func Test_HandleServiceFailed_ClearsRestartingFlag(t *testing.T) {
 	m.state.restarting = map[string]bool{"api": true}
 
 	event := bus.Message{
+		Seq:  1,
 		Type: bus.EventServiceFailed,
 		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}, Error: assert.AnError},
 	}
@@ -518,6 +536,7 @@ func Test_HandleServiceStopping(t *testing.T) {
 	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{
+		Seq:  1,
 		Type: bus.EventServiceStopping,
 		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
 	}
@@ -552,6 +571,7 @@ func Test_HandleServiceStopping_DoesNotDuplicateLoader(t *testing.T) {
 	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{
+		Seq:  1,
 		Type: bus.EventServiceStopping,
 		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
 	}
@@ -582,6 +602,7 @@ func Test_HandleServiceRestarting(t *testing.T) {
 	m.state.restarting = make(map[string]bool)
 
 	event := bus.Message{
+		Seq:  1,
 		Type: bus.EventServiceRestarting,
 		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
 	}
@@ -643,6 +664,7 @@ func Test_HandleServiceStopped(t *testing.T) {
 			m.state.restarting = map[string]bool{"test-id-api": tt.restarting}
 
 			event := bus.Message{
+				Seq:  1,
 				Type: bus.EventServiceStopped,
 				Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}}},
 			}
@@ -687,6 +709,7 @@ func Test_HandleWatchStarted(t *testing.T) {
 	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{
+		Seq:  1,
 		Type: bus.EventWatchStarted,
 		Data: bus.Service{ID: "test-id-api", Name: "api"},
 	}
@@ -727,6 +750,7 @@ func Test_HandleWatchStopped(t *testing.T) {
 	m.state.services = map[string]*ServiceState{"test-id-api": service}
 
 	event := bus.Message{
+		Seq:  1,
 		Type: bus.EventWatchStopped,
 		Data: bus.Service{ID: "test-id-api", Name: "api"},
 	}
@@ -1810,6 +1834,1170 @@ func Test_CalculateScrollOffset_WithFilter(t *testing.T) {
 	offset := m.calculateScrollOffset()
 
 	assert.Equal(t, 3, offset)
+}
+
+func Test_HandleProfileResolved_CreatesTimelines(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
+	m.state.tiers = make([]Tier, 0)
+
+	event := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "dev",
+			Tiers: []bus.Tier{
+				{Name: "tier1", Services: []bus.Service{{ID: "test-id-db", Name: "db"}, {ID: "test-id-api", Name: "api"}}},
+			},
+		},
+	}
+
+	result := m.handleProfileResolved(event)
+
+	for _, id := range []string{"test-id-db", "test-id-api"} {
+		svc := result.state.services[id]
+		require.NotNil(t, svc.Timeline, "service %s should have a timeline", id)
+		assert.Equal(t, components.DefaultTimelineSlots, svc.Timeline.capacity, "timeline capacity should be %d", components.DefaultTimelineSlots)
+		assert.Equal(t, 0, svc.Timeline.count, "timeline should start empty")
+	}
+}
+
+func Test_HandleProfileResolved_FreshTimelinesOnReload(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+	mockLog.EXPECT().Info().Return(noopLogger.Info()).AnyTimes()
+	mockLog.EXPECT().Warn().Return(noopLogger.Warn()).AnyTimes()
+	mockLog.EXPECT().Error().Return(noopLogger.Error()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
+	m.state.tiers = make([]Tier, 0)
+
+	event1 := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "profile1",
+			Tiers: []bus.Tier{
+				{Name: "tier1", Services: []bus.Service{{ID: "test-id-db", Name: "db"}}},
+			},
+		},
+	}
+
+	result := m.handleProfileResolved(event1)
+	result.state.services["test-id-db"].Timeline.Append(SlotRunning)
+	result.state.services["test-id-db"].Timeline.Append(SlotRunning)
+	assert.Equal(t, 2, result.state.services["test-id-db"].Timeline.count)
+
+	event2 := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "profile2",
+			Tiers: []bus.Tier{
+				{Name: "tier1", Services: []bus.Service{{ID: "test-id-db", Name: "db"}}},
+			},
+		},
+	}
+
+	result = result.handleProfileResolved(event2)
+	assert.Equal(t, 0, result.state.services["test-id-db"].Timeline.count, "timeline should be fresh after profile reload")
+}
+
+func Test_SampleTimelines(t *testing.T) {
+	started := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := Model{}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:        "id-api",
+			Name:      "api",
+			Status:    StatusRunning,
+			StartTime: started,
+			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+		},
+		"id-db": {
+			ID:        "id-db",
+			Name:      "db",
+			Status:    StatusStarting,
+			StartTime: started,
+			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+		},
+		"id-web": {
+			ID:        "id-web",
+			Name:      "web",
+			Status:    StatusFailed,
+			StartTime: started,
+			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+		},
+		"id-queued": {
+			ID:       "id-queued",
+			Name:     "queued",
+			Status:   StatusStarting,
+			Timeline: NewTimeline(components.DefaultTimelineSlots),
+		},
+		"id-stopped": {
+			ID:       "id-stopped",
+			Name:     "stopped",
+			Status:   StatusStopped,
+			Timeline: timelineWithHistory(SlotRunning),
+		},
+		"id-preflight-fail": {
+			ID:       "id-preflight-fail",
+			Name:     "preflight-fail",
+			Status:   StatusFailed,
+			Timeline: NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+
+	m.sampleTimelines()
+
+	assert.Equal(t, 1, m.state.services["id-api"].Timeline.count)
+	assert.Equal(t, SlotRunning, m.state.services["id-api"].Timeline.Slots()[0])
+
+	assert.Equal(t, 1, m.state.services["id-db"].Timeline.count)
+	assert.Equal(t, SlotStarting, m.state.services["id-db"].Timeline.Slots()[0])
+
+	assert.Equal(t, 1, m.state.services["id-web"].Timeline.count)
+	assert.Equal(t, SlotFailed, m.state.services["id-web"].Timeline.Slots()[0])
+
+	assert.Equal(t, 0, m.state.services["id-queued"].Timeline.count)
+
+	assert.Equal(t, 2, m.state.services["id-stopped"].Timeline.count)
+	assert.Equal(t, SlotStopped, m.state.services["id-stopped"].Timeline.Slots()[1])
+
+	assert.Equal(t, 1, m.state.services["id-preflight-fail"].Timeline.count)
+	assert.Equal(t, SlotFailed, m.state.services["id-preflight-fail"].Timeline.Slots()[0])
+}
+
+func Test_SampleTimelines_MultipleSamples(t *testing.T) {
+	started := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := Model{}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:        "id-api",
+			Name:      "api",
+			Status:    StatusStarting,
+			StartTime: started,
+			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+
+	m.sampleTimelines()
+	m.state.services["id-api"].Status = StatusRunning
+	m.sampleTimelines()
+	m.sampleTimelines()
+
+	slots := m.state.services["id-api"].Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotRunning, slots[1])
+	assert.Equal(t, SlotRunning, slots[2])
+	assert.Equal(t, SlotEmpty, slots[3])
+}
+
+func timelineWithHistory(slots ...TimelineSlot) *Timeline {
+	tl := NewTimeline(components.DefaultTimelineSlots)
+	for _, s := range slots {
+		tl.Append(s)
+	}
+
+	return tl
+}
+
+func Test_RefreshFromStore_StaleSnapshotDoesNotRevertStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(time.Second)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusStarting,
+			PID:          1234,
+			CPU:          10.0,
+			Memory:       128 * 1024 * 1024,
+			StartTime:    t0,
+			LifecycleAt:  t0,
+			LifecycleSeq: 1,
+		},
+	})
+
+	m := &Model{store: mockStore, loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.restarting = map[string]bool{}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:           "id-api",
+			Name:         "api",
+			Status:       StatusFailed,
+			PID:          0,
+			StartTime:    time.Time{},
+			Error:        assert.AnError,
+			LifecycleAt:  t1,
+			LifecycleSeq: 2,
+			Timeline:     timelineWithHistory(SlotStarting, SlotFailed),
+		},
+	}
+
+	m.refreshFromStore()
+	m.sampleTimelines()
+
+	api := m.state.services["id-api"]
+	assert.Equal(t, StatusFailed, api.Status)
+	require.EqualError(t, api.Error, assert.AnError.Error())
+	assert.True(t, api.StartTime.IsZero())
+	assert.Equal(t, 0, api.PID)
+	assert.InDelta(t, 0.0, api.CPU, 0.01)
+	assert.InDelta(t, 0.0, api.MEM, 0.01)
+
+	slots := api.Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotFailed, slots[1])
+	assert.Equal(t, SlotFailed, slots[2])
+}
+
+func Test_DelayedStartingDoesNotRevertReady(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(time.Second)
+	t2 := t0.Add(2 * time.Second)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:       "id-api",
+			Name:     "api",
+			Timeline: NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m = m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t2,
+		Seq:       2,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}, Tier: "platform"},
+			PID:          5678,
+			StartedAt:    t1,
+		},
+	})
+
+	m = m.handleServiceStarting(bus.Message{
+		Type:      bus.EventServiceStarting,
+		Timestamp: t1,
+		Seq:       1,
+		Data:      bus.ServiceStarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}}, PID: 5678},
+	})
+
+	api := m.state.services["id-api"]
+	assert.Equal(t, StatusRunning, api.Status)
+	assert.Equal(t, 5678, api.PID)
+	assert.Equal(t, t1, api.StartTime)
+	assert.Equal(t, t2, api.LifecycleAt)
+}
+
+func Test_TimelineSamplesReconciledState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(time.Second)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusRunning,
+			PID:          5678,
+			StartTime:    t0,
+			LifecycleAt:  t1,
+			LifecycleSeq: 2,
+		},
+	})
+
+	m := &Model{store: mockStore, loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.restarting = map[string]bool{}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:            "id-api",
+			Name:          "api",
+			Status:        StatusStarting,
+			PID:           5678,
+			StartTime:     t0,
+			LifecycleAt:   t0,
+			LifecycleSeq:  1,
+			BackfilledSeq: 2,
+			Timeline:      timelineWithHistory(SlotStarting),
+		},
+	}
+
+	m.refreshFromStore()
+	m.sampleTimelines()
+
+	api := m.state.services["id-api"]
+	assert.Equal(t, registry.StatusRunning, api.Status)
+
+	slots := api.Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotRunning, slots[1])
+}
+
+func Test_HandleServiceReady_ClearsErrorAndRestarting(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(time.Second)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:          "id-api",
+			Name:        "api",
+			Status:      StatusRestarting,
+			Error:       assert.AnError,
+			LifecycleAt: t0,
+		},
+	}
+	m.state.restarting = map[string]bool{"id-api": true}
+
+	m = m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t1,
+		Seq:       2,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}, Tier: "platform"},
+			PID:          9876,
+			StartedAt:    t0,
+		},
+	})
+
+	api := m.state.services["id-api"]
+	assert.Equal(t, StatusRunning, api.Status)
+	assert.Equal(t, 9876, api.PID)
+	assert.Equal(t, t0, api.StartTime)
+	require.NoError(t, api.Error)
+	assert.False(t, m.state.restarting["id-api"])
+}
+
+func Test_SameSeqReadyHealingAllowsRunningTimelineSample(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusRunning,
+			PID:          5678,
+			StartTime:    t0,
+			LifecycleAt:  t0,
+			LifecycleSeq: 10,
+		},
+	})
+
+	m := &Model{store: mockStore, loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.restarting = map[string]bool{}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:           "id-api",
+			Name:         "api",
+			Status:       StatusRunning,
+			LifecycleAt:  t0,
+			LifecycleSeq: 10,
+			Timeline:     NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+
+	m.refreshFromStore()
+	m.sampleTimelines()
+
+	api := m.state.services["id-api"]
+	assert.Equal(t, t0, api.StartTime)
+	assert.Equal(t, 1, api.Timeline.Count())
+	assert.Equal(t, SlotRunning, api.Timeline.Slots()[0])
+}
+
+func Test_HandleServiceReady_BackfillsStartupHistory(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:       "id-api",
+			Name:     "api",
+			Status:   StatusStarting,
+			Timeline: NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m = m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t0.Add(3 * time.Second),
+		Seq:       2,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          1234,
+			StartedAt:    t0,
+			Duration:     3 * time.Second,
+		},
+	})
+
+	tl := m.state.services["id-api"].Timeline
+	assert.Equal(t, 3, tl.Count())
+
+	slots := tl.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
+	assert.Equal(t, SlotStarting, slots[2])
+}
+
+func Test_HandleServiceReady_NoBackfillWhenHistoryExists(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl.Append(SlotStarting)
+	tl.Append(SlotStarting)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusStarting,
+			PID:              1234,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			StartupSampled:   2,
+			BackfilledSeq:    2,
+			Timeline:         tl,
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m = m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t0.Add(3 * time.Second),
+		Seq:       2,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          1234,
+			StartedAt:    t0,
+			Duration:     3 * time.Second,
+		},
+	})
+
+	assert.Equal(t, 2, m.state.services["id-api"].Timeline.Count())
+}
+
+func Test_HandleServiceReady_ZerosMetricsOnNewProcess(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:     "id-api",
+			Name:   "api",
+			Status: StatusStarting,
+			CPU:    45.0,
+			MEM:    512.0,
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m = m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t0,
+		Seq:       1,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          5678,
+			StartedAt:    t0,
+		},
+	})
+
+	api := m.state.services["id-api"]
+	assert.InDelta(t, 0.0, api.CPU, 0.01)
+	assert.InDelta(t, 0.0, api.MEM, 0.01)
+}
+
+func Test_HandleServiceReady_PreservesMetricsOnSameProcess(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusStarting,
+			PID:              5678,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			CPU:              25.5,
+			MEM:              256.0,
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m = m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t0.Add(time.Second),
+		Seq:       2,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          5678,
+			StartedAt:    t0,
+		},
+	})
+
+	api := m.state.services["id-api"]
+	assert.InDelta(t, 25.5, api.CPU, 0.01)
+	assert.InDelta(t, 256.0, api.MEM, 0.01)
+}
+
+func Test_RefreshBeforeReady_StillBackfillsStartupHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(3 * time.Second)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:               "id-api",
+			Status:           registry.StatusRunning,
+			PID:              5678,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			LifecycleAt:      t1,
+			LifecycleSeq:     5,
+		},
+	})
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:       "id-api",
+			Name:     "api",
+			Status:   StatusStarting,
+			Timeline: NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+	m.sampleTimelines()
+
+	tl := m.state.services["id-api"].Timeline
+	slots := tl.Slots()
+	assert.Equal(t, 4, tl.Count())
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
+	assert.Equal(t, SlotStarting, slots[2])
+	assert.Equal(t, SlotRunning, slots[3])
+
+	m2 := m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t1,
+		Seq:       5,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          5678,
+			StartedAt:    t0,
+			Duration:     3 * time.Second,
+		},
+	})
+
+	assert.Equal(t, 4, m2.state.services["id-api"].Timeline.Count())
+}
+
+func Test_SameSeqReadyAfterStoreHeal_RunsSideEffects(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusRunning,
+			PID:          5678,
+			StartTime:    t0,
+			LifecycleAt:  t0,
+			LifecycleSeq: 5,
+		},
+	})
+
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start("id-api", "starting api...")
+
+	m := &Model{store: mockStore, loader: loader}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:       "id-api",
+			Name:     "api",
+			Status:   StatusStarting,
+			Timeline: NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{"id-api": true}
+
+	m.refreshFromStore()
+
+	assert.Equal(t, StatusRunning, m.state.services["id-api"].Status)
+	assert.Equal(t, uint64(5), m.state.services["id-api"].LifecycleSeq)
+	assert.False(t, m.loader.Active)
+	assert.False(t, m.state.restarting["id-api"])
+
+	result := m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t0,
+		Seq:       5,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          5678,
+			StartedAt:    t0.Add(-3 * time.Second),
+			Duration:     3 * time.Second,
+		},
+	})
+
+	assert.False(t, result.loader.Active)
+	assert.False(t, result.loader.Has("id-api"))
+	assert.False(t, result.state.restarting["id-api"])
+	assert.Equal(t, 3, result.state.services["id-api"].Timeline.Count())
+}
+
+func Test_LateStartingDoesNotResetStartupSampled(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusStarting,
+			PID:              5678,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			StartupSampled:   3,
+			BackfilledSeq:    0,
+			LifecycleSeq:     5,
+			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m = m.handleServiceStarting(bus.Message{
+		Type:      bus.EventServiceStarting,
+		Timestamp: t0,
+		Seq:       5,
+		Data: bus.ServiceStarting{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          5678,
+			StartedAt:    t0,
+		},
+	})
+
+	assert.Equal(t, 3, m.state.services["id-api"].StartupSampled)
+}
+
+func Test_RestartReadyBeforeStarting_BackfillsAmber(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(3 * time.Second)
+
+	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl.Append(SlotRunning)
+	tl.Append(SlotRunning)
+
+	m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:             "id-api",
+			Name:           "api",
+			Status:         StatusRunning,
+			PID:            1111,
+			StartTime:      t0.Add(-10 * time.Second),
+			StartupSampled: 2,
+			BackfilledSeq:  1,
+			LifecycleSeq:   1,
+			Timeline:       tl,
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m = m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t1,
+		Seq:       3,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          2222,
+			StartedAt:    t0,
+			Duration:     3 * time.Second,
+		},
+	})
+
+	svc := m.state.services["id-api"]
+	assert.Equal(t, 2222, svc.PID)
+	assert.Equal(t, 5, svc.Timeline.Count())
+
+	slots := svc.Timeline.Slots()
+	assert.Equal(t, SlotRunning, slots[0])
+	assert.Equal(t, SlotRunning, slots[1])
+	assert.Equal(t, SlotStarting, slots[2])
+	assert.Equal(t, SlotStarting, slots[3])
+	assert.Equal(t, SlotStarting, slots[4])
+}
+
+func Test_SameSeqReadyAfterRefresh_NewProcessStillBackfills(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(2 * time.Second)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:               "id-api",
+			Status:           registry.StatusRunning,
+			PID:              2222,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			LifecycleAt:      t1,
+			LifecycleSeq:     5,
+		},
+	})
+
+	oldStart := t0.Add(-10 * time.Second)
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusRunning,
+			PID:              1111,
+			StartTime:        oldStart,
+			AttemptStartedAt: oldStart,
+			StartupSampled:   5,
+			BackfilledSeq:    3,
+			LifecycleSeq:     3,
+			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+
+	svc := m.state.services["id-api"]
+	assert.Equal(t, 2222, svc.PID)
+	assert.Equal(t, 2, svc.Timeline.Count())
+
+	slots := svc.Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
+
+	m2 := m.handleServiceReady(bus.Message{
+		Type:      bus.EventServiceReady,
+		Timestamp: t1,
+		Seq:       5,
+		Data: bus.ServiceReady{
+			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "id-api", Name: "api"}},
+			PID:          2222,
+			StartedAt:    t0,
+			Duration:     2 * time.Second,
+		},
+	})
+
+	assert.Equal(t, 2, m2.state.services["id-api"].Timeline.Count())
+}
+
+func Test_ReconcileLifecycle_ClearsRestartingAndStopsLoader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusRunning,
+			PID:          5678,
+			StartTime:    t0,
+			LifecycleAt:  t0.Add(3 * time.Second),
+			LifecycleSeq: 5,
+		},
+	})
+
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start("id-api", "restarting api...")
+
+	m := &Model{
+		store:  mockStore,
+		loader: loader,
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:           "id-api",
+			Name:         "api",
+			Status:       StatusRestarting,
+			PID:          5678,
+			StartTime:    t0,
+			LifecycleSeq: 3,
+		},
+	}
+	m.state.restarting = map[string]bool{"id-api": true}
+
+	m.refreshFromStore()
+
+	assert.Equal(t, StatusRunning, m.state.services["id-api"].Status)
+	assert.False(t, m.loader.Active)
+	assert.False(t, m.loader.Has("id-api"))
+	assert.False(t, m.state.restarting["id-api"])
+}
+
+func Test_ReconcileLifecycle_StartingToFailed_BackfillsAmber(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(3 * time.Second)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusFailed,
+			Error:        "crash",
+			LifecycleAt:  t1,
+			LifecycleSeq: 5,
+		},
+	})
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusStarting,
+			StartupActive:    true,
+			PID:              1234,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			LifecycleSeq:     3,
+			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+	m.sampleTimelines()
+
+	svc := m.state.services["id-api"]
+	assert.Equal(t, StatusFailed, svc.Status)
+
+	slots := svc.Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
+	assert.Equal(t, SlotStarting, slots[2])
+	assert.Equal(t, SlotFailed, slots[3])
+}
+
+func Test_ReconcileLifecycle_StartingToStopped_BackfillsAmber(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(2 * time.Second)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusStopped,
+			LifecycleAt:  t1,
+			LifecycleSeq: 5,
+		},
+	})
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusStarting,
+			StartupActive:    true,
+			PID:              1234,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			LifecycleSeq:     3,
+			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+	m.sampleTimelines()
+
+	svc := m.state.services["id-api"]
+	assert.Equal(t, StatusStopped, svc.Status)
+
+	slots := svc.Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
+	assert.Equal(t, SlotStopped, slots[2])
+}
+
+func Test_ReconcileLifecycle_RestartingStopped_KeepsLoader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusStopped,
+			LifecycleAt:  t0,
+			LifecycleSeq: 5,
+		},
+	})
+
+	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
+	loader.Start("id-api", "restarting api...")
+
+	m := &Model{
+		store:  mockStore,
+		loader: loader,
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:           "id-api",
+			Name:         "api",
+			Status:       StatusRestarting,
+			LifecycleSeq: 3,
+		},
+	}
+	m.state.restarting = map[string]bool{"id-api": true}
+
+	m.refreshFromStore()
+
+	assert.Equal(t, StatusStopped, m.state.services["id-api"].Status)
+	assert.True(t, m.loader.Active)
+	assert.True(t, m.state.restarting["id-api"])
+}
+
+func Test_ReconcileLifecycle_RestartingWithOldStartTime_NoBackfill(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusStopped,
+			LifecycleAt:  t0.Add(30 * time.Second),
+			LifecycleSeq: 5,
+		},
+	})
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:           "id-api",
+			Name:         "api",
+			Status:       StatusStopping,
+			PID:          1234,
+			StartTime:    t0,
+			LifecycleSeq: 3,
+			Timeline:     NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+
+	assert.Equal(t, 0, m.state.services["id-api"].Timeline.Count())
+}
+
+func Test_ReconcileLifecycle_RealStartingToFailed_StillBackfills(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:           "id-api",
+			Status:       registry.StatusFailed,
+			Error:        "crash",
+			LifecycleAt:  t0.Add(3 * time.Second),
+			LifecycleSeq: 5,
+		},
+	})
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusStarting,
+			StartupActive:    true,
+			PID:              1234,
+			StartTime:        t0,
+			AttemptStartedAt: t0,
+			LifecycleSeq:     3,
+			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+
+	assert.Equal(t, 3, m.state.services["id-api"].Timeline.Count())
+
+	slots := m.state.services["id-api"].Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
+	assert.Equal(t, SlotStarting, slots[2])
+}
+
+func Test_ReconcileLifecycle_MissedStartup_FailedSnapshotBackfills(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:               "id-api",
+			Status:           registry.StatusFailed,
+			Error:            "crash",
+			PID:              0,
+			AttemptStartedAt: t0,
+			LifecycleAt:      t0.Add(3 * time.Second),
+			LifecycleSeq:     5,
+		},
+	})
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:           "id-api",
+			Name:         "api",
+			Status:       StatusStopped,
+			LifecycleSeq: 1,
+			Timeline:     NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+	m.sampleTimelines()
+
+	svc := m.state.services["id-api"]
+	assert.Equal(t, StatusFailed, svc.Status)
+	assert.Equal(t, 4, svc.Timeline.Count())
+
+	slots := svc.Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
+	assert.Equal(t, SlotStarting, slots[2])
+	assert.Equal(t, SlotFailed, slots[3])
+}
+
+func Test_ReconcileLifecycle_MissedStartup_RestartFailedBackfills(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	oldStart := t0.Add(-60 * time.Second)
+
+	mockStore := registry.NewMockStore(ctrl)
+	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
+		{
+			ID:               "id-api",
+			Status:           registry.StatusFailed,
+			Error:            "crash",
+			AttemptStartedAt: t0,
+			LifecycleAt:      t0.Add(2 * time.Second),
+			LifecycleSeq:     10,
+		},
+	})
+
+	m := &Model{
+		store:  mockStore,
+		loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)},
+	}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {
+			ID:               "id-api",
+			Name:             "api",
+			Status:           StatusRunning,
+			PID:              1111,
+			StartTime:        oldStart,
+			AttemptStartedAt: oldStart,
+			LifecycleSeq:     5,
+			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+		},
+	}
+	m.state.restarting = map[string]bool{}
+
+	m.refreshFromStore()
+
+	svc := m.state.services["id-api"]
+	assert.Equal(t, StatusFailed, svc.Status)
+	assert.Equal(t, 2, svc.Timeline.Count())
+
+	slots := svc.Timeline.Slots()
+	assert.Equal(t, SlotStarting, slots[0])
+	assert.Equal(t, SlotStarting, slots[1])
 }
 
 func toKeyMsg(s string) tea.KeyPressMsg {

@@ -47,16 +47,21 @@ func (s Status) IsRestartable() bool {
 
 // ServiceSnapshot contains a point-in-time snapshot of a service
 type ServiceSnapshot struct {
-	ID        string
-	Name      string
-	Tier      string
-	Status    Status
-	Watching  bool
-	Error     string
-	PID       int
-	CPU       float64
-	Memory    uint64
-	StartTime time.Time
+	ID               string
+	Name             string
+	Tier             string
+	Status           Status
+	Watching         bool
+	Error            string
+	PID              int
+	CPU              float64
+	Memory           uint64
+	StartTime        time.Time
+	AttemptStartedAt time.Time
+	LifecycleAt      time.Time
+	LifecycleSeq     uint64
+	WatchAt          time.Time
+	WatchSeq         uint64
 }
 
 // StatusCounts contains service counts grouped by status
@@ -86,16 +91,21 @@ type Store interface {
 
 // serviceState tracks the mutable state of a single service
 type serviceState struct {
-	id        string
-	name      string
-	tier      string
-	status    Status
-	watching  bool
-	err       string
-	pid       int
-	cpu       float64
-	memory    uint64
-	startTime time.Time
+	id               string
+	name             string
+	tier             string
+	status           Status
+	watching         bool
+	err              string
+	pid              int
+	cpu              float64
+	memory           uint64
+	startTime        time.Time
+	attemptStartedAt time.Time
+	lifecycleAt      time.Time
+	lifecycleSeq     uint64
+	watchAt          time.Time
+	watchSeq         uint64
 }
 
 // store implements the Store interface
@@ -287,16 +297,21 @@ func (s *store) decrementCount(status Status) {
 
 func (s *store) snapshot(svc *serviceState) ServiceSnapshot {
 	return ServiceSnapshot{
-		ID:        svc.id,
-		Name:      svc.name,
-		Tier:      svc.tier,
-		Status:    svc.status,
-		Watching:  svc.watching,
-		Error:     svc.err,
-		PID:       svc.pid,
-		CPU:       svc.cpu,
-		Memory:    svc.memory,
-		StartTime: svc.startTime,
+		ID:               svc.id,
+		Name:             svc.name,
+		Tier:             svc.tier,
+		Status:           svc.status,
+		Watching:         svc.watching,
+		Error:            svc.err,
+		PID:              svc.pid,
+		CPU:              svc.cpu,
+		Memory:           svc.memory,
+		StartTime:        svc.startTime,
+		AttemptStartedAt: svc.attemptStartedAt,
+		LifecycleAt:      svc.lifecycleAt,
+		LifecycleSeq:     svc.lifecycleSeq,
+		WatchAt:          svc.watchAt,
+		WatchSeq:         svc.watchSeq,
 	}
 }
 
@@ -313,7 +328,7 @@ func (s *store) handleEvent(msg bus.Message) {
 	case bus.EventServiceStarting:
 		s.handleServiceStarting(msg)
 	case bus.EventServiceReady:
-		s.setServiceStatus(msg, StatusRunning)
+		s.handleServiceReady(msg)
 	case bus.EventServiceFailed:
 		s.handleServiceFailed(msg)
 	case bus.EventServiceStopping:
@@ -321,7 +336,7 @@ func (s *store) handleEvent(msg bus.Message) {
 	case bus.EventServiceStopped:
 		s.handleServiceStopped(msg)
 	case bus.EventServiceRestarting:
-		s.setServiceStatus(msg, StatusRestarting)
+		s.handleServiceRestarting(msg)
 	case bus.EventWatchStarted:
 		s.setWatching(msg, true)
 	case bus.EventWatchStopped:
@@ -364,16 +379,46 @@ func (s *store) handleServiceStarting(msg bus.Message) {
 	}
 
 	svc, exists := s.services[data.Service.ID]
-	if !exists {
+	if !exists || msg.Seq <= svc.lifecycleSeq {
 		return
 	}
 
+	svc.lifecycleSeq = msg.Seq
+	svc.lifecycleAt = msg.Timestamp
 	s.transitionStatus(svc, StatusStarting)
 	svc.pid = data.PID
 	svc.err = ""
-	svc.startTime = msg.Timestamp
+	svc.startTime = data.StartedAt
+	svc.attemptStartedAt = data.StartedAt
 	svc.cpu = 0
 	svc.memory = 0
+}
+
+func (s *store) handleServiceReady(msg bus.Message) {
+	data, ok := msg.Data.(bus.ServiceReady)
+	if !ok {
+		return
+	}
+
+	svc, exists := s.services[data.Service.ID]
+	if !exists || msg.Seq <= svc.lifecycleSeq {
+		return
+	}
+
+	newProcess := svc.pid != data.PID || svc.startTime != data.StartedAt
+
+	svc.lifecycleSeq = msg.Seq
+	svc.lifecycleAt = msg.Timestamp
+	s.transitionStatus(svc, StatusRunning)
+	svc.pid = data.PID
+	svc.err = ""
+	svc.startTime = data.StartedAt
+	svc.attemptStartedAt = data.StartedAt
+
+	if newProcess {
+		svc.cpu = 0
+		svc.memory = 0
+	}
 }
 
 func (s *store) handleServiceStopped(msg bus.Message) {
@@ -383,16 +428,37 @@ func (s *store) handleServiceStopped(msg bus.Message) {
 	}
 
 	svc, exists := s.services[data.Service.ID]
-	if !exists {
+	if !exists || msg.Seq <= svc.lifecycleSeq {
 		return
 	}
 
+	svc.lifecycleSeq = msg.Seq
+	svc.lifecycleAt = msg.Timestamp
 	s.transitionStatus(svc, StatusStopped)
 	svc.pid = 0
 	svc.cpu = 0
 	svc.memory = 0
 	svc.startTime = time.Time{}
 	svc.err = ""
+}
+
+func (s *store) handleServiceRestarting(msg bus.Message) {
+	data, ok := msg.Data.(bus.ServiceRestarting)
+	if !ok {
+		return
+	}
+
+	svc, exists := s.services[data.Service.ID]
+	if !exists || msg.Seq <= svc.lifecycleSeq {
+		return
+	}
+
+	svc.lifecycleSeq = msg.Seq
+	svc.lifecycleAt = msg.Timestamp
+	s.transitionStatus(svc, StatusRestarting)
+	svc.startTime = time.Time{}
+	svc.cpu = 0
+	svc.memory = 0
 }
 
 // serviceIdentifier extracts the service ID from bus event data
@@ -406,9 +472,14 @@ func (s *store) setServiceStatus(msg bus.Message, status Status) {
 		return
 	}
 
-	if svc, exists := s.services[ident.ServiceID()]; exists {
-		s.transitionStatus(svc, status)
+	svc, exists := s.services[ident.ServiceID()]
+	if !exists || msg.Seq <= svc.lifecycleSeq {
+		return
 	}
+
+	svc.lifecycleSeq = msg.Seq
+	svc.lifecycleAt = msg.Timestamp
+	s.transitionStatus(svc, status)
 }
 
 func (s *store) handleServiceFailed(msg bus.Message) {
@@ -418,10 +489,12 @@ func (s *store) handleServiceFailed(msg bus.Message) {
 	}
 
 	svc, exists := s.services[data.Service.ID]
-	if !exists {
+	if !exists || msg.Seq <= svc.lifecycleSeq {
 		return
 	}
 
+	svc.lifecycleSeq = msg.Seq
+	svc.lifecycleAt = msg.Timestamp
 	s.transitionStatus(svc, StatusFailed)
 	svc.pid = 0
 	svc.cpu = 0
@@ -440,9 +513,14 @@ func (s *store) setWatching(msg bus.Message, value bool) {
 		return
 	}
 
-	if svc, exists := s.services[data.ID]; exists {
-		svc.watching = value
+	svc, exists := s.services[data.ID]
+	if !exists || msg.Seq <= svc.watchSeq {
+		return
 	}
+
+	svc.watchSeq = msg.Seq
+	svc.watchAt = msg.Timestamp
+	svc.watching = value
 }
 
 func (s *store) initServices(tiers []bus.Tier) {

@@ -48,6 +48,16 @@ const (
 	ErrorPadding         = "  "
 )
 
+// Timeline layout constants
+const (
+	DefaultTimelineSlots    = 20
+	MinServiceNameTextWidth = 23
+	MinServiceNameWidth     = IndicatorColumnWidth + MinServiceNameTextWidth
+	MinTimelineWidth        = 10
+	TimelineGap             = 1
+	TimelineBlock           = "▮"
+)
+
 // Unit conversion constants
 const (
 	MBToGB = 1024

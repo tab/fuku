@@ -204,11 +204,12 @@ func (m Model) getRowWidth() int {
 // renderColumnHeaders renders the column headers row
 func (m Model) renderColumnHeaders() string {
 	nameCol := strings.Repeat(" ", m.ui.layout.ServiceNameWidth)
+	timelineCol := strings.Repeat(" ", m.ui.layout.TimelineWidth+m.ui.layout.TimelineGapWidth)
 	statusCol := fmt.Sprintf("%-*s", m.ui.layout.StatusWidth, "status")
 	w := m.ui.layout.MetricWidth
 	metricsCol := fmt.Sprintf("%*s%*s%*s%*s", w, "cpu", w, "mem", w, "pid", w, "uptime")
 
-	header := nameCol + statusCol + metricsCol
+	header := nameCol + timelineCol + statusCol + metricsCol
 
 	return m.theme.ServiceHeaderStyle.Width(m.getRowWidth()).Render(header)
 }
@@ -272,6 +273,69 @@ func (m Model) getWatchIndicator(isSelected bool) string {
 	return m.theme.IndicatorDotStyle.Render(components.IndicatorDot)
 }
 
+// renderTimeline renders the timeline strip for a service
+func (m Model) renderTimeline(service *ServiceState, isSelected bool) string {
+	tw := m.ui.layout.TimelineWidth
+	if tw == 0 {
+		return ""
+	}
+
+	if service.Timeline == nil {
+		return strings.Repeat(" ", tw)
+	}
+
+	slots := service.Timeline.Slots()
+	count := service.Timeline.Count()
+
+	visibleObserved := min(tw, count)
+	emptyPad := tw - visibleObserved
+	observedStart := count - visibleObserved
+
+	var b strings.Builder
+
+	for i := observedStart; i < observedStart+visibleObserved; i++ {
+		b.WriteString(m.timelineSlotStyle(slots[i], isSelected).Render(components.TimelineBlock))
+	}
+
+	emptyStyle := m.timelineSlotStyle(SlotEmpty, isSelected)
+	for range emptyPad {
+		b.WriteString(emptyStyle.Render(components.TimelineBlock))
+	}
+
+	return b.String()
+}
+
+// timelineSlotStyle returns the style for a timeline slot, composing with BgSelection when selected
+func (m Model) timelineSlotStyle(slot TimelineSlot, isSelected bool) lipgloss.Style {
+	if isSelected {
+		switch slot {
+		case SlotRunning:
+			return m.theme.TimelineSelectedRunningStyle
+		case SlotStarting:
+			return m.theme.TimelineSelectedStartingStyle
+		case SlotFailed:
+			return m.theme.TimelineSelectedFailedStyle
+		case SlotStopped:
+			return m.theme.TimelineSelectedStoppedStyle
+		default:
+			return m.theme.TimelineSelectedEmptyStyle
+		}
+	}
+
+	switch slot {
+	case SlotRunning:
+		return m.theme.TimelineRunningStyle
+	case SlotStarting:
+		return m.theme.TimelineStartingStyle
+	case SlotFailed:
+		return m.theme.TimelineFailedStyle
+	case SlotStopped:
+		return m.theme.TimelineStoppedStyle
+	default:
+		return m.theme.TimelineEmptyStyle
+	}
+}
+
 // renderServiceRow renders a single service row with all columns
 func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 	rowWidth := m.getRowWidth()
@@ -281,6 +345,8 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 	name := components.TruncateAndPad(service.Name, nameTextWidth)
 	nameCol := fmt.Sprintf("%s %s", indicator, name)
 
+	timelineCol := m.renderTimeline(service, isSelected)
+
 	statusCol := m.getStyledAndPaddedStatus(service, isSelected)
 	details := m.getServiceDetails(service, isSelected)
 
@@ -289,19 +355,43 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 		style = m.theme.SelectedRowStyle
 	}
 
-	row := m.buildServiceRow(nameCol, statusCol, details, service.Error != nil, rowWidth)
+	row := m.buildServiceRow(rowParts{
+		name:       nameCol,
+		timeline:   timelineCol,
+		status:     statusCol,
+		details:    details,
+		hasError:   service.Error != nil,
+		isSelected: isSelected,
+	}, rowWidth)
 
 	return style.Width(rowWidth).Render(row)
 }
 
+// rowParts groups the column segments for a service row
+type rowParts struct {
+	name       string
+	timeline   string
+	status     string
+	details    string
+	hasError   bool
+	isSelected bool
+}
+
 // buildServiceRow positions details: errors left-aligned after status, metrics right-aligned to edge
-func (m Model) buildServiceRow(nameCol, statusCol, details string, hasError bool, rowWidth int) string {
-	row := nameCol + statusCol + details
-	if hasError {
-		return components.PadRight(row, rowWidth)
+func (m Model) buildServiceRow(parts rowParts, rowWidth int) string {
+	gap := strings.Repeat(" ", m.ui.layout.TimelineGapWidth)
+	tail := gap + parts.status + parts.details
+
+	if parts.hasError {
+		remaining := max(rowWidth-lipgloss.Width(parts.name)-lipgloss.Width(parts.timeline), 0)
+		tail = components.PadRight(tail, remaining)
 	}
 
-	return row
+	if parts.isSelected && m.ui.layout.TimelineWidth > 0 {
+		tail = lipgloss.NewStyle().Background(m.theme.BgSelection).Render(tail)
+	}
+
+	return parts.name + parts.timeline + tail
 }
 
 // getServiceDetails returns either error message or metrics columns

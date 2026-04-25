@@ -90,6 +90,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state.now.IsZero() || m.ui.tickCounter%components.UITicksPerSecond == 0 {
 			m.state.now = time.Now()
 			m.refreshFromStore()
+			m.sampleTimelines()
 			m.updateAPIHealth()
 			cmds = append(cmds, m.sampleAppStatsCmd())
 		}
@@ -457,11 +458,12 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 
 		for _, ref := range tier.Services {
 			m.state.services[ref.ID] = &ServiceState{
-				ID:     ref.ID,
-				Name:   ref.Name,
-				Tier:   tier.Name,
-				Status: StatusStarting,
-				Blink:  components.NewBlink(),
+				ID:       ref.ID,
+				Name:     ref.Name,
+				Tier:     tier.Name,
+				Status:   StatusStarting,
+				Blink:    components.NewBlink(),
+				Timeline: NewTimeline(components.DefaultTimelineSlots),
 			}
 		}
 	}
@@ -523,18 +525,30 @@ func (m Model) handleServiceStarting(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service.ID]; exists {
-		service.Status = StatusStarting
-		service.Tier = data.Tier
-		service.PID = data.PID
-		service.StartTime = msg.Timestamp
-		service.Error = nil
+	service, exists := m.state.services[data.Service.ID]
+	if !exists || msg.Seq < service.LifecycleSeq {
+		return m
+	}
 
-		delete(m.state.restarting, data.Service.ID)
+	if service.AttemptStartedAt != data.StartedAt {
+		service.StartupSampled = 0
+		service.BackfilledSeq = 0
+	}
 
-		if !m.loader.Has(data.Service.ID) {
-			m.loader.Start(data.Service.ID, fmt.Sprintf("starting %s…", data.Service.Name))
-		}
+	service.LifecycleSeq = msg.Seq
+	service.LifecycleAt = msg.Timestamp
+	service.Status = StatusStarting
+	service.StartupActive = true
+	service.Tier = data.Tier
+	service.PID = data.PID
+	service.StartTime = data.StartedAt
+	service.AttemptStartedAt = data.StartedAt
+	service.Error = nil
+
+	delete(m.state.restarting, data.Service.ID)
+
+	if !m.loader.Has(data.Service.ID) {
+		m.loader.Start(data.Service.ID, fmt.Sprintf("starting %s…", data.Service.Name))
 	}
 
 	return m
@@ -547,12 +561,38 @@ func (m Model) handleServiceReady(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service.ID]; exists {
-		service.Status = StatusRunning
-		service.ReadyTime = msg.Timestamp
-
-		m.loader.Stop(data.Service.ID)
+	service, exists := m.state.services[data.Service.ID]
+	if !exists || msg.Seq < service.LifecycleSeq {
+		return m
 	}
+
+	newProcess := service.AttemptStartedAt != data.StartedAt
+
+	if newProcess {
+		service.StartupActive = true
+		service.StartupSampled = 0
+		service.BackfilledSeq = 0
+		service.CPU = 0
+		service.MEM = 0
+	}
+
+	if service.StartupActive {
+		backfillStartupHistory(service, msg.Seq, data.StartedAt, msg.Timestamp)
+	}
+
+	service.LifecycleSeq = msg.Seq
+	service.LifecycleAt = msg.Timestamp
+	service.Status = StatusRunning
+	service.StartupActive = false
+	service.Tier = data.Tier
+	service.PID = data.PID
+	service.StartTime = data.StartedAt
+	service.AttemptStartedAt = data.StartedAt
+	service.ReadyTime = msg.Timestamp
+	service.Error = nil
+
+	delete(m.state.restarting, data.Service.ID)
+	m.loader.Stop(data.Service.ID)
 
 	return m
 }
@@ -564,13 +604,18 @@ func (m Model) handleServiceFailed(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service.ID]; exists {
-		service.Status = StatusFailed
-		service.Error = data.Error
-
-		m.loader.Stop(data.Service.ID)
-		delete(m.state.restarting, data.Service.ID)
+	service, exists := m.state.services[data.Service.ID]
+	if !exists || msg.Seq < service.LifecycleSeq {
+		return m
 	}
+
+	service.LifecycleSeq = msg.Seq
+	service.LifecycleAt = msg.Timestamp
+	service.Status = StatusFailed
+	service.Error = data.Error
+
+	m.loader.Stop(data.Service.ID)
+	delete(m.state.restarting, data.Service.ID)
 
 	return m
 }
@@ -582,12 +627,17 @@ func (m Model) handleServiceStopping(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service.ID]; exists {
-		service.Status = StatusStopping
+	service, exists := m.state.services[data.Service.ID]
+	if !exists || msg.Seq < service.LifecycleSeq {
+		return m
+	}
 
-		if !m.loader.Has(data.Service.ID) {
-			m.loader.Start(data.Service.ID, fmt.Sprintf("stopping %s…", data.Service.Name))
-		}
+	service.LifecycleSeq = msg.Seq
+	service.LifecycleAt = msg.Timestamp
+	service.Status = StatusStopping
+
+	if !m.loader.Has(data.Service.ID) {
+		m.loader.Start(data.Service.ID, fmt.Sprintf("stopping %s…", data.Service.Name))
 	}
 
 	return m
@@ -600,11 +650,17 @@ func (m Model) handleServiceRestarting(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.Service.ID]; exists {
-		service.Status = StatusRestarting
-		m.state.restarting[data.Service.ID] = true
-		m.loader.Start(data.Service.ID, fmt.Sprintf("restarting %s…", data.Service.Name))
+	service, exists := m.state.services[data.Service.ID]
+	if !exists || msg.Seq < service.LifecycleSeq {
+		return m
 	}
+
+	service.LifecycleSeq = msg.Seq
+	service.LifecycleAt = msg.Timestamp
+	service.Status = StatusRestarting
+	service.StartTime = time.Time{}
+	m.state.restarting[data.Service.ID] = true
+	m.loader.Start(data.Service.ID, fmt.Sprintf("restarting %s…", data.Service.Name))
 
 	return m
 }
@@ -621,6 +677,12 @@ func (m Model) handleServiceStopped(msg bus.Message) Model {
 		return m
 	}
 
+	if msg.Seq < service.LifecycleSeq {
+		return m
+	}
+
+	service.LifecycleSeq = msg.Seq
+	service.LifecycleAt = msg.Timestamp
 	service.Status = StatusStopped
 
 	if !m.state.restarting[data.Service.ID] {
@@ -637,9 +699,16 @@ func (m Model) handleWatchStarted(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.ID]; exists {
-		service.Watching = true
+	service, exists := m.state.services[data.ID]
+	if !exists || msg.Seq <= service.WatchSeq {
+		m.updateServicesContent()
+
+		return m
 	}
+
+	service.WatchSeq = msg.Seq
+	service.WatchAt = msg.Timestamp
+	service.Watching = true
 
 	m.updateServicesContent()
 
@@ -653,9 +722,16 @@ func (m Model) handleWatchStopped(msg bus.Message) Model {
 		return m
 	}
 
-	if service, exists := m.state.services[data.ID]; exists {
-		service.Watching = false
+	service, exists := m.state.services[data.ID]
+	if !exists || msg.Seq <= service.WatchSeq {
+		m.updateServicesContent()
+
+		return m
 	}
+
+	service.WatchSeq = msg.Seq
+	service.WatchAt = msg.Timestamp
+	service.Watching = false
 
 	m.updateServicesContent()
 

@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"fuku/internal/config"
@@ -60,6 +61,7 @@ const (
 // Message represents a bus message (event or command)
 type Message struct {
 	Type      MessageType
+	Seq       uint64
 	Timestamp time.Time
 	Data      any
 	Critical  bool
@@ -148,8 +150,9 @@ func (e ServiceEvent) ServiceID() string {
 // ServiceStarting indicates a service is starting with attempt and process info
 type ServiceStarting struct {
 	ServiceEvent
-	Attempt int
-	PID     int
+	Attempt   int
+	PID       int
+	StartedAt time.Time
 }
 
 // ReadinessComplete indicates a readiness check has finished successfully
@@ -162,7 +165,9 @@ type ReadinessComplete struct {
 // ServiceReady indicates a service has completed startup and is ready
 type ServiceReady struct {
 	ServiceEvent
-	Duration time.Duration
+	PID       int
+	StartedAt time.Time
+	Duration  time.Duration
 }
 
 // ServiceFailed indicates a service failed to start or crashed
@@ -230,9 +235,11 @@ type Bus interface {
 // bus implements the Bus interface with pub/sub messaging
 type bus struct {
 	cfg         *config.Config
-	subscribers []chan Message
+	subscribers []*subscriber
 	mu          sync.RWMutex
+	publishMu   sync.Mutex
 	closed      bool
+	seq         atomic.Uint64
 	formatter   *Formatter
 	log         logger.Logger
 }
@@ -241,7 +248,7 @@ type bus struct {
 func NewBus(cfg *config.Config, formatter *Formatter, log logger.Logger) Bus {
 	return &bus{
 		cfg:         cfg,
-		subscribers: make([]chan Message, 0),
+		subscribers: make([]*subscriber, 0),
 		formatter:   formatter,
 		log:         log,
 	}
@@ -252,19 +259,22 @@ func (b *bus) Subscribe(ctx context.Context) <-chan Message {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	ch := make(chan Message, b.cfg.Logs.Buffer)
-	b.subscribers = append(b.subscribers, ch)
+	sub := newSubscriber(b.cfg.Logs.Buffer)
+	b.subscribers = append(b.subscribers, sub)
 
 	go func() {
 		<-ctx.Done()
-		b.unsubscribe(ch)
+		b.unsubscribe(sub)
 	}()
 
-	return ch
+	return sub.ch
 }
 
 // Publish sends a message to all subscribers
 func (b *bus) Publish(msg Message) {
+	b.publishMu.Lock()
+	defer b.publishMu.Unlock()
+
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -272,6 +282,7 @@ func (b *bus) Publish(msg Message) {
 		return
 	}
 
+	msg.Seq = b.seq.Add(1)
 	msg.Timestamp = time.Now()
 
 	if b.formatter != nil && b.log != nil {
@@ -279,21 +290,8 @@ func (b *bus) Publish(msg Message) {
 		b.log.Debug().Msg(text)
 	}
 
-	for _, ch := range b.subscribers {
-		select {
-		case ch <- msg:
-		default:
-			if msg.Critical {
-				go func(c chan Message, m Message) {
-					defer func() {
-						//nolint:errcheck // recover return value is intentionally unused
-						recover()
-					}()
-
-					c <- m
-				}(ch, msg)
-			}
-		}
+	for _, sub := range b.subscribers {
+		sub.send(msg)
 	}
 }
 
@@ -308,22 +306,22 @@ func (b *bus) Close() {
 
 	b.closed = true
 
-	for _, ch := range b.subscribers {
-		close(ch)
+	for _, sub := range b.subscribers {
+		sub.close()
 	}
 
 	b.subscribers = nil
 }
 
-func (b *bus) unsubscribe(ch chan Message) {
+func (b *bus) unsubscribe(sub *subscriber) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	for i, sub := range b.subscribers {
-		if sub == ch {
+	for i, s := range b.subscribers {
+		if s == sub {
 			b.subscribers = append(b.subscribers[:i], b.subscribers[i+1:]...)
 
-			close(ch)
+			sub.close()
 
 			break
 		}

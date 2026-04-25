@@ -285,6 +285,7 @@
 - `cmd/main_test.go` - Tests for entry point functions and FX application creation
 - `internal/app/app_test.go` - Application container and lifecycle testing
 - `internal/app/bus/bus_test.go` - Bus pub/sub messaging testing
+- `internal/app/bus/subscriber_test.go` - Subscriber overflow and FIFO drain testing
 - `internal/app/cli/cli_test.go` - CLI command execution testing
 - `internal/app/cli/commands_test.go` - Cobra command parsing tests
 - `internal/app/discovery/discovery_test.go` - Profile resolution testing
@@ -304,6 +305,7 @@
 - `internal/app/process/process_test.go` - Process handle testing
 - `internal/app/readiness/readiness_test.go` - Readiness check testing
 - `internal/app/registry/registry_test.go` - Process registry testing
+- `internal/app/registry/store_test.go` - Runtime state store testing
 - `internal/app/runner/guard_test.go` - Restart guard testing
 - `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
 - `internal/app/runner/service_test.go` - Service start/stop/restart testing
@@ -320,6 +322,7 @@
 - `internal/app/ui/services/model_test.go` - Service state methods and helpers
 - `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
 - `internal/app/ui/services/state_test.go` - FSM state transitions and callbacks
+- `internal/app/ui/services/timeline_test.go` - Timeline ring buffer and slot mapping
 - `internal/app/ui/services/update_test.go` - Event handlers
 - `internal/app/ui/services/view_test.go` - View rendering functions
 - `internal/app/ui/wire/module_test.go` - UI wire module testing

@@ -95,11 +95,11 @@ type Bus interface {
 
 The Bus implements a unified pub/sub pattern for both events and commands:
 
-- **Non-blocking publish**: Messages are sent to subscriber channels without blocking
-- **Critical messages**: Important messages (phase changes) block until delivered
+- **Globally serialized publish**: A dedicated publish mutex ensures all subscribers observe messages in the same order as their assigned sequence numbers
+- **Monotonic sequencing**: Each message receives a strictly increasing `Seq` for downstream ordering and stale-event rejection
+- **Critical-only overflow**: When a subscriber's channel is full, critical messages (lifecycle events, commands) are queued in a FIFO overflow buffer; non-critical messages (telemetry, samples) are dropped
 - **Context-aware cleanup**: Subscribers auto-unsubscribe when context cancels
-- **Buffered channels**: Prevents slow subscribers from blocking publishers
-- **Log broadcasting**: Server is injected at construction time via FX dependency injection
+- **Buffered channels**: Configurable per-subscriber buffer size from `config.Logs.Buffer`
 
 ### Message Types
 
@@ -693,8 +693,10 @@ The store maintains per-service state from bus lifecycle events:
 
 - **Status** — `registry.Status` type with typed constants
 - **PID, CPU, Memory** — sampled on a fixed interval with PID recheck to prevent stale stats after restarts
-- **StartTime** — recorded from `msg.Timestamp` (publish time, not dequeue time) for accurate uptime
+- **StartTime** — recorded from the lifecycle event `StartedAt` field for accurate uptime
 - **Instance uptime** — starts from `PhaseStartup`, includes startup duration
+- **Lifecycle sequencing** — each lifecycle/watch event carries a monotonic sequence number (`LifecycleSeq`, `WatchSeq`) for stale-event rejection and UI reconciliation
+- **Attempt tracking** — `AttemptStartedAt` records when each startup attempt began, enabling accurate timeline backfill across retries
 
 ```go
 type Store interface {

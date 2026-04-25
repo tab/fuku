@@ -49,6 +49,8 @@ func RenderPanel(opts PanelOptions) string {
 type TableLayout struct {
 	ContentWidth     int
 	ServiceNameWidth int
+	TimelineWidth    int
+	TimelineGapWidth int
 	StatusWidth      int
 	MetricWidth      int
 }
@@ -63,11 +65,31 @@ func ComputeTableLayout(contentWidth int) TableLayout {
 
 	statusWidth := min(contentWidth/5, MaxStatusWidth)
 
-	serviceNameWidth := contentWidth - statusWidth - 4*metricWidth
+	available := contentWidth - statusWidth - 4*metricWidth
+
+	timelineWidth := DefaultTimelineSlots
+
+	switch {
+	case available >= MinServiceNameWidth+timelineWidth+TimelineGap:
+		// Full timeline fits
+	case available >= MinServiceNameWidth+MinTimelineWidth+TimelineGap:
+		timelineWidth = available - MinServiceNameWidth - TimelineGap
+	default:
+		timelineWidth = 0
+	}
+
+	gap := 0
+	if timelineWidth > 0 {
+		gap = TimelineGap
+	}
+
+	serviceNameWidth := available - timelineWidth - gap
 
 	return TableLayout{
 		ContentWidth:     contentWidth,
 		ServiceNameWidth: serviceNameWidth,
+		TimelineWidth:    timelineWidth,
+		TimelineGapWidth: gap,
 		StatusWidth:      statusWidth,
 		MetricWidth:      metricWidth,
 	}
