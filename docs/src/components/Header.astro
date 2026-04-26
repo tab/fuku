@@ -3,7 +3,7 @@ import ThemeToggle from "./ThemeToggle.astro";
 import type { NavItem } from "../data/nav";
 
 interface Props {
-  section?: "features" | "docs" | "about" | "why";
+  section?: "features" | "docs" | "plugins" | "about" | "why";
   sectionNav?: NavItem[];
   current?: string;
   wide?: boolean;
@@ -17,6 +17,7 @@ const mainLinks = [
   { label: "Why", href: `${base}why/`, key: "why" },
   { label: "Features", href: `${base}features/`, key: "features" },
   { label: "Docs", href: `${base}docs/`, key: "docs" },
+  { label: "Plugins", href: `${base}plugins/`, key: "plugins" },
   { label: "About", href: `${base}about/`, key: "about" },
 ];
 ---
@@ -35,6 +36,7 @@ const mainLinks = [
         <a href={`${base}why/`} class:list={["nav-link", { active: section === "why" }]}>Why</a>
         <a href={`${base}features/`} class:list={["nav-link", { active: section === "features" }]}>Features</a>
         <a href={`${base}docs/`} class:list={["nav-link", { active: section === "docs" }]}>Docs</a>
+        <a href={`${base}plugins/`} class:list={["nav-link", { active: section === "plugins" }]}>Plugins</a>
         <a href={`${base}about/`} class:list={["nav-link", { active: section === "about" }]}>About</a>
       </nav>
     </div>

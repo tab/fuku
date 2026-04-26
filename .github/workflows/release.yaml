@@ -44,6 +44,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+  plugin:
+    name: JetBrains Plugin
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build plugin
+        working-directory: plugins/jetbrains
+        run: ./gradlew buildPlugin
+      - name: Upload plugin to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          shopt -s nullglob
+          PLUGIN_ZIP=(plugins/jetbrains/build/distributions/*.zip)
+          if [ ${#PLUGIN_ZIP[@]} -ne 1 ]; then
+            echo "Expected one plugin ZIP, found ${#PLUGIN_ZIP[@]}" >&2
+            exit 1
+          fi
+          gh release upload "$TAG" "${PLUGIN_ZIP[0]}#fuku-jetbrains-${TAG#v}.zip"
   sentry:
     name: Sentry Release
     needs: release

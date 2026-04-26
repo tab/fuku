@@ -1,0 +1,172 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+import { getPluginsNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}plugins/jetbrains/`;
+const nav = getPluginsNav(base);
+---
+
+<DocsLayout
+  title="JetBrains Plugin - fuku"
+  description="fuku plugin for GoLand, IntelliJ IDEA, and all JetBrains IDEs."
+  current={current}
+  nav={nav}
+  section="plugins"
+  breadcrumb={[{ label: "Plugins", href: `${base}plugins/` }, { label: "JetBrains", href: current }]}
+>
+  <span class="kicker">// plugins &middot; jetbrains</span>
+  <h1>JetBrains Plugin</h1>
+  <p class="lead">Service dashboard, log streaming, and full control of your fuku stack — inside GoLand, IntelliJ IDEA, WebStorm, or any JetBrains IDE.</p>
+
+  <div class="section-eyebrow">Installation</div>
+  <h2>Get the plugin</h2>
+
+  <p>Download the latest plugin ZIP from the <a href="https://github.com/tab/fuku/releases" target="_blank" rel="noopener">GitHub releases</a> page, then install it manually:</p>
+
+  <ol>
+    <li>Open your JetBrains IDE</li>
+    <li>Go to <strong>Settings</strong> → <strong>Plugins</strong> → <strong>⚙</strong> → <strong>Install Plugin from Disk</strong></li>
+    <li>Select the downloaded <code>fuku-jetbrains-*.zip</code></li>
+    <li>Restart the IDE</li>
+  </ol>
+
+  <div class="section-eyebrow">Configuration</div>
+  <h2>Connect to fuku</h2>
+
+  <p>The plugin connects to a running fuku instance via its REST API. Configure the connection at <strong>Settings</strong> → <strong>Tools</strong> → <strong>Fuku</strong>:</p>
+
+  <div class="settings-table">
+    <table>
+      <thead>
+        <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>Host</code></td><td><code>127.0.0.1</code></td><td>fuku API host</td></tr>
+        <tr><td><code>Port</code></td><td><code>9876</code></td><td>fuku API port</td></tr>
+        <tr><td><code>Auth Token</code></td><td>—</td><td>Bearer token (if configured)</td></tr>
+        <tr><td><code>Poll Interval</code></td><td><code>2000ms</code></td><td>How often to poll the API</td></tr>
+        <tr><td><code>Binary Path</code></td><td><code>fuku</code></td><td>Path to fuku binary</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Use <strong>Test Connection</strong> to verify the setup. It validates both connectivity and authentication.</p>
+
+  <div class="section-eyebrow">Services Dashboard</div>
+  <h2>Monitor your services</h2>
+
+  <p>The <strong>services</strong> tab shows all running services grouped by tier, matching the TUI layout:</p>
+
+  <ul>
+    <li><strong>Status indicator</strong> — colored <code>◉</code> dot per service with blink animation during transitions</li>
+    <li><strong>Timeline</strong> — per-service status history (green running, amber starting, red failed, gray stopped)</li>
+    <li><strong>Metrics</strong> — CPU, memory, PID, and uptime updated every poll cycle</li>
+    <li><strong>Error display</strong> — failed services show the error message inline</li>
+    <li><strong>Tier grouping</strong> — services grouped under tier headers, same as TUI</li>
+  </ul>
+
+  <div class="section-eyebrow">Keyboard Shortcuts</div>
+  <h2>Keyboard-driven</h2>
+
+  <p>All TUI shortcuts work in the services tab:</p>
+
+  <div class="keys-table">
+    <table>
+      <thead>
+        <tr><th>Key</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>j</code> / <code>k</code></td><td>Move selection down / up</td></tr>
+        <tr><td><code>s</code></td><td>Toggle stop / start</td></tr>
+        <tr><td><code>r</code></td><td>Restart selected service</td></tr>
+        <tr><td><code>ctrl+r</code></td><td>Restart all failed services</td></tr>
+        <tr><td><code>/</code></td><td>Filter services by name</td></tr>
+        <tr><td><code>Escape</code></td><td>Clear filter</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-eyebrow">Log Streaming</div>
+  <h2>Live logs</h2>
+
+  <p>The <strong>logs</strong> tab streams logs in real-time from fuku's Unix socket relay — the same protocol as <code>fuku logs</code>. Service names are color-coded using the same 24-color palette as the TUI.</p>
+
+  <p>Press <code>/</code> in the logs tab to search. Logs auto-connect when fuku starts and reconnect on profile changes.</p>
+
+  <div class="section-eyebrow">Run Configuration</div>
+  <h2>Run from the IDE</h2>
+
+  <p>The plugin adds a <strong>fuku</strong> run configuration type. Go to <strong>Run</strong> → <strong>Edit Configurations</strong> → <strong>+</strong> → <strong>fuku</strong> to create one.</p>
+
+  <p>Select a profile from the dropdown — the plugin reads profiles from <code>fuku.yaml</code> and <code>fuku.override.yaml</code> (with <code>.yml</code> fallback, matching core discovery).</p>
+
+  <p>You can also use the profile selector and Run button directly in the fuku tool window toolbar.</p>
+
+  <div class="section-eyebrow">Notifications</div>
+  <h2>Failure alerts</h2>
+
+  <p>When a service fails, the plugin shows an IDE balloon notification with the error message and a <strong>Restart</strong> action button. Actions are only available when fuku is in the <code>running</code> phase.</p>
+
+  <div class="section-eyebrow">Status Bar</div>
+  <h2>At a glance</h2>
+
+  <p>The status bar widget shows the current state:</p>
+
+  <ul>
+    <li><code>fuku: ⠧ starting storage…</code> — animated spinner during startup</li>
+    <li><code>fuku: running 5/5 ready</code> — all services healthy</li>
+    <li><code>fuku: disconnected</code> — fuku not running</li>
+  </ul>
+
+  <p>Click the widget to open the fuku tool window.</p>
+
+  <div class="section-eyebrow">Requirements</div>
+  <h2>Compatibility</h2>
+
+  <ul>
+    <li><strong>IDE</strong> — IntelliJ IDEA, GoLand, WebStorm, PyCharm, or any JetBrains IDE (2024.3+)</li>
+    <li><strong>Platform</strong> — macOS, Linux (Unix domain sockets required for log streaming)</li>
+    <li><strong>fuku</strong> — v0.19.0 or later (REST API + socket relay)</li>
+  </ul>
+
+  <GetStartedCTA />
+</DocsLayout>
+
+<style>
+  .settings-table,
+  .keys-table {
+    margin: 16px 0 24px;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  th {
+    text-align: left;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-bottom: 2px solid var(--border);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td code {
+    font-size: 0.85rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-card);
+  }
+</style>

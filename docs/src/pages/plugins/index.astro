@@ -1,0 +1,122 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { getPluginsNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}plugins/`;
+const nav = getPluginsNav(base);
+---
+
+<DocsLayout
+  title="Plugins - fuku"
+  description="IDE plugins for fuku service orchestrator."
+  current={current}
+  nav={nav}
+  section="plugins"
+>
+  <h1>Plugins</h1>
+  <p class="lead">Bring fuku into your IDE. Monitor services, stream logs, and control your stack without leaving the editor.</p>
+
+  <div class="plugin-grid">
+    <a href={`${base}plugins/jetbrains/`} class="plugin-card">
+      <div class="card-num">01</div>
+      <div class="card-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="5" fill="var(--text)"/>
+          <text x="4" y="21" font-family="var(--heading)" font-size="14" font-weight="700" fill="var(--bg)">JB</text>
+        </svg>
+      </div>
+      <h3>JetBrains</h3>
+      <p>GoLand, IntelliJ IDEA, WebStorm, and all JetBrains IDEs. Service dashboard, log streaming, run configurations, and keyboard-driven control.</p>
+      <span class="card-link">Learn more &rarr;</span>
+    </a>
+
+    <div class="plugin-card coming-soon">
+      <div class="card-num">02</div>
+      <h3>VS Code</h3>
+      <p>Coming soon. Service panel, log viewer, and command palette integration for Visual Studio Code.</p>
+      <span class="card-badge">Planned</span>
+    </div>
+  </div>
+</DocsLayout>
+
+<style>
+  .plugin-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+
+  .plugin-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 28px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+
+  a.plugin-card:hover {
+    border-color: var(--text-muted);
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+
+  .plugin-card.coming-soon {
+    opacity: 0.6;
+  }
+
+  .card-num {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    color: var(--blue);
+    letter-spacing: 0.15em;
+  }
+
+  .card-icon {
+    margin: 4px 0;
+  }
+
+  .plugin-card h3 {
+    font-family: var(--heading);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0;
+    color: var(--text);
+  }
+
+  .plugin-card p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .card-link {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--blue);
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  .card-badge {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  @media (max-width: 600px) {
+    .plugin-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
