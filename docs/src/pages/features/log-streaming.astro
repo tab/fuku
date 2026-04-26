@@ -24,7 +24,7 @@ const nav = getFeaturesNav(base);
   <p class="lead">Run fuku logs in a second terminal. Filter by service. Color-coded prefixes. Your TUI stays clean.</p>
 
   <div class="section-eyebrow">How it works</div>
-  <h2>Unix socket transport.</h2>
+  <h2>Unix socket transport</h2>
 
   <p>
     While fuku is running, you can open another terminal and stream logs using <code>fuku logs</code>. Logs are streamed over Unix sockets with low latency and service name prefixes for easy filtering.
@@ -43,7 +43,7 @@ const nav = getFeaturesNav(base);
   </Terminal>
 
   <div class="section-eyebrow">Usage</div>
-  <h2>Stream and filter.</h2>
+  <h2>Stream and filter</h2>
 
   <CodeTerminal code={`# Stream logs from all services
 fuku logs
@@ -58,7 +58,7 @@ fuku logs --profile backend api
 fuku l api worker`} />
 
   <div class="section-eyebrow">Output control</div>
-  <h2>Per-service output.</h2>
+  <h2>Per-service output</h2>
 
   <p>Control which output streams are captured for each service:</p>
 
@@ -76,7 +76,7 @@ fuku l api worker`} />
   <p>Valid values: <code>stdout</code>, <code>stderr</code>. When omitted, both streams are captured.</p>
 
   <div class="section-eyebrow">Tuning</div>
-  <h2>Buffer configuration.</h2>
+  <h2>Buffer configuration</h2>
 
   <p>Control the socket log streaming buffer size:</p>
 

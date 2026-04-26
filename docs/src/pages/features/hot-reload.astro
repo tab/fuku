@@ -23,7 +23,7 @@ const nav = getFeaturesNav(base);
   <p class="lead">Edit a file, save, fuku restarts the affected service. Debouncing prevents storms. Shared paths handle cross-service deps.</p>
 
   <div class="section-eyebrow">How it works</div>
-  <h2>Native fsnotify, debounced.</h2>
+  <h2>Native fsnotify, debounced</h2>
 
   <p>
     fuku watches file system events in your service directories and restarts the affected service when matching files change. A debounce timer prevents restart storms when multiple files change at once (e.g., during a <code>git checkout</code>).
@@ -45,7 +45,7 @@ const nav = getFeaturesNav(base);
   </Terminal>
 
   <div class="section-eyebrow">Configuration</div>
-  <h2>Per-service watch config.</h2>
+  <h2>Per-service watch config</h2>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`services:
   api:
@@ -84,7 +84,7 @@ const nav = getFeaturesNav(base);
   </table>
 
   <div class="section-eyebrow">Cross-service</div>
-  <h2>Shared paths.</h2>
+  <h2>Shared paths</h2>
 
   <p>
     If multiple services depend on a shared library (e.g., <code>pkg/common</code>), add it to <code>shared</code>. When files in that path change, the service restarts – even though the files are outside its own directory.
