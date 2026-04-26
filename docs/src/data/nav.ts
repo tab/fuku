@@ -17,6 +17,13 @@ export function getDocsNav(base: string): NavItem[] {
   ];
 }
 
+export function getPluginsNav(base: string): NavItem[] {
+  return [
+    { label: "Overview", href: `${base}plugins/` },
+    { label: "JetBrains", href: `${base}plugins/jetbrains/` },
+  ];
+}
+
 export function getFeaturesNav(base: string): NavItem[] {
   return [
     { label: "Overview", href: `${base}features/` },
