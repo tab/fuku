@@ -177,6 +177,10 @@ Full documentation is available at **[getfuku.sh](https://getfuku.sh)**:
 - [Examples](https://getfuku.sh/docs/examples/) - Real-world configuration patterns
 - [Troubleshooting](https://getfuku.sh/docs/troubleshooting/) - Common issues and solutions
 
+## IDE Plugins
+
+A [JetBrains plugin](https://getfuku.sh/plugins/jetbrains/) is available for GoLand, IntelliJ IDEA, WebStorm, and all JetBrains IDEs.
+
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architectural patterns and design decisions.
