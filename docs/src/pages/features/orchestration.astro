@@ -23,7 +23,7 @@ const nav = getFeaturesNav(base);
   <p class="lead">Foundation, then platform, then edge. Services in the same tier launch concurrently. The next tier waits for the previous to be ready.</p>
 
   <div class="section-eyebrow">How it works</div>
-  <h2>Three tiers. Bounded concurrency.</h2>
+  <h2>Three tiers. Bounded concurrency</h2>
 
   <p>
     Services are grouped into tiers. fuku starts all services in the first tier, waits for them to become ready (via readiness checks or process start), then moves to the next tier. Within each tier, services start concurrently up to the configured worker limit.
@@ -49,7 +49,7 @@ const nav = getFeaturesNav(base);
   </Terminal>
 
   <div class="section-eyebrow">Configuration</div>
-  <h2>Declared in fuku.yaml.</h2>
+  <h2>Declared in fuku.yaml</h2>
 
   <p>Assign tiers to services in <code>fuku.yaml</code>. The tier order is determined by first occurrence in the file:</p>
 
@@ -71,7 +71,7 @@ const nav = getFeaturesNav(base);
     tier: edge                  # Starts after platform is ready`} />
 
   <div class="section-eyebrow">Details</div>
-  <h2>Key details.</h2>
+  <h2>Key details</h2>
 
   <ul>
     <li>Tier order is defined by first appearance in the YAML file</li>
@@ -84,7 +84,7 @@ const nav = getFeaturesNav(base);
   <hr />
 
   <div class="section-eyebrow">Profiles</div>
-  <h2>Run subsets of services.</h2>
+  <h2>Run subsets of services</h2>
 
   <p>Profiles let you group services for batch operations – run only what you need:</p>
 
@@ -106,7 +106,7 @@ const nav = getFeaturesNav(base);
   </Terminal>
 
   <div class="section-eyebrow">Concurrency</div>
-  <h2>Worker pool control.</h2>
+  <h2>Worker pool control</h2>
 
   <p>Control how many services start in parallel within a tier:</p>
 

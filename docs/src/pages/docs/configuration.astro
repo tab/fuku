@@ -25,7 +25,7 @@ const nav = getDocsNav(base);
   </p>
 
   <div class="section-eyebrow">Services</div>
-  <h2>Service definitions.</h2>
+  <h2>Service definitions</h2>
 
   <p>Each service is defined with a name, directory, and optional settings:</p>
 
@@ -85,7 +85,7 @@ const nav = getDocsNav(base);
   <hr />
 
   <div class="section-eyebrow">Ordering</div>
-  <h2>Tiers.</h2>
+  <h2>Tiers</h2>
 
   <p>
     Tiers control startup ordering. Services in earlier tiers start (and become ready) before later tiers begin. The order is determined by the first occurrence of each tier name in your config.
@@ -110,7 +110,7 @@ const nav = getDocsNav(base);
   <hr />
 
   <div class="section-eyebrow">Grouping</div>
-  <h2>Profiles.</h2>
+  <h2>Profiles</h2>
 
   <p>Profiles group services for batch operations:</p>
 
@@ -163,7 +163,7 @@ profiles:
   <hr />
 
   <div class="section-eyebrow">API</div>
-  <h2>Server.</h2>
+  <h2>Server</h2>
 
   <p>
     Built-in REST API for external control. Disabled by default. When <code>server.listen</code> is set, <code>server.auth.token</code> is required. Probes (<code>/api/v1/live</code>, <code>/api/v1/ready</code>) are unauthenticated; all other endpoints require a bearer token.
@@ -177,7 +177,7 @@ profiles:
   <hr />
 
   <div class="section-eyebrow">Overrides</div>
-  <h2>Local overrides.</h2>
+  <h2>Local overrides</h2>
 
   <p>
     Create <code>fuku.override.yaml</code> (or <code>fuku.override.yml</code>) next to your base config to add local customizations without modifying the shared project config. Override files are typically <code>.gitignore</code>d.
@@ -240,7 +240,7 @@ logging:
   <hr />
 
   <div class="section-eyebrow">DRY config</div>
-  <h2>YAML anchors.</h2>
+  <h2>YAML anchors</h2>
 
   <p>
     Use YAML anchors (<code>&amp;</code>) and merge keys (<code>&lt;&lt;: *</code>) to avoid repeating common configuration. Top-level keys prefixed with <code>x-</code> are ignored by fuku and serve as anchor definitions.
@@ -268,7 +268,7 @@ services:
   <hr />
 
   <div class="section-eyebrow">Reference</div>
-  <h2>Full example.</h2>
+  <h2>Full example</h2>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`version: 1
 

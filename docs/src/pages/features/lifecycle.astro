@@ -22,7 +22,7 @@ const nav = getFeaturesNav(base);
   <p class="lead">Ctrl+C and services stop in reverse tier order. Each receives SIGTERM with time to shut down gracefully.</p>
 
   <div class="section-eyebrow">Shutdown</div>
-  <h2>Graceful, reverse-order.</h2>
+  <h2>Graceful, reverse-order</h2>
 
   <p>
     When you press <code>q</code> in the TUI or send SIGINT/SIGTERM, fuku performs a graceful shutdown – stopping services in reverse tier order so that dependent services stop before their dependencies.
@@ -50,7 +50,7 @@ const nav = getFeaturesNav(base);
   </Terminal>
 
   <div class="section-eyebrow">Sequence</div>
-  <h2>How shutdown works.</h2>
+  <h2>How shutdown works</h2>
 
   <ol>
     <li>Services stop in <strong>reverse tier order</strong> (edge &rarr; platform &rarr; foundation)</li>
@@ -62,7 +62,7 @@ const nav = getFeaturesNav(base);
   <hr />
 
   <div class="section-eyebrow">Preflight</div>
-  <h2>Orphan process cleanup.</h2>
+  <h2>Orphan process cleanup</h2>
 
   <p>
     Before starting services, fuku automatically checks for orphaned processes from previous runs. This prevents port conflicts and zombie processes – common issues when a previous fuku session crashed or was killed with <code>kill -9</code>.
