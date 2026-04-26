@@ -1,0 +1,62 @@
+<idea-plugin>
+    <id>com.fuku.plugin</id>
+    <name>fuku</name>
+    <vendor url="https://getfuku.sh">fuku</vendor>
+    <description><![CDATA[
+        <p>IDE integration for <a href="https://getfuku.sh">fuku</a> — a lightweight CLI orchestrator
+        for running and managing multiple local services in development environments.</p>
+
+        <p>All services, one panel. No more juggling terminal windows.</p>
+
+        <h3>Plugin Features</h3>
+        <ul>
+            <li><b>Services dashboard</b> — real-time status, CPU, memory, PID, and uptime with tier-based grouping</li>
+            <li><b>Timeline visualization</b> — per-service status history matching the fuku TUI</li>
+            <li><b>Log streaming</b> — color-coded logs via Unix socket with search support</li>
+            <li><b>Service control</b> — start, stop, and restart services directly from the IDE</li>
+            <li><b>Keyboard-driven</b> — j/k navigation, s stop/start, r restart, / filter</li>
+            <li><b>Status bar widget</b> — at-a-glance service health in the IDE status bar</li>
+        </ul>
+
+        <h3>What is fuku?</h3>
+        <ul>
+            <li>Tier-based orchestration with concurrent service startup</li>
+            <li>HTTP, TCP, and log-based readiness checks</li>
+            <li>Hot-reload with file watching and debouncing</li>
+            <li>Graceful lifecycle management with reverse-order shutdown</li>
+            <li>Simple YAML configuration — no plugins, no DSL</li>
+        </ul>
+
+        <p><a href="https://getfuku.sh/docs/">Documentation</a> |
+        <a href="https://github.com/tab/fuku">GitHub</a></p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService
+            serviceImplementation="com.fuku.plugin.settings.Settings"/>
+        <applicationService
+            serviceImplementation="com.fuku.plugin.PluginService"/>
+        <projectService
+            serviceImplementation="com.fuku.plugin.run.ProcessHandler"/>
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.fuku.plugin.settings.SettingsConfigurable"
+            id="com.fuku.plugin.settings"
+            displayName="Fuku"/>
+        <toolWindow
+            id="fuku"
+            anchor="bottom"
+            icon="com.fuku.plugin.Icons.ToolWindow"
+            factoryClass="com.fuku.plugin.toolwindow.ToolWindowFactory"/>
+        <statusBarWidgetFactory
+            id="com.fuku.plugin.statusbar"
+            implementation="com.fuku.plugin.statusbar.StatusBarWidgetFactory"/>
+        <configurationType
+            implementation="com.fuku.plugin.run.ConfigurationType"/>
+        <notificationGroup
+            id="fuku"
+            displayType="BALLOON"/>
+    </extensions>
+</idea-plugin>
