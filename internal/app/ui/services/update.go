@@ -44,8 +44,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.height = msg.Height
 		m.ui.help.SetWidth(msg.Width)
 
-		contentWidth := msg.Width - components.PanelInnerPadding - components.RowHorizontalPadding
-		m.ui.layout = components.ComputeTableLayout(contentWidth)
+		m = m.recomputeLayout()
 
 		panelHeight := max(msg.Height-components.PanelHeightPadding, components.MinPanelHeight)
 
@@ -495,6 +494,8 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 	}
 
 	m.log.Debug().Msgf("TUI: After ProfileResolved - tiers=%d, services=%d", len(m.state.tiers), len(m.state.services))
+
+	m = m.recomputeLayout()
 
 	return m
 }

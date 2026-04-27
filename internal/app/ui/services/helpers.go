@@ -1,8 +1,33 @@
 package services
 
 import (
+	"charm.land/lipgloss/v2"
+
 	"fuku/internal/app/errors"
+	"fuku/internal/app/ui/components"
 )
+
+// longestServiceNameWidth returns the rendered cell width of the longest service name in state
+func (m Model) longestServiceNameWidth() int {
+	longest := 0
+
+	for _, svc := range m.state.services {
+		if w := lipgloss.Width(svc.Name); w > longest {
+			longest = w
+		}
+	}
+
+	return longest
+}
+
+// recomputeLayout updates the table layout based on current width and longest service name
+func (m Model) recomputeLayout() Model {
+	preferred := components.PreferredNameTextWidth(m.longestServiceNameWidth())
+	contentWidth := m.ui.width - components.PanelInnerPadding - components.RowHorizontalPadding
+	m.ui.layout = components.ComputeTableLayout(contentWidth, preferred)
+
+	return m
+}
 
 // renderError returns a user-friendly error message
 func renderError(err error) string {

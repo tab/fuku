@@ -41,8 +41,12 @@ const (
 // Table layout constants
 const (
 	MaxMetricWidth       = 12
-	MaxStatusWidth       = 20
+	MaxStatusWidth       = 16
+	MetricColumnCount    = 4
+	StatusWidthDivisor   = 5
+	MetricWidthDivisor   = 10
 	IndicatorColumnWidth = 2
+	NameTrailingGap      = 1
 	RowWidthPadding      = 8
 	RowHorizontalPadding = 4
 	ErrorPadding         = "  "
@@ -50,12 +54,19 @@ const (
 
 // Timeline layout constants
 const (
-	DefaultTimelineSlots    = 20
-	MinServiceNameTextWidth = 23
+	DefaultTimelineSlots    = 16
+	MinServiceNameTextWidth = 24
 	MinServiceNameWidth     = IndicatorColumnWidth + MinServiceNameTextWidth
-	MinTimelineWidth        = 10
+	MinTimelineWidth        = 8
 	TimelineGap             = 1
 	TimelineBlock           = "▮"
+)
+
+// Service name bucket constants picked by the longest service name length
+const (
+	NameWidthShort  = 16
+	NameWidthMedium = 32
+	NameWidthLong   = 48
 )
 
 // Unit conversion constants

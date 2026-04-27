@@ -9,60 +9,158 @@ import (
 
 func Test_ComputeTableLayout(t *testing.T) {
 	tests := []struct {
-		name         string
-		contentWidth int
-		want         TableLayout
+		name              string
+		contentWidth      int
+		preferredNameText int
+		want              TableLayout
 	}{
 		{
-			name:         "negative contentWidth clamped to zero",
-			contentWidth: -5,
-			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, TimelineWidth: 0, StatusWidth: 0, MetricWidth: 0},
+			name:              "negative contentWidth clamped to zero",
+			contentWidth:      -5,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 0, ServiceNameWidth: 0, TimelineWidth: 0, StatusWidth: 0, MetricWidth: 0},
 		},
 		{
-			name:         "zero contentWidth",
-			contentWidth: 0,
-			want:         TableLayout{ContentWidth: 0, ServiceNameWidth: 0, TimelineWidth: 0, StatusWidth: 0, MetricWidth: 0},
+			name:              "zero contentWidth",
+			contentWidth:      0,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 0, ServiceNameWidth: 0, TimelineWidth: 0, StatusWidth: 0, MetricWidth: 0},
 		},
 		{
-			name:         "narrow terminal (72 cols) - timeline hidden",
-			contentWidth: 66,
-			want:         TableLayout{ContentWidth: 66, ServiceNameWidth: 29, TimelineWidth: 0, StatusWidth: 13, MetricWidth: 6},
+			name:              "long bucket - narrow terminal (72 cols) - timeline hidden",
+			contentWidth:      66,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 66, ServiceNameWidth: 29, TimelineWidth: 0, StatusWidth: 13, MetricWidth: 6},
 		},
 		{
-			name:         "medium terminal (97 cols) - timeline reduced",
-			contentWidth: 97,
-			want:         TableLayout{ContentWidth: 97, ServiceNameWidth: 25, TimelineWidth: 16, TimelineGapWidth: 1, StatusWidth: 19, MetricWidth: 9},
+			name:              "long bucket - medium terminal (97 cols) - timeline at minimum",
+			contentWidth:      97,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 97, ServiceNameWidth: 36, TimelineWidth: 8, TimelineGapWidth: 1, StatusWidth: 16, MetricWidth: 9},
 		},
 		{
-			name:         "medium terminal (98 cols) - timeline reduced",
-			contentWidth: 98,
-			want:         TableLayout{ContentWidth: 98, ServiceNameWidth: 25, TimelineWidth: 17, TimelineGapWidth: 1, StatusWidth: 19, MetricWidth: 9},
+			name:              "long bucket - medium terminal (100 cols) - timeline at minimum",
+			contentWidth:      100,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 100, ServiceNameWidth: 35, TimelineWidth: 8, TimelineGapWidth: 1, StatusWidth: 16, MetricWidth: 10},
 		},
 		{
-			name:         "medium terminal (100 cols) - timeline reduced",
-			contentWidth: 100,
-			want:         TableLayout{ContentWidth: 100, ServiceNameWidth: 25, TimelineWidth: 14, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 10},
+			name:              "long bucket - wide terminal (114 cols) - timeline at minimum",
+			contentWidth:      114,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 114, ServiceNameWidth: 45, TimelineWidth: 8, TimelineGapWidth: 1, StatusWidth: 16, MetricWidth: 11},
 		},
 		{
-			name:         "wide terminal (114 cols) - full timeline",
-			contentWidth: 114,
-			want:         TableLayout{ContentWidth: 114, ServiceNameWidth: 29, TimelineWidth: 20, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 11},
+			name:              "long bucket - wide terminal (120 cols) - timeline at minimum",
+			contentWidth:      120,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 120, ServiceNameWidth: 47, TimelineWidth: 8, TimelineGapWidth: 1, StatusWidth: 16, MetricWidth: 12},
 		},
 		{
-			name:         "wide terminal (120 cols) - full timeline",
-			contentWidth: 120,
-			want:         TableLayout{ContentWidth: 120, ServiceNameWidth: 31, TimelineWidth: 20, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 12},
+			name:              "long bucket - ultra-wide terminal - large surplus split into flex gaps",
+			contentWidth:      200,
+			preferredNameText: NameWidthLong,
+			want:              TableLayout{ContentWidth: 200, ServiceNameWidth: 50, LeftFlexWidth: 34, TimelineWidth: 16, TimelineGapWidth: 1, StatusWidth: 16, RightFlexWidth: 35, MetricWidth: 12},
 		},
 		{
-			name:         "ultra-wide terminal (name absorbs extra)",
-			contentWidth: 200,
-			want:         TableLayout{ContentWidth: 200, ServiceNameWidth: 111, TimelineWidth: 20, TimelineGapWidth: 1, StatusWidth: 20, MetricWidth: 12},
+			name:              "short bucket - wide terminal (114 cols) - surplus split into flex gaps",
+			contentWidth:      114,
+			preferredNameText: NameWidthShort,
+			want:              TableLayout{ContentWidth: 114, ServiceNameWidth: 18, LeftFlexWidth: 9, TimelineWidth: 16, TimelineGapWidth: 1, StatusWidth: 16, RightFlexWidth: 10, MetricWidth: 11},
+		},
+		{
+			name:              "medium bucket - wide terminal (114 cols)",
+			contentWidth:      114,
+			preferredNameText: NameWidthMedium,
+			want:              TableLayout{ContentWidth: 114, ServiceNameWidth: 34, LeftFlexWidth: 1, TimelineWidth: 16, TimelineGapWidth: 1, StatusWidth: 16, RightFlexWidth: 2, MetricWidth: 11},
+		},
+		{
+			name:              "short bucket - narrow terminal (72 cols) - timeline appears",
+			contentWidth:      66,
+			preferredNameText: NameWidthShort,
+			want:              TableLayout{ContentWidth: 66, ServiceNameWidth: 18, TimelineWidth: 10, TimelineGapWidth: 1, StatusWidth: 13, MetricWidth: 6},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ComputeTableLayout(tt.contentWidth)
+			result := ComputeTableLayout(tt.contentWidth, tt.preferredNameText)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func Test_PreferredNameTextWidth(t *testing.T) {
+	tests := []struct {
+		name        string
+		longestName int
+		want        int
+	}{
+		{
+			name:        "no services (zero)",
+			longestName: 0,
+			want:        NameWidthShort,
+		},
+		{
+			name:        "short names (api, web)",
+			longestName: 8,
+			want:        NameWidthShort,
+		},
+		{
+			name:        "exactly at short bucket boundary",
+			longestName: 16,
+			want:        NameWidthShort,
+		},
+		{
+			name:        "just over short bucket - medium",
+			longestName: 17,
+			want:        NameWidthMedium,
+		},
+		{
+			name:        "medium names (loki-frontend-web)",
+			longestName: 17,
+			want:        NameWidthMedium,
+		},
+		{
+			name:        "exactly at medium bucket boundary",
+			longestName: 32,
+			want:        NameWidthMedium,
+		},
+		{
+			name:        "just over medium bucket - long",
+			longestName: 33,
+			want:        NameWidthLong,
+		},
+		{
+			name:        "long names (card-reference-numbers-management-service)",
+			longestName: 41,
+			want:        NameWidthLong,
+		},
+		{
+			name:        "exactly at long bucket boundary",
+			longestName: 48,
+			want:        NameWidthLong,
+		},
+		{
+			name:        "just over long bucket - grows to fit longest name plus trailing gap",
+			longestName: 49,
+			want:        49 + NameTrailingGap,
+		},
+		{
+			name:        "very long names grow past cap to remain distinguishable",
+			longestName: 100,
+			want:        100 + NameTrailingGap,
+		},
+		{
+			name:        "9-cell Cyrillic name (display width, not byte length)",
+			longestName: 9,
+			want:        NameWidthShort,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := PreferredNameTextWidth(tt.longestName)
 			assert.Equal(t, tt.want, result)
 		})
 	}

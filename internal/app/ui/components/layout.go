@@ -49,50 +49,82 @@ func RenderPanel(opts PanelOptions) string {
 type TableLayout struct {
 	ContentWidth     int
 	ServiceNameWidth int
+	LeftFlexWidth    int
 	TimelineWidth    int
 	TimelineGapWidth int
 	StatusWidth      int
+	RightFlexWidth   int
 	MetricWidth      int
 }
 
-// ComputeTableLayout returns column widths based on the available content width
-func ComputeTableLayout(contentWidth int) TableLayout {
+// PreferredNameTextWidth picks a bucket value based on the longest service name length
+func PreferredNameTextWidth(name int) int {
+	switch {
+	case name <= NameWidthShort:
+		return NameWidthShort
+	case name <= NameWidthMedium:
+		return NameWidthMedium
+	case name <= NameWidthLong:
+		return NameWidthLong
+	default:
+		return name + NameTrailingGap
+	}
+}
+
+// ComputeTableLayout returns column widths based on the available content width and preferred name text width
+func ComputeTableLayout(contentWidth, preferredNameTextWidth int) TableLayout {
 	if contentWidth < 0 {
 		contentWidth = 0
 	}
 
-	metricWidth := min(contentWidth/10, MaxMetricWidth)
+	preferredNameWidth := IndicatorColumnWidth + preferredNameTextWidth
 
-	statusWidth := min(contentWidth/5, MaxStatusWidth)
+	statusWidth := min(contentWidth/StatusWidthDivisor, MaxStatusWidth)
+	metricWidth := min(contentWidth/MetricWidthDivisor, MaxMetricWidth)
 
-	available := contentWidth - statusWidth - 4*metricWidth
+	available := contentWidth - statusWidth - MetricColumnCount*metricWidth
 
-	timelineWidth := DefaultTimelineSlots
+	serviceNameWidth, timelineWidth, gap := allocateNameAndTimeline(available, preferredNameWidth)
 
-	switch {
-	case available >= MinServiceNameWidth+timelineWidth+TimelineGap:
-		// Full timeline fits
-	case available >= MinServiceNameWidth+MinTimelineWidth+TimelineGap:
-		timelineWidth = available - MinServiceNameWidth - TimelineGap
-	default:
-		timelineWidth = 0
-	}
-
-	gap := 0
-	if timelineWidth > 0 {
-		gap = TimelineGap
-	}
-
-	serviceNameWidth := available - timelineWidth - gap
+	used := serviceNameWidth + timelineWidth + gap + statusWidth + MetricColumnCount*metricWidth
+	surplus := max(contentWidth-used, 0)
+	leftFlex := surplus / 2
+	rightFlex := surplus - leftFlex
 
 	return TableLayout{
 		ContentWidth:     contentWidth,
 		ServiceNameWidth: serviceNameWidth,
+		LeftFlexWidth:    leftFlex,
 		TimelineWidth:    timelineWidth,
 		TimelineGapWidth: gap,
 		StatusWidth:      statusWidth,
+		RightFlexWidth:   rightFlex,
 		MetricWidth:      metricWidth,
 	}
+}
+
+// allocateNameAndTimeline distributes available width between name and timeline columns
+func allocateNameAndTimeline(available, preferredNameWidth int) (name, timeline, gap int) {
+	if available <= 0 {
+		return 0, 0, 0
+	}
+
+	fullTotal := preferredNameWidth + DefaultTimelineSlots + TimelineGap
+	if available >= fullTotal {
+		return preferredNameWidth, DefaultTimelineSlots, TimelineGap
+	}
+
+	preferredNameWithMinTimeline := preferredNameWidth + MinTimelineWidth + TimelineGap
+	if available >= preferredNameWithMinTimeline {
+		return preferredNameWidth, available - preferredNameWidth - TimelineGap, TimelineGap
+	}
+
+	nameWithMinTimeline := available - MinTimelineWidth - TimelineGap
+	if nameWithMinTimeline >= MinServiceNameWidth {
+		return nameWithMinTimeline, MinTimelineWidth, TimelineGap
+	}
+
+	return available, 0, 0
 }
 
 // PadRight pads text to width using display width (not rune count)

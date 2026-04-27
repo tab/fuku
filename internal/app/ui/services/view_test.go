@@ -3,6 +3,7 @@ package services
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/spinner"
@@ -17,7 +18,7 @@ import (
 )
 
 func layoutForWidth(rowWidth int) components.TableLayout {
-	return components.ComputeTableLayout(rowWidth - components.RowHorizontalPadding)
+	return components.ComputeTableLayout(rowWidth-components.RowHorizontalPadding, components.NameWidthLong)
 }
 
 func Test_View_NotReady(t *testing.T) {
@@ -236,7 +237,7 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 			serviceName:   "action-confirmation-management-service",
 			viewportWidth: 78,
 			wantTruncated: true,
-			wantNameInRow: "action-confirmation-managemen…",
+			wantNameInRow: "action-confirmation-manageme…",
 		},
 		{
 			name:          "name fits exactly",
@@ -264,6 +265,101 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_RenderServiceRow_LongUptimeDoesNotWrap(t *testing.T) {
+	tests := []struct {
+		name       string
+		panelWidth int
+	}{
+		{name: "72-col terminal", panelWidth: 72},
+		{name: "104-col terminal", panelWidth: 104},
+		{name: "120-col terminal", panelWidth: 120},
+		{name: "200-col terminal", panelWidth: 200},
+	}
+
+	now := time.Now()
+	hundredHoursAgo := now.Add(-100 * time.Hour)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rowWidth := tt.panelWidth - components.PanelInnerPadding
+
+			m := Model{}
+			m.ui.width = tt.panelWidth
+			m.ui.layout = layoutForWidth(rowWidth)
+			m.ui.servicesViewport.SetWidth(rowWidth)
+			m.theme = components.DefaultTheme()
+			m.state.now = now
+
+			service := &ServiceState{
+				Name:      "api",
+				Status:    StatusRunning,
+				PID:       12345,
+				CPU:       1.0,
+				MEM:       64,
+				StartTime: hundredHoursAgo,
+				Timeline:  NewTimeline(components.DefaultTimelineSlots),
+			}
+
+			row := m.renderServiceRow(service, false)
+
+			assert.NotContains(t, row, "\n", "row wraps with 9-char uptime")
+			assert.Equal(t, rowWidth, lipgloss.Width(row), "row width must equal rowWidth at %d cols", tt.panelWidth)
+
+			if m.ui.layout.MetricWidth >= 9 {
+				assert.Contains(t, row, "100:00:00", "wide enough metric column should show full uptime at %d cols", tt.panelWidth)
+			}
+		})
+	}
+}
+
+func Test_RenderServiceRow_LongSharedPrefixNamesDistinguishableOnWideTerminal(t *testing.T) {
+	nameA := "very-long-service-name-with-shared-prefix-section-alpha-tail"
+	nameB := "very-long-service-name-with-shared-prefix-section-bravo-tail"
+
+	panelWidth := 200
+	rowWidth := panelWidth - components.PanelInnerPadding
+
+	m := Model{}
+	m.ui.width = panelWidth
+	m.ui.servicesViewport.SetWidth(rowWidth)
+	m.theme = components.DefaultTheme()
+	m.state.services = map[string]*ServiceState{
+		"id-a": {Name: nameA, Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)},
+		"id-b": {Name: nameB, Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)},
+	}
+
+	m = m.recomputeLayout()
+
+	rowA := m.renderServiceRow(m.state.services["id-a"], false)
+	rowB := m.renderServiceRow(m.state.services["id-b"], false)
+
+	assert.Contains(t, rowA, nameA, "full name should render at wide terminal when name exceeds 48 cells")
+	assert.Contains(t, rowB, nameB, "full name should render at wide terminal when name exceeds 48 cells")
+	assert.NotEqual(t, rowA, rowB, "shared-prefix names beyond 48 cells must remain distinguishable on wide terminals")
+}
+
+func Test_RenderServiceRow_UnicodeNameTimelineSurvivesNarrow(t *testing.T) {
+	rowWidth := 72 - components.PanelInnerPadding
+
+	m := Model{}
+	m.ui.width = 72
+	m.ui.servicesViewport.SetWidth(rowWidth)
+	m.theme = components.DefaultTheme()
+	m.state.services = map[string]*ServiceState{
+		"id-svc": {Name: "сервис-апи", Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)},
+	}
+
+	m = m.recomputeLayout()
+
+	assert.Positive(t, m.ui.layout.TimelineWidth, "10-cell Cyrillic name should pick short bucket and keep timeline visible")
+
+	service := m.state.services["id-svc"]
+	row := m.renderServiceRow(service, false)
+
+	assert.Contains(t, row, "сервис-апи")
+	assert.Equal(t, rowWidth, lipgloss.Width(row), "row width must equal rowWidth")
 }
 
 func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
