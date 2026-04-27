@@ -3,11 +3,11 @@
 ## v0.19.1
 
 ### Fixes
-- **fix(ui):** Adaptive flexbox layout for services table
+- **fix:** Adaptive flexbox layout for services table
 
 ### Chore
-- **chore(docs):** Update README.md and section headers
-- **docs(public):** Update favicon SVG and images
+- **chore:** Update README.md and section headers
+- **chore:** Update favicon SVG and images
 
 ## v0.19.0
 
