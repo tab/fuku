@@ -204,12 +204,14 @@ func (m Model) getRowWidth() int {
 // renderColumnHeaders renders the column headers row
 func (m Model) renderColumnHeaders() string {
 	nameCol := strings.Repeat(" ", m.ui.layout.ServiceNameWidth)
+	leftFlex := strings.Repeat(" ", m.ui.layout.LeftFlexWidth)
 	timelineCol := strings.Repeat(" ", m.ui.layout.TimelineWidth+m.ui.layout.TimelineGapWidth)
 	statusCol := fmt.Sprintf("%-*s", m.ui.layout.StatusWidth, "status")
+	rightFlex := strings.Repeat(" ", m.ui.layout.RightFlexWidth)
 	w := m.ui.layout.MetricWidth
 	metricsCol := fmt.Sprintf("%*s%*s%*s%*s", w, "cpu", w, "mem", w, "pid", w, "uptime")
 
-	header := nameCol + timelineCol + statusCol + metricsCol
+	header := nameCol + leftFlex + timelineCol + statusCol + rightFlex + metricsCol
 
 	return m.theme.ServiceHeaderStyle.Width(m.getRowWidth()).Render(header)
 }
@@ -341,9 +343,9 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 	rowWidth := m.getRowWidth()
 	indicator := m.getServiceIndicator(service, isSelected)
 
-	nameTextWidth := m.ui.layout.ServiceNameWidth - components.IndicatorColumnWidth
+	nameTextWidth := m.ui.layout.ServiceNameWidth - components.IndicatorColumnWidth - components.NameTrailingGap
 	name := components.TruncateAndPad(service.Name, nameTextWidth)
-	nameCol := fmt.Sprintf("%s %s", indicator, name)
+	nameCol := fmt.Sprintf("%s %s ", indicator, name)
 
 	timelineCol := m.renderTimeline(service, isSelected)
 
@@ -377,21 +379,23 @@ type rowParts struct {
 	isSelected bool
 }
 
-// buildServiceRow positions details: errors left-aligned after status, metrics right-aligned to edge
+// buildServiceRow positions sections: name left, timeline+status center, metrics right
 func (m Model) buildServiceRow(parts rowParts, rowWidth int) string {
-	gap := strings.Repeat(" ", m.ui.layout.TimelineGapWidth)
-	tail := gap + parts.status + parts.details
+	leftFlex := strings.Repeat(" ", m.ui.layout.LeftFlexWidth)
+	timelineGap := strings.Repeat(" ", m.ui.layout.TimelineGapWidth)
+	rightFlex := strings.Repeat(" ", m.ui.layout.RightFlexWidth)
+	tail := timelineGap + parts.status + rightFlex + parts.details
 
 	if parts.hasError {
-		remaining := max(rowWidth-lipgloss.Width(parts.name)-lipgloss.Width(parts.timeline), 0)
-		tail = components.PadRight(tail, remaining)
+		remaining := max(rowWidth-lipgloss.Width(parts.name)-lipgloss.Width(leftFlex)-lipgloss.Width(parts.timeline), 0)
+		tail = components.PadRight(timelineGap+parts.status+parts.details, remaining)
 	}
 
 	if parts.isSelected && m.ui.layout.TimelineWidth > 0 {
 		tail = lipgloss.NewStyle().Background(m.theme.BgSelection).Render(tail)
 	}
 
-	return parts.name + parts.timeline + tail
+	return parts.name + leftFlex + parts.timeline + tail
 }
 
 // getServiceDetails returns either error message or metrics columns
@@ -405,12 +409,35 @@ func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string 
 		return errorMsg
 	}
 
+	w := m.ui.layout.MetricWidth
+
 	return fmt.Sprintf("%*s%*s%*s%*s",
-		m.ui.layout.MetricWidth, m.getCPU(service),
-		m.ui.layout.MetricWidth, m.getMem(service),
-		m.ui.layout.MetricWidth, m.getPID(service),
-		m.ui.layout.MetricWidth, m.getUptime(service),
+		w, fitMetric(m.getCPU(service), w),
+		w, fitMetric(m.getMem(service), w),
+		w, fitMetric(m.getPID(service), w),
+		w, fitMetric(m.getUptime(service), w),
 	)
+}
+
+// fitMetric truncates a metric value with an ellipsis when it would exceed the column width
+func fitMetric(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+
+	if lipgloss.Width(s) <= w {
+		return s
+	}
+
+	runes := []rune(s)
+	for i := len(runes); i > 0; i-- {
+		candidate := string(runes[:i])
+		if lipgloss.Width(candidate) <= w-1 {
+			return candidate + "…"
+		}
+	}
+
+	return "…"
 }
 
 // getStyledAndPaddedStatus returns the styled status string with padding
