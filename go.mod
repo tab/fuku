@@ -8,7 +8,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.2
 	github.com/charmbracelet/harmonica v0.2.0
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.0
 	github.com/getsentry/sentry-go v0.45.1
 	github.com/gobwas/glob v0.2.3
 	github.com/google/uuid v1.6.0
