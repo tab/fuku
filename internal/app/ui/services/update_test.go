@@ -3140,6 +3140,51 @@ func Test_HandleKeyPress_CtrlRRoutesToRestartFailed(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
+func Test_HandleUpdateAvailable(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           any
+		initialVersion string
+		wantVersion    string
+	}{
+		{
+			name:           "stores version from valid payload",
+			data:           bus.UpdateAvailable{Version: "v0.20.0"},
+			initialVersion: "",
+			wantVersion:    "v0.20.0",
+		},
+		{
+			name:           "ignores wrong payload type",
+			data:           "invalid",
+			initialVersion: "",
+			wantVersion:    "",
+		},
+		{
+			name:           "ignores wrong payload type but keeps prior version",
+			data:           42,
+			initialVersion: "v0.19.5",
+			wantVersion:    "v0.19.5",
+		},
+		{
+			name:           "overwrites prior version with newer payload",
+			data:           bus.UpdateAvailable{Version: "v1.0.0"},
+			initialVersion: "v0.20.0",
+			wantVersion:    "v1.0.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.state.availableVersion = tt.initialVersion
+
+			result := m.handleUpdateAvailable(bus.Message{Type: bus.EventUpdateAvailable, Data: tt.data})
+
+			assert.Equal(t, tt.wantVersion, result.state.availableVersion)
+		})
+	}
+}
+
 func toKeyMsg(s string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: rune(s[0]), Text: s}
 }

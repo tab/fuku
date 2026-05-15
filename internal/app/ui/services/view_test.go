@@ -15,6 +15,7 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/ui/components"
+	"fuku/internal/config"
 )
 
 func layoutForWidth(rowWidth int) components.TableLayout {
@@ -1402,6 +1403,36 @@ func Test_RenderServiceRow_ErrorRowStillShowsTimeline(t *testing.T) {
 	assert.Contains(t, result, "failed")
 	assert.Contains(t, result, components.TimelineBlock)
 	assert.Contains(t, result, "port already in use")
+}
+
+func Test_RenderVersion(t *testing.T) {
+	theme := components.DefaultTheme()
+
+	tests := []struct {
+		name             string
+		availableVersion string
+		want             string
+	}{
+		{
+			name:             "no available version renders current in white",
+			availableVersion: "",
+			want:             theme.CurrentVersionStyle.Render("v" + config.Version),
+		},
+		{
+			name:             "with available version renders current white, arrow and latest coral",
+			availableVersion: "v0.20.0",
+			want:             theme.CurrentVersionStyle.Render("v"+config.Version) + theme.PanelMutedStyle.Render(" - ") + theme.LatestVersionStyle.Render("↑ v0.20.0"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{theme: theme}
+			m.state.availableVersion = tt.availableVersion
+
+			assert.Equal(t, tt.want, m.renderVersion())
+		})
+	}
 }
 
 func Test_UpdateServicesContent_EmptyFilterClearsViewport(t *testing.T) {

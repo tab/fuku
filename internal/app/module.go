@@ -16,6 +16,7 @@ import (
 	"fuku/internal/app/sampler"
 	"fuku/internal/app/tracer"
 	"fuku/internal/app/ui/wire"
+	"fuku/internal/app/updater"
 	"fuku/internal/app/watcher"
 )
 
@@ -31,6 +32,7 @@ var Module = fx.Options(
 	runner.Module,
 	sampler.Module,
 	tracer.Module,
+	updater.Module,
 	watcher.Module,
 	wire.Module,
 	fx.Provide(NewRoot),

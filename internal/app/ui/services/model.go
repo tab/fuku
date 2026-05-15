@@ -112,6 +112,8 @@ type Model struct {
 		filteredTiers          []Tier
 		preFilterSelectedID    string
 		lastFilteredSelectedID string
+
+		availableVersion string
 	}
 
 	ui struct {

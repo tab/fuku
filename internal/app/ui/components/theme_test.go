@@ -45,6 +45,21 @@ func Test_DefaultTheme(t *testing.T) {
 	assert.Len(t, theme.ServiceColorPalette, 24)
 }
 
+func Test_NewTheme_VersionStylesAdaptToMode(t *testing.T) {
+	dark := NewTheme(true)
+	light := NewTheme(false)
+
+	assert.NotEqual(t,
+		dark.CurrentVersionStyle.Render("v1.0.0"),
+		light.CurrentVersionStyle.Render("v1.0.0"),
+		"CurrentVersionStyle must render differently for light vs dark terminals")
+
+	assert.NotEqual(t,
+		dark.LatestVersionStyle.Render("v1.0.0"),
+		light.LatestVersionStyle.Render("v1.0.0"),
+		"LatestVersionStyle must render differently for light vs dark terminals")
+}
+
 func Test_NewLogsServiceNameStyle(t *testing.T) {
 	theme := DefaultTheme()
 
