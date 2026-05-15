@@ -127,6 +127,7 @@ EventWatchStopped      → File watcher stopped for a service
 EventResourceSample    → Periodic CPU/memory sample for fuku process
 EventAPIStarted        → API server bound and accepting requests
 EventAPIStopped        → API server shut down
+EventUpdateAvailable   → Newer GitHub release detected by the version checker
 ```
 
 Commands:
