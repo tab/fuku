@@ -15,10 +15,10 @@ func Test_readCache(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name     string
-		write    func(t *testing.T, path string)
-		expect   cache
-		expectOk bool
+		name      string
+		write     func(t *testing.T, path string)
+		expectTag string
+		expectErr bool
 	}{
 		{
 			name: "fresh entry",
@@ -28,66 +28,54 @@ func Test_readCache(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, os.WriteFile(path, raw, 0o600))
 			},
-			expect:   cache{Tag: "v0.20.0"},
-			expectOk: true,
+			expectTag: "v0.20.0",
 		},
 		{
-			name:     "missing file",
-			write:    func(t *testing.T, path string) {},
-			expect:   cache{},
-			expectOk: false,
+			name:  "missing file is legitimate miss",
+			write: func(t *testing.T, path string) {},
 		},
 		{
-			name: "corrupt json",
+			name: "corrupt json surfaces error",
 			write: func(t *testing.T, path string) {
 				require.NoError(t, os.WriteFile(path, []byte("{not json"), 0o600))
 			},
-			expect:   cache{},
-			expectOk: false,
+			expectErr: true,
 		},
 		{
-			name: "expired entry",
+			name: "expired entry is silent miss",
 			write: func(t *testing.T, path string) {
 				entry := cache{Tag: "v0.20.0", FetchedAt: now.Add(-25 * time.Hour)}
 				raw, err := json.Marshal(entry)
 				require.NoError(t, err)
 				require.NoError(t, os.WriteFile(path, raw, 0o600))
 			},
-			expect:   cache{},
-			expectOk: false,
 		},
 		{
-			name: "empty tag",
+			name: "empty tag is silent miss",
 			write: func(t *testing.T, path string) {
 				entry := cache{Tag: "", FetchedAt: now}
 				raw, err := json.Marshal(entry)
 				require.NoError(t, err)
 				require.NoError(t, os.WriteFile(path, raw, 0o600))
 			},
-			expect:   cache{},
-			expectOk: false,
 		},
 		{
-			name: "zero fetched_at",
+			name: "zero fetched_at is silent miss",
 			write: func(t *testing.T, path string) {
 				entry := cache{Tag: "v0.20.0"}
 				raw, err := json.Marshal(entry)
 				require.NoError(t, err)
 				require.NoError(t, os.WriteFile(path, raw, 0o600))
 			},
-			expect:   cache{},
-			expectOk: false,
 		},
 		{
-			name: "invalid semver tag",
+			name: "invalid semver tag is silent miss",
 			write: func(t *testing.T, path string) {
 				entry := cache{Tag: "not-a-version", FetchedAt: now.Add(-time.Hour)}
 				raw, err := json.Marshal(entry)
 				require.NoError(t, err)
 				require.NoError(t, os.WriteFile(path, raw, 0o600))
 			},
-			expect:   cache{},
-			expectOk: false,
 		},
 	}
 
@@ -98,9 +86,16 @@ func Test_readCache(t *testing.T) {
 
 			tt.write(t, path)
 
-			entry, ok := readCache(path)
-			assert.Equal(t, tt.expectOk, ok)
-			assert.Equal(t, tt.expect.Tag, entry.Tag)
+			entry, err := readCache(path)
+
+			switch {
+			case tt.expectErr:
+				require.Error(t, err)
+			default:
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.expectTag, entry.Tag)
 		})
 	}
 }
@@ -150,8 +145,8 @@ func Test_writeCache_Roundtrip(t *testing.T) {
 
 	require.NoError(t, writeCache(path, entry))
 
-	got, ok := readCache(path)
-	require.True(t, ok)
+	got, err := readCache(path)
+	require.NoError(t, err)
 	assert.Equal(t, entry.Tag, got.Tag)
 	assert.WithinDuration(t, entry.FetchedAt, got.FetchedAt, time.Second)
 }

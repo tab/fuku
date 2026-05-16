@@ -83,8 +83,13 @@ func (c *checker) Run(ctx context.Context) {
 }
 
 func (c *checker) useCachedTag(path string) bool {
-	entry, ok := readCache(path)
-	if !ok {
+	entry, err := readCache(path)
+	if err != nil {
+		c.log.Debug().Err(err).Msg("updater: read cache failed")
+		return false
+	}
+
+	if entry.Tag == "" {
 		return false
 	}
 
@@ -118,7 +123,7 @@ type releaseResponse struct {
 func (c *checker) fetchLatest(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseURL, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("build GitHub release request: %w", err)
 	}
 
 	req.Header.Set("Accept", "application/vnd.github+json")
@@ -126,7 +131,7 @@ func (c *checker) fetchLatest(ctx context.Context) (string, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("fetch GitHub release: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -136,7 +141,7 @@ func (c *checker) fetchLatest(ctx context.Context) (string, error) {
 
 	var body releaseResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", err
+		return "", fmt.Errorf("decode GitHub release response: %w", err)
 	}
 
 	if body.TagName == "" {
