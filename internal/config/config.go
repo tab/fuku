@@ -18,6 +18,7 @@ type Config struct {
 	Retry       Retry               `yaml:"retry"`
 	Logs        LogStream           `yaml:"logs"`
 	Server      Server              `yaml:"server"`
+	Updater     bool
 	Version     int
 }
 
@@ -85,6 +86,16 @@ func (c *Config) TelemetryEnabled() bool {
 // TelemetryDisabled reports whether telemetry is inactive (opted out or DSN missing)
 func (c *Config) TelemetryDisabled() bool {
 	return !c.TelemetryEnabled()
+}
+
+// UpdaterEnabled reports whether the version updater check is active
+func (c *Config) UpdaterEnabled() bool {
+	return c.Updater
+}
+
+// UpdaterDisabled reports whether the version updater check is inactive
+func (c *Config) UpdaterDisabled() bool {
+	return !c.UpdaterEnabled()
 }
 
 // normalizeTiers normalizes tier names in services to match parsed values

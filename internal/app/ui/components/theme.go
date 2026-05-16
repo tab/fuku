@@ -22,6 +22,8 @@ type Theme struct {
 
 	// TUI styles (services screen)
 	PanelMutedStyle      lipgloss.Style
+	CurrentVersionStyle  lipgloss.Style
+	LatestVersionStyle   lipgloss.Style
 	ServiceHeaderStyle   lipgloss.Style
 	SelectedRowStyle     lipgloss.Style
 	StatusRunningStyle   lipgloss.Style
@@ -90,6 +92,8 @@ func NewTheme(isDark bool) Theme {
 		HelpKeyStyle:         lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#909090"), lipgloss.Color("#626262"))),
 		HelpDescStyle:        lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#B2B2B2"), lipgloss.Color("#4A4A4A"))),
 		PanelMutedStyle:      lipgloss.NewStyle().Foreground(fgMuted),
+		CurrentVersionStyle:  lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#171717"), lipgloss.Color("15"))),
+		LatestVersionStyle:   lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#dc6543"), lipgloss.Color("#FF7F50"))),
 		ServiceHeaderStyle:   lipgloss.NewStyle().Foreground(fgMuted).Padding(0, 2),
 		SelectedRowStyle:     lipgloss.NewStyle().Background(bgSelection).Padding(0, 2),
 		StatusRunningStyle:   lipgloss.NewStyle().Foreground(fgStatusRunning),

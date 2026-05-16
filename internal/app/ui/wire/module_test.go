@@ -3,6 +3,7 @@ package wire
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,7 @@ import (
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/services"
+	"fuku/internal/app/updater"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -26,6 +28,7 @@ func Test_NewUI(t *testing.T) {
 	mockStore := registry.NewMockStore(ctrl)
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
+	mockChecker := updater.NewMockChecker(ctrl)
 
 	params := UIParams{
 		Config:     &config.Config{},
@@ -36,6 +39,7 @@ func Test_NewUI(t *testing.T) {
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
 		Logger:     mockLogger,
+		Checker:    mockChecker,
 	}
 
 	factory := NewUI(params)
@@ -52,6 +56,7 @@ func Test_UI_CreateProgram(t *testing.T) {
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
+	mockChecker := updater.NewMockChecker(ctrl)
 
 	ctx := context.Background()
 	msgChan := make(chan bus.Message)
@@ -59,7 +64,22 @@ func Test_UI_CreateProgram(t *testing.T) {
 
 	mockAPI := api.NewMockListener(ctrl)
 
-	mockBus.EXPECT().Subscribe(ctx).Return(msgChan)
+	subscribed := make(chan struct{})
+	checkerStarted := make(chan struct{})
+
+	mockBus.EXPECT().Subscribe(ctx).DoAndReturn(func(_ context.Context) <-chan bus.Message {
+		close(subscribed)
+		return msgChan
+	})
+	mockChecker.EXPECT().Run(ctx).Do(func(_ context.Context) {
+		select {
+		case <-subscribed:
+		default:
+			t.Errorf("checker.Run called before bus.Subscribe")
+		}
+
+		close(checkerStarted)
+	})
 	mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
 	mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 	componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
@@ -73,6 +93,7 @@ func Test_UI_CreateProgram(t *testing.T) {
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
 		Logger:     mockLogger,
+		Checker:    mockChecker,
 	}
 
 	factory := NewUI(params)
@@ -80,6 +101,12 @@ func Test_UI_CreateProgram(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, program)
+
+	select {
+	case <-checkerStarted:
+	case <-time.After(time.Second):
+		t.Fatal("checker.Run was not invoked")
+	}
 }
 
 func Test_UI_MultipleProfiles(t *testing.T) {
@@ -92,6 +119,7 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 	mockMonitor := monitor.NewMockMonitor(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 	componentLogger := logger.NewMockLogger(ctrl)
+	mockChecker := updater.NewMockChecker(ctrl)
 
 	ctx := context.Background()
 
@@ -99,9 +127,18 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 		name    string
 		profile string
 	}{
-		{name: "Default profile", profile: "default"},
-		{name: "Custom profile", profile: "custom"},
-		{name: "Empty profile", profile: ""},
+		{
+			name:    "Default profile",
+			profile: "default",
+		},
+		{
+			name:    "Custom profile",
+			profile: "custom",
+		},
+		{
+			name:    "Empty profile",
+			profile: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -112,6 +149,7 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 			mockAPI := api.NewMockListener(ctrl)
 
 			mockBus.EXPECT().Subscribe(ctx).Return(msgChan)
+			mockChecker.EXPECT().Run(ctx).AnyTimes()
 			mockLogger.EXPECT().WithComponent("UI").Return(componentLogger)
 			mockLogger.EXPECT().Debug().Return(nil).AnyTimes()
 			componentLogger.EXPECT().Debug().Return(nil).AnyTimes()
@@ -125,6 +163,7 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 				Monitor:    mockMonitor,
 				Loader:     services.NewLoader(),
 				Logger:     mockLogger,
+				Checker:    mockChecker,
 			}
 
 			factory := NewUI(params)

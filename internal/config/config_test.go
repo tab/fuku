@@ -154,6 +154,56 @@ func Test_TelemetryDisabled(t *testing.T) {
 	}
 }
 
+func Test_UpdaterEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "enabled when Updater is true",
+			cfg:      &Config{Updater: true},
+			expected: true,
+		},
+		{
+			name:     "disabled when Updater is false",
+			cfg:      &Config{Updater: false},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.cfg.UpdaterEnabled())
+		})
+	}
+}
+
+func Test_UpdaterDisabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "disabled when Updater is false",
+			cfg:      &Config{Updater: false},
+			expected: true,
+		},
+		{
+			name:     "not disabled when Updater is true",
+			cfg:      &Config{Updater: true},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.cfg.UpdaterDisabled())
+		})
+	}
+}
+
 func Test_ServerListen(t *testing.T) {
 	tests := []struct {
 		name   string

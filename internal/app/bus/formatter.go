@@ -74,6 +74,8 @@ func (f *Formatter) Format(msgType MessageType, data any) string {
 	case APIStopped:
 	case APIRequest:
 		e.Str("method", d.Method).Str("path", d.Path).Int("status", d.Status).Str("duration", d.Duration.String())
+	case UpdateAvailable:
+		e.Str("version", d.Version)
 	default:
 		e.Interface("data", data)
 	}

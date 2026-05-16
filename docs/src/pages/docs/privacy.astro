@@ -69,4 +69,20 @@ rm ~/Library/Application\\ Support/fuku/telemetry.id
 
 # Linux
 rm ~/.config/fuku/telemetry.id`} />
+
+  <hr />
+
+  <h2>Update Notifications</h2>
+
+  <p>
+    On TUI startup, fuku queries the public <a href="https://api.github.com/repos/tab/fuku/releases/latest" target="_blank" rel="noopener">GitHub releases API</a> to see whether a newer release is available. When one is, the version footer renders an inline hint (e.g. <code>v0.19.1 - &uarr; v0.20.0</code>). The request carries no payload from fuku beyond a standard HTTPS GET; GitHub may log the requesting IP per its own policies.
+  </p>
+
+  <p>
+    The result is cached for 24 hours in the user config directory (<code>~/Library/Application Support/fuku/version.json</code> on macOS, <code>~/.config/fuku/version.json</code> on Linux), so subsequent runs do not hit the network. Network failures are silent.
+  </p>
+
+  <h3>Disable the check</h3>
+  <p>Skips the GitHub request entirely:</p>
+  <CodeTerminal code={`export FUKU_UPDATER_DISABLED=1`} />
 </DocsLayout>

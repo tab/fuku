@@ -89,6 +89,7 @@ func initConfig() *Config {
 	cfg.AppEnv = ResolveEnv()
 	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
 	cfg.Telemetry = os.Getenv("FUKU_TELEMETRY_DISABLED") != "1"
+	cfg.Updater = os.Getenv("FUKU_UPDATER_DISABLED") != "1"
 
 	return cfg
 }

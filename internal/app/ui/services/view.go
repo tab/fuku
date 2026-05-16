@@ -69,9 +69,14 @@ func (m Model) renderStatus() string {
 	)
 }
 
-// renderVersion renders the version string
+// renderVersion renders the version string with an optional update-available hint
 func (m Model) renderVersion() string {
-	return m.theme.PanelMutedStyle.Render("v" + config.Version)
+	current := m.theme.CurrentVersionStyle.Render("v" + config.Version)
+	if m.state.availableVersion == "" {
+		return current
+	}
+
+	return current + m.theme.PanelMutedStyle.Render(" - ") + m.theme.LatestVersionStyle.Render("↑ "+m.state.availableVersion)
 }
 
 // renderAppStats renders fuku's own CPU and memory usage with optional API indicator

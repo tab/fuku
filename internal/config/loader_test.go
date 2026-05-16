@@ -238,6 +238,51 @@ func Test_Load_Telemetry(t *testing.T) {
 	}
 }
 
+func Test_Load_Updater(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{
+			name:     "disabled when FUKU_UPDATER_DISABLED=1",
+			envValue: "1",
+			expected: false,
+		},
+		{
+			name:     "enabled when FUKU_UPDATER_DISABLED not set",
+			envValue: "",
+			expected: true,
+		},
+		{
+			name:     "enabled when FUKU_UPDATER_DISABLED=0",
+			envValue: "0",
+			expected: true,
+		},
+		{
+			name:     "enabled when FUKU_UPDATER_DISABLED=true",
+			envValue: "true",
+			expected: true,
+		},
+		{
+			name:     "enabled when FUKU_UPDATER_DISABLED is arbitrary string",
+			envValue: "anything",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("FUKU_UPDATER_DISABLED", tt.envValue)
+
+			cfg, _, err := Load()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.Updater)
+		})
+	}
+}
+
 func Test_Load_ConcurrencyConfig(t *testing.T) {
 	tests := []struct {
 		name            string

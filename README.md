@@ -20,6 +20,7 @@
 - **Hot-Reload** - Automatic service restart on file changes
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 - **REST API** - Control and monitor services via HTTP with token authentication
+- **Update Notifications** - TUI highlights a hint next to the version footer when a newer GitHub release is available (cached 24h, opt out via `FUKU_UPDATER_DISABLED=1`)
 
 ## Installation
 
@@ -213,6 +214,12 @@ Official release binaries include [Sentry](https://sentry.io) error tracking to 
 - Build from source to disable telemetry entirely
 
 See [Privacy & Telemetry](https://getfuku.sh/docs/privacy/) for full details on what is and isn't collected.
+
+## Update Notifications
+
+On TUI startup, fuku checks the GitHub releases API for a newer version and renders a highlighted hint next to the version footer when an update is available (e.g. `v0.19.1 - ↑ v0.20.0`, with the available version in coral). The result is cached for 24 hours; network failures are silent.
+
+- Set `FUKU_UPDATER_DISABLED=1` to disable the check entirely
 
 ## About the Name
 

@@ -439,9 +439,23 @@ func (m Model) handleMessage(msg bus.Message) (tea.Model, tea.Cmd) {
 		m = m.handlePreflightComplete()
 	case bus.EventSignal:
 		m = m.handleSignal()
+	case bus.EventUpdateAvailable:
+		m = m.handleUpdateAvailable(msg)
 	}
 
 	return m, waitForMsgCmd(m.msgChan)
+}
+
+// handleUpdateAvailable stores the latest version when a newer release is announced
+func (m Model) handleUpdateAvailable(msg bus.Message) Model {
+	data, ok := msg.Data.(bus.UpdateAvailable)
+	if !ok {
+		return m
+	}
+
+	m.state.availableVersion = data.Version
+
+	return m
 }
 
 // handleProfileResolved initializes services from profile data

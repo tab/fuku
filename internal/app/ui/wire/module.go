@@ -11,6 +11,7 @@ import (
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/services"
+	"fuku/internal/app/updater"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -35,6 +36,7 @@ type UIParams struct {
 	Store      registry.Store
 	Monitor    monitor.Monitor
 	Loader     *services.Loader
+	Checker    updater.Checker
 	Logger     logger.Logger
 }
 
@@ -52,6 +54,8 @@ func NewUI(params UIParams) UI {
 			params.Loader,
 			params.Logger,
 		)
+
+		go params.Checker.Run(ctx)
 
 		p := tea.NewProgram(
 			model,

@@ -70,6 +70,9 @@ var (
 	ErrNoInstanceRunning        = errors.New("no fuku instance is running")
 	ErrMultipleInstancesRunning = errors.New("multiple fuku instances running")
 	ErrInstanceNotFound         = errors.New("no fuku instance running with profile")
+
+	ErrEmptyReleaseTag         = errors.New("empty tag in release response")
+	ErrUnexpectedReleaseStatus = errors.New("unexpected release response status")
 )
 
 var (

@@ -38,6 +38,7 @@ const (
 	EventAPIStarted        MessageType = "api_started"
 	EventAPIStopped        MessageType = "api_stopped"
 	EventAPIRequest        MessageType = "api_request"
+	EventUpdateAvailable   MessageType = "update_available"
 )
 
 // Command types
@@ -223,6 +224,11 @@ type APIRequest struct {
 	Path     string
 	Status   int
 	Duration time.Duration
+}
+
+// UpdateAvailable indicates a newer release is available
+type UpdateAvailable struct {
+	Version string
 }
 
 // Bus handles pub/sub messaging

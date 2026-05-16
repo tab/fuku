@@ -138,6 +138,12 @@ func Test_FormatEvent(t *testing.T) {
 			contains: []string{"api_request", "method=GET", "path=/api/v1/status", "status=200"},
 		},
 		{
+			name:     "UpdateAvailable",
+			msgType:  EventUpdateAvailable,
+			data:     UpdateAvailable{Version: "v0.20.0"},
+			contains: []string{"update_available", "version=v0.20.0"},
+		},
+		{
 			name:     "Unknown",
 			msgType:  "unknown",
 			data:     struct{ Foo string }{Foo: "bar"},

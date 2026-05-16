@@ -37,6 +37,7 @@
    - **app/sampler/** - Periodic fuku process resource sampling (CPU/MEM) published as bus events
    - **app/tracer/** - Bus-driven Sentry transaction and span management
    - **app/ui/services/** - Interactive TUI with Bubble Tea framework
+   - **app/updater/** - GitHub release version checker that publishes update-available events on TUI startup
    - **app/watcher/** - File change detection with debouncing for hot-reload
    - **app/worker/** - Shared bounded worker pool for concurrent task execution
    - **config/** - Configuration loading, parsing, and data structures
@@ -137,6 +138,13 @@
 13. **metrics.Collector** - Bus-driven metrics collector:
     ```go
     type Collector interface {
+        Run(ctx context.Context)
+    }
+    ```
+
+14. **updater.Checker** - One-shot GitHub release checker that publishes `EventUpdateAvailable`:
+    ```go
+    type Checker interface {
         Run(ctx context.Context)
     }
     ```
@@ -312,6 +320,9 @@
 - `internal/app/runner/service_test.go` - Service start/stop/restart testing
 - `internal/app/sampler/sampler_test.go` - Resource sampler testing
 - `internal/app/tracer/tracer_test.go` - Sentry tracer testing
+- `internal/app/updater/cache_test.go` - Updater cache read/write/TTL testing
+- `internal/app/updater/checker_test.go` - GitHub release checker testing
+- `internal/app/updater/compare_test.go` - Semver comparison helper testing
 - `internal/app/worker/worker_test.go` - Worker pool testing
 - `internal/app/ui/components/blink_test.go` - Blink animation testing
 - `internal/app/ui/components/layout_test.go` - Layout component testing
@@ -649,6 +660,7 @@ git branch -D feature-branch-name
 - TUI styling: `charm.land/lipgloss/v2`
 - FSM: `github.com/looplab/fsm`
 - process monitoring: `github.com/shirou/gopsutil/v4`
+- semver comparison: `golang.org/x/mod/semver`
 
 ## Formatting Guidelines
 - always use `go fmt` for code formatting
