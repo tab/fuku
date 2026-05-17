@@ -66,13 +66,13 @@ func Test_Checker_Run(t *testing.T) {
 					assert.Equal(t, bus.EventUpdateAvailable, msg.Type)
 					data, ok := msg.Data.(bus.UpdateAvailable)
 					assert.True(t, ok)
-					assert.Equal(t, "v0.20.0", data.Version)
+					assert.Equal(t, "v0.99.0", data.Version)
 				})
 			},
 			updaterEnabled:   true,
-			cacheTag:         "v0.20.0",
+			cacheTag:         "v0.99.0",
 			cacheAge:         time.Hour,
-			expectedCacheTag: "v0.20.0",
+			expectedCacheTag: "v0.99.0",
 		},
 		{
 			name:             "cache fresh and same - no publish",

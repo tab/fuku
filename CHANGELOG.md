@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## v0.20.0
+
+### Features
+- **feat:** Notify users in TUI when a newer release is available
+
+### Build
+- **build:** Bump bubbletea and lipgloss
+- **build:** Bump github.com/getsentry/sentry-go from 0.45.1 to 0.46.2
+- **build:** Bump github.com/fsnotify/fsnotify from 1.9.0 to 1.10.1
+- **build:** Bump github.com/shirou/gopsutil/v4 from 4.26.3 to 4.26.4
+- **build:** Bump workflows and gradle/actions
+
+### Chore
+- **chore:** Update ARCHITECTURE.md, CLAUDE.md, README.md, and privacy page
+- **chore:** Bump astro to 6.3.3
+
 ## v0.19.1
 
 ### Fixes
