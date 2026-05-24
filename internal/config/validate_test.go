@@ -9,9 +9,9 @@ import (
 	"fuku/internal/app/errors"
 )
 
-const testToken = "test-token"
-
 func Test_Validate(t *testing.T) {
+	token := "test-token"
+
 	tests := []struct {
 		name        string
 		config      *Config
@@ -246,7 +246,7 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = "127.0.0.1:9876"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
@@ -257,7 +257,7 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = "[::1]:9876"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
@@ -273,7 +273,7 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = "localhost:9876"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
@@ -295,7 +295,7 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = "0.0.0.0:9876"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
@@ -307,7 +307,7 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = "not-valid"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
@@ -319,7 +319,7 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = "127.0.0.1:99999"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
@@ -331,7 +331,7 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = "127.0.0.1:0"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
@@ -343,12 +343,111 @@ func Test_Validate(t *testing.T) {
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.Server.Listen = ":9876"
-				cfg.Server.Auth.Token = testToken
+				cfg.Server.Auth.Token = token
 
 				return cfg
 			}(),
 			expectError: true,
 			errorMsg:    "api listen must be a valid host:port address",
+		},
+		{
+			name: "profile string referencing undefined service",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api"},
+				}
+				cfg.Profiles["backend"] = "missing"
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "profile 'backend' references undefined service 'missing'",
+		},
+		{
+			name: "profile list referencing undefined service",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api"},
+					"web": {Dir: "web"},
+				}
+				cfg.Profiles["backend"] = []any{"api", "missing"}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "profile 'backend' references undefined service 'missing'",
+		},
+		{
+			name: "profile referencing defined but excluded service is valid",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api"},
+					"web": {Dir: "web"},
+				}
+				cfg.Exclude = []string{"web"}
+				cfg.Profiles["backend"] = []any{"api", "web"}
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "wildcard profile is always valid",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api"},
+				}
+				cfg.Profiles["all"] = "*"
+
+				return cfg
+			}(),
+			expectError: false,
+		},
+		{
+			name: "profile list with non-string entry errors with unsupported format",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api"},
+				}
+				cfg.Profiles["backend"] = []any{"api", 42}
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "profile 'backend' contains non-string entry",
+		},
+		{
+			name: "profile with unsupported value type",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api"},
+				}
+				cfg.Profiles["backend"] = 42
+
+				return cfg
+			}(),
+			expectError: true,
+			errorMsg:    "unsupported profile format",
+		},
+		{
+			name: "valid profile list referencing existing services",
+			config: func() *Config {
+				cfg := DefaultConfig()
+				cfg.Services = map[string]*Service{
+					"api": {Dir: "api"},
+					"web": {Dir: "web"},
+				}
+				cfg.Profiles["backend"] = []any{"api", "web"}
+
+				return cfg
+			}(),
+			expectError: false,
 		},
 	}
 

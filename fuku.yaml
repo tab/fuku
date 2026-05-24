@@ -47,6 +47,14 @@ services:
       url: http://localhost:8080/health
     logs: *logs
 
+  worker:
+    dir: examples/bookstore/worker
+    tier: platform
+    readiness:
+      <<: *readiness-tcp
+      address: localhost:9091
+    logs: *logs
+
   frontend-api:
     dir: examples/bookstore/frontend-api
     tier: edge

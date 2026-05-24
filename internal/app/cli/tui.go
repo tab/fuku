@@ -6,7 +6,9 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/errors"
 	"fuku/internal/app/logs"
+	"fuku/internal/app/render"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
 	"fuku/internal/app/watcher"
@@ -28,6 +30,7 @@ type TUIParams struct {
 	Watcher  watcher.Watcher
 	Streamer logs.Screen
 	UI       wire.UI
+	Writer   *render.Writer
 	Logger   logger.Logger
 }
 
@@ -39,6 +42,7 @@ type tui struct {
 	watcher  watcher.Watcher
 	streamer logs.Screen
 	ui       wire.UI
+	writer   *render.Writer
 	log      logger.Logger
 }
 
@@ -51,6 +55,7 @@ func NewTUI(p TUIParams) TUI {
 		watcher:  p.Watcher,
 		streamer: p.Streamer,
 		ui:       p.UI,
+		writer:   p.Writer,
 		log:      p.Logger.WithComponent("TUI"),
 	}
 }
@@ -115,7 +120,9 @@ func (t *tui) runWithUI(ctx context.Context, profile string) (int, error) {
 
 	program, err := t.ui(ctx, profile)
 	if err != nil {
+		t.writer.SetEnabled(true)
 		t.log.Error().Err(err).Msg("Failed to create UI")
+
 		return 1, err
 	}
 
@@ -125,20 +132,37 @@ func (t *tui) runWithUI(ctx context.Context, profile string) (int, error) {
 		runnerErrChan <- t.runner.Run(ctx, profile)
 	}()
 
-	if _, err := program.Run(); err != nil {
-		t.log.Error().Err(err).Msg("UI error")
+	uiErrChan := make(chan error, 1)
 
+	go func() {
+		_, err := program.Run()
+		uiErrChan <- err
+	}()
+
+	var runnerErr, uiErr error
+
+	select {
+	case runnerErr = <-runnerErrChan:
 		cancel()
-		<-runnerErrChan
+		program.Quit()
 
-		return 1, err
+		uiErr = <-uiErrChan
+	case uiErr = <-uiErrChan:
+		cancel()
+
+		runnerErr = <-runnerErrChan
 	}
 
-	cancel()
+	t.writer.SetEnabled(true)
 
-	if err := <-runnerErrChan; err != nil {
-		t.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)
-		return 1, err
+	if runnerErr != nil {
+		t.log.Error().Err(runnerErr).Msgf("Failed to run profile '%s'", profile)
+		return 1, runnerErr
+	}
+
+	if uiErr != nil && !errors.Is(uiErr, context.Canceled) {
+		t.log.Error().Err(uiErr).Msg("UI error")
+		return 1, uiErr
 	}
 
 	return 0, nil

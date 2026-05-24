@@ -27,6 +27,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateProfiles(); err != nil {
+		return err
+	}
+
 	for name, service := range c.Services {
 		if err := service.validateCommand(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
@@ -46,6 +50,53 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// validateProfiles ensures every service referenced by a profile exists in the service catalog
+func (c *Config) validateProfiles() error {
+	for profile, value := range c.Profiles {
+		if err := c.validateProfileEntry(profile, value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateProfileEntry validates a single profile value against the service catalog
+func (c *Config) validateProfileEntry(profile string, value any) error {
+	switch v := value.(type) {
+	case string:
+		if v == "*" {
+			return nil
+		}
+
+		return c.checkProfileService(profile, v)
+	case []any:
+		for _, item := range v {
+			name, ok := item.(string)
+			if !ok {
+				return fmt.Errorf("%w: profile '%s' contains non-string entry", errors.ErrUnsupportedProfileFormat, profile)
+			}
+
+			if err := c.checkProfileService(profile, name); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	default:
+		return fmt.Errorf("%w: %s", errors.ErrUnsupportedProfileFormat, profile)
+	}
+}
+
+// checkProfileService verifies a single referenced service exists in the catalog
+func (c *Config) checkProfileService(profile, name string) error {
+	if _, exists := c.Services[name]; exists {
+		return nil
+	}
+
+	return fmt.Errorf("%w: profile '%s' references undefined service '%s'", errors.ErrProfileReferenceUndefined, profile, name)
 }
 
 // validateConcurrency validates concurrency settings

@@ -15,12 +15,17 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/logs"
+	"fuku/internal/app/render"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
 	"fuku/internal/app/watcher"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
+
+func newTestWriter() *render.Writer {
+	return render.NewWriter(&config.Config{}, render.NewLog(false), io.Discard)
+}
 
 func Test_NewTUI(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -37,6 +42,8 @@ func Test_NewTUI(t *testing.T) {
 	componentLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().WithComponent("TUI").Return(componentLogger)
 
+	writer := newTestWriter()
+
 	b := bus.NoOp()
 	tuiInstance := NewTUI(TUIParams{
 		Cmd:      cmd,
@@ -45,6 +52,7 @@ func Test_NewTUI(t *testing.T) {
 		Watcher:  mockWatcher,
 		Streamer: mockLogsScreen,
 		UI:       mockUI,
+		Writer:   writer,
 		Logger:   mockLogger,
 	})
 	assert.NotNil(t, tuiInstance)
@@ -59,6 +67,7 @@ func Test_NewTUI(t *testing.T) {
 	assert.Equal(t, mockLogsScreen, instance.streamer)
 	assert.NotNil(t, instance.ui)
 	assert.Equal(t, componentLogger, instance.log)
+	assert.Equal(t, writer, instance.writer)
 }
 
 func Test_Execute(t *testing.T) {
@@ -325,6 +334,12 @@ func (m quitModel) Init() tea.Cmd                       { return tea.Quit }
 func (m quitModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return m, tea.Quit }
 func (m quitModel) View() tea.View                      { return tea.NewView("") }
 
+type blockingModel struct{}
+
+func (m blockingModel) Init() tea.Cmd                       { return nil }
+func (m blockingModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return m, nil }
+func (m blockingModel) View() tea.View                      { return tea.NewView("") }
+
 func Test_runWithUI_UICreationError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -333,12 +348,13 @@ func Test_runWithUI_UICreationError(t *testing.T) {
 	mockLogger := logger.NewMockLogger(ctrl)
 	mockLogger.EXPECT().Error().Return(nil)
 
-	mockRunner.EXPECT().Run(gomock.Any(), "test").Return(nil).AnyTimes()
+	mockRunner.EXPECT().Run(gomock.Any(), "test").Times(0)
 
 	tu := &tui{
 		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
 		runner: mockRunner,
 		log:    mockLogger,
+		writer: newTestWriter(),
 		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
 			return nil, errors.New("failed to create UI")
 		},
@@ -350,17 +366,53 @@ func Test_runWithUI_UICreationError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func Test_runWithUI_RunnerError(t *testing.T) {
+func Test_runWithUI_UIQuitSurfacesRunnerError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil)
+
+	runnerErr := errors.New("runner failed")
+
+	mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
+		<-ctx.Done()
+		return runnerErr
+	})
+
+	inputR, inputW, err := os.Pipe()
+	require.NoError(t, err)
+	inputW.Close()
+
+	tu := &tui{
+		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
+		runner: mockRunner,
+		log:    mockLogger,
+		writer: newTestWriter(),
+		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+			return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
+		},
+	}
+
+	exitCode, runErr := tu.runWithUI(context.Background(), "test")
+
+	inputR.Close()
+
+	assert.Equal(t, 1, exitCode)
+	require.Error(t, runErr)
+	assert.Equal(t, runnerErr, runErr)
+}
+
+func Test_runWithUI_RunnerErrorQuitsUI(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockRunner := runner.NewMockRunner(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
-	mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
-		<-ctx.Done()
-		return errors.New("runner failed")
-	})
+	runnerErr := errors.New("runner failed early")
+	mockRunner.EXPECT().Run(gomock.Any(), "test").Return(runnerErr)
 	mockLogger.EXPECT().Error().Return(nil)
 
 	inputR, inputW, err := os.Pipe()
@@ -371,32 +423,19 @@ func Test_runWithUI_RunnerError(t *testing.T) {
 		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
 		runner: mockRunner,
 		log:    mockLogger,
+		writer: newTestWriter(),
 		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
-			return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
+			return tea.NewProgram(blockingModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
 		},
 	}
 
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-
-	os.Stdout = w
-
-	exitCode, err := tu.runWithUI(context.Background(), "test")
-
-	w.Close()
-
-	os.Stdout = oldStdout
+	exitCode, runErr := tu.runWithUI(context.Background(), "test")
 
 	inputR.Close()
 
-	var buf bytes.Buffer
-
-	_, _ = io.Copy(&buf, r)
-	r.Close()
-
 	assert.Equal(t, 1, exitCode)
-	require.Error(t, err)
+	require.Error(t, runErr)
+	assert.Equal(t, runnerErr, runErr)
 }
 
 func Test_runWithUI_Success(t *testing.T) {
@@ -419,6 +458,7 @@ func Test_runWithUI_Success(t *testing.T) {
 		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
 		runner: mockRunner,
 		log:    mockLogger,
+		writer: newTestWriter(),
 		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
 			return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
 		},
@@ -430,6 +470,37 @@ func Test_runWithUI_Success(t *testing.T) {
 
 	assert.Equal(t, 0, exitCode)
 	require.NoError(t, err)
+}
+
+func Test_runWithUI_RunnerExitsSuccessWithContextBoundUI(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	mockRunner.EXPECT().Run(gomock.Any(), "test").Return(nil)
+
+	inputR, inputW, err := os.Pipe()
+	require.NoError(t, err)
+	inputW.Close()
+
+	tu := &tui{
+		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
+		runner: mockRunner,
+		log:    mockLogger,
+		writer: newTestWriter(),
+		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+			return tea.NewProgram(blockingModel{}, tea.WithContext(ctx), tea.WithInput(inputR), tea.WithoutRenderer()), nil
+		},
+	}
+
+	exitCode, runErr := tu.runWithUI(context.Background(), "test")
+
+	inputR.Close()
+
+	assert.Equal(t, 0, exitCode)
+	require.NoError(t, runErr)
 }
 
 func Test_handleStop(t *testing.T) {

@@ -40,6 +40,10 @@ services:
     tier: platform
     watch: *watch
 
+  worker:
+    tier: sidekick
+    watch: *watch
+
   api:
     tier: edge
     watch: *watch
@@ -47,6 +51,9 @@ services:
   frontend-api:
     tier: edge
     watch: *watch
+
+exclude:
+  - worker
 
 concurrency:
   workers: 5

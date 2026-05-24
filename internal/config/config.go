@@ -13,6 +13,7 @@ type Config struct {
 	Services    map[string]*Service `yaml:"services"`
 	Defaults    *ServiceDefaults    `yaml:"defaults"`
 	Profiles    map[string]any      `yaml:"profiles"`
+	Exclude     []string            `yaml:"exclude"`
 	Logging     Logging             `yaml:"logging"`
 	Concurrency Concurrency         `yaml:"concurrency"`
 	Retry       Retry               `yaml:"retry"`
@@ -98,6 +99,12 @@ func (c *Config) UpdaterDisabled() bool {
 	return !c.UpdaterEnabled()
 }
 
+// Normalize runs all post-parse normalization steps on the config
+func (c *Config) Normalize() {
+	c.normalizeTiers()
+	c.normalizeExclude()
+}
+
 // normalizeTiers normalizes tier names in services to match parsed values
 func (c *Config) normalizeTiers() {
 	for _, service := range c.Services {
@@ -112,6 +119,34 @@ func (c *Config) normalizeTiers() {
 // normalizeTier trims whitespace and lowercases a tier name
 func normalizeTier(tier string) string {
 	return strings.ToLower(strings.TrimSpace(tier))
+}
+
+// normalizeExclude trims whitespace, drops empty entries, and deduplicates the exclude list preserving order
+func (c *Config) normalizeExclude() {
+	if len(c.Exclude) == 0 {
+		return
+	}
+
+	seen := make(map[string]bool, len(c.Exclude))
+	result := make([]string, 0, len(c.Exclude))
+
+	for _, name := range c.Exclude {
+		trimmed := strings.TrimSpace(name)
+
+		if trimmed == "" {
+			continue
+		}
+
+		if seen[trimmed] {
+			continue
+		}
+
+		seen[trimmed] = true
+
+		result = append(result, trimmed)
+	}
+
+	c.Exclude = result
 }
 
 // Service represents a service configuration

@@ -84,6 +84,12 @@ func Test_MergeYAML(t *testing.T) {
 			expected: "services:\n  api:\n    watch:\n      include:\n        - '*.go'\n        - '*.go'\n        - '*.templ'\n",
 		},
 		{
+			name:     "exclude lists concatenate",
+			base:     "exclude:\n  - api\n",
+			override: "exclude:\n  - web\n  - api\n",
+			expected: "exclude:\n  - api\n  - web\n  - api\n",
+		},
+		{
 			name:     "comment-only override is a no-op",
 			base:     "logging:\n  level: info\n",
 			override: "# just a comment\n",

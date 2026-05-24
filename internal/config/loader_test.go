@@ -35,8 +35,7 @@ services:
     profiles: [test]
 profiles:
   test:
-    include:
-      - test-service
+    - test-service
 logging:
   level: debug
   format: json
@@ -618,6 +617,99 @@ services:
 			}
 		})
 	}
+}
+
+func Test_Load_Exclude(t *testing.T) {
+	tests := []struct {
+		name     string
+		yaml     string
+		expected []string
+	}{
+		{
+			name: "exclude list parsed",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+  web:
+    dir: ./web
+exclude:
+  - web
+`,
+			expected: []string{"web"},
+		},
+		{
+			name: "exclude empty when not set",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+`,
+			expected: nil,
+		},
+		{
+			name: "exclude normalizes whitespace and dedups",
+			yaml: `version: 1
+services:
+  api:
+    dir: ./api
+  web:
+    dir: ./web
+  worker:
+    dir: ./worker
+exclude:
+  - "  web  "
+  - ""
+  - web
+  - worker
+`,
+			expected: []string{"web", "worker"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			err := os.WriteFile(ConfigFile, []byte(tt.yaml), 0644)
+			require.NoError(t, err)
+
+			cfg, _, err := Load()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.Exclude)
+		})
+	}
+}
+
+func Test_Load_Exclude_OverrideConcatenatesAndDedups(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	base := `version: 1
+services:
+  api:
+    dir: ./api
+  web:
+    dir: ./web
+  worker:
+    dir: ./worker
+exclude:
+  - web
+`
+	override := `exclude:
+  - worker
+  - web
+`
+
+	err := os.WriteFile(ConfigFile, []byte(base), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
+	require.NoError(t, err)
+
+	cfg, _, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"web", "worker"}, cfg.Exclude)
 }
 
 func Test_Load_Override(t *testing.T) {
