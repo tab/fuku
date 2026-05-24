@@ -191,6 +191,9 @@ profiles:
   debug-tool:
     dir: tools/debug                    # add a local-only service
 
+exclude:
+  - heavy-worker                        # skip this service locally
+
 logging:
   level: debug                          # override log level`} />
 
@@ -235,6 +238,25 @@ logging:
     <li>An override file without a base config is ignored</li>
     <li>Null removal applies to the merged YAML – some removed keys may still have runtime defaults (e.g. <code>logging: null</code> still gets default log level)</li>
     <li>If both <code>fuku.override.yaml</code> and <code>fuku.override.yml</code> exist, <code>.yaml</code> wins</li>
+  </ul>
+
+  <hr />
+
+  <div class="section-eyebrow">Skipping services</div>
+  <h2>Excluding services</h2>
+
+  <p>
+    Use the top-level <code>exclude</code> list to skip services at discovery time without mutating the service catalog. Excluded services keep their definitions in <code>services:</code> – so profile lists referencing them still pass config validation – and <code>fuku run</code> silently drops them at startup. This is the recommended way to disable services locally via <code>fuku.override.yaml</code>.
+  </p>
+
+  <CodeEditor title="fuku.override.yaml" lang="yaml" code={`exclude:
+  - heavy-worker
+  - flaky-integration`} />
+
+  <ul>
+    <li>Entries are trimmed of whitespace and deduplicated</li>
+    <li>Names that aren't defined in <code>services:</code> are ignored at runtime</li>
+    <li>Profile references to excluded services remain valid – they're filtered out before startup</li>
   </ul>
 
   <hr />

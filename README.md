@@ -114,12 +114,26 @@ services:
   debug-tool:
     dir: tools/debug                    # add a local-only service
 
+exclude:
+  - heavy-worker                        # skip this service locally without editing profiles
+
 logging:
   level: debug
 ```
 
 Override merges are applied automatically when using default config discovery.
 Explicit `--config` skips override loading. Maps are deep-merged, arrays are concatenated, and setting a key to `null` removes it.
+
+### Excluding Services
+
+Use the top-level `exclude` list to skip services at discovery time without mutating the service catalog.
+Excluded services keep their definitions in `services:` (so profile lists referencing them still pass config validation) and `fuku run` will silently drop them at startup.
+This is the recommended way to disable services locally via `fuku.override.yaml`.
+
+```yaml
+exclude:
+  - heavy-worker
+```
 
 See the [documentation](https://getfuku.sh/docs/configuration/) for full details.
 
