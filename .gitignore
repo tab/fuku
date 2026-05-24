@@ -40,3 +40,6 @@ fuku.override.yml
 docs/node_modules/
 docs/dist/
 docs/.astro/
+
+# Plans
+docs/plans/
