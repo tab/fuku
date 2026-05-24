@@ -40,6 +40,9 @@ func (d *discovery) Resolve(profile string) ([]Tier, error) {
 		return nil, err
 	}
 
+	excludeSet := d.buildExcludeSet()
+	serviceNames = filterExcluded(serviceNames, excludeSet)
+
 	services, err := d.resolveServiceOrder(serviceNames)
 	if err != nil {
 		return nil, err
@@ -50,6 +53,38 @@ func (d *discovery) Resolve(profile string) ([]Tier, error) {
 	}
 
 	return d.groupServicesByTier(services), nil
+}
+
+// buildExcludeSet returns a lookup set of excluded service names
+func (d *discovery) buildExcludeSet() map[string]bool {
+	if len(d.cfg.Exclude) == 0 {
+		return nil
+	}
+
+	set := make(map[string]bool, len(d.cfg.Exclude))
+	for _, name := range d.cfg.Exclude {
+		set[name] = true
+	}
+
+	return set
+}
+
+// filterExcluded returns the input list with excluded names removed
+func filterExcluded(names []string, excludeSet map[string]bool) []string {
+	if len(excludeSet) == 0 {
+		return names
+	}
+
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		if excludeSet[name] {
+			continue
+		}
+
+		result = append(result, name)
+	}
+
+	return result
 }
 
 // getServicesForProfile returns the list of services for a given profile

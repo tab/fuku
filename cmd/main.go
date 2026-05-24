@@ -96,7 +96,7 @@ func createApp(cfg *config.Config, topology *config.Topology, cmd *cli.Options) 
 
 	return fx.New(
 		fx.WithLogger(createFxLogger(cfg)),
-		fx.Supply(cfg, topology, log, cmd),
+		fx.Supply(cfg, topology, log, cmd, writer),
 		fx.Provide(func() logger.Logger {
 			return logger.NewLoggerWithOutput(cfg, writer)
 		}),

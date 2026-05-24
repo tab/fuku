@@ -51,3 +51,30 @@ func Test_Override_ConfigFlagSkipsOverride(t *testing.T) {
 	assert.Contains(t, output, "service=auth-api")
 	assert.NotContains(t, output, "debug-tool")
 }
+
+func Test_Override_ExcludeSuppressesService(t *testing.T) {
+	runner := NewRunner(t, "testdata/exclude")
+	defer runner.Stop()
+
+	err := runner.Start("default")
+	require.NoError(t, err)
+
+	err = runner.WaitForServiceStarted("auth-api", 10*time.Second)
+	require.NoError(t, err)
+
+	err = runner.WaitForServiceStarted("user-api", 10*time.Second)
+	require.NoError(t, err)
+
+	err = runner.WaitForRunning(15 * time.Second)
+	require.NoError(t, err)
+
+	output := runner.Output()
+	stderr := runner.Stderr()
+
+	assert.Contains(t, output, "profile_resolved profile=default")
+	assert.Contains(t, output, "service=auth-api")
+	assert.Contains(t, output, "service=user-api")
+	assert.NotContains(t, output, "Started service 'debug-tool'")
+	assert.NotContains(t, output, "service not found")
+	assert.NotContains(t, stderr, "service not found")
+}

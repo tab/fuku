@@ -15,8 +15,9 @@ var (
 	ErrInvalidLogsHistory        = errors.New("logs history must be greater than 0")
 	ErrNoServicesDefined         = errors.New("no services defined")
 
-	ErrProfileNotFound          = errors.New("profile not found")
-	ErrUnsupportedProfileFormat = errors.New("unsupported profile format")
+	ErrProfileNotFound           = errors.New("profile not found")
+	ErrUnsupportedProfileFormat  = errors.New("unsupported profile format")
+	ErrProfileReferenceUndefined = errors.New("profile references undefined service")
 
 	ErrServiceNotFound          = errors.New("service not found")
 	ErrServiceDirectoryNotExist = errors.New("service directory does not exist")

@@ -205,6 +205,8 @@ func Test_UpdaterDisabled(t *testing.T) {
 }
 
 func Test_ServerListen(t *testing.T) {
+	cfg := DefaultConfig()
+
 	tests := []struct {
 		name   string
 		listen string
@@ -224,7 +226,6 @@ func Test_ServerListen(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := DefaultConfig()
 			cfg.Server.Listen = tt.listen
 
 			assert.Equal(t, tt.want, cfg.ServerListen())
@@ -233,6 +234,8 @@ func Test_ServerListen(t *testing.T) {
 }
 
 func Test_ServerToken(t *testing.T) {
+	cfg := DefaultConfig()
+
 	tests := []struct {
 		name  string
 		token string
@@ -252,7 +255,6 @@ func Test_ServerToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := DefaultConfig()
 			cfg.Server.Auth.Token = tt.token
 
 			assert.Equal(t, tt.want, cfg.ServerToken())
@@ -302,6 +304,119 @@ func Test_NormalizeTier(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := normalizeTier(tt.tier)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_NormalizeExclude(t *testing.T) {
+	cfg := &Config{}
+
+	tests := []struct {
+		name     string
+		exclude  []string
+		expected []string
+	}{
+		{
+			name:     "nil exclude unchanged",
+			exclude:  nil,
+			expected: nil,
+		},
+		{
+			name:     "empty exclude unchanged",
+			exclude:  []string{},
+			expected: []string{},
+		},
+		{
+			name:     "single entry preserved",
+			exclude:  []string{"api"},
+			expected: []string{"api"},
+		},
+		{
+			name:     "whitespace trimmed",
+			exclude:  []string{"  api  ", "\tworker\t"},
+			expected: []string{"api", "worker"},
+		},
+		{
+			name:     "empty strings dropped",
+			exclude:  []string{"api", "", "worker"},
+			expected: []string{"api", "worker"},
+		},
+		{
+			name:     "whitespace-only entries dropped",
+			exclude:  []string{"api", "   ", "worker"},
+			expected: []string{"api", "worker"},
+		},
+		{
+			name:     "duplicates deduplicated preserving order",
+			exclude:  []string{"api", "worker", "api", "db", "worker"},
+			expected: []string{"api", "worker", "db"},
+		},
+		{
+			name:     "duplicates after trim deduplicated",
+			exclude:  []string{"api", " api ", "worker"},
+			expected: []string{"api", "worker"},
+		},
+		{
+			name:     "all empty entries result in empty slice",
+			exclude:  []string{"", "   ", "\t"},
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg.Exclude = tt.exclude
+
+			cfg.normalizeExclude()
+			assert.Equal(t, tt.expected, cfg.Exclude)
+		})
+	}
+}
+
+func Test_Normalize(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected *Config
+	}{
+		{
+			name: "normalizes tiers and exclude together",
+			cfg: &Config{
+				Services: map[string]*Service{
+					"api":    {Tier: "  Foundation "},
+					"worker": {Tier: "PLATFORM"},
+				},
+				Defaults: &ServiceDefaults{Tier: " Foundation "},
+				Exclude:  []string{"api", "  api  ", "", "worker"},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api":    {Tier: "foundation"},
+					"worker": {Tier: "platform"},
+				},
+				Defaults: &ServiceDefaults{Tier: "foundation"},
+				Exclude:  []string{"api", "worker"},
+			},
+		},
+		{
+			name: "no defaults and no exclude",
+			cfg: &Config{
+				Services: map[string]*Service{
+					"api": {Tier: "FOUNDATION"},
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Tier: "foundation"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.Normalize()
+			assert.Equal(t, tt.expected, tt.cfg)
 		})
 	}
 }

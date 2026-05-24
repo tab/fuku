@@ -19,6 +19,7 @@ func Test_Resolve(t *testing.T) {
 		name     string
 		services map[string]*config.Service
 		profiles map[string]any
+		exclude  []string
 		profile  string
 		expected result
 	}{
@@ -287,6 +288,92 @@ func Test_Resolve(t *testing.T) {
 				error: false,
 			},
 		},
+		{
+			name: "Exclude removes a service from wildcard profile",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Tier: "platform"},
+				"web": {Dir: "web", Tier: "edge"},
+			},
+			profiles: map[string]any{"all": "*"},
+			exclude:  []string{"web"},
+			profile:  "all",
+			expected: result{
+				tiers: []Tier{
+					{Name: "platform", Services: []string{"api"}},
+				},
+				error: false,
+			},
+		},
+		{
+			name: "Exclude removes a service listed explicitly in profile",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Tier: "platform"},
+				"web": {Dir: "web", Tier: "edge"},
+			},
+			profiles: map[string]any{"backend": []any{"api", "web"}},
+			exclude:  []string{"web"},
+			profile:  "backend",
+			expected: result{
+				tiers: []Tier{
+					{Name: "platform", Services: []string{"api"}},
+				},
+				error: false,
+			},
+		},
+		{
+			name: "Exclude with name not in catalog is a no-op",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Tier: "platform"},
+				"web": {Dir: "web", Tier: "edge"},
+			},
+			profiles: map[string]any{"all": "*"},
+			exclude:  []string{"missing"},
+			profile:  "all",
+			expected: result{
+				tiers: []Tier{
+					{Name: "platform", Services: []string{"api"}},
+					{Name: "edge", Services: []string{"web"}},
+				},
+				error: false,
+			},
+		},
+		{
+			name: "Exclude across multiple tiers leaves remaining tiers intact",
+			services: map[string]*config.Service{
+				"db":      {Dir: "db", Tier: "foundation"},
+				"cache":   {Dir: "cache", Tier: "foundation"},
+				"api":     {Dir: "api", Tier: "platform"},
+				"worker":  {Dir: "worker", Tier: "platform"},
+				"web":     {Dir: "web", Tier: "edge"},
+				"console": {Dir: "console", Tier: "edge"},
+			},
+			profiles: map[string]any{"all": "*"},
+			exclude:  []string{"cache", "worker"},
+			profile:  "all",
+			expected: result{
+				tiers: []Tier{
+					{Name: "foundation", Services: []string{"db"}},
+					{Name: "platform", Services: []string{"api"}},
+					{Name: "edge", Services: []string{"console", "web"}},
+				},
+				error: false,
+			},
+		},
+		{
+			name: "Exclude allows undefined service in profile list without error",
+			services: map[string]*config.Service{
+				"api": {Dir: "api", Tier: "platform"},
+			},
+			profiles: map[string]any{"backend": []any{"api", "removed"}},
+			exclude:  []string{"removed"},
+			profile:  "backend",
+			expected: result{
+				tiers: []Tier{
+					{Name: "platform", Services: []string{"api"}},
+				},
+				error: false,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -294,6 +381,7 @@ func Test_Resolve(t *testing.T) {
 			cfg := &config.Config{
 				Services: tt.services,
 				Profiles: tt.profiles,
+				Exclude:  tt.exclude,
 			}
 			topology := &config.Topology{
 				Order: extractTierOrderFromExpected(tt.expected.tiers),

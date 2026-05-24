@@ -201,7 +201,7 @@ func parseConfig(cfg *Config, data []byte) (*Config, *Topology, error) {
 	}
 
 	cfg.ApplyDefaults()
-	cfg.normalizeTiers()
+	cfg.Normalize()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", errors.ErrInvalidConfig, err)

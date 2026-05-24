@@ -1,0 +1,16 @@
+version: 1
+
+services:
+  auth-api:
+    dir: auth-api
+  debug-tool:
+    dir: debug-tool
+  user-api:
+    dir: user-api
+
+profiles:
+  default: [auth-api, debug-tool, user-api]
+
+logging:
+  format: console
+  level: debug

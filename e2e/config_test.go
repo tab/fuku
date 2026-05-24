@@ -142,3 +142,28 @@ func Test_ConfigFlag_MissingDirectory(t *testing.T) {
 	assert.Equal(t, 1, result.ExitCode)
 	assert.Contains(t, result.Stderr, "failed to read config file")
 }
+
+func Test_ProfileReferenceUndefined_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+
+	yaml := `version: 1
+
+services:
+  echo-api:
+    dir: echo-api
+
+profiles:
+  default: "*"
+  backend: [echo-api, nonexistent-service]
+`
+
+	err := os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte(yaml), 0644)
+	require.NoError(t, err)
+
+	result := RunOnce(t, dir, "run", "backend", "--no-ui")
+
+	assert.Equal(t, 1, result.ExitCode)
+	assert.Contains(t, result.Stderr, "profile references undefined service")
+	assert.Contains(t, result.Stderr, "backend")
+	assert.Contains(t, result.Stderr, "nonexistent-service")
+}
