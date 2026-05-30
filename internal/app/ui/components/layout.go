@@ -60,14 +60,14 @@ type TableLayout struct {
 // PreferredNameTextWidth picks a bucket value based on the longest service name length
 func PreferredNameTextWidth(name int) int {
 	switch {
-	case name <= NameWidthShort:
-		return NameWidthShort
-	case name <= NameWidthMedium:
-		return NameWidthMedium
-	case name <= NameWidthLong:
-		return NameWidthLong
+	case name <= ServiceNameWidthShort:
+		return ServiceNameWidthShort
+	case name <= ServiceNameWidthMedium:
+		return ServiceNameWidthMedium
+	case name <= ServiceNameWidthLong:
+		return ServiceNameWidthLong
 	default:
-		return name + NameTrailingGap
+		return name + ServiceNameTrailingGap
 	}
 }
 
@@ -79,14 +79,14 @@ func ComputeTableLayout(contentWidth, preferredNameTextWidth int) TableLayout {
 
 	preferredNameWidth := IndicatorColumnWidth + preferredNameTextWidth
 
-	statusWidth := min(contentWidth/StatusWidthDivisor, MaxStatusWidth)
-	metricWidth := min(contentWidth/MetricWidthDivisor, MaxMetricWidth)
+	statusWidth := min(contentWidth/StatusWidthDivisor, StatusMaxWidth)
+	metricWidth := min(contentWidth/MetricWidthDivisor, MetricMaxWidth)
 
-	available := contentWidth - statusWidth - MetricColumnCount*metricWidth
+	available := contentWidth - statusWidth - MetricFullColumnCount*metricWidth
 
 	serviceNameWidth, timelineWidth, gap := allocateNameAndTimeline(available, preferredNameWidth)
 
-	used := serviceNameWidth + timelineWidth + gap + statusWidth + MetricColumnCount*metricWidth
+	used := serviceNameWidth + timelineWidth + gap + statusWidth + MetricFullColumnCount*metricWidth
 	surplus := max(contentWidth-used, 0)
 	leftFlex := surplus / 2
 	rightFlex := surplus - leftFlex
@@ -109,19 +109,19 @@ func allocateNameAndTimeline(available, preferredNameWidth int) (name, timeline,
 		return 0, 0, 0
 	}
 
-	fullTotal := preferredNameWidth + DefaultTimelineSlots + TimelineGap
+	fullTotal := preferredNameWidth + TimelineDefaultSlots + TimelineGap
 	if available >= fullTotal {
-		return preferredNameWidth, DefaultTimelineSlots, TimelineGap
+		return preferredNameWidth, TimelineDefaultSlots, TimelineGap
 	}
 
-	preferredNameWithMinTimeline := preferredNameWidth + MinTimelineWidth + TimelineGap
+	preferredNameWithMinTimeline := preferredNameWidth + TimelineMinWidth + TimelineGap
 	if available >= preferredNameWithMinTimeline {
 		return preferredNameWidth, available - preferredNameWidth - TimelineGap, TimelineGap
 	}
 
-	nameWithMinTimeline := available - MinTimelineWidth - TimelineGap
-	if nameWithMinTimeline >= MinServiceNameWidth {
-		return nameWithMinTimeline, MinTimelineWidth, TimelineGap
+	nameWithMinTimeline := available - TimelineMinWidth - TimelineGap
+	if nameWithMinTimeline >= ServiceNameMinWidth {
+		return nameWithMinTimeline, TimelineMinWidth, TimelineGap
 	}
 
 	return available, 0, 0
@@ -176,11 +176,11 @@ func BuildTopBorder(border func(string) string, titleText, topRightText string, 
 	spacer := PanelTitleSpacer.Render("")
 	leftSpacer, rightSpacer := SplitAtDisplayWidth(spacer)
 
-	titleLen := lipgloss.Width(titleText) + SpacerWidth + BorderEdgeWidth
+	titleLen := lipgloss.Width(titleText) + BorderSpacerWidth + BorderEdgeWidth
 
 	rightLen := 0
 	if topRightText != "" {
-		rightLen = lipgloss.Width(topRightText) + SpacerWidth + BorderEdgeWidth
+		rightLen = lipgloss.Width(topRightText) + BorderSpacerWidth + BorderEdgeWidth
 	}
 
 	fillWidth := max(innerWidth-titleLen-rightLen, 1)
@@ -206,12 +206,12 @@ func BuildBottomBorder(border func(string) string, bottomLeftText, bottomRightTe
 	spacer := PanelTitleSpacer.Render("")
 	leftSpacer, rightSpacer := SplitAtDisplayWidth(spacer)
 
-	rightLen := lipgloss.Width(bottomRightText) + SpacerWidth + BorderEdgeWidth
+	rightLen := lipgloss.Width(bottomRightText) + BorderSpacerWidth + BorderEdgeWidth
 
 	leftLen := 0
 
 	if bottomLeftText != "" {
-		leftLen = lipgloss.Width(bottomLeftText) + SpacerWidth + BorderEdgeWidth
+		leftLen = lipgloss.Width(bottomLeftText) + BorderSpacerWidth + BorderEdgeWidth
 	}
 
 	middleWidth := max(innerWidth-leftLen-rightLen, 1)

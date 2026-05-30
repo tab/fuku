@@ -19,7 +19,7 @@ import (
 )
 
 func layoutForWidth(rowWidth int) components.TableLayout {
-	return components.ComputeTableLayout(rowWidth-components.RowHorizontalPadding, components.NameWidthLong)
+	return components.ComputeTableLayout(rowWidth-components.RowHorizontalPadding, components.ServiceNameWidthLong)
 }
 
 func Test_View_NotReady(t *testing.T) {
@@ -255,7 +255,7 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 			m.ui.width = tt.viewportWidth + 8
 			m.ui.layout = layoutForWidth(tt.viewportWidth)
 			m.ui.servicesViewport.SetWidth(tt.viewportWidth)
-			service := &ServiceState{Name: tt.serviceName, Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)}
+			service := &ServiceState{Name: tt.serviceName, Status: StatusRunning, Timeline: NewTimeline(components.TimelineDefaultSlots)}
 
 			result := m.renderServiceRow(service, false)
 
@@ -300,7 +300,7 @@ func Test_RenderServiceRow_LongUptimeDoesNotWrap(t *testing.T) {
 				CPU:       1.0,
 				MEM:       64,
 				StartTime: hundredHoursAgo,
-				Timeline:  NewTimeline(components.DefaultTimelineSlots),
+				Timeline:  NewTimeline(components.TimelineDefaultSlots),
 			}
 
 			row := m.renderServiceRow(service, false)
@@ -327,8 +327,8 @@ func Test_RenderServiceRow_LongSharedPrefixNamesDistinguishableOnWideTerminal(t 
 	m.ui.servicesViewport.SetWidth(rowWidth)
 	m.theme = components.DefaultTheme()
 	m.state.services = map[string]*ServiceState{
-		"id-a": {Name: nameA, Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)},
-		"id-b": {Name: nameB, Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)},
+		"id-a": {Name: nameA, Status: StatusRunning, Timeline: NewTimeline(components.TimelineDefaultSlots)},
+		"id-b": {Name: nameB, Status: StatusRunning, Timeline: NewTimeline(components.TimelineDefaultSlots)},
 	}
 
 	m = m.recomputeLayout()
@@ -349,7 +349,7 @@ func Test_RenderServiceRow_UnicodeNameTimelineSurvivesNarrow(t *testing.T) {
 	m.ui.servicesViewport.SetWidth(rowWidth)
 	m.theme = components.DefaultTheme()
 	m.state.services = map[string]*ServiceState{
-		"id-svc": {Name: "сервис-апи", Status: StatusRunning, Timeline: NewTimeline(components.DefaultTimelineSlots)},
+		"id-svc": {Name: "сервис-апи", Status: StatusRunning, Timeline: NewTimeline(components.TimelineDefaultSlots)},
 	}
 
 	m = m.recomputeLayout()
@@ -407,7 +407,7 @@ func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
 				PID:      12345,
 				CPU:      99.9,
 				MEM:      512,
-				Timeline: NewTimeline(components.DefaultTimelineSlots),
+				Timeline: NewTimeline(components.TimelineDefaultSlots),
 			}
 
 			header := m.renderColumnHeaders()
@@ -461,12 +461,12 @@ func Test_RenderServiceRow_SharedPrefixNamesDistinguishable(t *testing.T) {
 			svcA := &ServiceState{
 				Name:     "action-confirmation-management-service",
 				Status:   StatusRunning,
-				Timeline: NewTimeline(components.DefaultTimelineSlots),
+				Timeline: NewTimeline(components.TimelineDefaultSlots),
 			}
 			svcB := &ServiceState{
 				Name:     "action-confirmation-metrics-service",
 				Status:   StatusRunning,
-				Timeline: NewTimeline(components.DefaultTimelineSlots),
+				Timeline: NewTimeline(components.TimelineDefaultSlots),
 			}
 
 			rowA := m.renderServiceRow(svcA, false)
@@ -517,7 +517,7 @@ func Test_RenderServiceRow_SelectedBackgroundCoversFullWidth(t *testing.T) {
 	m.ui.layout = layoutForWidth(112)
 	m.ui.servicesViewport.SetWidth(112)
 
-	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl := NewTimeline(components.TimelineDefaultSlots)
 	for range 10 {
 		tl.Append(SlotRunning)
 	}
@@ -917,7 +917,7 @@ func Test_GetServiceIndicator_BlinkIndicatorSelected(t *testing.T) {
 
 func Test_RenderTip_RotatesOverTime(t *testing.T) {
 	tipCount := len(components.Tips)
-	wrapTick := tipCount * components.TipRotationTicks
+	wrapTick := tipCount * components.UITipRotationTicks
 
 	tests := []struct {
 		name        string
@@ -1368,7 +1368,7 @@ func Test_RenderServiceRow_WithTimeline(t *testing.T) {
 	m.ui.layout = layoutForWidth(112)
 	m.ui.servicesViewport.SetWidth(112)
 
-	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl := NewTimeline(components.TimelineDefaultSlots)
 	tl.Append(SlotRunning)
 
 	service := &ServiceState{Name: "api", Status: StatusRunning, Timeline: tl}
@@ -1387,7 +1387,7 @@ func Test_RenderServiceRow_ErrorRowStillShowsTimeline(t *testing.T) {
 	m.ui.layout = layoutForWidth(112)
 	m.ui.servicesViewport.SetWidth(112)
 
-	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl := NewTimeline(components.TimelineDefaultSlots)
 	tl.Append(SlotFailed)
 
 	service := &ServiceState{

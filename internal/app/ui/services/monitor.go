@@ -115,7 +115,7 @@ func (m Model) sampleAppStatsCmd() tea.Cmd {
 	mon := m.monitor
 
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(ctx, components.StatsCallTimeout)
+		ctx, cancel := context.WithTimeout(ctx, components.UIStatsCallTimeout)
 		defer cancel()
 
 		stats, err := mon.GetStats(ctx, os.Getpid())

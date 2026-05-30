@@ -4,11 +4,10 @@ import "time"
 
 // UI timing constants
 const (
-	UITickInterval   = 100 * time.Millisecond
-	UITicksPerSecond = int(time.Second / UITickInterval) // 1000/100 = 10
-	TipRotationTicks = 10 * UITicksPerSecond
-
-	StatsCallTimeout = 100 * time.Millisecond
+	UITickInterval     = 100 * time.Millisecond
+	UITicksPerSecond   = int(time.Second / UITickInterval) // 1000/100 = 10
+	UITipRotationTicks = 10 * UITicksPerSecond
+	UIStatsCallTimeout = 100 * time.Millisecond
 )
 
 // Panel layout constants
@@ -16,13 +15,14 @@ const (
 	PanelHeightPadding = 4
 	PanelInnerPadding  = 2
 	PanelBorderHeight  = 2
-	MinPanelHeight     = 10
-	BorderEdgeWidth    = 3
-	SpacerWidth        = 2
+	PanelMinHeight     = 10
 )
 
-// Border characters
+// Border constants
 const (
+	BorderEdgeWidth   = 3
+	BorderSpacerWidth = 2
+
 	BorderTopLeft     = "╭"
 	BorderTopRight    = "╮"
 	BorderBottomLeft  = "╰"
@@ -31,50 +31,58 @@ const (
 	BorderVertical    = "│"
 )
 
-// Indicator characters
+// Indicator constants
 const (
-	IndicatorSelected = "›"
-	IndicatorEmpty    = " "
-	IndicatorDot      = "◉"
+	IndicatorSelected    = "›"
+	IndicatorEmpty       = " "
+	IndicatorDot         = "◉"
+	IndicatorColumnWidth = 2
 )
 
-// Table layout constants
+// Row layout constants
 const (
-	MaxMetricWidth       = 12
-	MaxStatusWidth       = 16
-	MetricColumnCount    = 4
-	StatusWidthDivisor   = 5
-	MetricWidthDivisor   = 10
-	IndicatorColumnWidth = 2
-	NameTrailingGap      = 1
 	RowWidthPadding      = 8
 	RowHorizontalPadding = 4
-	ErrorPadding         = "  "
+	RowErrorPadding      = "  "
+)
+
+// Status column constants
+const (
+	StatusMaxWidth     = 16
+	StatusWidthDivisor = 5
+)
+
+// Metric column constants
+const (
+	MetricMaxWidth        = 12
+	MetricFullColumnCount = 4
+	MetricWidthDivisor    = 10
+)
+
+// Service name column constants (buckets picked by the longest service name length)
+const (
+	ServiceNameWidthShort   = 16
+	ServiceNameWidthMedium  = 32
+	ServiceNameWidthLong    = 48
+	ServiceNameMinTextWidth = 24
+	ServiceNameMinWidth     = IndicatorColumnWidth + ServiceNameMinTextWidth
+	ServiceNameTrailingGap  = 1
 )
 
 // Timeline layout constants
 const (
-	DefaultTimelineSlots    = 16
-	MinServiceNameTextWidth = 24
-	MinServiceNameWidth     = IndicatorColumnWidth + MinServiceNameTextWidth
-	MinTimelineWidth        = 8
-	TimelineGap             = 1
-	TimelineBlock           = "▮"
+	TimelineDefaultSlots = 16
+	TimelineMinWidth     = 8
+	TimelineGap          = 1
+	TimelineBlock        = "▮"
 )
 
-// Service name bucket constants picked by the longest service name length
+// Log stream constants
 const (
-	NameWidthShort  = 16
-	NameWidthMedium = 32
-	NameWidthLong   = 48
+	LogStreamMaxServiceNameLen = 12
 )
 
 // Unit conversion constants
 const (
 	MBToGB = 1024
-)
-
-// Log stream constants
-const (
-	DefaultMaxServiceLen = 12
 )
