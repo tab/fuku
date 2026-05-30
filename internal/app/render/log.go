@@ -26,7 +26,7 @@ func NewLog(isDark bool) *Log {
 	theme := components.NewTheme(isDark)
 
 	return &Log{
-		maxServiceLen: components.DefaultMaxServiceLen,
+		maxServiceLen: components.LogStreamMaxServiceNameLen,
 		theme:         theme,
 		serviceStyles: make(map[string]lipgloss.Style),
 	}

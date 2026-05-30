@@ -46,7 +46,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m = m.recomputeLayout()
 
-		panelHeight := max(msg.Height-components.PanelHeightPadding, components.MinPanelHeight)
+		panelHeight := max(msg.Height-components.PanelHeightPadding, components.PanelMinHeight)
 
 		m.ui.servicesViewport.SetWidth(msg.Width - components.PanelInnerPadding)
 		m.ui.servicesViewport.SetHeight(panelHeight - components.PanelBorderHeight)
@@ -502,7 +502,7 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 				Tier:     tier.Name,
 				Status:   StatusStarting,
 				Blink:    components.NewBlink(),
-				Timeline: NewTimeline(components.DefaultTimelineSlots),
+				Timeline: NewTimeline(components.TimelineDefaultSlots),
 			}
 		}
 	}

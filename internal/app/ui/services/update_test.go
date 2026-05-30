@@ -1867,7 +1867,7 @@ func Test_HandleProfileResolved_CreatesTimelines(t *testing.T) {
 	for _, id := range []string{"test-id-db", "test-id-api"} {
 		svc := result.state.services[id]
 		require.NotNil(t, svc.Timeline, "service %s should have a timeline", id)
-		assert.Equal(t, components.DefaultTimelineSlots, svc.Timeline.capacity, "timeline capacity should be %d", components.DefaultTimelineSlots)
+		assert.Equal(t, components.TimelineDefaultSlots, svc.Timeline.capacity, "timeline capacity should be %d", components.TimelineDefaultSlots)
 		assert.Equal(t, 0, svc.Timeline.count, "timeline should start empty")
 	}
 }
@@ -1927,27 +1927,27 @@ func Test_SampleTimelines(t *testing.T) {
 			Name:      "api",
 			Status:    StatusRunning,
 			StartTime: started,
-			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+			Timeline:  NewTimeline(components.TimelineDefaultSlots),
 		},
 		"id-db": {
 			ID:        "id-db",
 			Name:      "db",
 			Status:    StatusStarting,
 			StartTime: started,
-			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+			Timeline:  NewTimeline(components.TimelineDefaultSlots),
 		},
 		"id-web": {
 			ID:        "id-web",
 			Name:      "web",
 			Status:    StatusFailed,
 			StartTime: started,
-			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+			Timeline:  NewTimeline(components.TimelineDefaultSlots),
 		},
 		"id-queued": {
 			ID:       "id-queued",
 			Name:     "queued",
 			Status:   StatusStarting,
-			Timeline: NewTimeline(components.DefaultTimelineSlots),
+			Timeline: NewTimeline(components.TimelineDefaultSlots),
 		},
 		"id-stopped": {
 			ID:       "id-stopped",
@@ -1959,7 +1959,7 @@ func Test_SampleTimelines(t *testing.T) {
 			ID:       "id-preflight-fail",
 			Name:     "preflight-fail",
 			Status:   StatusFailed,
-			Timeline: NewTimeline(components.DefaultTimelineSlots),
+			Timeline: NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 
@@ -1993,7 +1993,7 @@ func Test_SampleTimelines_MultipleSamples(t *testing.T) {
 			Name:      "api",
 			Status:    StatusStarting,
 			StartTime: started,
-			Timeline:  NewTimeline(components.DefaultTimelineSlots),
+			Timeline:  NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 
@@ -2010,7 +2010,7 @@ func Test_SampleTimelines_MultipleSamples(t *testing.T) {
 }
 
 func timelineWithHistory(slots ...TimelineSlot) *Timeline {
-	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl := NewTimeline(components.TimelineDefaultSlots)
 	for _, s := range slots {
 		tl.Append(s)
 	}
@@ -2082,7 +2082,7 @@ func Test_DelayedStartingDoesNotRevertReady(t *testing.T) {
 		"id-api": {
 			ID:       "id-api",
 			Name:     "api",
-			Timeline: NewTimeline(components.DefaultTimelineSlots),
+			Timeline: NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2220,7 +2220,7 @@ func Test_SameSeqReadyHealingAllowsRunningTimelineSample(t *testing.T) {
 			Status:       StatusRunning,
 			LifecycleAt:  t0,
 			LifecycleSeq: 10,
-			Timeline:     NewTimeline(components.DefaultTimelineSlots),
+			Timeline:     NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 
@@ -2242,7 +2242,7 @@ func Test_HandleServiceReady_BackfillsStartupHistory(t *testing.T) {
 			ID:       "id-api",
 			Name:     "api",
 			Status:   StatusStarting,
-			Timeline: NewTimeline(components.DefaultTimelineSlots),
+			Timeline: NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2271,7 +2271,7 @@ func Test_HandleServiceReady_BackfillsStartupHistory(t *testing.T) {
 func Test_HandleServiceReady_NoBackfillWhenHistoryExists(t *testing.T) {
 	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl := NewTimeline(components.TimelineDefaultSlots)
 	tl.Append(SlotStarting)
 	tl.Append(SlotStarting)
 
@@ -2400,7 +2400,7 @@ func Test_RefreshBeforeReady_StillBackfillsStartupHistory(t *testing.T) {
 			ID:       "id-api",
 			Name:     "api",
 			Status:   StatusStarting,
-			Timeline: NewTimeline(components.DefaultTimelineSlots),
+			Timeline: NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2458,7 +2458,7 @@ func Test_SameSeqReadyAfterStoreHeal_RunsSideEffects(t *testing.T) {
 			ID:       "id-api",
 			Name:     "api",
 			Status:   StatusStarting,
-			Timeline: NewTimeline(components.DefaultTimelineSlots),
+			Timeline: NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{"id-api": true}
@@ -2503,7 +2503,7 @@ func Test_LateStartingDoesNotResetStartupSampled(t *testing.T) {
 			StartupSampled:   3,
 			BackfilledSeq:    0,
 			LifecycleSeq:     5,
-			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+			Timeline:         NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2526,7 +2526,7 @@ func Test_RestartReadyBeforeStarting_BackfillsAmber(t *testing.T) {
 	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	t1 := t0.Add(3 * time.Second)
 
-	tl := NewTimeline(components.DefaultTimelineSlots)
+	tl := NewTimeline(components.TimelineDefaultSlots)
 	tl.Append(SlotRunning)
 	tl.Append(SlotRunning)
 
@@ -2607,7 +2607,7 @@ func Test_SameSeqReadyAfterRefresh_NewProcessStillBackfills(t *testing.T) {
 			StartupSampled:   5,
 			BackfilledSeq:    3,
 			LifecycleSeq:     3,
-			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+			Timeline:         NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2714,7 +2714,7 @@ func Test_ReconcileLifecycle_StartingToFailed_BackfillsAmber(t *testing.T) {
 			StartTime:        t0,
 			AttemptStartedAt: t0,
 			LifecycleSeq:     3,
-			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+			Timeline:         NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2763,7 +2763,7 @@ func Test_ReconcileLifecycle_StartingToStopped_BackfillsAmber(t *testing.T) {
 			StartTime:        t0,
 			AttemptStartedAt: t0,
 			LifecycleSeq:     3,
-			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+			Timeline:         NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2848,7 +2848,7 @@ func Test_ReconcileLifecycle_RestartingWithOldStartTime_NoBackfill(t *testing.T)
 			PID:          1234,
 			StartTime:    t0,
 			LifecycleSeq: 3,
-			Timeline:     NewTimeline(components.DefaultTimelineSlots),
+			Timeline:     NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2889,7 +2889,7 @@ func Test_ReconcileLifecycle_RealStartingToFailed_StillBackfills(t *testing.T) {
 			StartTime:        t0,
 			AttemptStartedAt: t0,
 			LifecycleSeq:     3,
-			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+			Timeline:         NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2933,7 +2933,7 @@ func Test_ReconcileLifecycle_MissedStartup_FailedSnapshotBackfills(t *testing.T)
 			Name:         "api",
 			Status:       StatusStopped,
 			LifecycleSeq: 1,
-			Timeline:     NewTimeline(components.DefaultTimelineSlots),
+			Timeline:     NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}
@@ -2984,7 +2984,7 @@ func Test_ReconcileLifecycle_MissedStartup_RestartFailedBackfills(t *testing.T) 
 			StartTime:        oldStart,
 			AttemptStartedAt: oldStart,
 			LifecycleSeq:     5,
-			Timeline:         NewTimeline(components.DefaultTimelineSlots),
+			Timeline:         NewTimeline(components.TimelineDefaultSlots),
 		},
 	}
 	m.state.restarting = map[string]bool{}

@@ -124,7 +124,7 @@ func (m Model) renderTip() string {
 		return ""
 	}
 
-	rotation := m.ui.tickCounter / components.TipRotationTicks
+	rotation := m.ui.tickCounter / components.UITipRotationTicks
 	tipIndex := (m.ui.tipOffset + rotation) % len(components.Tips)
 
 	return components.Tips[tipIndex].Render(m.theme)
@@ -348,7 +348,7 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 	rowWidth := m.getRowWidth()
 	indicator := m.getServiceIndicator(service, isSelected)
 
-	nameTextWidth := m.ui.layout.ServiceNameWidth - components.IndicatorColumnWidth - components.NameTrailingGap
+	nameTextWidth := m.ui.layout.ServiceNameWidth - components.IndicatorColumnWidth - components.ServiceNameTrailingGap
 	name := components.TruncateAndPad(service.Name, nameTextWidth)
 	nameCol := fmt.Sprintf("%s %s ", indicator, name)
 
@@ -406,7 +406,7 @@ func (m Model) buildServiceRow(parts rowParts, rowWidth int) string {
 // getServiceDetails returns either error message or metrics columns
 func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string {
 	if service.Error != nil {
-		errorMsg := fmt.Sprintf("%s%s", components.ErrorPadding, renderError(service.Error))
+		errorMsg := fmt.Sprintf("%s%s", components.RowErrorPadding, renderError(service.Error))
 		if !isSelected {
 			return m.theme.ErrorStyle.Render(errorMsg)
 		}
