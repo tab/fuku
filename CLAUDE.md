@@ -195,7 +195,6 @@
 1. **Service Definition**
    - Directory-based service configuration
    - Tier-based startup ordering
-   - Automatic environment file detection (`.env.development`)
    - Makefile-based service execution (`make run`) with optional custom command override
 
 2. **Profile Management**
@@ -718,7 +717,7 @@ logging:
 - each service runs `make run` in its specified directory by default
 - services can override the start command with `command` field (e.g., `command: go run cmd/main.go`)
 - services without a custom command must have a Makefile with a `run` target
-- environment files (`.env.development`) are automatically detected and passed via ENV_FILE
+- the child process inherits fuku's environment (fuku does not inject any per-service env vars); each service is responsible for loading its own `.env` files
 
 ## Example Configuration
 

@@ -16,7 +16,8 @@ const (
 
 // Default values
 const (
-	Default = "default"
+	Default               = "default"
+	DefaultServiceCommand = "make run"
 )
 
 // Environment names

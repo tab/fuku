@@ -1249,7 +1249,7 @@ func Test_PreFlightCheck_NoPort(t *testing.T) {
 func Test_BuildCommand_Default(t *testing.T) {
 	cmd := buildCommand("")
 
-	assert.Equal(t, []string{"make", "run"}, cmd.Args)
+	assert.Equal(t, []string{"sh", "-c", config.DefaultServiceCommand}, cmd.Args)
 }
 
 func Test_BuildCommand_Custom(t *testing.T) {
