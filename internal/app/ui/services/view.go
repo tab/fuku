@@ -397,7 +397,7 @@ func (m Model) buildServiceRow(parts rowParts, rowWidth int) string {
 	}
 
 	if parts.isSelected && m.ui.layout.TimelineWidth > 0 {
-		tail = lipgloss.NewStyle().Background(m.theme.BgSelection).Render(tail)
+		tail = m.theme.SelectionBgStyle.Render(tail)
 	}
 
 	return parts.name + leftFlex + parts.timeline + tail

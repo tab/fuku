@@ -3,7 +3,6 @@ package components
 import (
 	"testing"
 
-	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -56,9 +55,8 @@ func Test_Blink_Update_Progression(t *testing.T) {
 
 func Test_Blink_Render(t *testing.T) {
 	b := NewBlink()
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00"))
 
-	result := b.Render(style)
+	result := b.Render(SpinnerStyle)
 
 	assert.NotEmpty(t, result)
 }

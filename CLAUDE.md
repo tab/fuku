@@ -402,6 +402,16 @@
 - prefer concrete, straightforward code over clever abstractions
 - don't build for hypothetical future requirements; solve the current problem
 
+### Styles Live in `components` Only
+- **never call `lipgloss.NewStyle()` outside `internal/app/ui/components/theme.go` or `internal/app/ui/components/styles.go`** — these two files are the single source of truth for all styles
+- theme-dependent styles (those reading any `lipgloss.LightDarkFunc` value, palette color, or `theme.Bg*`/`theme.Fg*`) belong in `theme.go` and are exposed as fields on `Theme`
+- theme-independent styles (pure spacing, padding, margins, fixed-color borders) belong in `styles.go` as package-level `var`s
+- **never wrap a render with an inline style** — `lipgloss.NewStyle().MarginTop(1).Render(x)`, `lipgloss.NewStyle().Background(m.theme.BgSelection).Render(x)`, and the like are forbidden everywhere outside the two allowlisted files
+- the rule applies to tests too — if a test needs a foreground-bearing style as a fixture, reuse an existing `var` (e.g., `SpinnerStyle`) instead of constructing one inline
+- if the style you need does not exist, add it to `theme.go` or `styles.go` with a descriptive semantic name (e.g., `SelectionBgStyle`, `ContentTopMarginStyle`) and reference it from the call site
+- `lipgloss.Style` as a struct field type and `lipgloss.Width(...)` measurement calls are fine anywhere — the rule is only about *constructing* styles via `NewStyle()`
+- Audit command (should return zero matches): `grep -rn 'lipgloss\.NewStyle()' --include='*.go' internal/ cmd/ | grep -v 'components/theme.go\|components/styles.go'`
+
 ## Build, Lint and Test Commands
 
 ```bash
