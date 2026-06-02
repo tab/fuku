@@ -11,6 +11,7 @@ import (
 
 	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
+	"fuku/internal/app/dotenv"
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/services"
@@ -38,6 +39,7 @@ func Test_NewUI(t *testing.T) {
 		Store:      mockStore,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
+		Dotenv:     dotenv.NewMockLoader(ctrl),
 		Logger:     mockLogger,
 		Checker:    mockChecker,
 	}
@@ -92,6 +94,7 @@ func Test_UI_CreateProgram(t *testing.T) {
 		Store:      mockStore,
 		Monitor:    mockMonitor,
 		Loader:     services.NewLoader(),
+		Dotenv:     dotenv.NewMockLoader(ctrl),
 		Logger:     mockLogger,
 		Checker:    mockChecker,
 	}
@@ -162,6 +165,7 @@ func Test_UI_MultipleProfiles(t *testing.T) {
 				Store:      mockStore,
 				Monitor:    mockMonitor,
 				Loader:     services.NewLoader(),
+				Dotenv:     dotenv.NewMockLoader(ctrl),
 				Logger:     mockLogger,
 				Checker:    mockChecker,
 			}

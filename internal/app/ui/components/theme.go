@@ -13,6 +13,7 @@ type Theme struct {
 
 	// Semantic colors
 	FgMuted         color.Color
+	FgPlaceholder   color.Color
 	FgBorder        color.Color
 	FgStatusRunning color.Color
 	FgStatusWarning color.Color
@@ -22,6 +23,7 @@ type Theme struct {
 
 	// TUI styles (services screen)
 	PanelMutedStyle      lipgloss.Style
+	PlaceholderStyle     lipgloss.Style
 	CurrentVersionStyle  lipgloss.Style
 	LatestVersionStyle   lipgloss.Style
 	ServiceHeaderStyle   lipgloss.Style
@@ -70,6 +72,7 @@ func NewTheme(isDark bool) Theme {
 	ld := lipgloss.LightDark(isDark)
 
 	fgMuted := ld(lipgloss.Color("#737373"), lipgloss.Color("7"))
+	fgPlaceholder := ld(lipgloss.Color("#737373"), lipgloss.Color("#a3a3a3"))
 	fgBorder := ld(lipgloss.Color("#a3a3a3"), lipgloss.Color("8"))
 	fgStatusRunning := ld(lipgloss.Color("#16a34a"), lipgloss.Color("10"))
 	fgStatusWarning := ld(lipgloss.Color("#d97706"), lipgloss.Color("11"))
@@ -82,6 +85,7 @@ func NewTheme(isDark bool) Theme {
 		ServiceColorPalette: buildServicePalette(ld),
 
 		FgMuted:         fgMuted,
+		FgPlaceholder:   fgPlaceholder,
 		FgBorder:        fgBorder,
 		FgStatusRunning: fgStatusRunning,
 		FgStatusWarning: fgStatusWarning,
@@ -93,6 +97,7 @@ func NewTheme(isDark bool) Theme {
 		HelpKeyStyle:         lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#909090"), lipgloss.Color("#626262"))),
 		HelpDescStyle:        lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#B2B2B2"), lipgloss.Color("#4A4A4A"))),
 		PanelMutedStyle:      lipgloss.NewStyle().Foreground(fgMuted),
+		PlaceholderStyle:     lipgloss.NewStyle().Foreground(fgPlaceholder).Padding(0, 1),
 		CurrentVersionStyle:  lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#171717"), lipgloss.Color("15"))),
 		LatestVersionStyle:   lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#dc6543"), lipgloss.Color("#FF7F50"))),
 		ServiceHeaderStyle:   lipgloss.NewStyle().Foreground(fgMuted).Padding(0, 2),

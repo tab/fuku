@@ -18,9 +18,18 @@ x-readiness-tcp: &readiness-tcp
 x-logs: &logs
   output: [stdout, stderr]
 
+# Display-only: the env tab in the TUI lists the values from these files; the service process does not receive them via fuku (the child runs in its own dir and is free to load .env files itself)
+x-env: &env
+  files:
+    - .env
+    - .env.local
+    - .env.development
+    - .env.development.local
+
 services:
   auth:
     dir: examples/bookstore/auth
+    env: *env
     tier: foundation
     readiness: *readiness-log
     logs: *logs

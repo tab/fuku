@@ -8,6 +8,7 @@ import (
 
 	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
+	"fuku/internal/app/dotenv"
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/services"
@@ -36,6 +37,7 @@ type UIParams struct {
 	Store      registry.Store
 	Monitor    monitor.Monitor
 	Loader     *services.Loader
+	Dotenv     dotenv.Loader
 	Checker    updater.Checker
 	Logger     logger.Logger
 }
@@ -46,12 +48,14 @@ func NewUI(params UIParams) UI {
 		model := services.NewModel(
 			ctx,
 			profile,
+			params.Config,
 			params.Bus,
 			params.Controller,
 			params.Store,
 			params.Monitor,
 			params.API,
 			params.Loader,
+			params.Dotenv,
 			params.Logger,
 		)
 

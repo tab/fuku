@@ -44,18 +44,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.height = msg.Height
 		m.ui.help.SetWidth(msg.Width)
 
+		if m.state.asideOpen && !m.canShowAside() {
+			m.state.asideOpen = false
+			m.state.asideFocused = false
+		}
+
 		m = m.recomputeLayout()
-
-		panelHeight := max(msg.Height-components.PanelHeightPadding, components.PanelMinHeight)
-
-		m.ui.servicesViewport.SetWidth(msg.Width - components.PanelInnerPadding)
-		m.ui.servicesViewport.SetHeight(panelHeight - components.PanelBorderHeight)
+		m.recomputeViewport()
 
 		if !m.state.ready {
 			m.state.ready = true
 		}
 
 		m.updateServicesContent()
+		m.updateAsideContent()
 
 		return m, nil
 
@@ -67,6 +69,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.theme = components.NewTheme(isDark)
 		m.ui.help.Styles = help.DefaultStyles(isDark)
 		m.updateServicesContent()
+		m.updateAsideContent()
 
 		return m, nil
 
@@ -96,6 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.updateBlinkAnimations()
 		m.updateServicesContent()
+		m.updateAsideContent()
 
 		return m, tea.Batch(append(cmds, tickCmd())...)
 
@@ -135,6 +139,20 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleFilterInput(msg)
 	}
 
+	if m.state.asideOpen {
+		switch {
+		case key.Matches(msg, m.ui.servicesKeys.AsideClose),
+			key.Matches(msg, m.ui.servicesKeys.OpenAside):
+			return m.handleAsideCloseKey()
+		case key.Matches(msg, m.ui.servicesKeys.AsideTabNext):
+			return m.handleAsideTabNext()
+		case key.Matches(msg, m.ui.servicesKeys.AsideTabPrev):
+			return m.handleAsideTabPrev()
+		case key.Matches(msg, m.ui.servicesKeys.FocusToggle):
+			return m.handleFocusToggle()
+		}
+	}
+
 	switch {
 	case key.Matches(msg, m.ui.servicesKeys.Quit):
 		m.state.shuttingDown = true
@@ -144,10 +162,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, waitForMsgCmd(m.msgChan)
 
 	case key.Matches(msg, m.ui.servicesKeys.Up):
-		return m.handleUpKey()
+		return m.handleUpKey(msg)
 
 	case key.Matches(msg, m.ui.servicesKeys.Down):
-		return m.handleDownKey()
+		return m.handleDownKey(msg)
 
 	case key.Matches(msg, m.ui.servicesKeys.Stop):
 		return m.handleStopKey()
@@ -161,6 +179,9 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.ui.servicesKeys.Filter):
 		return m.handleFilterKey()
 
+	case key.Matches(msg, m.ui.servicesKeys.OpenAside):
+		return m.handleOpenAsideKey()
+
 	case key.Matches(msg, m.ui.servicesKeys.ClearFilter):
 		if m.state.filterQuery != "" {
 			m.clearFilter()
@@ -170,6 +191,21 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, m.ui.servicesKeys.ToggleTips):
 		m.ui.showTips = !m.ui.showTips
+		return m, nil
+	}
+
+	if m.state.asideFocused {
+		switch msg.String() {
+		case "home":
+			m.ui.asideViewport.GotoTop()
+
+			return m, nil
+		case "end":
+			m.ui.asideViewport.GotoBottom()
+
+			return m, nil
+		}
+
 		return m, nil
 	}
 
@@ -183,6 +219,63 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handleOpenAsideKey opens the aside panel for the currently selected service
+func (m Model) handleOpenAsideKey() (tea.Model, tea.Cmd) {
+	if m.state.asideOpen || m.getSelectedService() == nil || !m.canShowAside() {
+		return m, nil
+	}
+
+	return m.setAsideOpen(true), nil
+}
+
+// handleAsideCloseKey closes the aside panel and restores full-width viewport
+func (m Model) handleAsideCloseKey() (tea.Model, tea.Cmd) {
+	if !m.state.asideOpen {
+		return m, nil
+	}
+
+	return m.setAsideOpen(false), nil
+}
+
+// handleAsideTabNext switches to the next aside tab
+func (m Model) handleAsideTabNext() (tea.Model, tea.Cmd) {
+	m.state.asideTab = nextAsideTab(m.state.asideTab)
+	m.updateAsideContent()
+	m.ui.asideViewport.SetYOffset(0)
+
+	return m, nil
+}
+
+// handleAsideTabPrev switches to the previous aside tab
+func (m Model) handleAsideTabPrev() (tea.Model, tea.Cmd) {
+	m.state.asideTab = prevAsideTab(m.state.asideTab)
+	m.updateAsideContent()
+	m.ui.asideViewport.SetYOffset(0)
+
+	return m, nil
+}
+
+// handleFocusToggle moves keyboard focus between the services and aside panels
+func (m Model) handleFocusToggle() (tea.Model, tea.Cmd) {
+	m.state.asideFocused = !m.state.asideFocused
+
+	return m, nil
+}
+
+// setAsideOpen toggles the aside open state and refreshes layout, viewport, focus, and scroll offset
+func (m Model) setAsideOpen(open bool) Model {
+	m.state.asideOpen = open
+	m.state.asideFocused = open
+	m = m.recomputeLayout()
+	m.recomputeViewport()
+	m.updateServicesContent()
+	m.updateAsideContent()
+	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
+	m.ui.asideViewport.SetYOffset(0)
+
+	return m
 }
 
 // handleFilterKey enters filter input mode
@@ -235,7 +328,9 @@ func (m *Model) clearFilter() {
 	}
 
 	m.updateServicesContent()
+	m.updateAsideContent()
 	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
+	m.ui.asideViewport.SetYOffset(0)
 }
 
 // handleFilterInput processes key events while in filter input mode
@@ -261,10 +356,10 @@ func (m Model) handleFilterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyUp:
-		return m.handleUpKey()
+		return m.handleUpKey(msg)
 
 	case tea.KeyDown:
-		return m.handleDownKey()
+		return m.handleDownKey(msg)
 
 	default:
 		if msg.Text != "" {
@@ -311,27 +406,49 @@ func (m *Model) applyFilter() {
 	}
 
 	m.updateServicesContent()
+	m.updateAsideContent()
 	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
+	m.ui.asideViewport.SetYOffset(0)
 }
 
-// handleUpKey moves selection up one service
-func (m Model) handleUpKey() (tea.Model, tea.Cmd) {
+// handleUpKey scrolls the aside viewport when aside-focused, otherwise moves selection up one service
+func (m Model) handleUpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.state.asideFocused {
+		var cmd tea.Cmd
+
+		m.ui.asideViewport, cmd = m.ui.asideViewport.Update(msg)
+
+		return m, cmd
+	}
+
 	if m.state.selected > 0 {
 		m.state.selected--
 		m.updateServicesContent()
+		m.updateAsideContent()
 		m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
+		m.ui.asideViewport.SetYOffset(0)
 	}
 
 	return m, nil
 }
 
-// handleDownKey moves selection down one service
-func (m Model) handleDownKey() (tea.Model, tea.Cmd) {
+// handleDownKey scrolls the aside viewport when aside-focused, otherwise moves selection down one service
+func (m Model) handleDownKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.state.asideFocused {
+		var cmd tea.Cmd
+
+		m.ui.asideViewport, cmd = m.ui.asideViewport.Update(msg)
+
+		return m, cmd
+	}
+
 	total := m.getTotalServices()
 	if m.state.selected < total-1 {
 		m.state.selected++
 		m.updateServicesContent()
+		m.updateAsideContent()
 		m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
+		m.ui.asideViewport.SetYOffset(0)
 	}
 
 	return m, nil

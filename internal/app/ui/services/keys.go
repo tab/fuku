@@ -12,6 +12,11 @@ type KeyMap struct {
 	ToggleTips    key.Binding
 	Filter        key.Binding
 	ClearFilter   key.Binding
+	OpenAside     key.Binding
+	AsideClose    key.Binding
+	AsideTabNext  key.Binding
+	AsideTabPrev  key.Binding
+	FocusToggle   key.Binding
 	Quit          key.Binding
 	ForceQuit     key.Binding
 }
@@ -51,6 +56,26 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "clear filter"),
 		),
+		OpenAside: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "info"),
+		),
+		AsideClose: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "close info"),
+		),
+		AsideTabNext: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "next tab"),
+		),
+		AsideTabPrev: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("⇧+tab", "prev tab"),
+		),
+		FocusToggle: key.NewBinding(
+			key.WithKeys("\\"),
+			key.WithHelp("\\", "switch panel"),
+		),
 		Quit: key.NewBinding(
 			key.WithKeys("q"),
 			key.WithHelp("q", "quit"),
@@ -62,14 +87,36 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-// ShortHelp returns keybindings to be shown in the mini help view
+// ShortHelp returns keybindings to be shown in the mini help view (services context)
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Stop, k.Restart, k.RestartFailed, k.Filter, k.ClearFilter, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Stop, k.Restart, k.RestartFailed, k.OpenAside, k.Filter, k.ClearFilter, k.Quit}
 }
 
-// FullHelp returns keybindings for the expanded help view
+// FullHelp returns keybindings for the expanded help view (services context)
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Stop, k.Restart, k.RestartFailed, k.Filter, k.ClearFilter, k.Quit},
+		{k.Up, k.Down, k.Stop, k.Restart, k.RestartFailed, k.OpenAside, k.Filter, k.ClearFilter, k.Quit},
+	}
+}
+
+// AsideHelpKeyMap presents only the bindings relevant when the aside is open
+type AsideHelpKeyMap struct {
+	km KeyMap
+}
+
+// NewAsideHelpKeyMap wraps a KeyMap so only aside-relevant bindings appear in help
+func NewAsideHelpKeyMap(km KeyMap) AsideHelpKeyMap {
+	return AsideHelpKeyMap{km: km}
+}
+
+// ShortHelp returns aside-only bindings
+func (a AsideHelpKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{a.km.AsideClose, a.km.AsideTabNext, a.km.AsideTabPrev, a.km.FocusToggle, a.km.Quit}
+}
+
+// FullHelp returns aside-only bindings as a single row
+func (a AsideHelpKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{a.km.AsideClose, a.km.AsideTabNext, a.km.AsideTabPrev, a.km.FocusToggle, a.km.Quit},
 	}
 }

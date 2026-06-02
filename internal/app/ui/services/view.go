@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,27 +19,101 @@ func (m Model) View() tea.View {
 		return tea.NewView("initializing…")
 	}
 
-	panelWidth := m.ui.width
+	mainWidth, asideWidth := m.panelWidths()
 	panelHeight := m.ui.height - components.PanelHeightPadding
 
-	m.ui.servicesKeys.ClearFilter.SetEnabled(m.state.filterQuery != "")
+	asideShown := asideWidth > 0
 
-	panel := components.RenderPanel(components.PanelOptions{
-		Title:   m.renderTitle(),
-		Content: m.renderServices(),
-		Status:  m.renderStatus(),
-		Stats:   m.renderBottomLeft(),
-		Version: m.renderVersion(),
-		Help:    m.renderHelp(),
-		Tips:    m.renderTip(),
-		Height:  panelHeight,
-		Width:   panelWidth,
-	})
+	panelVersion := m.renderVersion()
+	if asideShown {
+		panelVersion = ""
+	}
 
-	v := tea.NewView(components.AppContainerStyle.Render(panel))
+	panelLines := m.renderServicesPanelLines(mainWidth, panelHeight, asideShown, panelVersion)
+
+	rowLines := panelLines
+
+	if asideWidth > 0 {
+		asideLines := m.renderAsideLines(asideWidth, panelHeight)
+		rowLines = make([]string, len(panelLines))
+
+		for i := range panelLines {
+			rowLines[i] = panelLines[i] + asideLines[i]
+		}
+	}
+
+	row := strings.Join(rowLines, "\n")
+
+	footer := components.RenderFooter(m.renderHelp(asideShown), m.renderTip(), m.ui.width)
+	content := lipgloss.JoinVertical(lipgloss.Left, row, footer)
+
+	v := tea.NewView(components.AppContainerStyle.Render(content))
 	v.AltScreen = true
 
 	return v
+}
+
+// helpKeyMap returns a copy of the services key map with aside and clear-filter bindings toggled per current state, without mutating m.ui.servicesKeys
+func (m Model) helpKeyMap(asideShown bool) KeyMap {
+	km := m.ui.servicesKeys
+	km.AsideClose.SetEnabled(asideShown)
+	km.AsideTabNext.SetEnabled(asideShown)
+	km.AsideTabPrev.SetEnabled(asideShown)
+	km.ClearFilter.SetEnabled(!asideShown && m.state.filterQuery != "")
+
+	return km
+}
+
+// renderServicesPanelLines returns the services panel as a slice of lines, using a cached value when none of the cheap-to-hash inputs have changed
+func (m Model) renderServicesPanelLines(mainWidth, panelHeight int, asideShown bool, panelVersion string) []string {
+	key := m.servicesPanelCacheKey(mainWidth, panelHeight, asideShown, panelVersion)
+
+	if m.ui.servicesPanelCache != nil && m.ui.servicesPanelCache.key == key {
+		return m.ui.servicesPanelCache.lines
+	}
+
+	lines := components.RenderPanelLines(components.PanelOptions{
+		Title:       m.renderTitle(),
+		Content:     m.renderServices(),
+		Status:      m.renderStatus(),
+		Stats:       m.renderBottomLeft(),
+		Version:     panelVersion,
+		Height:      panelHeight,
+		Width:       mainWidth,
+		BorderStyle: m.servicesPanelBorderStyle(),
+	})
+
+	if m.ui.servicesPanelCache != nil {
+		m.ui.servicesPanelCache.key = key
+		m.ui.servicesPanelCache.lines = lines
+	}
+
+	return lines
+}
+
+// servicesPanelCacheKey concatenates every input that affects the services panel render into a stable key
+func (m Model) servicesPanelCacheKey(mainWidth, panelHeight int, asideShown bool, panelVersion string) string {
+	loaderTick := 0
+	if m.loader != nil && m.loader.Active {
+		loaderTick = m.ui.tickCounter
+	}
+
+	return strconv.Itoa(mainWidth) + "|" +
+		strconv.Itoa(panelHeight) + "|" +
+		strconv.Itoa(m.ui.servicesViewport.YOffset()) + "|" +
+		strconv.FormatUint(m.ui.servicesContentVersion, 10) + "|" +
+		strconv.Itoa(loaderTick) + "|" +
+		strconv.FormatBool(m.state.asideFocused) + "|" +
+		strconv.FormatBool(asideShown) + "|" +
+		string(m.state.phase) + "|" +
+		strconv.Itoa(int(m.state.apiStatus)) + "|" +
+		strconv.Itoa(int(m.state.appCPU*100)) + "|" +
+		strconv.Itoa(int(m.state.appMEM*100)) + "|" +
+		strconv.FormatBool(m.state.filterActive) + "|" +
+		m.state.filterQuery + "|" +
+		m.state.profile + "|" +
+		m.state.availableVersion + "|" +
+		panelVersion
 }
 
 // renderStatus renders the status bar with phase and service counts
@@ -83,7 +158,7 @@ func (m Model) renderVersion() string {
 func (m Model) renderAppStats() string {
 	var parts []string
 
-	if m.api != nil {
+	if !m.asideVisible() && m.api != nil {
 		if addr := m.api.Address(); addr != "" {
 			dot := m.renderAPIDot()
 			parts = append(parts, dot+" "+m.theme.PanelMutedStyle.Render(addr))
@@ -113,9 +188,15 @@ func (m Model) renderAPIDot() string {
 	}
 }
 
-// renderHelp renders the help text with keybindings
-func (m Model) renderHelp() string {
-	return m.theme.HelpStyle.Render(m.ui.help.View(m.ui.servicesKeys))
+// renderHelp renders the help text with keybindings; bindings vary by aside state
+func (m Model) renderHelp(asideShown bool) string {
+	keys := m.helpKeyMap(asideShown)
+
+	if m.state.asideOpen {
+		return m.theme.HelpStyle.Render(m.ui.help.View(NewAsideHelpKeyMap(keys)))
+	}
+
+	return m.theme.HelpStyle.Render(m.ui.help.View(keys))
 }
 
 // renderTip returns the current rotating tip or empty string if tips disabled
@@ -138,6 +219,10 @@ func (m Model) renderTitle() string {
 		b.WriteString(components.LoaderSpacerStyle.Render(m.loader.Message()))
 
 		return b.String()
+	}
+
+	if m.asideVisible() {
+		return m.theme.PanelMutedStyle.Render(m.state.profile)
 	}
 
 	//nolint:perfsprint // readability over micro-optimization
@@ -180,7 +265,9 @@ func (m Model) renderFilterBar() string {
 
 	query := m.state.filterQuery
 
-	maxLen := max(m.ui.width/3-4, 0)
+	mainWidth, _ := m.panelWidths()
+
+	maxLen := max(mainWidth/3-4, 0)
 	if maxLen > 0 {
 		runes := []rune(query)
 		if len(runes) > maxLen {
@@ -208,17 +295,48 @@ func (m Model) getRowWidth() int {
 
 // renderColumnHeaders renders the column headers row
 func (m Model) renderColumnHeaders() string {
+	if m.asideVisible() {
+		return ""
+	}
+
 	nameCol := strings.Repeat(" ", m.ui.layout.ServiceNameWidth)
 	leftFlex := strings.Repeat(" ", m.ui.layout.LeftFlexWidth)
 	timelineCol := strings.Repeat(" ", m.ui.layout.TimelineWidth+m.ui.layout.TimelineGapWidth)
 	statusCol := fmt.Sprintf("%-*s", m.ui.layout.StatusWidth, "status")
 	rightFlex := strings.Repeat(" ", m.ui.layout.RightFlexWidth)
-	w := m.ui.layout.MetricWidth
-	metricsCol := fmt.Sprintf("%*s%*s%*s%*s", w, "cpu", w, "mem", w, "pid", w, "uptime")
+	metricsCol := m.renderMetricHeaders()
 
 	header := nameCol + leftFlex + timelineCol + statusCol + rightFlex + metricsCol
 
 	return m.theme.ServiceHeaderStyle.Width(m.getRowWidth()).Render(header)
+}
+
+// renderMetricHeaders renders the metric column headers based on the active layout
+func (m Model) renderMetricHeaders() string {
+	w := m.ui.layout.MetricWidth
+	if w <= 0 || m.ui.layout.MetricColumns <= 0 {
+		return ""
+	}
+
+	labels := metricLabels(m.ui.layout.MetricColumns)
+
+	var b strings.Builder
+
+	for _, label := range labels {
+		fmt.Fprintf(&b, "%*s", w, label)
+	}
+
+	return b.String()
+}
+
+// metricLabels returns the column labels for the given metric column count
+func metricLabels(metricColumns int) []string {
+	all := []string{"cpu", "mem", "pid", "uptime"}
+	if metricColumns >= len(all) {
+		return all
+	}
+
+	return all[:metricColumns]
 }
 
 // renderTier renders a tier header and its service rows
@@ -298,18 +416,31 @@ func (m Model) renderTimeline(service *ServiceState, isSelected bool) string {
 	emptyPad := tw - visibleObserved
 	observedStart := count - visibleObserved
 
+	blocks := m.timelineSlotBlocks(isSelected)
+
 	var b strings.Builder
 
 	for i := observedStart; i < observedStart+visibleObserved; i++ {
-		b.WriteString(m.timelineSlotStyle(slots[i], isSelected).Render(components.TimelineBlock))
+		b.WriteString(blocks[slots[i]])
 	}
 
-	emptyStyle := m.timelineSlotStyle(SlotEmpty, isSelected)
+	emptyBlock := blocks[SlotEmpty]
 	for range emptyPad {
-		b.WriteString(emptyStyle.Render(components.TimelineBlock))
+		b.WriteString(emptyBlock)
 	}
 
 	return b.String()
+}
+
+// timelineSlotBlocks pre-renders the styled timeline block character once per (selection state) so the inner loop avoids repeated style.Render calls
+func (m Model) timelineSlotBlocks(isSelected bool) [5]string {
+	return [5]string{
+		SlotEmpty:    m.timelineSlotStyle(SlotEmpty, isSelected).Render(components.TimelineBlock),
+		SlotRunning:  m.timelineSlotStyle(SlotRunning, isSelected).Render(components.TimelineBlock),
+		SlotStarting: m.timelineSlotStyle(SlotStarting, isSelected).Render(components.TimelineBlock),
+		SlotFailed:   m.timelineSlotStyle(SlotFailed, isSelected).Render(components.TimelineBlock),
+		SlotStopped:  m.timelineSlotStyle(SlotStopped, isSelected).Render(components.TimelineBlock),
+	}
 }
 
 // timelineSlotStyle returns the style for a timeline slot, composing with BgSelection when selected
@@ -348,19 +479,25 @@ func (m Model) renderServiceRow(service *ServiceState, isSelected bool) string {
 	rowWidth := m.getRowWidth()
 	indicator := m.getServiceIndicator(service, isSelected)
 
-	nameTextWidth := m.ui.layout.ServiceNameWidth - components.IndicatorColumnWidth - components.ServiceNameTrailingGap
+	nameTextWidth := max(m.ui.layout.ServiceNameWidth-components.IndicatorColumnWidth-components.ServiceNameTrailingGap, 1)
 	name := components.TruncateAndPad(service.Name, nameTextWidth)
 	nameCol := fmt.Sprintf("%s %s ", indicator, name)
-
-	timelineCol := m.renderTimeline(service, isSelected)
-
-	statusCol := m.getStyledAndPaddedStatus(service, isSelected)
-	details := m.getServiceDetails(service, isSelected)
 
 	style := components.ServiceRowStyle
 	if isSelected {
 		style = m.theme.SelectedRowStyle
 	}
+
+	if m.asideVisible() {
+		statusText := m.styledStatus(service, isSelected)
+		gap := max(m.ui.layout.ContentWidth-lipgloss.Width(nameCol)-lipgloss.Width(statusText), 0)
+
+		return style.Width(rowWidth).Render(nameCol + strings.Repeat(" ", gap) + statusText)
+	}
+
+	timelineCol := m.renderTimeline(service, isSelected)
+	statusCol := m.getStyledAndPaddedStatus(service, isSelected)
+	details := m.getServiceDetails(service, isSelected)
 
 	row := m.buildServiceRow(rowParts{
 		name:       nameCol,
@@ -415,13 +552,26 @@ func (m Model) getServiceDetails(service *ServiceState, isSelected bool) string 
 	}
 
 	w := m.ui.layout.MetricWidth
+	if w <= 0 || m.ui.layout.MetricColumns <= 0 {
+		return ""
+	}
 
-	return fmt.Sprintf("%*s%*s%*s%*s",
-		w, fitMetric(m.getCPU(service), w),
-		w, fitMetric(m.getMem(service), w),
-		w, fitMetric(m.getPID(service), w),
-		w, fitMetric(m.getUptime(service), w),
-	)
+	values := []string{
+		m.getCPU(service),
+		m.getMem(service),
+		m.getPID(service),
+		m.getUptime(service),
+	}
+
+	count := min(m.ui.layout.MetricColumns, len(values))
+
+	var b strings.Builder
+
+	for i := range count {
+		fmt.Fprintf(&b, "%*s", w, fitMetric(values[i], w))
+	}
+
+	return b.String()
 }
 
 // fitMetric truncates a metric value with an ellipsis when it would exceed the column width
@@ -445,32 +595,32 @@ func fitMetric(s string, w int) string {
 	return "…"
 }
 
-// getStyledAndPaddedStatus returns the styled status string with padding
-func (m Model) getStyledAndPaddedStatus(service *ServiceState, isSelected bool) string {
+// styledStatus returns the status string with the lifecycle-appropriate color (no padding)
+func (m Model) styledStatus(service *ServiceState, isSelected bool) string {
 	statusStr := string(service.Status)
-
-	paddingLen := max(m.ui.layout.StatusWidth-len(statusStr), 0)
-
-	padding := strings.Repeat(components.IndicatorEmpty, paddingLen)
-
 	if isSelected {
-		return statusStr + padding
+		return statusStr
 	}
-
-	var styledStatus string
 
 	switch service.Status {
 	case StatusRunning:
-		styledStatus = m.theme.StatusRunningStyle.Render(statusStr)
+		return m.theme.StatusRunningStyle.Render(statusStr)
 	case StatusStarting:
-		styledStatus = m.theme.StatusStartingStyle.Render(statusStr)
+		return m.theme.StatusStartingStyle.Render(statusStr)
 	case StatusFailed:
-		styledStatus = m.theme.StatusFailedStyle.Render(statusStr)
+		return m.theme.StatusFailedStyle.Render(statusStr)
 	case StatusStopped:
-		styledStatus = m.theme.StatusStoppedStyle.Render(statusStr)
+		return m.theme.StatusStoppedStyle.Render(statusStr)
 	default:
-		styledStatus = statusStr
+		return statusStr
 	}
+}
 
-	return styledStatus + padding
+// getStyledAndPaddedStatus returns the styled status string padded to fit StatusWidth
+func (m Model) getStyledAndPaddedStatus(service *ServiceState, isSelected bool) string {
+	statusStr := string(service.Status)
+	paddingLen := max(m.ui.layout.StatusWidth-len(statusStr), 0)
+	padding := strings.Repeat(components.IndicatorEmpty, paddingLen)
+
+	return m.styledStatus(service, isSelected) + padding
 }

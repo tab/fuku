@@ -88,13 +88,16 @@ fuku version                    # or --version, -v
 ↑/↓ or k/j       Navigate services
 pgup/pgdn        Scroll viewport
 home/end         Jump to start/end
+enter            Open service info aside
 r                Restart selected service
 ctrl+r           Restart all failed services
 s                Stop/start selected service
 /                Filter services by name
-esc              Clear filter
+esc              Close service info aside, or clear filter
 q                Quit (stops all services)
 ```
+
+`enter` opens a read-only info panel for the selected service showing its name, tier, status, working directory, start command, readiness check (type/address/URL/pattern), per-service log outputs, and watch configuration (include/ignore/shared globs and debounce). The panel splits the screen 50/50 with the services list; on narrow terminals it stays hidden and the services list keeps the full width. `esc` closes the panel; if it is not open, `esc` clears an active filter.
 
 ## Configuration
 

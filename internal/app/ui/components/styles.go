@@ -7,17 +7,19 @@ var FgPrimary = lipgloss.Color("#7D56F4")
 
 // App layout styles
 var (
-	AppContainerStyle = lipgloss.NewStyle().MarginTop(1)
-	FooterStyle       = lipgloss.NewStyle().PaddingLeft(1)
-	FooterMarginStyle = lipgloss.NewStyle().MarginTop(1)
-	TipStyle          = lipgloss.NewStyle().PaddingRight(1)
+	AppContainerStyle     = lipgloss.NewStyle().MarginTop(1)
+	FooterStyle           = lipgloss.NewStyle().PaddingLeft(1)
+	FooterMarginStyle     = lipgloss.NewStyle().MarginTop(1)
+	TipStyle              = lipgloss.NewStyle().PaddingRight(1)
+	ContentTopMarginStyle = lipgloss.NewStyle().MarginTop(1)
 )
 
 // Panel styles
 var (
-	PanelBorderStyle = lipgloss.NewStyle().Foreground(FgPrimary)
-	PanelTitleStyle  = lipgloss.NewStyle().Foreground(FgPrimary).Bold(true)
-	PanelTitleSpacer = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1)
+	PanelBorderStyle      = lipgloss.NewStyle().Foreground(FgPrimary)
+	PanelMutedBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	PanelTitleStyle       = lipgloss.NewStyle().Foreground(FgPrimary).Bold(true)
+	PanelTitleSpacer      = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1)
 )
 
 // Service list styles
