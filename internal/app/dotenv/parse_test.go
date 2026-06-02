@@ -156,6 +156,26 @@ func Test_MergeFiles(t *testing.T) {
 			fileOrder: []string{".env"},
 			want:      nil,
 		},
+		{
+			name: "parent traversal entry is rejected",
+			files: map[string]string{
+				".env": "INSIDE=ok\n",
+			},
+			fileOrder: []string{"../escape", ".env"},
+			want: []Store{
+				{Key: "INSIDE", Value: "ok"},
+			},
+		},
+		{
+			name: "absolute path entry is rejected",
+			files: map[string]string{
+				".env": "INSIDE=ok\n",
+			},
+			fileOrder: []string{"/etc/passwd", ".env"},
+			want: []Store{
+				{Key: "INSIDE", Value: "ok"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -177,4 +197,54 @@ func Test_MergeFiles(t *testing.T) {
 func Test_MergeFiles_EmptyInputs(t *testing.T) {
 	assert.Nil(t, mergeFiles("", []string{".env"}))
 	assert.Nil(t, mergeFiles(t.TempDir(), nil))
+}
+
+func Test_IsSafeRelativePath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "plain .env name",
+			path: ".env",
+			want: true,
+		},
+		{
+			name: "nested relative path",
+			path: "config/.env",
+			want: true,
+		},
+		{
+			name: "empty path",
+			path: "",
+			want: false,
+		},
+		{
+			name: "absolute path",
+			path: "/etc/passwd",
+			want: false,
+		},
+		{
+			name: "parent traversal at start",
+			path: "../escape",
+			want: false,
+		},
+		{
+			name: "parent traversal segment",
+			path: "config/../../escape",
+			want: false,
+		},
+		{
+			name: "literal parent",
+			path: "..",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isSafeRelativePath(tt.path))
+		})
+	}
 }

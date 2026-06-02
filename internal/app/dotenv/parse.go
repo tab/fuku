@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// mergeFiles parses files in dir in the given order; later files override earlier values for matching keys; output preserves first-appearance order of keys
+// mergeFiles parses files in dir in the given order; later files override earlier values for matching keys; output preserves first-appearance order of keys; entries with absolute paths or `..` segments are skipped to prevent reading files outside dir
 func mergeFiles(dir string, files []string) []Store {
 	if dir == "" || len(files) == 0 {
 		return nil
@@ -18,6 +18,10 @@ func mergeFiles(dir string, files []string) []Store {
 	var result []Store
 
 	for _, name := range files {
+		if !isSafeRelativePath(name) {
+			continue
+		}
+
 		path := filepath.Join(dir, name)
 
 		info, err := os.Stat(path)
@@ -41,9 +45,23 @@ func mergeFiles(dir string, files []string) []Store {
 	return result
 }
 
-// parseFile reads a .env* file and returns its key/value entries in declaration order
+// isSafeRelativePath reports whether name is a relative path that resolves inside its parent directory; absolute paths and paths with `..` segments are rejected so a misconfigured env.files entry cannot read files outside the service directory
+func isSafeRelativePath(name string) bool {
+	if name == "" || filepath.IsAbs(name) {
+		return false
+	}
+
+	cleaned := filepath.Clean(name)
+	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return false
+	}
+
+	return true
+}
+
+// parseFile reads a .env* file and returns its key/value entries in declaration order; entries are returned only when the scan completes cleanly so a mid-scan I/O error does not yield a partial set; the caller must restrict path to a service-relative file already validated by isSafeRelativePath
 func parseFile(path string) []Store {
-	f, err := os.Open(path) // #nosec G304 -- path is composed from service dir and user-configured file list
+	f, err := os.Open(path)
 	if err != nil {
 		return nil
 	}
@@ -57,6 +75,10 @@ func parseFile(path string) []Store {
 		if kv, ok := parseLine(scanner.Text()); ok {
 			entries = append(entries, kv)
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil
 	}
 
 	return entries

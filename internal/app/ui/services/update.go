@@ -44,10 +44,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.height = msg.Height
 		m.ui.help.SetWidth(msg.Width)
 
-		if m.state.asideOpen && !m.canShowAside() {
-			m.state.asideOpen = false
-			m.state.asideFocused = false
-		}
+		m.ensureAsideShowable()
 
 		m = m.recomputeLayout()
 		m.recomputeViewport()
@@ -204,6 +201,12 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.ui.asideViewport.GotoBottom()
 
 			return m, nil
+		case "pgup", "pgdown":
+			var cmd tea.Cmd
+
+			m.ui.asideViewport, cmd = m.ui.asideViewport.Update(msg)
+
+			return m, cmd
 		}
 
 		return m, nil
@@ -626,6 +629,7 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 
 	m.log.Debug().Msgf("TUI: After ProfileResolved - tiers=%d, services=%d", len(m.state.tiers), len(m.state.services))
 
+	m.ensureAsideShowable()
 	m = m.recomputeLayout()
 
 	return m

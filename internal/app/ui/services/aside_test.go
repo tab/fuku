@@ -516,7 +516,7 @@ func Test_AsideHealthTab(t *testing.T) {
 			},
 		},
 		{
-			name: "stopped service without pid omits pid card",
+			name: "stopped service still shows process card with placeholder rows so the layout does not flicker",
 			cfg: &config.Config{
 				Services: map[string]*config.Service{
 					"web": {Dir: "services/web"},
@@ -531,10 +531,10 @@ func Test_AsideHealthTab(t *testing.T) {
 				"status",
 				"state",
 				"stopped",
-			},
-			wantMissing: []string{
 				"process",
 				"pid",
+				"uptime",
+				asidePlaceholder,
 			},
 		},
 	}

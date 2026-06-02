@@ -75,6 +75,20 @@ func (m Model) canShowAside() bool {
 	return asideWidth >= components.AsideMinWidth && mainWidth >= components.AsideMinMainWidth
 }
 
+// ensureAsideShowable forces the aside closed and unfocused when it is logically open but the current layout (width or service names) cannot fit the split; called after any state change that may shrink the layout
+func (m *Model) ensureAsideShowable() {
+	if !m.state.asideOpen {
+		return
+	}
+
+	if m.canShowAside() {
+		return
+	}
+
+	m.state.asideOpen = false
+	m.state.asideFocused = false
+}
+
 // asideVisible reports whether the aside should be rendered for the current width
 func (m Model) asideVisible() bool {
 	_, asideWidth := m.panelWidths()

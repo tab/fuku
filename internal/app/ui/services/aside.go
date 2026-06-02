@@ -17,6 +17,7 @@ const (
 	asideLabelGap     = 2
 	asideDottedChar   = "┄"
 	asideTabSeparator = " • "
+	asidePlaceholder  = "—"
 )
 
 // AsideTab identifies a tab in the aside panel
@@ -335,18 +336,24 @@ func (m Model) readinessRows(r *config.Readiness) []cardRow {
 	return rows
 }
 
-// asideProcessCard renders the running process id and uptime
+// asideProcessCard renders the process id and uptime; rows are always rendered (using "—" while values are unknown) so the card does not flicker in and out across restart transitions
 func (m Model) asideProcessCard(service *ServiceState, innerWidth int) string {
-	if service.PID == 0 {
-		return ""
+	pidValue := asidePlaceholder
+	pidStyle := m.theme.PanelMutedStyle
+
+	if service.PID != 0 {
+		pidValue = strconv.Itoa(service.PID)
+		pidStyle = m.theme.StatusRunningStyle
+	}
+
+	uptimeValue := asidePlaceholder
+	if uptime := m.getUptime(service); uptime != "" {
+		uptimeValue = uptime
 	}
 
 	rows := []cardRow{
-		{label: "pid", value: strconv.Itoa(service.PID), style: m.theme.StatusRunningStyle},
-	}
-
-	if uptime := m.getUptime(service); uptime != "" {
-		rows = append(rows, cardRow{label: "uptime", value: uptime})
+		{label: "pid", value: pidValue, style: pidStyle},
+		{label: "uptime", value: uptimeValue},
 	}
 
 	return m.asideSection("process", rows, innerWidth)

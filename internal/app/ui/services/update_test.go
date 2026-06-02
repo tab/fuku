@@ -3233,6 +3233,43 @@ func Test_Update_WindowSizeMsg_AsideOpen_NarrowFallbackFullViewport(t *testing.T
 	assert.False(t, result.state.asideOpen, "narrow resize auto-closes aside so Esc can not orphan an invisible state")
 }
 
+func Test_HandleProfileResolved_AsideOpen_AutoClosesWhenLayoutNoLongerFits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
+	m.state.tiers = make([]Tier, 0)
+	m.state.asideOpen = true
+	m.state.asideFocused = true
+	m.ui.width = 80
+
+	msg := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "core",
+			Tiers: []bus.Tier{
+				{
+					Name: "foundation",
+					Services: []bus.Service{
+						{ID: "id-1", Name: strings.Repeat("x", 32)},
+					},
+				},
+			},
+		},
+	}
+
+	result := m.handleProfileResolved(msg)
+
+	assert.False(t, result.state.asideOpen, "profile change that shrinks the available aside width must auto-close the aside")
+	assert.False(t, result.state.asideFocused, "auto-close must also drop focus so subsequent keys do not target an invisible panel")
+}
+
 func Test_Update_WindowSizeMsg_AsideOpen_WideKeepsOpen(t *testing.T) {
 	m := Model{}
 	m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
@@ -3596,6 +3633,17 @@ func Test_HandleKeyPress_AsideFocusedScrollsAsideViewport(t *testing.T) {
 			msg:         tea.KeyPressMsg{Code: tea.KeyHome},
 			startBottom: true,
 			wantAtTop:   true,
+		},
+		{
+			name:      "pgdown scrolls aside viewport down",
+			msg:       tea.KeyPressMsg{Code: tea.KeyPgDown},
+			wantMoved: true,
+		},
+		{
+			name:        "pgup scrolls aside viewport up",
+			msg:         tea.KeyPressMsg{Code: tea.KeyPgUp},
+			startBottom: true,
+			wantMoved:   true,
 		},
 	}
 
