@@ -252,7 +252,7 @@ func (s *service) Resume(ctx context.Context, svc bus.Service) {
 
 // doStart creates, starts, and waits for a service to be ready
 func (s *service) doStart(ctx context.Context, tier string, svc bus.Service, cfg *config.Service) (process.Process, error) {
-	serviceDir, envFile, err := s.resolvePaths(svc.Name, cfg.Dir)
+	serviceDir, err := s.resolveServiceDir(cfg.Dir)
 	if err != nil {
 		return nil, err
 	}
@@ -263,8 +263,6 @@ func (s *service) doStart(ctx context.Context, tier string, svc bus.Service, cfg
 
 	cmd := buildCommand(cfg.Command)
 	cmd.Dir = serviceDir
-
-	cmd.Env = append(os.Environ(), "ENV_FILE="+envFile)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -329,29 +327,24 @@ func (s *service) doStop(id string, proc process.Process) {
 	s.registry.Remove(id, proc)
 }
 
-// resolvePaths validates and returns absolute paths for service directory and env file
-func (s *service) resolvePaths(name, dir string) (serviceDir, envFile string, err error) {
-	serviceDir = dir
+// resolveServiceDir validates and returns the absolute service directory
+func (s *service) resolveServiceDir(dir string) (string, error) {
+	serviceDir := dir
 
 	if !filepath.IsAbs(serviceDir) {
 		wd, err := os.Getwd()
 		if err != nil {
-			return "", "", fmt.Errorf("%w: %w", errors.ErrFailedToGetWorkingDir, err)
+			return "", fmt.Errorf("%w: %w", errors.ErrFailedToGetWorkingDir, err)
 		}
 
 		serviceDir = filepath.Join(wd, serviceDir)
 	}
 
 	if _, err := os.Stat(serviceDir); os.IsNotExist(err) {
-		return "", "", fmt.Errorf("%w: %s", errors.ErrServiceDirectoryNotExist, serviceDir)
+		return "", fmt.Errorf("%w: %s", errors.ErrServiceDirectoryNotExist, serviceDir)
 	}
 
-	envFile = filepath.Join(serviceDir, ".env.development")
-	if _, err := os.Stat(envFile); err != nil {
-		s.log.Warn().Msgf("Environment file not found for service '%s': %s", name, envFile)
-	}
-
-	return serviceDir, envFile, nil
+	return serviceDir, nil
 }
 
 // setupStreams creates process handle and starts stream goroutines
@@ -625,10 +618,10 @@ func (s *service) isWatched(name string) bool {
 	return exists && cfg.Watch != nil
 }
 
-// buildCommand creates an exec.Cmd from a command string, defaulting to "make run"
+// buildCommand creates an exec.Cmd from a command string, falling back to config.DefaultServiceCommand when empty
 func buildCommand(command string) *exec.Cmd {
 	if command == "" {
-		return exec.Command("make", "run")
+		command = config.DefaultServiceCommand
 	}
 
 	return exec.Command("sh", "-c", command)
