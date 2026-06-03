@@ -24,6 +24,7 @@
    - **app/bus/** - Unified pub/sub messaging for events and commands
    - **app/cli/** - Command-line interface parsing and command handling
    - **app/discovery/** - Profile resolution to tiers and services
+   - **app/dotenv/** - Per-service `.env` file loader for display in the UI info aside (values are not exported to the child process)
    - **app/lifecycle/** - Process termination with SIGTERM/SIGKILL handling
    - **app/logs/** - CLI logs screen/mode
    - **app/metrics/** - Bus-driven metrics collector (subscribes to events, emits Sentry metrics)
@@ -298,6 +299,8 @@
 - `internal/app/cli/cli_test.go` - CLI command execution testing
 - `internal/app/cli/commands_test.go` - Cobra command parsing tests
 - `internal/app/discovery/discovery_test.go` - Profile resolution testing
+- `internal/app/dotenv/dotenv_test.go` - Loader cache and lifecycle event handling
+- `internal/app/dotenv/parse_test.go` - .env file merge and parser testing
 - `internal/app/lifecycle/lifecycle_test.go` - Process termination testing
 - `internal/app/logs/screen_test.go` - Logs screen/mode testing
 - `internal/app/relay/bridge_test.go` - Bus-to-relay bridge testing

@@ -24,7 +24,7 @@ const nav = getDocsNav(base);
     Generate a config template with <code>fuku init</code>, or create <code>fuku.yaml</code> manually in your project root.
   </p>
 
-  <div class="section-eyebrow">Services</div>
+  <div class="section-eyebrow" id="services">Services</div>
   <h2>Service definitions</h2>
 
   <p>Each service is defined with a name, directory, and optional settings:</p>
@@ -45,7 +45,9 @@ const nav = getDocsNav(base);
       include: ["**/*.go"]
       ignore: ["**/*_test.go"]
       shared: ["pkg/common"]
-      debounce: 1s`} />
+      debounce: 1s
+    env:                        # Files surfaced in the TUI info aside (optional)
+      files: [.env, .env.local, .env.development, .env.development.local]`} />
 
   <table>
     <thead>
@@ -78,6 +80,10 @@ const nav = getDocsNav(base);
       <tr>
         <td><code>watch</code></td>
         <td>Hot-reload file watching configuration (see <a href={`${base}features/hot-reload/`}>Hot-Reload</a>)</td>
+      </tr>
+      <tr>
+        <td><code>env.files</code></td>
+        <td>List of <code>.env</code> files (relative to <code>dir</code>) parsed and shown in the TUI info aside's <code>env</code> tab. Defaults to <code>.env</code>, <code>.env.local</code>, <code>.env.development</code>, <code>.env.development.local</code>. Values are display-only &mdash; fuku does not export them to the child process</td>
       </tr>
     </tbody>
   </table>
