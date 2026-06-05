@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"fuku/internal/app/dotenv"
 	"fuku/internal/app/ui/components"
 	"fuku/internal/config"
 )
@@ -415,24 +416,15 @@ func formatElapsed(d time.Duration) string {
 	return pad(minutes) + ":" + pad(seconds)
 }
 
-// asideEnvTab renders the env tab content: merged contents of the service's .env files in load order
+// asideEnvTab renders the env tab with values hard-wrapped to fill the row
 func (m Model) asideEnvTab(service *ServiceState, innerWidth int) string {
-	card := m.asideDotenvCard(service, innerWidth)
-	if card == "" {
+	merged := m.dotenvEntries(service)
+	if len(merged) == 0 {
 		return m.theme.PlaceholderStyle.Render("no environment variables available")
 	}
 
-	return card
-}
-
-// asideDotenvCard renders the merged contents of the service's .env files under an "environment" section title with dotted separators between rows
-func (m Model) asideDotenvCard(service *ServiceState, innerWidth int) string {
-	if m.dotenv == nil {
-		return ""
-	}
-
-	merged := m.dotenv.Env(service.ID)
-	if len(merged) == 0 {
+	rowAvailable := asideContentWidth(innerWidth)
+	if rowAvailable < 1 {
 		return ""
 	}
 
@@ -441,7 +433,78 @@ func (m Model) asideDotenvCard(service *ServiceState, innerWidth int) string {
 		rows = append(rows, cardRow{label: kv.Key, value: kv.Value})
 	}
 
-	return m.asideDottedSection("environment", rows, innerWidth)
+	labelWidth := computeLabelWidth(rows)
+	separator := asideRowIndent + m.theme.PanelMutedStyle.Render(strings.Repeat(asideDottedChar, rowAvailable))
+
+	lines := make([]string, 0, len(rows)*3+1)
+	lines = append(lines, asideTitleIndent+m.theme.PanelMutedStyle.Bold(true).Render("environment"))
+
+	for i, row := range rows {
+		if i > 0 {
+			lines = append(lines, separator)
+		}
+
+		lines = append(lines, m.envWrappedRow(row, labelWidth, rowAvailable)...)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// envWrappedRow renders one env entry with its value hard-wrapped across continuation lines
+func (m Model) envWrappedRow(row cardRow, labelWidth, available int) []string {
+	labelStyled := m.theme.PanelMutedStyle.Render(row.label)
+	labelDisplayWidth := lipgloss.Width(labelStyled)
+	pad := max(labelWidth-labelDisplayWidth, 1)
+	labelBlock := labelStyled + strings.Repeat(" ", pad)
+
+	firstAvailable := available - lipgloss.Width(labelBlock)
+	if firstAvailable < 1 {
+		return []string{asideRowIndent + labelStyled}
+	}
+
+	chunks := wrapRunes(row.value, firstAvailable, available)
+	if len(chunks) == 0 {
+		return []string{asideRowIndent + labelBlock}
+	}
+
+	out := make([]string, 0, len(chunks))
+	out = append(out, asideRowIndent+labelBlock+chunks[0])
+
+	for _, c := range chunks[1:] {
+		out = append(out, asideRowIndent+c)
+	}
+
+	return out
+}
+
+// dotenvEntries returns the merged .env entries for the service (nil when unavailable)
+func (m Model) dotenvEntries(service *ServiceState) []dotenv.Store {
+	if m.dotenv == nil || service == nil {
+		return nil
+	}
+
+	return m.dotenv.Env(service.ID)
+}
+
+// wrapRunes splits s into rune chunks of firstWidth then width
+func wrapRunes(s string, firstWidth, width int) []string {
+	if s == "" || firstWidth <= 0 || width <= 0 {
+		return nil
+	}
+
+	runes := []rune(s)
+
+	var out []string
+
+	chunk := firstWidth
+	for len(runes) > 0 {
+		end := min(chunk, len(runes))
+		out = append(out, string(runes[:end]))
+		runes = runes[end:]
+		chunk = width
+	}
+
+	return out
 }
 
 // lookupServiceConfig safely returns the config entry for a service name
@@ -570,47 +633,23 @@ func (m Model) asideWatchCard(entry *config.Service, innerWidth int) string {
 
 // asideSection renders a labeled key-value section: optional title line followed by indented label-value rows; returns empty when there are no rows or no usable width
 func (m Model) asideSection(title string, rows []cardRow, innerWidth int) string {
-	return m.renderAsideSection(title, rows, innerWidth, false)
-}
-
-// asideDottedSection is asideSection with a dotted separator line inserted between consecutive rows; used when rows are dense enough to benefit from row-level dividers
-func (m Model) asideDottedSection(title string, rows []cardRow, innerWidth int) string {
-	return m.renderAsideSection(title, rows, innerWidth, true)
-}
-
-func (m Model) renderAsideSection(title string, rows []cardRow, innerWidth int, dottedSeparators bool) string {
 	if len(rows) == 0 {
 		return ""
 	}
 
-	rowAvailable := innerWidth - len(asideRowIndent)
+	rowAvailable := asideContentWidth(innerWidth)
 	if rowAvailable < 1 {
 		return ""
 	}
 
 	labelWidth := computeLabelWidth(rows)
-
-	capacity := len(rows) + 1
-	if dottedSeparators {
-		capacity = len(rows)*2 + 1
-	}
-
-	lines := make([]string, 0, capacity)
+	lines := make([]string, 0, len(rows)+1)
 
 	if title != "" {
 		lines = append(lines, asideTitleIndent+m.theme.PanelMutedStyle.Bold(true).Render(title))
 	}
 
-	var separator string
-	if dottedSeparators {
-		separator = asideRowIndent + m.theme.PanelMutedStyle.Render(strings.Repeat(asideDottedChar, rowAvailable))
-	}
-
-	for i, row := range rows {
-		if dottedSeparators && i > 0 {
-			lines = append(lines, separator)
-		}
-
+	for _, row := range rows {
 		lines = append(lines, asideRowIndent+m.asideRow(row, labelWidth, rowAvailable))
 	}
 
@@ -636,6 +675,11 @@ func (m Model) asideRow(row cardRow, labelWidth, available int) string {
 	}
 
 	return labelBlock + row.style.Render(value)
+}
+
+// asideContentWidth returns innerWidth minus the leading indent and matching right gutter
+func asideContentWidth(innerWidth int) int {
+	return innerWidth - 2*len(asideRowIndent)
 }
 
 // computeLabelWidth returns the widest label across rows plus a small gap to leave space before the value column
