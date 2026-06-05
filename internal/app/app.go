@@ -58,9 +58,9 @@ func NewApp(ui cli.TUI, sentry sentry.Sentry, shutdowner fx.Shutdowner) *App {
 // Run executes the application and signals FX to shut down
 func (a *App) Run(ctx context.Context) {
 	exitCode := a.execute(ctx)
-	close(a.done)
 
 	a.sentry.Flush()
+	close(a.done)
 
 	//nolint:errcheck // shutdown is best-effort at exit
 	a.shutdowner.Shutdown(fx.ExitCode(exitCode))
