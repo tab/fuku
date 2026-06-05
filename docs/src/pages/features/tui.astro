@@ -119,6 +119,8 @@ const nav = getFeaturesNav(base);
               <span class="help-sep">&bull;</span>
               <span class="help-key">r</span> <span class="help-desc">restart</span>
               <span class="help-sep">&bull;</span>
+              <span class="help-key">ctrl+r</span> <span class="help-desc">restart failed</span>
+              <span class="help-sep">&bull;</span>
               <span class="help-key">/</span> <span class="help-desc">filter</span>
               <span class="help-sep">&bull;</span>
               <span class="help-key">q</span> <span class="help-desc">quit</span>
@@ -148,7 +150,7 @@ const nav = getFeaturesNav(base);
   </ul>
 
   <p>
-    Press <code>\</code> to toggle keyboard focus between the services list and the aside &mdash; the focused panel takes the highlighted border and routes <code>&uarr;</code>/<code>&darr;</code>, <code>PgUp</code>/<code>PgDn</code>, and <code>Home</code>/<code>End</code>. The aside auto-fits the services list to the longest service name and donates the rest of the terminal width to the panel; on terminals too narrow to fit both, the panel stays hidden and the services list keeps the full width. Press <code>Esc</code> to close the aside (or <code>Enter</code> again to toggle it shut).
+    Press <code>\</code> to toggle keyboard focus between the services list and the aside &mdash; the focused panel takes the highlighted border and routes <code>&uarr;</code>/<code>&darr;</code>, <code>PgUp</code>/<code>PgDn</code>, and <code>Home</code>/<code>End</code>. The aside auto-fits the services list to the longest service name (capped at a medium width so one very long name cannot keep stealing aside space &mdash; names beyond the cap are truncated in the services column) and donates the rest of the terminal width to the panel; on terminals too narrow to fit both, the panel stays hidden and the services list keeps the full width. Press <code>Esc</code> to close the aside (or <code>Enter</code> again to toggle it shut).
   </p>
 
   <div class="section-eyebrow">Filtering</div>
