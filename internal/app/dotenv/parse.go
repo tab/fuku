@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// mergeFiles parses files in dir in the given order; later files override earlier values for matching keys; output preserves first-appearance order of keys; entries with absolute paths or `..` segments are skipped to prevent reading files outside dir
+// mergeFiles parses files in dir in order and merges them, with later files overriding earlier values for matching keys
 func mergeFiles(dir string, files []string) []Store {
 	if dir == "" || len(files) == 0 {
 		return nil
@@ -45,7 +45,7 @@ func mergeFiles(dir string, files []string) []Store {
 	return result
 }
 
-// isSafeRelativePath reports whether name is a relative path that resolves inside its parent directory; absolute paths and paths with `..` segments are rejected so a misconfigured env.files entry cannot read files outside the service directory
+// isSafeRelativePath reports whether name is a relative path that stays inside its parent after cleaning
 func isSafeRelativePath(name string) bool {
 	if name == "" || filepath.IsAbs(name) {
 		return false
@@ -59,7 +59,7 @@ func isSafeRelativePath(name string) bool {
 	return true
 }
 
-// parseFile reads a .env* file and returns its key/value entries in declaration order; entries are returned only when the scan completes cleanly so a mid-scan I/O error does not yield a partial set; the caller must restrict path to a service-relative file already validated by isSafeRelativePath
+// parseFile reads a .env file and returns its key/value entries in declaration order, or nil on a read error
 func parseFile(path string) []Store {
 	f, err := os.Open(path)
 	if err != nil {
@@ -84,7 +84,7 @@ func parseFile(path string) []Store {
 	return entries
 }
 
-// parseLine parses a single line; returns ok=false for blanks, comments, and malformed lines
+// parseLine parses a single .env line and returns ok=false for blanks, comments, and malformed lines
 func parseLine(line string) (Store, bool) {
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
