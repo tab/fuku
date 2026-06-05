@@ -84,7 +84,7 @@ fuku run core --no-ui`} />
 	npm start`} />
 
   <p>
-    If a <code>.env.development</code> file exists in the service directory, fuku automatically detects it and passes it via the <code>ENV_FILE</code> variable.
+    Each service inherits fuku's own environment but does not receive any per-service variables injected by fuku &mdash; the child runs in its <code>dir</code>, so any tool the service uses is free to load <code>.env</code> files itself. fuku still parses each service's <code>.env</code> files for display in the TUI's info aside (the <code>env</code> tab); see the <a href={`${base}docs/cli/#environment-file-loading`}>CLI reference</a> for the load order and the <a href={`${base}docs/configuration/#services`}>Configuration</a> page for the optional <code>env.files</code> override.
   </p>
 
   <p>

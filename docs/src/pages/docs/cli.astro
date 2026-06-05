@@ -144,10 +144,10 @@ fuku version`} />
 
   <hr />
 
-  <div class="section-eyebrow">Environment</div>
+  <div class="section-eyebrow" id="environment-file-loading">Environment</div>
   <h2>Environment file loading</h2>
 
-  <p>fuku automatically loads environment files using <a href="https://github.com/joho/godotenv" target="_blank" rel="noopener">godotenv</a>, in this order (later files take precedence):</p>
+  <p>On startup, fuku loads its own environment files using <a href="https://github.com/joho/godotenv" target="_blank" rel="noopener">godotenv</a>, in this order (later files take precedence):</p>
 
   <ol>
     <li><code>.env</code></li>
@@ -156,6 +156,10 @@ fuku version`} />
   </ol>
 
   <p>
-    If a service directory contains a <code>.env.development</code> file, it is automatically detected and passed to the service via the <code>ENV_FILE</code> variable.
+    These files configure the fuku process itself. Each service inherits fuku's environment but does <strong>not</strong> receive any per-service variables injected by fuku &mdash; child processes run in their service <code>dir</code> and are responsible for loading their own <code>.env</code> files.
+  </p>
+
+  <p>
+    Per-service <code>.env</code> files are still read by fuku, but only for display in the TUI's <a href={`${base}features/tui/#service-info`}>info aside</a> (the <code>env</code> tab). By default fuku reads <code>.env</code>, <code>.env.local</code>, <code>.env.development</code>, and <code>.env.development.local</code> from each service's <code>dir</code>; override the list with the per-service <code>env.files</code> field (see <a href={`${base}docs/configuration/#services`}>Configuration</a>).
   </p>
 </DocsLayout>

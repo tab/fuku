@@ -2,9 +2,11 @@ package services
 
 import (
 	"io"
+	"strings"
 	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -16,6 +18,7 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/components"
+	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
@@ -1609,7 +1612,7 @@ func Test_HandleUpKey_WithFilter(t *testing.T) {
 	}
 	m.state.selected = 1
 
-	teaModel, _ := m.handleUpKey()
+	teaModel, _ := m.handleUpKey(tea.KeyPressMsg{Code: tea.KeyUp})
 	result := teaModel.(Model)
 
 	assert.Equal(t, 0, result.state.selected)
@@ -1630,7 +1633,7 @@ func Test_HandleUpKey_WithFilter_AtTop(t *testing.T) {
 	}
 	m.state.selected = 0
 
-	teaModel, _ := m.handleUpKey()
+	teaModel, _ := m.handleUpKey(tea.KeyPressMsg{Code: tea.KeyUp})
 	result := teaModel.(Model)
 
 	assert.Equal(t, 0, result.state.selected)
@@ -1654,7 +1657,7 @@ func Test_HandleDownKey_WithFilter(t *testing.T) {
 	}
 	m.state.selected = 0
 
-	teaModel, _ := m.handleDownKey()
+	teaModel, _ := m.handleDownKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	result := teaModel.(Model)
 
 	assert.Equal(t, 1, result.state.selected)
@@ -1675,7 +1678,7 @@ func Test_HandleDownKey_WithFilter_AtBottom(t *testing.T) {
 	}
 	m.state.selected = 0
 
-	teaModel, _ := m.handleDownKey()
+	teaModel, _ := m.handleDownKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	result := teaModel.(Model)
 
 	assert.Equal(t, 0, result.state.selected)
@@ -1693,7 +1696,7 @@ func Test_HandleDownKey_WithFilter_ZeroMatches(t *testing.T) {
 	m.state.filteredTiers = []Tier{}
 	m.state.selected = 0
 
-	teaModel, _ := m.handleDownKey()
+	teaModel, _ := m.handleDownKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	result := teaModel.(Model)
 
 	assert.Equal(t, 0, result.state.selected)
@@ -3183,6 +3186,689 @@ func Test_HandleUpdateAvailable(t *testing.T) {
 			assert.Equal(t, tt.wantVersion, result.state.availableVersion)
 		})
 	}
+}
+
+func Test_Update_WindowSizeMsg_AsideClosed_FullViewport(t *testing.T) {
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
+	m.ui.help = help.New()
+	m.ui.servicesViewport = viewport.New()
+
+	teaModel, cmd := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	result := teaModel.(Model)
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, 120, result.ui.width)
+	assert.Equal(t, 40, result.ui.height)
+	assert.Equal(t, 120-components.PanelInnerPadding, result.ui.servicesViewport.Width(), "viewport must use full width when aside closed")
+	assert.True(t, result.state.ready)
+}
+
+func Test_Update_WindowSizeMsg_AsideOpen_SplitViewport(t *testing.T) {
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
+	m.state.asideOpen = true
+	m.ui.help = help.New()
+	m.ui.servicesViewport = viewport.New()
+
+	teaModel, cmd := m.Update(tea.WindowSizeMsg{Width: 200, Height: 40})
+	result := teaModel.(Model)
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, 200, result.ui.width)
+	assert.Equal(t, components.AsideMinMainWidth-components.PanelInnerPadding, result.ui.servicesViewport.Width(), "viewport must shrink to the auto-fit main width when aside open")
+}
+
+func Test_Update_WindowSizeMsg_AsideOpen_NarrowFallbackFullViewport(t *testing.T) {
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
+	m.state.asideOpen = true
+	m.ui.help = help.New()
+	m.ui.servicesViewport = viewport.New()
+
+	teaModel, _ := m.Update(tea.WindowSizeMsg{Width: 50, Height: 40})
+	result := teaModel.(Model)
+
+	assert.Equal(t, 50-components.PanelInnerPadding, result.ui.servicesViewport.Width(), "narrow terminal falls back to full viewport width even with aside open")
+	assert.False(t, result.state.asideOpen, "narrow resize auto-closes aside so Esc can not orphan an invisible state")
+}
+
+func Test_HandleProfileResolved_AsideOpen_AutoClosesWhenLayoutNoLongerFits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+	noopLogger := zerolog.New(io.Discard)
+	mockLog.EXPECT().Debug().Return(noopLogger.Debug()).AnyTimes()
+
+	m := Model{log: mockLog, loader: NewLoader()}
+	m.state.services = make(map[string]*ServiceState)
+	m.state.restarting = make(map[string]bool)
+	m.state.tiers = make([]Tier, 0)
+	m.state.asideOpen = true
+	m.state.asideFocused = true
+	m.ui.width = 80
+
+	msg := bus.Message{
+		Type: bus.EventProfileResolved,
+		Data: bus.ProfileResolved{
+			Profile: "core",
+			Tiers: []bus.Tier{
+				{
+					Name: "foundation",
+					Services: []bus.Service{
+						{ID: "id-1", Name: strings.Repeat("x", 32)},
+					},
+				},
+			},
+		},
+	}
+
+	result := m.handleProfileResolved(msg)
+
+	assert.False(t, result.state.asideOpen, "profile change that shrinks the available aside width must auto-close the aside")
+	assert.False(t, result.state.asideFocused, "auto-close must also drop focus so subsequent keys do not target an invisible panel")
+}
+
+func Test_Update_WindowSizeMsg_AsideOpen_WideKeepsOpen(t *testing.T) {
+	m := Model{}
+	m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
+	m.state.asideOpen = true
+	m.ui.help = help.New()
+	m.ui.servicesViewport = viewport.New()
+
+	teaModel, _ := m.Update(tea.WindowSizeMsg{Width: 200, Height: 40})
+	result := teaModel.(Model)
+
+	assert.True(t, result.state.asideOpen, "wide-enough terminal preserves asideOpen state")
+}
+
+func Test_RecomputeViewport_ReflectsAsideState(t *testing.T) {
+	m := Model{}
+	m.ui.width = 200
+	m.ui.height = 40
+	m.ui.servicesViewport = viewport.New()
+
+	m.recomputeViewport()
+	assert.Equal(t, 200-components.PanelInnerPadding, m.ui.servicesViewport.Width(), "closed aside should use full width")
+
+	m.state.asideOpen = true
+	m.recomputeViewport()
+	assert.Equal(t, components.AsideMinMainWidth-components.PanelInnerPadding, m.ui.servicesViewport.Width(), "open aside should shrink viewport to the auto-fit main width")
+}
+
+func Test_RecomputeLayout_RespectsAsideState(t *testing.T) {
+	m := Model{}
+	m.ui.width = 200
+
+	closedLayout := m.recomputeLayout().ui.layout
+	m.state.asideOpen = true
+	openLayout := m.recomputeLayout().ui.layout
+
+	assert.Greater(t, closedLayout.ContentWidth, openLayout.ContentWidth, "opening aside must shrink the table content width")
+}
+
+func Test_HandleKeyPress_EnterOpensAside(t *testing.T) {
+	tests := []struct {
+		name          string
+		serviceIDs    []string
+		selected      int
+		width         int
+		wantAsideOpen bool
+	}{
+		{
+			name:          "Enter on selected service opens aside",
+			serviceIDs:    []string{"id-api", "id-web"},
+			selected:      0,
+			width:         200,
+			wantAsideOpen: true,
+		},
+		{
+			name:          "Enter with no services does nothing",
+			serviceIDs:    nil,
+			selected:      0,
+			width:         200,
+			wantAsideOpen: false,
+		},
+		{
+			name:          "Enter with selection out of bounds does nothing",
+			serviceIDs:    []string{"id-api"},
+			selected:      5,
+			width:         200,
+			wantAsideOpen: false,
+		},
+		{
+			name:          "Enter on narrow terminal does not open aside",
+			serviceIDs:    []string{"id-api", "id-web"},
+			selected:      0,
+			width:         50,
+			wantAsideOpen: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.servicesKeys = DefaultKeyMap()
+			m.ui.servicesViewport = viewport.New()
+			m.ui.width = tt.width
+			m.state.serviceIDs = tt.serviceIDs
+			m.state.services = map[string]*ServiceState{
+				"id-api": {ID: "id-api", Name: "api"},
+				"id-web": {ID: "id-web", Name: "web"},
+			}
+			m.state.tiers = []Tier{
+				{Name: "tier1", Services: tt.serviceIDs},
+			}
+			m.state.selected = tt.selected
+
+			msg := tea.KeyPressMsg{Code: tea.KeyEnter}
+			teaModel, cmd := m.handleKeyPress(msg)
+			result := teaModel.(Model)
+
+			assert.Nil(t, cmd)
+			assert.Equal(t, tt.wantAsideOpen, result.state.asideOpen)
+		})
+	}
+}
+
+func Test_HandleKeyPress_EscClosesAsideBeforeClearingFilter(t *testing.T) {
+	tests := []struct {
+		name               string
+		initialAsideOpen   bool
+		initialFilterQuery string
+		wantAsideOpen      bool
+		wantFilterQuery    string
+	}{
+		{
+			name:               "Esc closes aside without clearing filter",
+			initialAsideOpen:   true,
+			initialFilterQuery: "web",
+			wantAsideOpen:      false,
+			wantFilterQuery:    "web",
+		},
+		{
+			name:               "Esc with aside closed clears filter",
+			initialAsideOpen:   false,
+			initialFilterQuery: "db",
+			wantAsideOpen:      false,
+			wantFilterQuery:    "",
+		},
+		{
+			name:               "Esc closes aside when no filter active",
+			initialAsideOpen:   true,
+			initialFilterQuery: "",
+			wantAsideOpen:      false,
+			wantFilterQuery:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.servicesKeys = DefaultKeyMap()
+			m.ui.servicesViewport = viewport.New()
+			m.ui.width = 200
+			m.state.asideOpen = tt.initialAsideOpen
+			m.state.filterQuery = tt.initialFilterQuery
+			m.state.serviceIDs = []string{"id-api", "id-web"}
+			m.state.services = map[string]*ServiceState{
+				"id-api": {ID: "id-api", Name: "api"},
+				"id-web": {ID: "id-web", Name: "web"},
+			}
+			m.state.tiers = []Tier{
+				{Name: "tier1", Services: []string{"id-api", "id-web"}},
+			}
+
+			if tt.initialFilterQuery != "" {
+				m.state.filteredIDs = []string{"id-api"}
+				m.state.filteredTiers = []Tier{{Name: "tier1", Services: []string{"id-api"}}}
+			}
+
+			msg := tea.KeyPressMsg{Code: tea.KeyEscape}
+			teaModel, _ := m.handleKeyPress(msg)
+			result := teaModel.(Model)
+
+			assert.Equal(t, tt.wantAsideOpen, result.state.asideOpen)
+			assert.Equal(t, tt.wantFilterQuery, result.state.filterQuery)
+		})
+	}
+}
+
+func Test_HandleKeyPress_UpDownWithAsideOpenAndServicesFocusedMovesSelection(t *testing.T) {
+	tests := []struct {
+		name         string
+		initialSel   int
+		keyCode      rune
+		wantSelected int
+	}{
+		{
+			name:         "Down moves selection while aside open and services focused",
+			initialSel:   0,
+			keyCode:      tea.KeyDown,
+			wantSelected: 1,
+		},
+		{
+			name:         "Up moves selection while aside open and services focused",
+			initialSel:   1,
+			keyCode:      tea.KeyUp,
+			wantSelected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.servicesKeys = DefaultKeyMap()
+			m.ui.servicesViewport = viewport.New()
+			m.ui.asideViewport = viewport.New()
+			m.state.asideOpen = true
+			m.state.asideFocused = false
+			m.state.serviceIDs = []string{"id-api", "id-web"}
+			m.state.services = map[string]*ServiceState{
+				"id-api": {ID: "id-api", Name: "api"},
+				"id-web": {ID: "id-web", Name: "web"},
+			}
+			m.state.tiers = []Tier{
+				{Name: "tier1", Services: []string{"id-api", "id-web"}},
+			}
+			m.state.selected = tt.initialSel
+
+			msg := tea.KeyPressMsg{Code: tt.keyCode}
+			teaModel, _ := m.handleKeyPress(msg)
+			result := teaModel.(Model)
+
+			assert.True(t, result.state.asideOpen, "aside should remain open after navigation")
+			assert.Equal(t, tt.wantSelected, result.state.selected)
+		})
+	}
+}
+
+func Test_HandleFilterInput_EscapeUnaffectedByAsideState(t *testing.T) {
+	m := Model{}
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.servicesViewport = viewport.New()
+	m.state.asideOpen = true
+	m.state.filterActive = true
+	m.state.filterQuery = "web"
+	m.state.serviceIDs = []string{"id-api", "id-web"}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {ID: "id-api", Name: "api"},
+		"id-web": {ID: "id-web", Name: "web"},
+	}
+	m.state.tiers = []Tier{
+		{Name: "tier1", Services: []string{"id-api", "id-web"}},
+	}
+
+	msg := tea.KeyPressMsg{Code: tea.KeyEscape}
+	teaModel, _ := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.False(t, result.state.filterActive, "filter input mode should exit")
+	assert.Empty(t, result.state.filterQuery, "filter query should be cleared by filter-input Escape")
+}
+
+func Test_HandleAsideTab_ResetsAsideScroll(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler func(Model) (tea.Model, tea.Cmd)
+		fromTab AsideTab
+		wantTab AsideTab
+	}{
+		{
+			name:    "next tab resets scroll",
+			handler: func(m Model) (tea.Model, tea.Cmd) { return m.handleAsideTabNext() },
+			fromTab: AsideTabConfig,
+			wantTab: AsideTabEnv,
+		},
+		{
+			name:    "prev tab resets scroll",
+			handler: func(m Model) (tea.Model, tea.Cmd) { return m.handleAsideTabPrev() },
+			fromTab: AsideTabConfig,
+			wantTab: AsideTabHealth,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.asideViewport = viewport.New()
+			m.ui.asideViewport.SetWidth(40)
+			m.ui.asideViewport.SetHeight(5)
+			m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+			m.ui.asideViewport.GotoBottom()
+			require.Positive(t, m.ui.asideViewport.YOffset(), "precondition: viewport must be scrolled down")
+
+			m.state.asideTab = tt.fromTab
+
+			teaModel, _ := tt.handler(m)
+			result := teaModel.(Model)
+
+			assert.Equal(t, tt.wantTab, result.state.asideTab)
+			assert.Equal(t, 0, result.ui.asideViewport.YOffset(), "aside scroll must reset to top after tab change")
+		})
+	}
+}
+
+func Test_HandleSelectionKeys_ServicesFocusedMovesSelectionAndResetsAsideScroll(t *testing.T) {
+	tests := []struct {
+		name       string
+		keyCode    rune
+		initialSel int
+		wantSel    int
+	}{
+		{
+			name:       "down moves selection and resets aside scroll",
+			keyCode:    tea.KeyDown,
+			initialSel: 0,
+			wantSel:    1,
+		},
+		{
+			name:       "up moves selection and resets aside scroll",
+			keyCode:    tea.KeyUp,
+			initialSel: 1,
+			wantSel:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.servicesKeys = DefaultKeyMap()
+			m.ui.servicesViewport = viewport.New()
+			m.ui.asideViewport = viewport.New()
+			m.ui.asideViewport.SetWidth(40)
+			m.ui.asideViewport.SetHeight(5)
+			m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+			m.ui.asideViewport.GotoBottom()
+			require.Positive(t, m.ui.asideViewport.YOffset(), "precondition: viewport must be scrolled down")
+
+			m.state.asideOpen = true
+			m.state.asideFocused = false
+			m.state.serviceIDs = []string{"id-api", "id-web"}
+			m.state.services = map[string]*ServiceState{
+				"id-api": {ID: "id-api", Name: "api"},
+				"id-web": {ID: "id-web", Name: "web"},
+			}
+			m.state.tiers = []Tier{{Name: "tier1", Services: []string{"id-api", "id-web"}}}
+			m.state.selected = tt.initialSel
+
+			msg := tea.KeyPressMsg{Code: tt.keyCode}
+			teaModel, _ := m.handleKeyPress(msg)
+			result := teaModel.(Model)
+
+			assert.Equal(t, tt.wantSel, result.state.selected)
+			assert.Equal(t, 0, result.ui.asideViewport.YOffset(), "aside scroll must reset when service selection changes")
+		})
+	}
+}
+
+func Test_HandleKeyPress_AsideFocusedScrollsAsideViewport(t *testing.T) {
+	tests := []struct {
+		name        string
+		msg         tea.KeyPressMsg
+		startBottom bool
+		wantAtTop   bool
+		wantAtBot   bool
+		wantMoved   bool
+	}{
+		{
+			name:      "down scrolls aside viewport down",
+			msg:       tea.KeyPressMsg{Code: tea.KeyDown},
+			wantMoved: true,
+		},
+		{
+			name:        "up scrolls aside viewport up",
+			msg:         tea.KeyPressMsg{Code: tea.KeyUp},
+			startBottom: true,
+			wantMoved:   true,
+		},
+		{
+			name:      "end jumps to bottom of aside viewport",
+			msg:       tea.KeyPressMsg{Code: tea.KeyEnd},
+			wantAtBot: true,
+		},
+		{
+			name:        "home jumps to top of aside viewport",
+			msg:         tea.KeyPressMsg{Code: tea.KeyHome},
+			startBottom: true,
+			wantAtTop:   true,
+		},
+		{
+			name:      "pgdown scrolls aside viewport down",
+			msg:       tea.KeyPressMsg{Code: tea.KeyPgDown},
+			wantMoved: true,
+		},
+		{
+			name:        "pgup scrolls aside viewport up",
+			msg:         tea.KeyPressMsg{Code: tea.KeyPgUp},
+			startBottom: true,
+			wantMoved:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.servicesKeys = DefaultKeyMap()
+			m.ui.servicesViewport = viewport.New()
+			m.ui.asideViewport = viewport.New()
+			m.ui.asideViewport.SetWidth(40)
+			m.ui.asideViewport.SetHeight(5)
+			m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+
+			if tt.startBottom {
+				m.ui.asideViewport.GotoBottom()
+			}
+
+			yBefore := m.ui.asideViewport.YOffset()
+
+			m.state.asideOpen = true
+			m.state.asideFocused = true
+			m.state.serviceIDs = []string{"id-api"}
+			m.state.services = map[string]*ServiceState{"id-api": {ID: "id-api", Name: "api"}}
+			m.state.tiers = []Tier{{Name: "tier1", Services: []string{"id-api"}}}
+			m.state.selected = 0
+
+			servicesYBefore := m.ui.servicesViewport.YOffset()
+			selectedBefore := m.state.selected
+
+			teaModel, _ := m.handleKeyPress(tt.msg)
+			result := teaModel.(Model)
+
+			if tt.wantAtTop {
+				assert.True(t, result.ui.asideViewport.AtTop(), "aside viewport must be at top")
+			}
+
+			if tt.wantAtBot {
+				assert.True(t, result.ui.asideViewport.AtBottom(), "aside viewport must be at bottom")
+			}
+
+			if tt.wantMoved {
+				assert.NotEqual(t, yBefore, result.ui.asideViewport.YOffset(), "aside viewport offset must change")
+			}
+
+			assert.Equal(t, selectedBefore, result.state.selected, "service selection must not move when aside is focused")
+			assert.Equal(t, servicesYBefore, result.ui.servicesViewport.YOffset(), "services viewport must not move when aside is focused")
+		})
+	}
+}
+
+func Test_HandleKeyPress_ScrollKeysWhenAsideClosedRouteToServicesViewport(t *testing.T) {
+	m := Model{}
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.servicesViewport = viewport.New()
+	m.ui.servicesViewport.SetWidth(40)
+	m.ui.servicesViewport.SetHeight(5)
+	m.ui.servicesViewport.SetContent(strings.Repeat("line\n", 50))
+	m.ui.asideViewport = viewport.New()
+
+	m.state.asideOpen = false
+	m.state.serviceIDs = []string{"id-api"}
+	m.state.services = map[string]*ServiceState{"id-api": {ID: "id-api", Name: "api"}}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"id-api"}}}
+
+	msg := tea.KeyPressMsg{Code: tea.KeyPgDown}
+	teaModel, _ := m.handleKeyPress(msg)
+	result := teaModel.(Model)
+
+	assert.Positive(t, result.ui.servicesViewport.YOffset(), "services viewport must scroll when aside is closed")
+	assert.Equal(t, 0, result.ui.asideViewport.YOffset(), "aside viewport must stay put when aside is closed")
+}
+
+func Test_SetAsideOpen_SetsFocusAndResetsAsideScroll(t *testing.T) {
+	m := Model{}
+	m.ui.width = 200
+	m.ui.height = 40
+	m.ui.servicesViewport = viewport.New()
+	m.ui.asideViewport = viewport.New()
+	m.ui.asideViewport.SetWidth(40)
+	m.ui.asideViewport.SetHeight(5)
+	m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+	m.ui.asideViewport.GotoBottom()
+	require.Positive(t, m.ui.asideViewport.YOffset(), "precondition: viewport must be scrolled down")
+
+	m.state.services = map[string]*ServiceState{"api": {Name: "api"}}
+
+	opened := m.setAsideOpen(true)
+
+	assert.True(t, opened.state.asideOpen)
+	assert.True(t, opened.state.asideFocused, "opening aside transfers focus to aside")
+	assert.Equal(t, 0, opened.ui.asideViewport.YOffset(), "opening aside resets viewport scroll to top")
+
+	closed := opened.setAsideOpen(false)
+	assert.False(t, closed.state.asideOpen)
+	assert.False(t, closed.state.asideFocused, "closing aside transfers focus back to services")
+}
+
+func Test_HandleFocusToggle(t *testing.T) {
+	tests := []struct {
+		name         string
+		asideOpen    bool
+		asideFocused bool
+		wantFocused  bool
+	}{
+		{
+			name:         "toggle while aside-focused moves focus to services",
+			asideOpen:    true,
+			asideFocused: true,
+			wantFocused:  false,
+		},
+		{
+			name:         "toggle while services-focused moves focus to aside",
+			asideOpen:    true,
+			asideFocused: false,
+			wantFocused:  true,
+		},
+		{
+			name:         "toggle while aside is closed is a no-op",
+			asideOpen:    false,
+			asideFocused: false,
+			wantFocused:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.servicesKeys = DefaultKeyMap()
+			m.ui.servicesViewport = viewport.New()
+			m.ui.asideViewport = viewport.New()
+
+			m.state.asideOpen = tt.asideOpen
+			m.state.asideFocused = tt.asideFocused
+			m.state.serviceIDs = []string{"id-api"}
+			m.state.services = map[string]*ServiceState{"id-api": {ID: "id-api", Name: "api"}}
+			m.state.tiers = []Tier{{Name: "tier1", Services: []string{"id-api"}}}
+
+			msg := tea.KeyPressMsg{Code: '\\', Text: "\\"}
+			teaModel, _ := m.handleKeyPress(msg)
+			result := teaModel.(Model)
+
+			assert.Equal(t, tt.wantFocused, result.state.asideFocused)
+		})
+	}
+}
+
+func Test_SetAsideOpen_PopulatesAsideViewportContent(t *testing.T) {
+	m := Model{theme: components.DefaultTheme()}
+	m.ui.width = 200
+	m.ui.height = 30
+	m.ui.servicesViewport = viewport.New()
+	m.ui.asideViewport = viewport.New()
+
+	m.cfg = &config.Config{Services: map[string]*config.Service{
+		"api": {Dir: "services/api", Command: "go run main.go", Tier: "foundation"},
+	}}
+	m.state.serviceIDs = []string{"id-api"}
+	m.state.services = map[string]*ServiceState{
+		"id-api": {ID: "id-api", Name: "api", Tier: "foundation", Status: StatusRunning},
+	}
+	m.state.tiers = []Tier{{Name: "foundation", Services: []string{"id-api"}}}
+
+	opened := m.setAsideOpen(true)
+
+	got := opened.ui.asideViewport.GetContent()
+	assert.Contains(t, got, "services/api", "setAsideOpen must populate aside viewport content via updateAsideContent")
+}
+
+func Test_PanelBorderStyle_FollowsFocus(t *testing.T) {
+	tests := []struct {
+		name         string
+		asideOpen    bool
+		asideFocused bool
+		wantServices bool
+		wantAside    bool
+	}{
+		{
+			name:         "aside closed focuses services",
+			asideOpen:    false,
+			asideFocused: false,
+			wantServices: true,
+			wantAside:    false,
+		},
+		{
+			name:         "aside open and aside focused",
+			asideOpen:    true,
+			asideFocused: true,
+			wantServices: false,
+			wantAside:    true,
+		},
+		{
+			name:         "aside open and services focused",
+			asideOpen:    true,
+			asideFocused: false,
+			wantServices: true,
+			wantAside:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.state.asideOpen = tt.asideOpen
+			m.state.asideFocused = tt.asideFocused
+
+			assert.Equal(t, tt.wantServices, m.servicesPanelBorderStyle().GetForeground() == components.PanelBorderStyle.GetForeground(), "services panel border")
+			assert.Equal(t, tt.wantAside, m.asidePanelBorderStyle().GetForeground() == components.PanelBorderStyle.GetForeground(), "aside panel border")
+		})
+	}
+}
+
+func Test_RecomputeViewport_SizesAsideViewport(t *testing.T) {
+	m := Model{}
+	m.ui.width = 200
+	m.ui.height = 40
+	m.ui.servicesViewport = viewport.New()
+	m.ui.asideViewport = viewport.New()
+
+	m.state.asideOpen = true
+	m.recomputeViewport()
+
+	_, asideWidth := m.panelWidths()
+	expectedWidth := max(asideWidth-components.PanelInnerPadding, 0)
+	assert.Equal(t, expectedWidth, m.ui.asideViewport.Width(), "open aside should size viewport to the aside inner width")
+	assert.Positive(t, m.ui.asideViewport.Height())
 }
 
 func toKeyMsg(s string) tea.KeyPressMsg {

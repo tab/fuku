@@ -4,45 +4,57 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // PanelOptions contains options for rendering a panel
 type PanelOptions struct {
-	Title   string
-	Content string
-	Status  string
-	Stats   string
-	Version string
-	Help    string
-	Tips    string
-	Height  int
-	Width   int
+	Title       string
+	Content     string
+	Status      string
+	Stats       string
+	Version     string
+	Height      int
+	Width       int
+	BorderStyle lipgloss.Style
 }
 
 // RenderPanel renders a bordered panel with titles in the borders
 func RenderPanel(opts PanelOptions) string {
+	return strings.Join(RenderPanelLines(opts), "\n")
+}
+
+// RenderPanelLines returns the panel as a slice of lines so callers can join them with sibling panels by direct concatenation, avoiding the lipgloss.JoinHorizontal ANSI-width pass
+func RenderPanelLines(opts PanelOptions) []string {
 	innerWidth := opts.Width - PanelInnerPadding
 
 	titleText := PanelTitleStyle.Render(opts.Title)
 
-	border := func(s string) string { return PanelBorderStyle.Render(s) }
+	borderStyle := opts.BorderStyle
+	if borderStyle.GetForeground() == nil {
+		borderStyle = PanelBorderStyle
+	}
+
+	border := func(s string) string { return borderStyle.Render(s) }
 
 	topBorder := BuildTopBorder(border, titleText, opts.Status, innerWidth)
 	bottomBorder := BuildBottomBorder(border, opts.Stats, opts.Version, innerWidth)
 
 	contentHeight := max(opts.Height-PanelBorderHeight, 1)
 
-	contentLines := splitAndPadContent(opts.Content, contentHeight)
+	contentLines := SplitAndPadContent(opts.Content, contentHeight)
 
-	lines := make([]string, 0, contentHeight+3)
+	lines := make([]string, 0, contentHeight+2)
 	lines = append(lines, topBorder)
 	lines = AppendContentLines(lines, contentLines, innerWidth, border)
 	lines = append(lines, bottomBorder)
 
-	panel := lipgloss.JoinVertical(lipgloss.Left, lines...)
-	footer := renderFooter(opts.Help, opts.Tips, opts.Width)
+	return lines
+}
 
-	return lipgloss.JoinVertical(lipgloss.Left, panel, footer)
+// RenderFooter renders the help/tips footer row at the given width
+func RenderFooter(help, tips string, width int) string {
+	return renderFooter(help, tips, width)
 }
 
 // TableLayout holds computed column widths for the services table
@@ -55,6 +67,7 @@ type TableLayout struct {
 	StatusWidth      int
 	RightFlexWidth   int
 	MetricWidth      int
+	MetricColumns    int
 }
 
 // PreferredNameTextWidth picks a bucket value based on the longest service name length
@@ -71,22 +84,53 @@ func PreferredNameTextWidth(name int) int {
 	}
 }
 
-// ComputeTableLayout returns column widths based on the available content width and preferred name text width
-func ComputeTableLayout(contentWidth, preferredNameTextWidth int) TableLayout {
+// ComputeCompactLayout returns a layout for the aside-open mode that allocates space to the service name (sized for the longest name) and a right-aligned status column, with no timeline or metrics
+func ComputeCompactLayout(contentWidth, preferredNameTextWidth int) TableLayout {
 	if contentWidth < 0 {
 		contentWidth = 0
+	}
+
+	statusWidth := min(StatusCompactWidth, contentWidth)
+
+	nameColWidth := preferredNameTextWidth + IndicatorColumnWidth + ServiceNameTrailingGap
+	if nameColWidth+statusWidth > contentWidth {
+		nameColWidth = max(contentWidth-statusWidth, 0)
+	}
+
+	leftFlex := max(contentWidth-nameColWidth-statusWidth, 0)
+
+	return TableLayout{
+		ContentWidth:     contentWidth,
+		ServiceNameWidth: nameColWidth,
+		LeftFlexWidth:    leftFlex,
+		StatusWidth:      statusWidth,
+	}
+}
+
+// ComputeTableLayout returns column widths based on the available content width, preferred name text width, and number of metric columns to reserve
+func ComputeTableLayout(contentWidth, preferredNameTextWidth, metricColumns int) TableLayout {
+	if contentWidth < 0 {
+		contentWidth = 0
+	}
+
+	if metricColumns < 0 {
+		metricColumns = 0
 	}
 
 	preferredNameWidth := IndicatorColumnWidth + preferredNameTextWidth
 
 	statusWidth := min(contentWidth/StatusWidthDivisor, StatusMaxWidth)
-	metricWidth := min(contentWidth/MetricWidthDivisor, MetricMaxWidth)
 
-	available := contentWidth - statusWidth - MetricFullColumnCount*metricWidth
+	metricWidth := 0
+	if metricColumns > 0 {
+		metricWidth = min(contentWidth/MetricWidthDivisor, MetricMaxWidth)
+	}
+
+	available := contentWidth - statusWidth - metricColumns*metricWidth
 
 	serviceNameWidth, timelineWidth, gap := allocateNameAndTimeline(available, preferredNameWidth)
 
-	used := serviceNameWidth + timelineWidth + gap + statusWidth + MetricFullColumnCount*metricWidth
+	used := serviceNameWidth + timelineWidth + gap + statusWidth + metricColumns*metricWidth
 	surplus := max(contentWidth-used, 0)
 	leftFlex := surplus / 2
 	rightFlex := surplus - leftFlex
@@ -100,6 +144,7 @@ func ComputeTableLayout(contentWidth, preferredNameTextWidth int) TableLayout {
 		StatusWidth:      statusWidth,
 		RightFlexWidth:   rightFlex,
 		MetricWidth:      metricWidth,
+		MetricColumns:    metricColumns,
 	}
 }
 
@@ -170,71 +215,106 @@ func TruncateAndPad(s string, width int) string {
 	return ellipsis + strings.Repeat(IndicatorEmpty, width-ellipsisWidth)
 }
 
+// fitBorderText truncates left and right text so the border line fits within
+// innerWidth, accounting for spacers, edge borders and the minimum middle
+// filler; either side may be empty and the other side is given the full budget
+func fitBorderText(leftText, rightText string, innerWidth int) (left, right string) {
+	hasLeft := leftText != ""
+	hasRight := rightText != ""
+
+	if !hasLeft && !hasRight {
+		return leftText, rightText
+	}
+
+	budget := innerWidth - BorderSpacerWidth - BorderEdgeWidth - 1
+	if hasLeft && hasRight {
+		budget -= BorderSpacerWidth + BorderEdgeWidth
+	}
+
+	if budget <= 0 {
+		return "", ""
+	}
+
+	leftWidth := lipgloss.Width(leftText)
+	rightWidth := lipgloss.Width(rightText)
+
+	if leftWidth+rightWidth <= budget {
+		return leftText, rightText
+	}
+
+	if !hasLeft {
+		return leftText, ansi.Truncate(rightText, budget, "…")
+	}
+
+	if !hasRight {
+		return ansi.Truncate(leftText, budget, "…"), rightText
+	}
+
+	half := budget / 2
+
+	if leftWidth <= half {
+		return leftText, ansi.Truncate(rightText, budget-leftWidth, "…")
+	}
+
+	if rightWidth <= half {
+		return ansi.Truncate(leftText, budget-rightWidth, "…"), rightText
+	}
+
+	return ansi.Truncate(leftText, half, "…"), ansi.Truncate(rightText, budget-half, "…")
+}
+
 // BuildTopBorder builds the top border with title and optional right-side text
 func BuildTopBorder(border func(string) string, titleText, topRightText string, innerWidth int) string {
-	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
-	spacer := PanelTitleSpacer.Render("")
-	leftSpacer, rightSpacer := SplitAtDisplayWidth(spacer)
-
-	titleLen := lipgloss.Width(titleText) + BorderSpacerWidth + BorderEdgeWidth
-
-	rightLen := 0
-	if topRightText != "" {
-		rightLen = lipgloss.Width(topRightText) + BorderSpacerWidth + BorderEdgeWidth
-	}
-
-	fillWidth := max(innerWidth-titleLen-rightLen, 1)
-
-	result := border(BorderTopLeft + hLine(BorderEdgeWidth))
-	result += leftSpacer + titleText + rightSpacer
-	result += border(hLine(fillWidth))
-
-	if topRightText != "" {
-		result += leftSpacer + topRightText + rightSpacer
-		result += border(hLine(BorderEdgeWidth))
-	}
-
-	result += border(BorderTopRight)
-
-	return result
+	return buildBorderLine(border, BorderTopLeft, BorderTopRight, titleText, topRightText, innerWidth)
 }
 
 // BuildBottomBorder builds the bottom border with optional info (left) and version (right)
 func BuildBottomBorder(border func(string) string, bottomLeftText, bottomRightText string, innerWidth int) string {
-	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
+	return buildBorderLine(border, BorderBottomLeft, BorderBottomRight, bottomLeftText, bottomRightText, innerWidth)
+}
 
+// buildBorderLine renders a horizontal border with optional left-side and right-side text segments
+func buildBorderLine(border func(string) string, leftCorner, rightCorner, leftText, rightText string, innerWidth int) string {
+	hLine := func(n int) string { return strings.Repeat(BorderHorizontal, n) }
 	spacer := PanelTitleSpacer.Render("")
 	leftSpacer, rightSpacer := SplitAtDisplayWidth(spacer)
 
-	rightLen := lipgloss.Width(bottomRightText) + BorderSpacerWidth + BorderEdgeWidth
+	leftText, rightText = fitBorderText(leftText, rightText, innerWidth)
 
 	leftLen := 0
-
-	if bottomLeftText != "" {
-		leftLen = lipgloss.Width(bottomLeftText) + BorderSpacerWidth + BorderEdgeWidth
+	if leftText != "" {
+		leftLen = lipgloss.Width(leftText) + BorderSpacerWidth + BorderEdgeWidth
 	}
 
-	middleWidth := max(innerWidth-leftLen-rightLen, 1)
+	rightLen := 0
+	if rightText != "" {
+		rightLen = lipgloss.Width(rightText) + BorderSpacerWidth + BorderEdgeWidth
+	}
+
+	fillWidth := max(innerWidth-leftLen-rightLen, 1)
 
 	var result string
 
-	if bottomLeftText != "" {
-		result = border(BorderBottomLeft + hLine(BorderEdgeWidth))
-		result += leftSpacer + bottomLeftText + rightSpacer
-		result += border(hLine(middleWidth))
+	if leftText != "" {
+		result = border(leftCorner + hLine(BorderEdgeWidth))
+		result += leftSpacer + leftText + rightSpacer
+		result += border(hLine(fillWidth))
 	} else {
-		result = border(BorderBottomLeft + hLine(middleWidth+leftLen))
+		result = border(leftCorner + hLine(fillWidth+leftLen))
 	}
 
-	result += leftSpacer + bottomRightText + rightSpacer
-	result += border(hLine(BorderEdgeWidth))
-	result += border(BorderBottomRight)
+	if rightText != "" {
+		result += leftSpacer + rightText + rightSpacer
+		result += border(hLine(BorderEdgeWidth))
+	}
+
+	result += border(rightCorner)
 
 	return result
 }
 
-// splitAndPadContent splits content into lines and pads to fill height
-func splitAndPadContent(content string, height int) []string {
+// SplitAndPadContent splits content into lines and pads or truncates to fill height
+func SplitAndPadContent(content string, height int) []string {
 	lines := strings.Split(content, "\n")
 
 	for len(lines) < height {
@@ -248,14 +328,27 @@ func splitAndPadContent(content string, height int) []string {
 	return lines
 }
 
-// AppendContentLines adds content lines with borders and padding
+// AppendContentLines adds content lines with borders and padding; the bordered vertical glyph is rendered once and reused across every row
 func AppendContentLines(result, contentLines []string, innerWidth int, border func(string) string) []string {
+	verticalBorder := border(BorderVertical)
+
 	for _, line := range contentLines {
 		lineWidth := lipgloss.Width(line)
 		padding := max(innerWidth-lineWidth, 0)
 
 		paddedLine := line + strings.Repeat(IndicatorEmpty, padding)
-		result = append(result, border(BorderVertical)+paddedLine+border(BorderVertical))
+		result = append(result, verticalBorder+paddedLine+verticalBorder)
+	}
+
+	return result
+}
+
+// AppendPrePaddedContentLines is a faster variant of AppendContentLines that assumes the input lines are already padded to innerWidth, skipping the per-line lipgloss.Width call
+func AppendPrePaddedContentLines(result, contentLines []string, border func(string) string) []string {
+	verticalBorder := border(BorderVertical)
+
+	for _, line := range contentLines {
+		result = append(result, verticalBorder+line+verticalBorder)
 	}
 
 	return result

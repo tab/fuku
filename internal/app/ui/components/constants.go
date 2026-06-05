@@ -31,6 +31,12 @@ const (
 	BorderVertical    = "│"
 )
 
+// Aside layout constants
+const (
+	AsideMinWidth     = 30
+	AsideMinMainWidth = 42
+)
+
 // Indicator constants
 const (
 	IndicatorSelected    = "›"
@@ -49,6 +55,7 @@ const (
 // Status column constants
 const (
 	StatusMaxWidth     = 16
+	StatusCompactWidth = 10
 	StatusWidthDivisor = 5
 )
 

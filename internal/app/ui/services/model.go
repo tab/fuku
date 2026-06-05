@@ -13,9 +13,11 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/dotenv"
 	"fuku/internal/app/monitor"
 	"fuku/internal/app/registry"
 	"fuku/internal/app/ui/components"
+	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
 
@@ -80,12 +82,14 @@ type APIListener interface {
 // Model represents the Bubble Tea model for the services UI
 type Model struct {
 	ctx        context.Context
+	cfg        *config.Config
 	bus        bus.Bus
 	controller Controller
 	store      registry.Store
 	monitor    monitor.Monitor
 	api        APIListener
 	loader     *Loader
+	dotenv     dotenv.Loader
 	msgChan    <-chan bus.Message
 
 	theme components.Theme
@@ -114,18 +118,27 @@ type Model struct {
 		lastFilteredSelectedID string
 
 		availableVersion string
+
+		asideOpen    bool
+		asideFocused bool
+		asideTab     AsideTab
 	}
 
 	ui struct {
-		height           int
-		width            int
-		layout           components.TableLayout
-		servicesKeys     KeyMap
-		tickCounter      int
-		showTips         bool
-		tipOffset        int
-		help             help.Model
-		servicesViewport viewport.Model
+		height                 int
+		width                  int
+		layout                 components.TableLayout
+		servicesKeys           KeyMap
+		tickCounter            int
+		showTips               bool
+		tipOffset              int
+		servicesContentVersion uint64
+		help                   help.Model
+		servicesViewport       viewport.Model
+		asideViewport          viewport.Model
+		asideLines             []string
+		asideCache             *asideContentCache
+		servicesPanelCache     *renderCache
 	}
 
 	log logger.Logger
@@ -135,12 +148,14 @@ type Model struct {
 func NewModel(
 	ctx context.Context,
 	profile string,
+	cfg *config.Config,
 	b bus.Bus,
 	controller Controller,
 	store registry.Store,
 	mon monitor.Monitor,
 	apiListener APIListener,
 	loader *Loader,
+	envLoader dotenv.Loader,
 	log logger.Logger,
 ) Model {
 	log = log.WithComponent("UI")
@@ -153,12 +168,14 @@ func NewModel(
 
 	m := Model{
 		ctx:        ctx,
+		cfg:        cfg,
 		bus:        b,
 		controller: controller,
 		store:      store,
 		monitor:    mon,
 		api:        apiListener,
 		loader:     loader,
+		dotenv:     envLoader,
 		msgChan:    msgChan,
 		log:        log,
 		theme:      theme,
@@ -173,6 +190,7 @@ func NewModel(
 	m.state.selected = 0
 	m.state.ready = false
 	m.state.shuttingDown = false
+	m.state.asideTab = AsideTabConfig
 
 	m.ui.height = 0
 	m.ui.width = 0
@@ -183,8 +201,23 @@ func NewModel(
 	m.ui.help = help.New()
 	m.ui.help.Styles = help.DefaultStyles(isDark)
 	m.ui.servicesViewport = viewport.New()
+	m.ui.asideViewport = viewport.New()
+	m.ui.asideCache = &asideContentCache{}
+	m.ui.servicesPanelCache = &renderCache{}
 
 	return m
+}
+
+// asideContentCache debounces asideContent rebuilds within a single one-second wall-clock window; the cache key embeds m.state.now truncated to seconds, so any change of second invalidates regardless of other inputs; held by pointer so writes from value receivers persist
+type asideContentCache struct {
+	key     string
+	content string
+}
+
+// renderCache memoizes a rendered panel as line slices keyed by a cheap state hash; held by pointer so writes from value receivers persist
+type renderCache struct {
+	key   string
+	lines []string
 }
 
 // Init initializes the model
@@ -316,8 +349,10 @@ func (m Model) calculateScrollOffset() int {
 	return m.ui.servicesViewport.YOffset()
 }
 
-// updateServicesContent builds the full services content and sets it in the viewport
+// updateServicesContent builds the full services content and sets it in the viewport; bumps the content version so the cached panel render invalidates
 func (m *Model) updateServicesContent() {
+	m.ui.servicesContentVersion++
+
 	tiers := m.activeTiers()
 
 	if len(tiers) == 0 {
@@ -327,7 +362,9 @@ func (m *Model) updateServicesContent() {
 	}
 
 	sections := make([]string, 0, len(tiers)+1)
-	sections = append(sections, m.renderColumnHeaders())
+	if header := m.renderColumnHeaders(); header != "" {
+		sections = append(sections, header)
+	}
 
 	currentIdx := 0
 
@@ -336,6 +373,10 @@ func (m *Model) updateServicesContent() {
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
+	if m.asideVisible() {
+		content = components.ContentTopMarginStyle.Render(content)
+	}
+
 	m.ui.servicesViewport.SetContent(content)
 }
 

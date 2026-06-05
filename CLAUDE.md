@@ -24,6 +24,7 @@
    - **app/bus/** - Unified pub/sub messaging for events and commands
    - **app/cli/** - Command-line interface parsing and command handling
    - **app/discovery/** - Profile resolution to tiers and services
+   - **app/dotenv/** - Per-service `.env` file loader for display in the UI info aside (values are not exported to the child process)
    - **app/lifecycle/** - Process termination with SIGTERM/SIGKILL handling
    - **app/logs/** - CLI logs screen/mode
    - **app/metrics/** - Bus-driven metrics collector (subscribes to events, emits Sentry metrics)
@@ -189,6 +190,7 @@
    - Command publishing for service control
    - Log viewing with service filtering
    - FIFO loader queue for operation tracking
+   - Service info aside panel (Enter opens, Esc closes) showing read-only config: dir, command, tier, readiness, logs output, watch settings
 
 ### Configuration Capabilities
 
@@ -297,6 +299,8 @@
 - `internal/app/cli/cli_test.go` - CLI command execution testing
 - `internal/app/cli/commands_test.go` - Cobra command parsing tests
 - `internal/app/discovery/discovery_test.go` - Profile resolution testing
+- `internal/app/dotenv/dotenv_test.go` - Loader cache and lifecycle event handling
+- `internal/app/dotenv/parse_test.go` - .env file merge and parser testing
 - `internal/app/lifecycle/lifecycle_test.go` - Process termination testing
 - `internal/app/logs/screen_test.go` - Logs screen/mode testing
 - `internal/app/relay/bridge_test.go` - Bus-to-relay bridge testing
@@ -556,6 +560,14 @@ Example workflow:
 - consider using parameter structs for functions with many (4+) parameters
 - if function returns 3 or more results, consider wrapping in result/response struct
 - if function accepts 3 or more input parameters, consider wrapping in request/input struct (but never add context to struct)
+
+### Service Identifier Convention
+- **always identify a service by its `ID` (UUID) across package boundaries** — never by `Name`
+- the canonical service identity is the `ID` field of `bus.Service{ID, Name}`; `Name` is the human-readable label from `fuku.yaml` and is for display only
+- consumers that need to identify a service in an API (registry lookups, store snapshots, command dispatch, cross-package caches like `dotenv.Loader.Env(id)`) MUST accept and return the `ID`, not the `Name`
+- the only exception is `*config.Config.Services`, which is YAML-keyed by `Name` — translate `ID` → `Name` at the package boundary (using `bus.Service.Name` from the event payload) before reading config
+- parameter naming: use `id string` (lowercase, no `service` prefix) — matches `registry.Store.Service(id string)`, `bus.Service.ID`, etc.
+- this keeps identity consistent across registry, store, API, UI, and bus subscribers; mixing `name` and `id` causes brittle lookups whenever names contain characters that aren't valid map keys or when services are renamed
 
 ### Documentation
 - all exported functions, types, and methods must have clear godoc comments

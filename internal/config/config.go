@@ -158,6 +158,12 @@ type Service struct {
 	Readiness *Readiness `yaml:"readiness"`
 	Logs      *Logs      `yaml:"logs"`
 	Watch     *Watch     `yaml:"watch"`
+	Env       *Env       `yaml:"env"`
+}
+
+// Env declares the .env files to read for display in the UI's env tab; values are not exported to the service process (the child still inherits fuku's own environment, and runs in cfg.Dir where its tooling can load .env files directly)
+type Env struct {
+	Files []string `yaml:"files"`
 }
 
 // Readiness represents readiness check configuration for a service

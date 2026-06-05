@@ -85,16 +85,21 @@ fuku version                    # or --version, -v
 ### TUI Controls
 
 ```
-↑/↓ or k/j       Navigate services
-pgup/pgdn        Scroll viewport
-home/end         Jump to start/end
+↑/↓ or k/j       Navigate services (or scroll the focused panel)
+pgup/pgdn        Scroll the focused panel
+home/end         Jump to start/end of the focused panel
+enter            Open service info aside (toggles closed when already open)
+tab / shift+tab  Cycle aside tabs forward / backward
+\                Toggle focus between the services list and the aside
 r                Restart selected service
 ctrl+r           Restart all failed services
 s                Stop/start selected service
 /                Filter services by name
-esc              Clear filter
+esc              Close service info aside, or clear filter when it is already closed
 q                Quit (stops all services)
 ```
+
+`enter` opens a read-only info panel for the selected service with three tabs (`config`, `env`, `health`): working directory, start command, tier, readiness probe (type/address/URL/pattern), per-service log outputs, watch globs and debounce, merged contents of the service's `.env` files (display only — values are not exported to the child process), PID, uptime, retry policy, and the current lifecycle state with how long it has held. The panel auto-fits the services list to the longest service name (capped at a medium width so a single very long name cannot keep stealing aside space — names beyond the cap are truncated in the services column) and donates the rest of the terminal width to the aside; on terminals too narrow to fit both, the panel stays hidden and the services list keeps the full width. `tab` and `shift+tab` cycle the aside tabs; `\` switches keyboard focus between the services list and the aside (the focused panel takes the highlighted border and routes navigation keys). `esc` closes the panel; if the panel is already closed, `esc` clears an active filter.
 
 ## Configuration
 

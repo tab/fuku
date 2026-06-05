@@ -8,6 +8,7 @@ import (
 	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
 	"fuku/internal/app/cli"
+	"fuku/internal/app/dotenv"
 	"fuku/internal/app/logs"
 	"fuku/internal/app/metrics"
 	"fuku/internal/app/monitor"
@@ -25,6 +26,7 @@ var Module = fx.Options(
 	api.Module,
 	bus.Module,
 	cli.Module,
+	dotenv.Module,
 	logs.Module,
 	metrics.Module,
 	monitor.Module,

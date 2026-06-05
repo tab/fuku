@@ -19,7 +19,7 @@ import (
 )
 
 func layoutForWidth(rowWidth int) components.TableLayout {
-	return components.ComputeTableLayout(rowWidth-components.RowHorizontalPadding, components.ServiceNameWidthLong)
+	return components.ComputeTableLayout(rowWidth-components.RowHorizontalPadding, components.ServiceNameWidthLong, components.MetricFullColumnCount)
 }
 
 func Test_View_NotReady(t *testing.T) {
@@ -1431,6 +1431,188 @@ func Test_RenderVersion(t *testing.T) {
 			m.state.availableVersion = tt.availableVersion
 
 			assert.Equal(t, tt.want, m.renderVersion())
+		})
+	}
+}
+
+func Test_View_AsideClosed_FullWidth(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.ready = true
+	m.state.profile = "default"
+	m.state.phase = bus.PhaseRunning
+	m.state.services = map[string]*ServiceState{"api": {Name: "api", Status: StatusRunning}}
+	m.state.serviceIDs = []string{"api"}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.ui.width = 120
+	m.ui.height = 40
+	m.ui.layout = layoutForWidth(120 - components.PanelInnerPadding)
+	m.ui.help = help.New()
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(120-components.PanelInnerPadding), viewport.WithHeight(30))
+	m.theme = components.DefaultTheme()
+
+	result := m.View()
+
+	firstLine := strings.SplitN(result.Content, "\n", 2)[0]
+	assert.GreaterOrEqual(t, lipgloss.Width(firstLine), 120-components.PanelInnerPadding, "main panel should occupy full width when aside is closed")
+}
+
+func Test_View_AsideOpen_SplitWidth(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.ready = true
+	m.state.profile = "default"
+	m.state.phase = bus.PhaseRunning
+	m.state.services = map[string]*ServiceState{"api": {ID: "api", Name: "api", Tier: "foundation", Status: StatusRunning}}
+	m.state.serviceIDs = []string{"api"}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.state.asideOpen = true
+	m.cfg = &config.Config{Services: map[string]*config.Service{"api": {Dir: "services/api", Command: "go run main.go"}}}
+	m.ui.width = 200
+	m.ui.height = 40
+	m.ui.help = help.New()
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(100-components.PanelInnerPadding), viewport.WithHeight(30))
+	m.theme = components.DefaultTheme()
+	m.ui.asideViewport = viewport.New()
+	m = m.recomputeLayout()
+	m.recomputeViewport()
+	m.updateAsideContent()
+
+	result := m.View()
+
+	firstLine := strings.SplitN(result.Content, "\n", 2)[0]
+	assert.GreaterOrEqual(t, lipgloss.Width(firstLine), 200-components.PanelInnerPadding, "split view should reach total terminal width")
+	assert.Contains(t, result.Content, "services/api", "aside content should appear in split view")
+}
+
+func Test_View_AsideOpen_NarrowTerminalHidesAside(t *testing.T) {
+	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
+	m := Model{loader: loader}
+	m.state.ready = true
+	m.state.profile = "default"
+	m.state.phase = bus.PhaseRunning
+	m.state.services = map[string]*ServiceState{"api": {ID: "api", Name: "api", Status: StatusRunning}}
+	m.state.serviceIDs = []string{"api"}
+	m.state.tiers = []Tier{{Name: "tier1", Services: []string{"api"}}}
+	m.state.asideOpen = true
+	m.cfg = &config.Config{Services: map[string]*config.Service{"api": {Dir: "services/api", Command: "narrow-only"}}}
+	m.ui.width = 50
+	m.ui.height = 40
+	m.ui.help = help.New()
+	m.ui.servicesKeys = DefaultKeyMap()
+	m.ui.servicesViewport = viewport.New(viewport.WithWidth(50-components.PanelInnerPadding), viewport.WithHeight(30))
+	m.theme = components.DefaultTheme()
+	m = m.recomputeLayout()
+
+	result := m.View()
+
+	assert.NotContains(t, result.Content, "narrow-only", "aside config content must not appear when terminal is too narrow")
+}
+
+func Test_PanelWidths(t *testing.T) {
+	tests := []struct {
+		name           string
+		totalWidth     int
+		asideOpen      bool
+		serviceNames   []string
+		wantMainWidth  int
+		wantAsideWidth int
+	}{
+		{
+			name:           "closed full width",
+			totalWidth:     200,
+			asideOpen:      false,
+			wantMainWidth:  200,
+			wantAsideWidth: 0,
+		},
+		{
+			name:           "open with short names floors main at AsideMinMainWidth and donates rest to aside",
+			totalWidth:     200,
+			asideOpen:      true,
+			serviceNames:   []string{"api", "web"},
+			wantMainWidth:  components.AsideMinMainWidth,
+			wantAsideWidth: 200 - components.AsideMinMainWidth,
+		},
+		{
+			name:           "open with medium name grows main to fit (frontend-api → 21 < min 24)",
+			totalWidth:     200,
+			asideOpen:      true,
+			serviceNames:   []string{"frontend-api"},
+			wantMainWidth:  components.AsideMinMainWidth,
+			wantAsideWidth: 200 - components.AsideMinMainWidth,
+		},
+		{
+			name:           "open with long name caps at ServiceNameWidthMedium so the aside is protected from outliers",
+			totalWidth:     200,
+			asideOpen:      true,
+			serviceNames:   []string{"action-confirmation-management-service"},
+			wantMainWidth:  components.ServiceNameWidthMedium + components.IndicatorColumnWidth + components.ServiceNameTrailingGap + components.StatusCompactWidth + components.PanelInnerPadding + components.RowHorizontalPadding,
+			wantAsideWidth: 200 - (components.ServiceNameWidthMedium + components.IndicatorColumnWidth + components.ServiceNameTrailingGap + components.StatusCompactWidth + components.PanelInnerPadding + components.RowHorizontalPadding),
+		},
+		{
+			name:           "open but too narrow falls back to full width",
+			totalWidth:     50,
+			asideOpen:      true,
+			serviceNames:   []string{"api"},
+			wantMainWidth:  50,
+			wantAsideWidth: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.width = tt.totalWidth
+			m.state.asideOpen = tt.asideOpen
+			m.state.services = make(map[string]*ServiceState, len(tt.serviceNames))
+
+			for _, name := range tt.serviceNames {
+				m.state.services[name] = &ServiceState{ID: name, Name: name}
+			}
+
+			mainWidth, asideWidth := m.panelWidths()
+			assert.Equal(t, tt.wantMainWidth, mainWidth)
+			assert.Equal(t, tt.wantAsideWidth, asideWidth)
+		})
+	}
+}
+
+func Test_AsideVisible(t *testing.T) {
+	tests := []struct {
+		name       string
+		totalWidth int
+		asideOpen  bool
+		want       bool
+	}{
+		{
+			name:       "closed not visible",
+			totalWidth: 200,
+			asideOpen:  false,
+			want:       false,
+		},
+		{
+			name:       "open and wide enough visible",
+			totalWidth: 200,
+			asideOpen:  true,
+			want:       true,
+		},
+		{
+			name:       "open but too narrow not visible",
+			totalWidth: 50,
+			asideOpen:  true,
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{}
+			m.ui.width = tt.totalWidth
+			m.state.asideOpen = tt.asideOpen
+
+			assert.Equal(t, tt.want, m.asideVisible())
 		})
 	}
 }
