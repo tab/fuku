@@ -5,13 +5,16 @@ applyTo: '**/*'
 
 # Copilot Instructions
 
-For pull request reviews and Go code generation in this repository, you MUST use `.github/CODE_REVIEW.md` as the single source of truth.
+For Go code generation and PR review in this repository, the canonical sources are:
 
-Do not rely on generic best practices, external style guides, or personal assumptions.
+- **`CLAUDE.md`** — code-quality rules (architecture, error handling, naming, testing, concurrency, security, logging, etc.). **Treat as authoritative.**
+- **`.claude/skills/*/SKILL.md`** — procedure references (`fuku-verify` for the verification loop, `fuku-add-test` for test patterns, `fuku-generate-mock` for mock conventions, `fuku-config` for `fuku.yaml`).
+- **`.github/CODE_REVIEW.md`** — PR review process: severity model, PR hygiene, breaking-change detection, output format.
+- **`.github/CODE_REVIEW_PROMPT.md`** — the multi-pass review checklist.
 
-Apply the rules from `.github/CODE_REVIEW.md` when reviewing changes and follow the output format defined there.
+Do not rely on generic best practices, external style guides, or personal assumptions. When `CLAUDE.md` and any other document drift, **treat `CLAUDE.md` as authoritative** and report the drift.
 
-For the review prompt and multi-pass process, see `.github/CODE_REVIEW_PROMPT.md`.
+The same authority applies to any LLM-based assistant working in this repo — GitHub Copilot, OpenAI Codex, Claude Code, Cursor, etc.
 
 ---
 
@@ -36,7 +39,7 @@ Key technologies:
 
 ## Fallback Behavior
 
-If a situation is **not explicitly defined in `.github/CODE_REVIEW.md`**, use the following decision order:
+If a situation is **not explicitly defined in `CLAUDE.md` or any skill**, use the following decision order:
 
 1. **Existing repository patterns**
    Prefer how similar problems are already solved in the current codebase.
@@ -50,7 +53,7 @@ If a situation is **not explicitly defined in `.github/CODE_REVIEW.md`**, use th
 
 3. **Uber Go Style Guide (guidance only)**
    The [Uber Go Style Guide](https://github.com/uber-go/guide) may be used as additional guidance when no repository pattern exists.
-   Rules from the Uber guide must **not override `.github/CODE_REVIEW.md`** and must be reported only as suggestions.
+   Rules from the Uber guide must **not override `CLAUDE.md`** and must be reported only as suggestions.
 
 4. **Optional recommendations**
    Suggestions based on these conventions must be reported under **OPTIONAL / RECOMMENDATIONS**, not as rule violations.

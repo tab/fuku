@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Fuku** is a lightweight CLI orchestrator for running and managing multiple local services in development environments. It's designed for speed, simplicity, and readability. Key features include:
+**Fuku** is a lightweight CLI orchestrator for running and managing multiple local services in development environments. Designed for speed, simplicity, and readability. Key features:
 
 - Service orchestration with tier-based startup ordering
 - Concurrent service execution with proper startup ordering
@@ -12,518 +12,75 @@
 - Dependency injection with Uber FX
 - Clean architecture with interfaces and mocks
 
-## Architecture Overview
+Package layout, interfaces, and execution flow are derivable from the code — read the source.
 
-### Core Components
+## Skills
 
-1. **Entry Point** (`cmd/`)
-   - `main.go` - Application bootstrap with FX dependency injection and configuration loading
+Procedural workflows live in `.claude/skills/`, loaded on demand:
 
-2. **Core Packages** (`internal/`)
-   - **app/** - Main application container and lifecycle management
-   - **app/bus/** - Unified pub/sub messaging for events and commands
-   - **app/cli/** - Command-line interface parsing and command handling
-   - **app/discovery/** - Profile resolution to tiers and services
-   - **app/dotenv/** - Per-service `.env` file loader for display in the UI info aside (values are not exported to the child process)
-   - **app/lifecycle/** - Process termination with SIGTERM/SIGKILL handling
-   - **app/logs/** - CLI logs screen/mode
-   - **app/metrics/** - Bus-driven metrics collector (subscribes to events, emits Sentry metrics)
-   - **app/process/** - Process interface and handle implementation
-   - **app/readiness/** - HTTP, TCP, and log-based health checks
-   - **app/registry/** - Running process tracking with detach support
-   - **app/relay/** - Runtime log transport over Unix sockets (server, hub, client, protocol, socket helpers, bridge)
-   - **app/render/** - Log presentation and rendering (service lines, banner, logger output writer)
-   - **app/preflight/** - Pre-start cleanup of orphaned processes in service directories
-   - **app/runner/** - Service orchestration and startup coordination
-   - **app/sampler/** - Periodic fuku process resource sampling (CPU/MEM) published as bus events
-   - **app/tracer/** - Bus-driven Sentry transaction and span management
-   - **app/ui/services/** - Interactive TUI with Bubble Tea framework
-   - **app/updater/** - GitHub release version checker that publishes update-available events on TUI startup
-   - **app/watcher/** - File change detection with debouncing for hot-reload
-   - **app/worker/** - Shared bounded worker pool for concurrent task execution
-   - **config/** - Configuration loading, parsing, and data structures
-   - **config/sentry/** - Sentry SDK wrapper with metrics API, scope tags, and telemetry opt-out
-   - **errors/** - Application-specific error definitions
-
-### Key Interfaces and Abstractions
-
-1. **runner.Runner** - Core abstraction for service orchestration:
-   ```go
-   type Runner interface {
-       Run(ctx context.Context, profile string) error
-   }
-   ```
-
-2. **cli.CLI** - Interface for command-line operations:
-   ```go
-   type CLI interface {
-       Execute() (exitCode int, err error)
-   }
-   ```
-
-3. **logger.Logger** - Structured logging interface using zerolog
-
-4. **bus.Bus** - Unified pub/sub messaging for events and commands:
-   ```go
-   type Bus interface {
-       Subscribe(ctx context.Context) <-chan Message
-       Publish(msg Message)
-       Close()
-   }
-   ```
-
-5. **logs.Screen** - CLI logs screen/mode:
-   ```go
-   type Screen interface {
-       Run(profile string, services []string) int
-   }
-   ```
-
-6. **relay.Client** - Unix socket client for log streaming:
-   ```go
-   type Client interface {
-       Connect(socketPath string) error
-       Subscribe(services []string) error
-       Stream(ctx context.Context, handler Handler) error
-       Close() error
-   }
-   ```
-
-7. **relay.Broadcaster** - Log broadcast to connected clients:
-   ```go
-   type Broadcaster interface {
-       Broadcast(service, message string)
-   }
-   ```
-
-8. **relay.Server** - Unix socket log server (embeds Broadcaster):
-   ```go
-   type Server interface {
-       Broadcaster
-       Start(ctx context.Context, profile string, services []string) error
-       Stop() error
-       SocketPath() string
-   }
-   ```
-
-9. **relay.Handler** - Client-side message handler:
-   ```go
-   type Handler interface {
-       HandleStatus(StatusMessage)
-       HandleLog(LogMessage)
-   }
-   ```
-
-10. **preflight.Preflight** - Pre-start cleanup of orphaned processes:
-    ```go
-    type Preflight interface {
-        Cleanup(ctx context.Context, dirs map[string]string) ([]Result, error)
-    }
-    ```
-
-11. **worker.Pool** - Bounded worker pool for concurrent task execution:
-    ```go
-    type Pool interface {
-        Acquire(ctx context.Context) error
-        Release()
-    }
-    ```
-
-12. **sentry.Sentry** - Sentry SDK lifecycle management:
-    ```go
-    type Sentry interface {
-        Flush()
-    }
-    ```
-
-13. **metrics.Collector** - Bus-driven metrics collector:
-    ```go
-    type Collector interface {
-        Run(ctx context.Context)
-    }
-    ```
-
-14. **updater.Checker** - One-shot GitHub release checker that publishes `EventUpdateAvailable`:
-    ```go
-    type Checker interface {
-        Run(ctx context.Context)
-    }
-    ```
-
-### Execution Flow
-
-1. **CLI Entry Point** (`cmd/main.go`)
-   - Loads environment files via godotenv (`.env.<GO_ENV>.local` > `.env.<GO_ENV>` > `.env`)
-   - Checks `FUKU_TELEMETRY_DISABLED` env var for telemetry opt-out
-   - Parses command-line arguments using cobra via `cli.Parse()`
-   - Loads configuration from `fuku.yaml` using Viper
-   - Creates `render.NewLog` and `render.NewWriter` for log presentation
-   - Injects Sentry DSN via build-time ldflags (`-X main.sentryDSN=...`)
-   - Initializes FX container with all dependencies (including `sentry.Module`)
-   - Starts application lifecycle
-
-2. **Application Container** (`internal/app/app.go`)
-   - Manages application lifecycle with FX hooks
-   - Initializes Sentry client and metrics collector before command execution
-   - Calls `cli.Execute()` to run the parsed command
-   - Recovers from panics and reports to Sentry
-   - Flushes Sentry events on shutdown
-
-3. **Command Processing** (`internal/app/cli/`)
-   - `commands.go` - Cobra-based argument parsing with `Parse()` function
-   - `cli.go` - Command execution via `Execute()` method
-   - Supports flags in any position (e.g., `--no-ui run core` or `run core --no-ui`)
-   - Commands: `run`, `init`, `logs`, `version`, `help` with short aliases
-
-4. **Service Orchestration** (`internal/app/runner/runner.go`)
-   - Runs preflight cleanup to kill orphaned processes before starting services
-   - Orders services by tier for startup sequencing
-   - Manages process lifecycle with signal handling (SIGINT, SIGTERM)
-   - Streams service logs with prefixed output format
-   - Stops services in reverse order on shutdown
-
-5. **Interactive TUI** (`internal/app/ui/services/`)
-   - Bubble Tea framework for terminal UI
-   - FSM-based service state management (stopped, starting, running, stopping, restarting, failed)
-   - Real-time CPU and memory monitoring via gopsutil
-   - Event-driven updates via EventBus subscription
-   - Command publishing for service control
-   - Log viewing with service filtering
-   - FIFO loader queue for operation tracking
-   - Service info aside panel (Enter opens, Esc closes) showing read-only config: dir, command, tier, readiness, logs output, watch settings
-
-### Configuration Capabilities
-
-1. **Service Definition**
-   - Directory-based service configuration
-   - Tier-based startup ordering
-   - Makefile-based service execution (`make run`) with optional custom command override
-
-2. **Profile Management**
-   - Logical grouping of services for batch execution
-   - Profile values can be `"*"` (all services) or a list of service names
-   - Default profile support for common configurations
-
-3. **Logging Configuration**
-   - Console and JSON format support
-   - Configurable log levels (debug, info, warn, error)
-   - Service-specific log streaming with prefixes
-
-4. **Concurrency Configuration**
-   - Worker pool size (`concurrency.workers`, default: 5)
-   - Controls max concurrent service starts
-
-5. **Retry Configuration**
-   - Max retry attempts (`retry.attempts`, default: 3)
-   - Initial backoff duration (`retry.backoff`, default: 500ms)
-
-6. **Log Streaming Configuration**
-   - Buffer size (`logs.buffer`, default: 1000)
-   - History size (`logs.history`, default: 5000)
-   - Controls socket log streaming buffer and replay history
-
-7. **Watch Configuration (Hot-Reload)**
-   - Per-service file watching with glob patterns (`watch.include`)
-   - Ignore patterns for files to exclude (`watch.ignore`)
-   - Shared paths for cross-service dependencies (`watch.shared`)
-   - Debounce duration to prevent restart storms (`watch.debounce`)
-
-8. **Per-Service Log Output**
-   - Configurable output streams per service (`logs.output`)
-   - Valid values: `stdout`, `stderr` (default: both streams)
-
-### Testing Patterns
-
-1. **Mock Generation**
-   - Uses `go.uber.org/mock` for interface mocking
-   - Generated mocks with mockgen command using full paths:
-     ```bash
-     mockgen -source=internal/app/runtime/commands.go -destination=internal/app/runtime/commands_mock.go -package=runtime
-     ```
-   - Separate mock files for each interface
-   - Do NOT add `//go:generate` directives to source files
-
-2. **Test Structure**
-   - Table-driven tests with subtests using testify
-   - Comprehensive error case coverage
-   - Output capturing for CLI command testing
-   - Mock expectation setup and verification
-   - Entry point testing with extracted testable functions
-   - Integration test skipping for complex application lifecycle scenarios
-
-3. **Table Tests with Mocks Pattern**
-   - Mocks are created once at the test function level
-   - Each test case has a `before func()` that sets up mock expectations
-   - Test data and mock expectations are co-located in the same test case
-   - `tt.before()` is called just before executing the test logic
-   - Example structure:
-     ```go
-     func Test_Example(t *testing.T) {
-         ctrl := gomock.NewController(t)
-         defer ctrl.Finish()
-
-         mockDep := NewMockDependency(ctrl)
-         subject := &Implementation{dep: mockDep}
-
-         tests := []struct {
-             name   string
-             before func()
-             input  string
-             expect bool
-         }{
-             {
-                 name: "success case",
-                 input: "test-input",
-                 before: func() {
-                     mockDep.EXPECT().Method("test-input").Return(nil)
-                 },
-                 expect: true,
-             },
-         }
-
-         for _, tt := range tests {
-             t.Run(tt.name, func(t *testing.T) {
-                 tt.before()
-                 result := subject.TestMethod(tt.input)
-                 assert.Equal(t, tt.expect, result)
-             })
-         }
-     }
-     ```
-
-### Current Test Files
-- `cmd/main_test.go` - Tests for entry point functions and FX application creation
-- `internal/app/app_test.go` - Application container and lifecycle testing
-- `internal/app/bus/bus_test.go` - Bus pub/sub messaging testing
-- `internal/app/bus/subscriber_test.go` - Subscriber overflow and FIFO drain testing
-- `internal/app/cli/cli_test.go` - CLI command execution testing
-- `internal/app/cli/commands_test.go` - Cobra command parsing tests
-- `internal/app/discovery/discovery_test.go` - Profile resolution testing
-- `internal/app/dotenv/dotenv_test.go` - Loader cache and lifecycle event handling
-- `internal/app/dotenv/parse_test.go` - .env file merge and parser testing
-- `internal/app/lifecycle/lifecycle_test.go` - Process termination testing
-- `internal/app/logs/screen_test.go` - Logs screen/mode testing
-- `internal/app/relay/bridge_test.go` - Bus-to-relay bridge testing
-- `internal/app/relay/client_test.go` - Unix socket client testing
-- `internal/app/relay/hub_test.go` - Log hub connection testing
-- `internal/app/relay/protocol_test.go` - Wire protocol message testing
-- `internal/app/relay/server_test.go` - Log server testing
-- `internal/app/relay/socket_test.go` - Socket path and cleanup testing
-- `internal/app/render/log_test.go` - Service line and banner rendering
-- `internal/app/render/writer_test.go` - Application logger writer testing
-- `internal/app/metrics/metrics_test.go` - Bus-driven metrics collector testing
-- `internal/app/monitor/monitor_test.go` - Process monitoring testing
-- `internal/app/preflight/preflight_test.go` - Preflight process cleanup testing
-- `internal/app/process/process_test.go` - Process handle testing
-- `internal/app/readiness/readiness_test.go` - Readiness check testing
-- `internal/app/registry/registry_test.go` - Process registry testing
-- `internal/app/registry/store_test.go` - Runtime state store testing
-- `internal/app/runner/guard_test.go` - Restart guard testing
-- `internal/app/runner/runner_test.go` - Service orchestration and tier ordering
-- `internal/app/runner/service_test.go` - Service start/stop/restart testing
-- `internal/app/sampler/sampler_test.go` - Resource sampler testing
-- `internal/app/tracer/tracer_test.go` - Sentry tracer testing
-- `internal/app/updater/cache_test.go` - Updater cache read/write/TTL testing
-- `internal/app/updater/checker_test.go` - GitHub release checker testing
-- `internal/app/updater/compare_test.go` - Semver comparison helper testing
-- `internal/app/worker/worker_test.go` - Worker pool testing
-- `internal/app/ui/components/blink_test.go` - Blink animation testing
-- `internal/app/ui/components/layout_test.go` - Layout component testing
-- `internal/app/ui/services/controller_test.go` - Service controller testing
-- `internal/app/ui/services/filter_test.go` - Service filter matching and filtering functions
-- `internal/app/ui/services/helpers_test.go` - Service helper functions testing
-- `internal/app/ui/services/keys_test.go` - Services view key bindings
-- `internal/app/ui/services/loader_test.go` - Loader queue operations
-- `internal/app/ui/services/model_test.go` - Service state methods and helpers
-- `internal/app/ui/services/monitor_test.go` - CPU/memory formatting functions
-- `internal/app/ui/services/state_test.go` - FSM state transitions and callbacks
-- `internal/app/ui/services/timeline_test.go` - Timeline ring buffer and slot mapping
-- `internal/app/ui/services/update_test.go` - Event handlers
-- `internal/app/ui/services/view_test.go` - View rendering functions
-- `internal/app/ui/wire/module_test.go` - UI wire module testing
-- `internal/app/watcher/debouncer_test.go` - Debouncer testing
-- `internal/app/watcher/matcher_test.go` - File matcher testing
-- `internal/app/watcher/watcher_test.go` - File watcher testing
-- `internal/config/config_test.go` - Types, defaults, telemetry, and normalization testing
-- `internal/config/loader_test.go` - Config loading, file resolution, and override merging
-- `internal/config/merge_test.go` - YAML deep merge helper testing
-- `internal/config/topology_test.go` - Tier order parsing testing
-- `internal/config/validate_test.go` - Configuration validation testing
-- `internal/config/logger/logger_test.go` - Logger implementation testing
-- `internal/config/sentry/sentry_test.go` - Sentry client initialization testing
-- `internal/config/sentry/metrics_test.go` - Metrics constants and re-exports testing
-- `internal/config/sentry/trace_test.go` - Trace types and operation constants testing
-- `internal/config/sentry/identity_test.go` - Anonymous telemetry ID testing
-- `internal/app/errors/` - Error definitions (no test file - contains only constants)
-- `e2e/` - End-to-end tests (default tier, tier ordering, watch/hot-reload, logs command, lifecycle management, custom command)
+- `fuku-verify` — verification loop (format, lint, vet, test, race, e2e) before committing
+- `fuku-generate-mock` — generate or regenerate a gomock mock
+- `fuku-config` — `fuku.yaml` configuration reference
+- `fuku-add-test` — write tests using TDT with the mocks-once pattern
 
 ## Primary Guidelines
 
-- provide brutally honest and realistic assessments of requests, feasibility, and potential issues. no sugar-coating. no vague possibilities where concrete answers are needed.
-- always operate under the assumption that the user might be incorrect, misunderstanding concepts, or providing incomplete/flawed information. critically evaluate statements and ask clarifying questions when needed.
-- don't be flattering or overly positive. be honest and direct.
-- we work as equal partners and treat each other with respect as two senior developers with equal expertise and experience.
-- prefer simple and focused solutions that are easy to understand, maintain and test.
-- prefer table-driven tests (TDT) by default — use TDT whenever testing multiple scenarios for the same function
-- never use multiple `t.Run()` blocks inside a single test function — if you have multiple cases, use TDT
-- for single test cases where TDT is not possible, use standalone `Test_<MethodName>_<TestCase>` naming (e.g., `Test_Load_ExplicitPathNotFound`)
-- don't overthink solutions - implement the simplest thing that works, then iterate if needed
+- provide brutally honest and realistic assessments of requests, feasibility, and potential issues. no sugar-coating. no vague possibilities where concrete answers are needed
+- always operate under the assumption that the user might be incorrect, misunderstanding concepts, or providing incomplete/flawed information. critically evaluate statements and ask clarifying questions when needed
+- state assumptions explicitly when proceeding without asking, and surface multiple interpretations rather than silently picking one
+- make surgical changes only — do not "improve" adjacent code, comments, or formatting that isn't part of the task; remove only imports or variables your own edits orphaned, not pre-existing dead code
+- don't be flattering or overly positive. be honest and direct
+- we work as equal partners and treat each other with respect as two senior developers with equal expertise and experience
+- prefer simple and focused solutions that are easy to understand, maintain, and test
+- don't overthink solutions — implement the simplest thing that works, then iterate
 
 ## Architecture Guidelines
 
 ### Dependency Injection with FX
-- **always use Uber FX for dependency injection** - this is non-negotiable
-- all components must be wired through FX modules (fx.Provide, fx.Invoke)
+- **always use Uber FX for dependency injection** — non-negotiable
+- all components must be wired through FX modules (`fx.Provide`, `fx.Invoke`)
 - never instantiate dependencies manually in application code; let FX handle the wiring
-- use FX lifecycle hooks (fx.OnStart, fx.OnStop) for component initialization and cleanup
+- use FX lifecycle hooks (`fx.OnStart`, `fx.OnStop`) for component initialization and cleanup
 
 ### Interfaces and Mocks
-- **always define interfaces for dependencies** - this is required for FX injection and testability
+- **always define interfaces for dependencies** — required for FX injection and testability
 - interfaces should be defined on the consumer side (idiomatic Go)
-- **always generate mocks for interfaces** using `go.uber.org/mock`:
-  ```bash
-  mockgen -source=internal/path/to/file.go -destination=internal/path/to/file_mock.go -package=packagename
-  ```
-- every interface should have a corresponding mock file for testing
-- mocks are stored alongside source files (e.g., `foo.go` → `foo_mock.go`)
+- never prefix interfaces with `I`; prefer capability-based names (`Runner`, `Pool`, `Logger`)
+- every interface must have a corresponding mock; see `fuku-generate-mock`
 
 ### Event Bus as the Communication Backbone
-- **all cross-cutting concerns must subscribe to the bus, never inline into business logic** — this is non-negotiable
-- the event bus (`app/bus`) is the single source of truth for what happened in the system; business logic publishes events, observers react to them
-- when adding a new feature that needs to react to something happening elsewhere (metrics, logging, UI updates, notifications), create a bus subscriber — never add the logic directly to the code that triggers the event
-- when adding new functionality to the system, first check whether an existing bus event already carries the data you need; extend an existing event struct before inventing a new event type
+- **all cross-cutting concerns must subscribe to the bus, never inline into business logic** — non-negotiable
+- the event bus (`app/bus`) is the single source of truth for what happened in the system; business logic publishes events, observers react
+- when adding a feature that reacts to something happening elsewhere (metrics, logging, UI updates, notifications), create a bus subscriber — never add the logic directly to the code that triggers the event
+- before inventing a new event type, check whether an existing bus event already carries the data you need; extend the existing event struct
 - every bus event struct must carry enough data for any subscriber to act without calling back into the publisher
-- the metrics collector (`app/metrics`) is the canonical example: it subscribes to bus events and emits all metrics from one place instead of scattering `sentry.NewMeter` calls across runner, service, discovery, and preflight
-- the relay bridge (`app/relay`) subscribes to bus events and forwards them to the relay broadcaster for streaming to connected log clients
-- only inline cross-cutting calls when no bus exists yet at that point in the lifecycle (e.g., CLI commands that run before the bus is created) or when the data is purely local and has no corresponding event (e.g., per-goroutine readiness check durations)
+- canonical examples: `app/metrics` (Sentry metrics emitted from one place) and `app/relay` (forwards bus events to the log broadcaster)
+- only inline cross-cutting calls when no bus exists yet at that point in the lifecycle (e.g., CLI commands that run before the bus is created) or when the data is purely local and has no corresponding event
 
 ### Keep It Simple
-- **do not create abstractions unless they are needed** - YAGNI (You Aren't Gonna Need It)
-- **never use the Factory pattern** - we always have exactly one implementation per interface, so factories add unnecessary indirection
-- one interface = one implementation = one mock (for testing)
-- if you're tempted to add a factory, abstract base class, or generalization - stop and ask if it's actually needed right now
+- **do not create abstractions unless they are needed** — YAGNI
+- **never use the Factory pattern** — we always have exactly one implementation per interface, so factories add unnecessary indirection
+- one interface = one implementation = one mock
+- if tempted to add a factory, abstract base class, or generalization, stop and ask if it's actually needed right now
 - prefer concrete, straightforward code over clever abstractions
 - don't build for hypothetical future requirements; solve the current problem
+- don't add error handling, validation, or fallbacks for scenarios that cannot happen
 
 ### Styles Live in `components` Only
 - **never call `lipgloss.NewStyle()` outside `internal/app/ui/components/theme.go` or `internal/app/ui/components/styles.go`** — these two files are the single source of truth for all styles
-- theme-dependent styles (those reading any `lipgloss.LightDarkFunc` value, palette color, or `theme.Bg*`/`theme.Fg*`) belong in `theme.go` and are exposed as fields on `Theme`
+- theme-dependent styles (reading any `lipgloss.LightDarkFunc` value, palette color, or `theme.Bg*`/`theme.Fg*`) belong in `theme.go` and are exposed as fields on `Theme`
 - theme-independent styles (pure spacing, padding, margins, fixed-color borders) belong in `styles.go` as package-level `var`s
-- **never wrap a render with an inline style** — `lipgloss.NewStyle().MarginTop(1).Render(x)`, `lipgloss.NewStyle().Background(m.theme.BgSelection).Render(x)`, and the like are forbidden everywhere outside the two allowlisted files
-- the rule applies to tests too — if a test needs a foreground-bearing style as a fixture, reuse an existing `var` (e.g., `SpinnerStyle`) instead of constructing one inline
+- **never wrap a render with an inline style** — `lipgloss.NewStyle().MarginTop(1).Render(x)`, `lipgloss.NewStyle().Background(m.theme.BgSelection).Render(x)`, and the like are forbidden outside the two allowlisted files
+- the rule applies to tests too — if a test needs a foreground-bearing style fixture, reuse an existing `var` (e.g., `SpinnerStyle`) instead of constructing one inline
 - if the style you need does not exist, add it to `theme.go` or `styles.go` with a descriptive semantic name (e.g., `SelectionBgStyle`, `ContentTopMarginStyle`) and reference it from the call site
 - `lipgloss.Style` as a struct field type and `lipgloss.Width(...)` measurement calls are fine anywhere — the rule is only about *constructing* styles via `NewStyle()`
-- Audit command (should return zero matches): `grep -rn 'lipgloss\.NewStyle()' --include='*.go' internal/ cmd/ | grep -v 'components/theme.go\|components/styles.go'`
-
-## Build, Lint and Test Commands
-
-```bash
-# Build binary
-make build
-
-# Lint code (always run from the top level)
-make lint
-
-# Vet code (always run from the top level)
-make vet
-
-# Run all tests (always run from the top level)
-make test
-
-# Run tests with race detector
-make test:race
-
-# Run e2e tests (requires build first)
-make build && make test:e2e
-
-# Coverage report (always run from the top level)
-make coverage
-
-# Format code
-go fmt ./...
-```
-
-## Verification Loop
-
-After making changes, run the full verification loop. Fix issues at each step before proceeding:
-
-```bash
-# 1. Format
-go fmt ./...
-
-# 2. Lint — fix any issues, re-run until clean
-make lint
-
-# 3. Vet — fix any issues, re-run until clean
-make vet
-
-# 4. Tests — fix any failures, re-run until clean
-make test
-
-# 5. Race detector — fix any races, re-run until clean
-make test:race
-
-# 6. E2E tests — fix any failures, re-run until clean
-make build && make test:e2e
-```
-
-**IMPORTANT:** NEVER commit without running the full verification loop!
-
-## Important Workflow Notes
-
-- always run the full verification loop BEFORE committing anything
-- run formatting, code generation, linting and testing on completion
-- never commit without passing all verification steps
-- run tests and linter after making significant changes to verify functionality
-- IMPORTANT: never put into commit message any mention of Claude or Claude Code
-- IMPORTANT: never include "Test plan" sections in PR descriptions
-- do not add comments that describe changes, progress, or historical modifications
-- comments should only describe the current state and purpose of the code, not its history or evolution
-- generate mocks using mockgen with full paths, never modify generated files manually
-- mocks are generated with `go.uber.org/mock` and stored alongside source files
-- do NOT add `//go:generate` directives to source files; run mockgen command directly
-- after important functionality added, update README.md accordingly
-- when merging master changes to an active branch, make sure both branches are pulled and up to date first
-- don't leave commented out code in place
-- if working with github repos use `gh`
-- never nest if blocks — `if { if { } }` is forbidden; use guard clauses (early return/continue) to flatten
-- never use goto
-- prefer early returns to reduce nesting; `else` is acceptable when it improves readability
-- **never use `else if`** — use `switch` statements or guard clauses instead
-- `//nolint` directives must always be placed on the line above the code they apply to, never inline
-- never inline table test cases; always use multi-line format with each field on its own line
-- before any significant refactoring, ensure all tests pass and consider creating a new branch
-- when refactoring, editing, or fixing failed tests:
-  - do not redesign fundamental parts of the code architecture
-  - if unable to fix an issue with the current approach, report the problem and ask for guidance
-  - focus on minimal changes to address the specific issue at hand
-  - preserve the existing patterns and conventions of the codebase
-
-## Handling Files with Formatting Issues
-
-When encountering files with mixed tabs/spaces or other formatting problems:
-- **Do NOT** just read the file and wait for manual fixing
-- **Do** use the Edit tool to fix formatting issues directly
-- **Do** run `go fmt ./...` after making any edits to ensure consistent formatting
-- If a file has pervasive formatting issues (mixed tabs/spaces throughout), consider using Write tool to rewrite with correct formatting
-- Always include formatting fixes in the same commit as code changes
-
-Example workflow:
-1. Read file and notice formatting issues
-2. Use Edit tool to fix the content AND formatting in one operation
-3. Run `go fmt ./...` to ensure consistency
-4. Verify with tests
+- Audit (should return zero matches): `grep -rn 'lipgloss\.NewStyle()' --include='*.go' internal/ cmd/ | grep -v 'components/theme.go\|components/styles.go'`
 
 ## Code Style Guidelines
 
 ### Import Organization
-- Organize imports in the following order:
-  1. Standard library packages first (e.g., "fmt", "context")
-  2. A blank line separator
-  3. Third-party packages
-  4. A blank line separator
-  5. Project imports (e.g., "fuku/internal/*")
-- Example:
+- stdlib first, blank line, third-party, blank line, project imports
+- example:
   ```go
   import (
       "context"
@@ -536,136 +93,117 @@ Example workflow:
       "fuku/internal/config"
   )
   ```
-- never alias `fuku/internal/app/errors` as `apperrors` — the package already re-exports `errors.Is`, `errors.As`, and `errors.New`, so import it directly as `"fuku/internal/app/errors"` and use `errors.Is(...)`, `errors.ErrFoo`, etc.
+- never alias `fuku/internal/app/errors` as `apperrors` — the package re-exports `errors.Is`, `errors.As`, and `errors.New`; import it as `"fuku/internal/app/errors"` and use `errors.Is(...)`, `errors.ErrFoo`, etc.
 
 ### Error Handling
-- return errors to the caller rather than using panics
-- use descriptive error messages that help with debugging
-- use error wrapping: `fmt.Errorf("failed to process request: %w", err)`
+- return errors to the caller rather than panicking
+- use descriptive error messages
+- wrap with `fmt.Errorf("failed to process request: %w", err)`
 - check errors immediately after function calls
-- return early when possible to avoid deep nesting
-- for functions that return multiple values including errors, handle both the primary result and the error appropriately
-- when logging errors, include contextual information: `c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)`
+- return early to avoid deep nesting
+- when logging errors, include context: `c.log.Error().Err(err).Msgf("Failed to run profile '%s'", profile)`
 
 ### Variable Naming
-- use descriptive camelCase names for variables and functions
-  - good: `serviceProcess`, `dependencyGraph`, `profileConfig`
-  - bad: `sp`, `x`, `temp1`
+- descriptive camelCase for variables and functions (`serviceProcess`, not `sp`)
 - be consistent with abbreviations
-- local scope variables can be short (e.g., "cfg" instead of "configuration")
+- local-scope variables can be short (`cfg` instead of `configuration`)
 
 ### Function Parameters
-- group related parameters together logically
-- use descriptive parameter names that indicate their purpose
-- consider using parameter structs for functions with many (4+) parameters
-- if function returns 3 or more results, consider wrapping in result/response struct
-- if function accepts 3 or more input parameters, consider wrapping in request/input struct (but never add context to struct)
+- group related parameters logically
+- use descriptive names
+- 4+ parameters → consider a parameter struct
+- 3+ return values → consider a result struct
+- 3+ input parameters → consider an input struct (but never include `context` in a struct); FX constructors are exempt — named deps are clearer than a `Params` struct
 
 ### Service Identifier Convention
 - **always identify a service by its `ID` (UUID) across package boundaries** — never by `Name`
-- the canonical service identity is the `ID` field of `bus.Service{ID, Name}`; `Name` is the human-readable label from `fuku.yaml` and is for display only
-- consumers that need to identify a service in an API (registry lookups, store snapshots, command dispatch, cross-package caches like `dotenv.Loader.Env(id)`) MUST accept and return the `ID`, not the `Name`
+- canonical identity is the `ID` field of `bus.Service{ID, Name}`; `Name` is the human-readable label from `fuku.yaml`, display only
+- consumers that identify a service in an API (registry lookups, store snapshots, command dispatch, cross-package caches like `dotenv.Loader.Env(id)`) MUST accept and return the `ID`
 - the only exception is `*config.Config.Services`, which is YAML-keyed by `Name` — translate `ID` → `Name` at the package boundary (using `bus.Service.Name` from the event payload) before reading config
-- parameter naming: use `id string` (lowercase, no `service` prefix) — matches `registry.Store.Service(id string)`, `bus.Service.ID`, etc.
-- this keeps identity consistent across registry, store, API, UI, and bus subscribers; mixing `name` and `id` causes brittle lookups whenever names contain characters that aren't valid map keys or when services are renamed
+- parameter naming: `id string` (lowercase, no `service` prefix) — matches `registry.Store.Service(id string)`, `bus.Service.ID`, etc.
 
 ### Documentation
 - all exported functions, types, and methods must have clear godoc comments
-- begin comments with the name of the element being documented
-- godoc comments must be a single sentence without ending punctuation
-- start godoc comments with capital letter but no period at end
-- include additional details in parentheses within the single sentence if needed
-- keep internal comments concise and only when they add value
-- avoid comments that merely repeat what the code does
+- begin with the name of the element being documented
+- single sentence, capital letter, no period at end
+- include extra details in parentheses within the single sentence
+- internal comments only when they add value; avoid restating what code already says
 
 ### Code Structure
-- keep code modular with focused responsibilities
-- limit file sizes to 300-500 lines when possible
+- modular, focused responsibilities
+- file sizes 300-500 lines when possible
 - group related functionality in the same package
-- use interfaces to define behavior and enable mocking for tests
-- keep code minimal and avoid unnecessary complexity
+- use interfaces to define behavior; pass interfaces, return concrete types when possible
 - don't keep old functions for imaginary compatibility
-- interfaces should be defined on the consumer side (idiomatic Go)
-- aim to pass interfaces but return concrete types when possible
 - consider nested functions when they simplify complex functions
 
 ### Code Layout
-- keep cyclomatic complexity under 30
-- function size preferences:
-  - keep functions focused on a single responsibility
-  - break down large functions (100+ lines) into smaller, logical pieces
-  - avoid functions that are too small if they reduce readability
-- keep lines readable; while gofmt doesn't enforce line length, consider breaking very long lines for clarity
-- manage conditional complexity:
-  - never nest if blocks — `if { if { } }` is forbidden; flatten with guard clauses (early return/continue)
-  - use if statements only for guard clauses (early returns/continue) or simple single-level branches
-  - for multiple conditions or state-based logic, prefer switch statements
-  - for many discrete values, prefer switch statements over chained conditionals
-  - extract complex conditions into well-named boolean functions or variables
-  - use context structs or functional options instead of multiple boolean flags
-- for CLI command processing, use switch statements with multiple conditions per case (e.g., `case cmd == "help" || cmd == "--help" || cmd == "-h":`)
-- when handling default values, check for empty strings and provide sensible defaults (e.g., `if profile == "" { profile = config.DefaultProfile }`)
-- for functions that need to be testable, separate return values from system calls: return exit codes and errors instead of calling os.Exit() directly
+- cyclomatic complexity under 30
+- break down 100+ line functions into smaller logical pieces; avoid over-tiny functions that hurt readability
+- **never nest `if` blocks** — `if { if { } }` is forbidden; flatten with guard clauses (early return/continue)
+- **never use `else if`** — use `switch` statements or guard clauses
+- never use `goto`
+- prefer early returns; `else` is acceptable when it improves readability
+- for multi-condition CLI dispatch, prefer `case cmd == "help" || cmd == "--help" || cmd == "-h":`-style switches
+- extract complex conditions into well-named boolean functions or variables
+- prefer context structs or functional options over multiple boolean flags
+- separate return values from system calls — return exit codes and errors instead of calling `os.Exit()` directly
 
 ### Testing
-- prefer table-driven tests (TDT) by default — use TDT whenever testing multiple scenarios for the same function
-- never use multiple `t.Run()` blocks inside a single test function — if you have multiple cases, use TDT
-- for single test cases where TDT is not possible, use standalone `Test_<MethodName>_<TestCase>` naming (e.g., `Test_Load_ExplicitPathNotFound`)
-- use testify for assertions
-- test both success and error scenarios
-- mock external dependencies to ensure unit tests are isolated and fast
-- aim for at least 80% code coverage
-- keep tests compact but readable
-- if test has too many subtests, consider splitting it to multiple tests
-- never disable tests without a good reason and approval
-- important: never update code with special conditions to just pass tests
-- don't create new test files if one already exists matching the source file name
-- add new tests to existing test files following the same naming and structuring conventions
-- don't add comments before subtests, t.Run("description") already communicates what test case is doing
-- never use godoc-style comments for test functions
-- for main package testing, extract testable functions from main() and runApp() to enable unit testing
-- skip integration tests that would cause hanging or require subprocess execution (e.g., os.Exit(), long-running FX apps)
-- when testing CLI applications, use simple skip statements for complex integration scenarios to maintain test suite stability
-- for mocking external dependencies:
-  - create a local interface in the package that needs the mock
-  - generate mocks using `go.uber.org/mock` with full path:
-    ```bash
-    mockgen -source=internal/path/to/file.go -destination=internal/path/to/file_mock.go -package=packagename
-    ```
-  - the mock should be located alongside the source file
-  - always use mockgen-generated mocks, not testify mock
-  - do NOT add `//go:generate` directives to source files
-- for testing functions that can fail due to external dependencies (like config loading), use `t.Skip()` with descriptive messages rather than failing the test
-- use descriptive test names that explain the scenario being tested (e.g., "No arguments - default profile", "Run command with profile and --no-ui")
-- when testing CLI return values, test both exit codes and error conditions separately in table test fields like `expectedExit` and `expectedError`
-- for testable code extraction: separate business logic from system calls (os.Exit, os.Args) by creating internal functions that can be unit tested
-- always test multiple command variations (e.g., "help", "--help", "-h") to ensure all aliases work correctly
-- never inline table test cases; always use multi-line format:
-  ```go
-  // BAD - inline format
-  {name: "test case", input: "value", expected: true},
+- see `fuku-add-test` for TDT structure, coverage target, mocking, and test-file conventions
+- never disable tests without a reason and approval
+- never modify code with special conditions just to make tests pass
 
-  // GOOD - multi-line format
-  {
-      name:     "test case",
-      input:    "value",
-      expected: true,
-  },
-  ```
+## Logging Guidelines
+- use structured logging with zerolog
+- never use `fmt.Printf` for logging — only log methods
+- `fmt.Print*` and `fmt.Fprint*` are fine for non-logging uses: direct CLI output (`internal/app/cli/`), pre-logger bootstrap stderr (`cmd/main.go`, `internal/config/sentry/`), the log-writer implementation itself (`internal/app/render/`), and buffer/string formatting (TUI layout in `internal/app/ui/`)
+- metrics are emitted only through the bus-driven collector (`internal/app/metrics`) — never scatter `sentry.NewMeter` calls across packages
+- respect `FUKU_TELEMETRY_DISABLED` for telemetry opt-out
 
-## Git Workflow
+## Concurrency & Resource Safety
+- every goroutine must have a clear exit path — context cancellation or channel signal
+- shared state accessed from multiple goroutines must be synchronized with mutexes or channels
+- prefer the bounded worker pool (`internal/app/worker`) over ad-hoc goroutine management
+- propagate `context.Context` through call chains; never store context in structs (exception: UI components under `internal/app/ui/`)
+- close files, sockets, channels, and connections you open
+- `fx.OnStop` hooks must clean up what `fx.OnStart` allocates
+- no sends on closed channels; watch for unbuffered-channel deadlocks
+- signal handling for process management must trap SIGINT and SIGTERM; SIGKILL is a last-resort escalation we send to child processes, never something we handle
 
-### After merging a PR
-```bash
-# switch back to the master branch
-git checkout master
+## Security
+- validate and sanitize external input (CLI arguments, configuration values, environment variables)
+- use timeouts for external operations
+- implement retries with backoff where necessary (configured via `retry.attempts` and `retry.backoff`)
+- avoid command injection and path traversal vulnerabilities
 
-# pull latest changes including the merged PR
-git pull
+## Important Workflow Notes
+- always run `fuku-verify` before committing
+- never put any mention of Claude or Claude Code in commit messages
+- never include "Test plan" sections in PR descriptions
+- comments describe the current state and purpose of the code, never its history or evolution
+- after important functionality is added, update `README.md` or `ARCHITECTURE.md`
+- when merging master into an active branch, make sure both branches are pulled and up to date first
+- don't leave commented-out code in place
+- use `gh` for GitHub work
+- `//nolint` directives go on the line above (never inline), must include an explanation, and specify the exact linter (e.g., `//nolint:errcheck // Close errors are non-actionable in cleanup`)
+- before significant refactoring, ensure all tests pass; consider a new branch
+- when refactoring or fixing failing tests: don't redesign architecture, focus on minimal changes, preserve existing patterns; if stuck, report and ask for guidance
 
-# delete the temporary branch (might need -D for force delete if squash merged)
-git branch -D feature-branch-name
-```
+## Handling Files with Formatting Issues
+When a file has mixed tabs/spaces or other formatting problems:
+- do NOT just read and wait for manual fixing
+- use Edit to fix formatting directly; for pervasive issues, rewrite with Write
+- run `make fmt` after edits
+- always include formatting fixes in the same commit as the code change
+
+## Formatting Guidelines
+- always use `make fmt` for code formatting (wraps `gofmt`)
+- respect `.editorconfig`:
+  - Go files use tabs for indentation (`indent_style = tab`)
+  - `tab_width = 2` (display only)
+  - UTF-8, LF line endings, final newline, trim trailing whitespace
+- when using Edit, preserve existing formatting and indentation
 
 ## Commonly Used Libraries
 - dependency injection: `go.uber.org/fx`
@@ -682,61 +220,3 @@ git branch -D feature-branch-name
 - FSM: `github.com/looplab/fsm`
 - process monitoring: `github.com/shirou/gopsutil/v4`
 - semver comparison: `golang.org/x/mod/semver`
-
-## Formatting Guidelines
-- always use `go fmt` for code formatting
-- run `go generate` for mock generation
-- respect `.editorconfig` settings when editing files:
-  - Go files use tabs for indentation (`indent_style = tab`)
-  - Project preference: `tab_width = 2` (display only, doesn't affect file contents)
-  - All files: UTF-8 encoding, LF line endings, final newline, trim trailing whitespace
-- when using Edit tool, preserve existing formatting and indentation style
-- `gofmt` handles actual file formatting regardless of editor display settings
-
-## Logging Guidelines
-- use structured logging with zerolog
-- never use fmt.Printf for logging, only log methods
-
-## Configuration Format
-
-Fuku uses a YAML configuration file (`fuku.yaml`) with the following structure:
-
-```yaml
-version: 1
-
-services:
-  service-name:
-    dir: path/to/service
-    tier: foundation
-    command: go run cmd/main.go  # optional, defaults to "make run"
-    logs:
-      output: [stdout, stderr]
-
-profiles:
-  default: "*"
-  backend: [service1, service2]
-
-logging:
-  format: console
-  level: info
-```
-
-## Working with Services
-
-- services are defined with a directory path and optional tier
-- profiles allow grouping services for batch operations
-- tiers determine startup ordering (services in earlier tiers start first)
-- each service runs `make run` in its specified directory by default
-- services can override the start command with `command` field (e.g., `command: go run cmd/main.go`)
-- services without a custom command must have a Makefile with a `run` target
-- the child process inherits fuku's environment (fuku does not inject any per-service env vars); each service is responsible for loading its own `.env` files
-
-## Example Configuration
-
-Based on the complex microservices example provided, fuku can handle large-scale service orchestration with:
-- multiple API services
-- tier-based startup ordering
-- service grouping via profiles
-- centralized logging configuration
-
-The tool is particularly useful for development environments where you need to start multiple services with a single command.
