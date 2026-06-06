@@ -60,7 +60,7 @@ Walk through **CLAUDE.md > Concurrency & Resource Safety** and **CLAUDE.md > Sec
 - resource leaks (unclosed files, sockets, channels, connections)
 - missing `fx.OnStop` cleanup for `fx.OnStart` allocations
 - channel misuse (send on closed channel, unbuffered deadlocks)
-- signal handling correctness for process management (SIGINT, SIGTERM, SIGKILL)
+- signal handling correctness for process management (trap SIGINT/SIGTERM; SIGKILL is a last-resort escalation we send to children, not something we handle)
 - unvalidated external input (CLI args, config values, env vars)
 - missing timeouts / retries for external operations
 - command injection or path traversal

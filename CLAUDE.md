@@ -169,7 +169,7 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - close files, sockets, channels, and connections you open
 - `fx.OnStop` hooks must clean up what `fx.OnStart` allocates
 - no sends on closed channels; watch for unbuffered-channel deadlocks
-- signal handling for process management must respect SIGINT, SIGTERM, SIGKILL
+- signal handling for process management must trap SIGINT and SIGTERM; SIGKILL is a last-resort escalation we send to child processes, never something we handle
 
 ## Security
 - validate and sanitize external input (CLI arguments, configuration values, environment variables)
