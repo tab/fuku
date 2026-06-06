@@ -438,6 +438,67 @@ func Test_runWithUI_RunnerErrorQuitsUI(t *testing.T) {
 	assert.Equal(t, runnerErr, runErr)
 }
 
+func Test_runWithUI_UICreationFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Error().Return(nil)
+
+	uiErr := errors.New("ui creation failed")
+
+	tu := &tui{
+		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
+		runner: mockRunner,
+		log:    mockLogger,
+		writer: newTestWriter(),
+		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+			return nil, uiErr
+		},
+	}
+
+	exitCode, runErr := tu.runWithUI(context.Background(), "test")
+
+	assert.Equal(t, 1, exitCode)
+	require.Error(t, runErr)
+	assert.Equal(t, uiErr, runErr)
+}
+
+func Test_runWithUI_RunnerContextCanceledOnUIQuit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRunner := runner.NewMockRunner(ctrl)
+	mockLogger := logger.NewMockLogger(ctrl)
+
+	mockRunner.EXPECT().Run(gomock.Any(), "test").DoAndReturn(func(ctx context.Context, profile string) error {
+		<-ctx.Done()
+		return context.Canceled
+	})
+
+	inputR, inputW, err := os.Pipe()
+	require.NoError(t, err)
+	inputW.Close()
+
+	tu := &tui{
+		cmd:    &Options{Type: CommandRun, Profile: "test", NoUI: false},
+		runner: mockRunner,
+		log:    mockLogger,
+		writer: newTestWriter(),
+		ui: func(ctx context.Context, profile string) (*tea.Program, error) {
+			return tea.NewProgram(quitModel{}, tea.WithInput(inputR), tea.WithoutRenderer()), nil
+		},
+	}
+
+	exitCode, runErr := tu.runWithUI(context.Background(), "test")
+
+	inputR.Close()
+
+	assert.Equal(t, 0, exitCode)
+	require.NoError(t, runErr)
+}
+
 func Test_runWithUI_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

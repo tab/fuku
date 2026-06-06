@@ -183,7 +183,7 @@ func (s *Server) Stop() {
 		s.log.Warn().Err(err).Msgf("Failed to remove socket file: %s", s.socketPath)
 	}
 
-	s.log.Info().Msg("Server stopped")
+	s.log.Debug().Msg("Server stopped")
 }
 
 func (s *Server) acceptConnections(ctx context.Context) {

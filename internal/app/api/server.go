@@ -96,7 +96,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 		return
 	}
 
-	s.log.Info().Msg("API server shutting down")
+	s.log.Debug().Msg("API server shutting down")
 
 	//nolint:errcheck // best-effort graceful shutdown
 	s.httpServer.Shutdown(ctx)
@@ -107,7 +107,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 		Critical: true,
 	})
 
-	s.log.Info().Msg("API server stopped")
+	s.log.Debug().Msg("API server stopped")
 }
 
 // listen attempts to bind the configured address with port retry

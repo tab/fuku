@@ -155,7 +155,7 @@ func (t *tui) runWithUI(ctx context.Context, profile string) (int, error) {
 
 	t.writer.SetEnabled(true)
 
-	if runnerErr != nil {
+	if runnerErr != nil && !errors.Is(runnerErr, context.Canceled) {
 		t.log.Error().Err(runnerErr).Msgf("Failed to run profile '%s'", profile)
 		return 1, runnerErr
 	}

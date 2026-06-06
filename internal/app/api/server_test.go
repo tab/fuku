@@ -44,6 +44,7 @@ func Test_Server_StartAndShutdown(t *testing.T) {
 
 	mockLog.EXPECT().WithComponent("API").Return(mockLog)
 	mockLog.EXPECT().Info().Return(logger.NewLoggerWithOutput(config.DefaultConfig(), io.Discard).Info()).AnyTimes()
+	mockLog.EXPECT().Debug().Return(logger.NewLoggerWithOutput(config.DefaultConfig(), io.Discard).Debug()).AnyTimes()
 
 	mockBus.EXPECT().Publish(gomock.Any()).AnyTimes()
 	mockStore.EXPECT().Phase().Return("").AnyTimes()
@@ -100,4 +101,42 @@ func Test_Server_Start_PortBusy(t *testing.T) {
 	s.Start()
 
 	assert.Nil(t, s.httpServer)
+}
+
+func Test_Server_Start_InvalidListen(t *testing.T) {
+	tests := []struct {
+		name   string
+		listen string
+	}{
+		{
+			name:   "Missing port separator",
+			listen: "not-an-address",
+		},
+		{
+			name:   "Non-numeric port",
+			listen: "127.0.0.1:abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockBus := bus.NewMockBus(ctrl)
+			mockStore := registry.NewMockStore(ctrl)
+			mockLog := logger.NewMockLogger(ctrl)
+
+			mockLog.EXPECT().WithComponent("API").Return(mockLog)
+			mockLog.EXPECT().Warn().Return(logger.NewLoggerWithOutput(config.DefaultConfig(), io.Discard).Warn()).AnyTimes()
+
+			cfg := config.DefaultConfig()
+			cfg.Server.Listen = tt.listen
+
+			s := NewServer(cfg, mockStore, mockBus, mockLog)
+			s.Start()
+
+			assert.Nil(t, s.httpServer)
+		})
+	}
 }
