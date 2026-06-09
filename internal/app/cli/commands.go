@@ -18,12 +18,23 @@ const (
 	CommandLogs
 	CommandVersion
 	CommandHelp
+	CommandDoctor
 )
 
 // Standalone returns true for commands that run without config or FX container
 func (c CommandType) Standalone() bool {
 	switch c {
 	case CommandInit, CommandVersion, CommandHelp:
+		return true
+	default:
+		return false
+	}
+}
+
+// RequiresServices returns true for commands that need at least one service defined in the config
+func (c CommandType) RequiresServices() bool {
+	switch c {
+	case CommandRun, CommandStop:
 		return true
 	default:
 		return false
@@ -45,18 +56,31 @@ func (c CommandType) String() string {
 		return "version"
 	case CommandHelp:
 		return "help"
+	case CommandDoctor:
+		return "doctor"
 	default:
 		return "unknown"
 	}
 }
 
+// DoctorFormat selects the doctor renderer
+type DoctorFormat int
+
+// DoctorFormat values
+const (
+	DoctorFormatText DoctorFormat = iota
+	DoctorFormatSummary
+	DoctorFormatJSON
+)
+
 // Options contains the parsed command-line arguments
 type Options struct {
-	ConfigFile string
-	Type       CommandType
-	Profile    string
-	Services   []string
-	NoUI       bool
+	ConfigFile   string
+	Type         CommandType
+	Profile      string
+	Services     []string
+	NoUI         bool
+	DoctorFormat DoctorFormat
 }
 
 // rootFlags holds flag values for the root command
@@ -84,6 +108,7 @@ func Parse(args []string) (*Options, error) {
 		buildStopCommand(result),
 		buildLogsCommand(result),
 		buildVersionCommand(result),
+		buildDoctorCommand(result),
 	)
 
 	root.SetArgs(args)
@@ -232,6 +257,41 @@ func buildVersionCommand(result *Options) *cobra.Command {
 			result.Type = CommandVersion
 		},
 	}
+
+	return cmd
+}
+
+// buildDoctorCommand creates the doctor subcommand
+func buildDoctorCommand(result *Options) *cobra.Command {
+	var (
+		summary bool
+		asJSON  bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "doctor [profile]",
+		Short: "Diagnose configuration, environment, and runtime issues",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			result.Type = CommandDoctor
+
+			if len(args) > 0 {
+				result.Profile = args[0]
+			}
+
+			switch {
+			case asJSON:
+				result.DoctorFormat = DoctorFormatJSON
+			case summary:
+				result.DoctorFormat = DoctorFormatSummary
+			default:
+				result.DoctorFormat = DoctorFormatText
+			}
+		},
+	}
+
+	cmd.Flags().BoolVar(&summary, "summary", false, "Print a compact one-line-per-check report")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Print the report as JSON")
 
 	return cmd
 }

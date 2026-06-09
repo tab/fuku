@@ -70,6 +70,59 @@ func Test_CLI_Run(t *testing.T) {
 	}
 }
 
+func Test_RunDoctor(t *testing.T) {
+	tests := []struct {
+		name         string
+		cmd          *Options
+		expectedExit int
+		contains     string
+	}{
+		{
+			name:         "no config text mode fails",
+			cmd:          &Options{Type: CommandDoctor, Profile: config.Default, DoctorFormat: DoctorFormatText},
+			expectedExit: 2,
+			contains:     "fuku doctor",
+		},
+		{
+			name:         "no config json mode fails with json output",
+			cmd:          &Options{Type: CommandDoctor, Profile: config.Default, DoctorFormat: DoctorFormatJSON},
+			expectedExit: 2,
+			contains:     `"overallStatus":`,
+		},
+		{
+			name:         "no config summary mode fails with summary output",
+			cmd:          &Options{Type: CommandDoctor, Profile: config.Default, DoctorFormat: DoctorFormatSummary},
+			expectedExit: 2,
+			contains:     "fuku doctor",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			oldStdout := os.Stdout
+			r, w, err := os.Pipe()
+			require.NoError(t, err)
+
+			os.Stdout = w
+
+			exitCode := RunDoctor(tt.cmd)
+
+			w.Close()
+
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+
+			_, _ = io.Copy(&buf, r)
+
+			assert.Equal(t, tt.expectedExit, exitCode)
+			assert.Contains(t, buf.String(), tt.contains)
+		})
+	}
+}
+
 func Test_GenerateConfigFile(t *testing.T) {
 	tests := []struct {
 		name           string

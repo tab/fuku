@@ -282,6 +282,30 @@ func Test_Parse(t *testing.T) {
 			expectedNoUI:       false,
 			expectedConfigFile: "other.yaml",
 		},
+		{
+			name:            "doctor command",
+			args:            []string{"doctor"},
+			expectedType:    CommandDoctor,
+			expectedProfile: config.Default,
+		},
+		{
+			name:            "doctor command with profile",
+			args:            []string{"doctor", "core"},
+			expectedType:    CommandDoctor,
+			expectedProfile: "core",
+		},
+		{
+			name:            "doctor --summary",
+			args:            []string{"doctor", "--summary"},
+			expectedType:    CommandDoctor,
+			expectedProfile: config.Default,
+		},
+		{
+			name:            "doctor --json",
+			args:            []string{"doctor", "--json"},
+			expectedType:    CommandDoctor,
+			expectedProfile: config.Default,
+		},
 	}
 
 	for _, tt := range tests {
@@ -335,11 +359,56 @@ func Test_CommandType_Standalone(t *testing.T) {
 			cmd:      CommandLogs,
 			expected: false,
 		},
+		{
+			name:     "doctor is not standalone",
+			cmd:      CommandDoctor,
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.cmd.Standalone())
+		})
+	}
+}
+
+func Test_CommandType_RequiresServices(t *testing.T) {
+	tests := []struct {
+		name     string
+		cmd      CommandType
+		expected bool
+	}{
+		{
+			name:     "run requires services",
+			cmd:      CommandRun,
+			expected: true,
+		},
+		{
+			name:     "stop requires services",
+			cmd:      CommandStop,
+			expected: true,
+		},
+		{
+			name:     "doctor does not require services",
+			cmd:      CommandDoctor,
+			expected: false,
+		},
+		{
+			name:     "logs does not require services",
+			cmd:      CommandLogs,
+			expected: false,
+		},
+		{
+			name:     "init does not require services",
+			cmd:      CommandInit,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.cmd.RequiresServices())
 		})
 	}
 }

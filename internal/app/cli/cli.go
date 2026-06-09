@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"fuku/internal/app/doctor"
 	"fuku/internal/app/errors"
 	"fuku/internal/config"
 	"fuku/internal/config/template"
@@ -28,6 +30,10 @@ const (
   fuku logs [service...]          Stream logs from running services
   fuku --logs                     Same as above (--logs, -l, logs, l)
   fuku logs --profile <name> [service...] Stream logs from specific profile
+
+  fuku doctor [profile]           Diagnose configuration, environment, and runtime issues
+  fuku doctor --summary           Print a compact one-line-per-check report
+  fuku doctor --json              Print the report as JSON
 
   fuku --config <path>            Use custom config file, skip override merging (--config, -c)
 
@@ -97,6 +103,28 @@ func ChangeToConfigDir(cmd *Options) error {
 	cmd.ConfigFile = filepath.Base(cmd.ConfigFile)
 
 	return nil
+}
+
+// RunDoctor executes the doctor command and writes the report to stdout
+func RunDoctor(cmd *Options) int {
+	report := doctor.Run(context.Background(), doctor.Options{
+		Profile:    cmd.Profile,
+		ConfigPath: cmd.ConfigFile,
+	})
+
+	switch cmd.DoctorFormat {
+	case DoctorFormatJSON:
+		if err := doctor.RenderJSON(os.Stdout, report); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 3
+		}
+	case DoctorFormatSummary:
+		doctor.RenderSummary(os.Stdout, report)
+	default:
+		doctor.RenderText(os.Stdout, report)
+	}
+
+	return report.ExitCode()
 }
 
 // GenerateConfigFile creates a fuku.yaml template in the current directory

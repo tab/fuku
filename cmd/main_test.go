@@ -26,7 +26,7 @@ profiles:
 `
 	require.NoError(t, os.WriteFile("fuku.yaml", []byte(content), 0644))
 
-	cfg, topology, err := loadConfig("")
+	cfg, topology, err := config.LoadPath("")
 	require.NoError(t, err)
 
 	assert.NotNil(t, cfg)
@@ -38,7 +38,7 @@ profiles:
 func Test_LoadConfig_NoConfigFile(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	cfg, topology, err := loadConfig("")
+	cfg, topology, err := config.LoadPath("")
 	require.NoError(t, err)
 
 	assert.NotNil(t, cfg)
@@ -59,7 +59,7 @@ services:
 	err := os.WriteFile(filePath, []byte(content), 0644)
 	require.NoError(t, err)
 
-	cfg, topology, err := loadConfig(filePath)
+	cfg, topology, err := config.LoadPath(filePath)
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, topology)
@@ -84,7 +84,7 @@ services:
 	cmd := &cli.Options{ConfigFile: "project/fuku.yaml"}
 	require.NoError(t, cli.ChangeToConfigDir(cmd))
 
-	cfg, topology, err := loadConfig(cmd.ConfigFile)
+	cfg, topology, err := config.LoadPath(cmd.ConfigFile)
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, topology)
@@ -94,7 +94,7 @@ services:
 func Test_LoadConfig_ExplicitPathNotFound(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	_, _, err := loadConfig("nonexistent.yaml")
+	_, _, err := config.LoadPath("nonexistent.yaml")
 	require.Error(t, err)
 }
 

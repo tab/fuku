@@ -43,21 +43,21 @@ func runApp() (exitCode int) {
 		return 1
 	}
 
-	cfg, topology, err := loadConfig(cmd.ConfigFile)
+	if cmd.Type == cli.CommandDoctor {
+		return cli.RunDoctor(cmd)
+	}
+
+	cfg, topology, err := config.LoadPath(cmd.ConfigFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 
 		return 1
 	}
 
-	switch cmd.Type {
-	case cli.CommandRun, cli.CommandStop:
-		if len(cfg.Services) == 0 {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", errors.ErrNoServicesDefined)
+	if cmd.Type.RequiresServices() && len(cfg.Services) == 0 {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", errors.ErrNoServicesDefined)
 
-			return 1
-		}
-	default:
+		return 1
 	}
 
 	if cfg.Telemetry && cfg.SentryDSN == "" {
@@ -68,15 +68,6 @@ func runApp() (exitCode int) {
 	application.Run()
 
 	return 0
-}
-
-// loadConfig wraps config loading for easier testing
-func loadConfig(configFile string) (*config.Config, *config.Topology, error) {
-	if configFile != "" {
-		return config.LoadFromFile(configFile)
-	}
-
-	return config.Load()
 }
 
 // createAppWithoutConfig creates a lightweight app for standalone commands (init, version, help)
