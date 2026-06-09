@@ -19,6 +19,7 @@
 - **Pre-flight Cleanup** - Automatic detection and termination of orphaned processes before starting services
 - **Hot-Reload** - Automatic service restart on file changes
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
+- **Diagnostics** - Health-check your setup with `fuku doctor` (config, environment, topology, and runtime checks; `--json` for scripting)
 - **REST API** - Control and monitor services via HTTP with token authentication
 - **Update Notifications** - TUI highlights a hint next to the version footer when a newer GitHub release is available (cached 24h, opt out via `FUKU_UPDATER_DISABLED=1`)
 
@@ -70,6 +71,12 @@ fuku stop core                  # Specific profile
 fuku logs                       # All services
 fuku logs api auth              # Specific services
 fuku l api db                   # Short alias
+
+# Diagnose configuration, environment, and runtime issues
+fuku doctor                     # Default profile
+fuku doctor core                # Specific profile
+fuku doctor --summary           # Compact one-line-per-check report
+fuku doctor --json              # Machine-readable report (exit 2 on any failure)
 
 # Use custom config file
 fuku --config path/to/fuku.yaml run core

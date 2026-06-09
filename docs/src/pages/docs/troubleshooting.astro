@@ -21,6 +21,44 @@ const nav = getDocsNav(base);
   <h1>Troubleshooting</h1>
   <p class="lead">Common issues and practical workarounds.</p>
 
+  <div class="section-eyebrow" id="diagnostics">Diagnostics</div>
+  <h2>Start with <code>fuku doctor</code></h2>
+
+  <p>
+    When something is off, run <code>fuku doctor</code> first. It performs a read-only
+    health check and prints a sectioned report without starting any services, so it
+    works even when the config fails to load:
+  </p>
+
+  <ul>
+    <li><strong>Environment</strong> &mdash; OS/arch, Go runtime, and whether the <code>fuku</code> binary resolves consistently.</li>
+    <li><strong>Configuration</strong> &mdash; the config file was found and parsed, override-file merge status, schema validation, and resolved settings.</li>
+    <li><strong>Services</strong> &mdash; per-service directories, <code>.env</code> files, and readiness configuration.</li>
+    <li><strong>Topology</strong> &mdash; resolved tier order and whether the active profile resolves to a non-empty service list.</li>
+    <li><strong>Runtime</strong> &mdash; other running fuku instances, stale sockets, and readiness ports already bound by another process.</li>
+  </ul>
+
+  <CodeTerminal code={`# Full report for the default profile
+fuku doctor
+
+# Check a specific profile
+fuku doctor core
+
+# Compact one-line-per-check view
+fuku doctor --summary
+
+# Machine-readable output for scripts/CI (exit 2 on any failure)
+fuku doctor --json`} />
+
+  <p>
+    The exit code is <code>0</code> when nothing failed (warnings and notes are fine),
+    <code>2</code> when at least one check failed, and <code>3</code> if doctor itself
+    errored. See the <a href={`${base}docs/cli/#diagnostics`}>CLI reference</a> for the
+    full glyph and exit-code tables.
+  </p>
+
+  <hr />
+
   <div class="section-eyebrow">Hot-reload</div>
   <h2>Hot-reload and branch switching</h2>
 
