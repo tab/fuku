@@ -29,6 +29,7 @@ type Theme struct {
 	ServiceHeaderStyle   lipgloss.Style
 	SelectedRowStyle     lipgloss.Style
 	SelectionBgStyle     lipgloss.Style
+	StatusPendingStyle   lipgloss.Style
 	StatusRunningStyle   lipgloss.Style
 	StatusStartingStyle  lipgloss.Style
 	StatusFailedStyle    lipgloss.Style
@@ -103,6 +104,7 @@ func NewTheme(isDark bool) Theme {
 		ServiceHeaderStyle:   lipgloss.NewStyle().Foreground(fgMuted).Padding(0, 2),
 		SelectedRowStyle:     lipgloss.NewStyle().Background(bgSelection).Padding(0, 2),
 		SelectionBgStyle:     lipgloss.NewStyle().Background(bgSelection),
+		StatusPendingStyle:   lipgloss.NewStyle().Foreground(fgMuted),
 		StatusRunningStyle:   lipgloss.NewStyle().Foreground(fgStatusRunning),
 		StatusStartingStyle:  lipgloss.NewStyle().Foreground(fgStatusWarning),
 		StatusFailedStyle:    lipgloss.NewStyle().Foreground(fgStatusError),

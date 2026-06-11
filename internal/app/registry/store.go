@@ -17,6 +17,7 @@ type Status string
 
 // Status values for service lifecycle
 const (
+	StatusPending    Status = "pending"
 	StatusStarting   Status = "starting"
 	StatusRunning    Status = "running"
 	StatusStopping   Status = "stopping"
@@ -67,6 +68,7 @@ type ServiceSnapshot struct {
 // StatusCounts contains service counts grouped by status
 type StatusCounts struct {
 	Total      int
+	Pending    int
 	Starting   int
 	Running    int
 	Stopping   int
@@ -263,6 +265,8 @@ func (s *store) transitionStatus(svc *serviceState, newStatus Status) {
 
 func (s *store) incrementCount(status Status) {
 	switch status {
+	case StatusPending:
+		s.counts.Pending++
 	case StatusStarting:
 		s.counts.Starting++
 	case StatusRunning:
@@ -280,6 +284,8 @@ func (s *store) incrementCount(status Status) {
 
 func (s *store) decrementCount(status Status) {
 	switch status {
+	case StatusPending:
+		s.counts.Pending--
 	case StatusStarting:
 		s.counts.Starting--
 	case StatusRunning:
@@ -531,7 +537,7 @@ func (s *store) initServices(tiers []bus.Tier) {
 
 	s.services = make(map[string]*serviceState, totalServices)
 	s.serviceOrder = nil
-	s.counts = StatusCounts{Total: totalServices, Starting: totalServices}
+	s.counts = StatusCounts{Total: totalServices, Pending: totalServices}
 
 	tierIndex := make(map[string]int, len(tiers))
 	for i, tier := range tiers {
@@ -553,7 +559,7 @@ func (s *store) initServices(tiers []bus.Tier) {
 				id:     svc.ID,
 				name:   svc.Name,
 				tier:   tier.Name,
-				status: StatusStarting,
+				status: StatusPending,
 			}
 			entries = append(entries, serviceEntry{
 				id:        svc.ID,

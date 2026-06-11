@@ -603,6 +603,8 @@ func (m Model) styledStatus(service *ServiceState, isSelected bool) string {
 	}
 
 	switch service.Status {
+	case StatusPending:
+		return m.theme.StatusPendingStyle.Render(statusStr)
 	case StatusRunning:
 		return m.theme.StatusRunningStyle.Render(statusStr)
 	case StatusStarting:

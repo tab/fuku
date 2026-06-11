@@ -620,7 +620,7 @@ func (m Model) handleProfileResolved(msg bus.Message) Model {
 				ID:       ref.ID,
 				Name:     ref.Name,
 				Tier:     tier.Name,
-				Status:   StatusStarting,
+				Status:   StatusPending,
 				Blink:    components.NewBlink(),
 				Timeline: NewTimeline(components.TimelineDefaultSlots),
 			}

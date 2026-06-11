@@ -519,6 +519,8 @@ func (m Model) lookupServiceConfig(name string) *config.Service {
 // asideStatusStyle returns the style used for the status badge
 func (m Model) asideStatusStyle(status Status) lipgloss.Style {
 	switch status {
+	case StatusPending:
+		return m.theme.StatusPendingStyle
 	case StatusRunning:
 		return m.theme.StatusRunningStyle
 	case StatusStarting, StatusRestarting, StatusStopping:

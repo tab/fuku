@@ -65,7 +65,7 @@ func Test_Store_ProfileResolved(t *testing.T) {
 	assert.Equal(t, "web", services[3].Name)
 
 	for _, svc := range services {
-		assert.Equal(t, StatusStarting, svc.Status)
+		assert.Equal(t, StatusPending, svc.Status)
 		assert.NotEmpty(t, svc.ID)
 	}
 }
@@ -335,6 +335,11 @@ func Test_Status_IsStartable(t *testing.T) {
 			status: StatusRestarting,
 			want:   false,
 		},
+		{
+			name:   "pending",
+			status: StatusPending,
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -368,6 +373,11 @@ func Test_Status_IsStoppable(t *testing.T) {
 		{
 			name:   "failed",
 			status: StatusFailed,
+			want:   false,
+		},
+		{
+			name:   "pending",
+			status: StatusPending,
 			want:   false,
 		},
 	}
@@ -415,6 +425,11 @@ func Test_Status_IsRestartable(t *testing.T) {
 			status: StatusRestarting,
 			want:   false,
 		},
+		{
+			name:   "pending",
+			status: StatusPending,
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -444,7 +459,8 @@ func Test_Store_Counts(t *testing.T) {
 
 	counts := s.Counts()
 	assert.Equal(t, 2, counts.Total)
-	assert.Equal(t, 2, counts.Starting)
+	assert.Equal(t, 2, counts.Pending)
+	assert.Equal(t, 0, counts.Starting)
 	assert.Equal(t, 0, counts.Running)
 
 	b.Publish(bus.Message{
@@ -458,7 +474,7 @@ func Test_Store_Counts(t *testing.T) {
 
 	counts = s.Counts()
 	assert.Equal(t, 2, counts.Total)
-	assert.Equal(t, 1, counts.Starting)
+	assert.Equal(t, 1, counts.Pending)
 	assert.Equal(t, 1, counts.Running)
 
 	b.Publish(bus.Message{
@@ -472,7 +488,7 @@ func Test_Store_Counts(t *testing.T) {
 
 	counts = s.Counts()
 	assert.Equal(t, 2, counts.Total)
-	assert.Equal(t, 0, counts.Starting)
+	assert.Equal(t, 0, counts.Pending)
 	assert.Equal(t, 1, counts.Running)
 	assert.Equal(t, 1, counts.Failed)
 
