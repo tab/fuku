@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"fuku/internal/config"
 )
 
 const (
-	configDir       = "fuku"
+	configDir       = config.AppName
 	telemetryIDFile = "telemetry.id"
 )
 

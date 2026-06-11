@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/cli"
 	"fuku/internal/config"
 	"fuku/internal/config/sentry"
 )
@@ -74,7 +75,7 @@ func (t *tracer) handleCommandStarted(ctx context.Context, msg bus.Message) {
 		return
 	}
 
-	if data.Command != "run" {
+	if data.Command != cli.CommandRun.String() {
 		return
 	}
 
