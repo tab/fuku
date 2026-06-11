@@ -383,6 +383,18 @@ func Test_UpdateBlinkAnimations(t *testing.T) {
 			expectedHasActive:  true,
 			expectBlinkStarted: map[string]bool{"api": true},
 		},
+		{
+			name: "pending service does not blink",
+			services: map[string]*ServiceState{
+				"api": {
+					Name:   "api",
+					Status: StatusPending,
+					Blink:  components.NewBlink(),
+				},
+			},
+			expectedHasActive:  false,
+			expectBlinkStarted: map[string]bool{"api": false},
+		},
 	}
 
 	for _, tt := range tests {

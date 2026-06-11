@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class ServiceStatus {
+  pending,
   starting,
   running,
   stopping,
@@ -59,6 +60,7 @@ data class ServiceActionAccepted(
 @Serializable
 data class ServiceCounts(
   val total: Int,
+  val pending: Int = 0,
   val starting: Int,
   val running: Int,
   val stopping: Int,

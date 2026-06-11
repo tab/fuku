@@ -28,6 +28,7 @@ type StatusSerializer struct {
 // ServiceCountSerializer serializes service counts by status
 type ServiceCountSerializer struct {
 	Total      int `json:"total"`
+	Pending    int `json:"pending"`
 	Starting   int `json:"starting"`
 	Running    int `json:"running"`
 	Stopping   int `json:"stopping"`
@@ -113,6 +114,7 @@ func (h *handler) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		Uptime:  int64(h.store.Uptime().Seconds()),
 		Services: ServiceCountSerializer{
 			Total:      c.Total,
+			Pending:    c.Pending,
 			Starting:   c.Starting,
 			Running:    c.Running,
 			Stopping:   c.Stopping,

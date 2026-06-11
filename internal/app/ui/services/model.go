@@ -34,6 +34,7 @@ type Status = registry.Status
 
 // Status values re-exported from registry for convenience
 const (
+	StatusPending    = registry.StatusPending
 	StatusStarting   = registry.StatusStarting
 	StatusRunning    = registry.StatusRunning
 	StatusStopping   = registry.StatusStopping

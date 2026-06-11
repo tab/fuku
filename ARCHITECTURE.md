@@ -489,7 +489,10 @@ The UI uses finite state machines to manage visual representation of service sta
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Stopped
+    [*] --> Pending
+
+    Pending --> Starting : Start
+    Pending --> Failed : Failed
 
     Stopped --> Starting : Start
 
@@ -517,6 +520,7 @@ stateDiagram-v2
 type Status string
 
 const (
+    StatusPending    Status = "pending"    // Queued for startup, process not spawned yet
     StatusStarting   Status = "starting"   // Process started, waiting for readiness
     StatusRunning    Status = "running"    // Service ready and operational
     StatusStopping   Status = "stopping"   // Shutdown in progress

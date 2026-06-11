@@ -1,0 +1,39 @@
+version: 1
+
+services:
+  alpha:
+    dir: .
+    command: "echo starting; sleep 2; echo 'Service ready'; sleep 60"
+    readiness:
+      type: log
+      pattern: "Service ready"
+      timeout: 30s
+  bravo:
+    dir: .
+    command: "echo starting; sleep 2; echo 'Service ready'; sleep 60"
+    readiness:
+      type: log
+      pattern: "Service ready"
+      timeout: 30s
+  charlie:
+    dir: .
+    command: "echo starting; sleep 2; echo 'Service ready'; sleep 60"
+    readiness:
+      type: log
+      pattern: "Service ready"
+      timeout: 30s
+
+profiles:
+  default: "*"
+
+concurrency:
+  workers: 1
+
+server:
+  listen: "127.0.0.1:19877"
+  auth:
+    token: "test-token"
+
+logging:
+  format: console
+  level: debug

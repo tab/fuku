@@ -1006,3 +1006,60 @@ func Test_AsideTabIndex(t *testing.T) {
 		})
 	}
 }
+
+func Test_AsideStatusStyle(t *testing.T) {
+	m := Model{theme: components.DefaultTheme()}
+
+	tests := []struct {
+		name   string
+		status Status
+		want   lipgloss.Style
+	}{
+		{
+			name:   "pending uses pending style",
+			status: StatusPending,
+			want:   m.theme.StatusPendingStyle,
+		},
+		{
+			name:   "running uses running style",
+			status: StatusRunning,
+			want:   m.theme.StatusRunningStyle,
+		},
+		{
+			name:   "starting uses starting style",
+			status: StatusStarting,
+			want:   m.theme.StatusStartingStyle,
+		},
+		{
+			name:   "restarting uses starting style",
+			status: StatusRestarting,
+			want:   m.theme.StatusStartingStyle,
+		},
+		{
+			name:   "stopping uses starting style",
+			status: StatusStopping,
+			want:   m.theme.StatusStartingStyle,
+		},
+		{
+			name:   "failed uses failed style",
+			status: StatusFailed,
+			want:   m.theme.StatusFailedStyle,
+		},
+		{
+			name:   "stopped uses stopped style",
+			status: StatusStopped,
+			want:   m.theme.StatusStoppedStyle,
+		},
+		{
+			name:   "unknown uses muted style",
+			status: Status("bogus"),
+			want:   m.theme.PanelMutedStyle,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, m.asideStatusStyle(tt.status))
+		})
+	}
+}

@@ -60,7 +60,7 @@ func Test_HandleProfileResolved(t *testing.T) {
 	assert.NotNil(t, result.state.services["test-id-db"])
 	assert.NotNil(t, result.state.services["test-id-api"])
 	assert.NotNil(t, result.state.services["test-id-web"])
-	assert.Equal(t, StatusStarting, result.state.services["test-id-db"].Status)
+	assert.Equal(t, StatusPending, result.state.services["test-id-db"].Status)
 	assert.NotNil(t, result.state.services["test-id-db"].Blink)
 	assert.NotNil(t, result.state.services["test-id-api"].Blink)
 	assert.NotNil(t, result.state.services["test-id-web"].Blink)

@@ -183,6 +183,11 @@ func Test_StatusToSlot(t *testing.T) {
 			want:   SlotStopped,
 		},
 		{
+			name:   "pending maps to SlotEmpty",
+			status: StatusPending,
+			want:   SlotEmpty,
+		},
+		{
 			name:   "unknown status maps to SlotEmpty",
 			status: "unknown",
 			want:   SlotEmpty,
