@@ -160,6 +160,11 @@ func Test_GetStyledAndPaddedStatus(t *testing.T) {
 			isSelected: false,
 		},
 		{
+			name:       "pending status not selected",
+			status:     StatusPending,
+			isSelected: false,
+		},
+		{
 			name:       "running status selected",
 			status:     StatusRunning,
 			isSelected: true,

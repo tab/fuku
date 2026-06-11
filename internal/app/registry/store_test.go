@@ -847,3 +847,37 @@ func Test_Store_StaleLifecycleEventRejected(t *testing.T) {
 	assert.Equal(t, 1234, svc.PID)
 	assert.Equal(t, startedAt, svc.StartTime)
 }
+
+func Test_Store_CountBookkeeping(t *testing.T) {
+	s := &store{}
+
+	statuses := []Status{
+		StatusPending,
+		StatusStarting,
+		StatusRunning,
+		StatusStopping,
+		StatusRestarting,
+		StatusStopped,
+		StatusFailed,
+	}
+
+	for _, status := range statuses {
+		s.incrementCount(status)
+	}
+
+	assert.Equal(t, StatusCounts{
+		Pending:    1,
+		Starting:   1,
+		Running:    1,
+		Stopping:   1,
+		Restarting: 1,
+		Stopped:    1,
+		Failed:     1,
+	}, s.counts)
+
+	for _, status := range statuses {
+		s.decrementCount(status)
+	}
+
+	assert.Equal(t, StatusCounts{}, s.counts)
+}
