@@ -49,6 +49,11 @@ const nav = getDocsNav(base);
         <td>Stream logs from a running fuku instance</td>
       </tr>
       <tr>
+        <td><code>fuku doctor [profile]</code></td>
+        <td>&mdash;</td>
+        <td>Diagnose configuration, environment, topology, and runtime issues</td>
+      </tr>
+      <tr>
         <td><code>fuku init</code></td>
         <td><code>i</code></td>
         <td>Generate a <code>fuku.yaml</code> template</td>
@@ -81,7 +86,7 @@ const nav = getDocsNav(base);
     <tbody>
       <tr>
         <td><code>--config</code>, <code>-c</code></td>
-        <td>Path to config file (default: <code>fuku.yaml</code>, falls back to <code>fuku.yml</code>). Disables automatic override file merging. Only supported with <code>run</code>, <code>stop</code>, and <code>logs</code> commands</td>
+        <td>Path to config file (default: <code>fuku.yaml</code>, falls back to <code>fuku.yml</code>). Disables automatic override file merging. Supported with <code>run</code>, <code>stop</code>, <code>logs</code>, and <code>doctor</code> commands</td>
       </tr>
       <tr>
         <td><code>--no-ui</code></td>
@@ -90,6 +95,14 @@ const nav = getDocsNav(base);
       <tr>
         <td><code>--profile</code></td>
         <td>Filter by profile (used with <code>logs</code> command)</td>
+      </tr>
+      <tr>
+        <td><code>--summary</code></td>
+        <td>Print a compact one-line-per-check report (used with <code>doctor</code> command)</td>
+      </tr>
+      <tr>
+        <td><code>--json</code></td>
+        <td>Print the report as machine-readable JSON (used with <code>doctor</code> command)</td>
       </tr>
     </tbody>
   </table>
@@ -126,12 +139,65 @@ fuku l api db                   # Short alias
 fuku --config path/to/fuku.yaml run core
 fuku -c custom.yaml run core
 
+# Diagnose configuration, environment, and runtime issues
+fuku doctor                     # Default profile
+fuku doctor core                # Specific profile
+fuku doctor --summary           # Compact one-line-per-check report
+fuku doctor --json              # Machine-readable report
+
 # Generate config template
 fuku init
 
 # Show help / version
 fuku help
 fuku version`} />
+
+  <hr />
+
+  <div class="section-eyebrow">Diagnostics</div>
+  <h2>fuku doctor</h2>
+
+  <p>
+    <code>fuku doctor</code> runs a read-only health check and prints a sectioned
+    report &mdash; <strong>Environment</strong>, <strong>Configuration</strong>,
+    <strong>Services</strong>, <strong>Topology</strong>, and <strong>Runtime</strong>.
+    It diagnoses a broken setup without starting any services, so it works even when
+    the config fails to load. See <a href={`${base}docs/troubleshooting/#diagnostics`}>Troubleshooting</a> for what each section checks.
+  </p>
+
+  <p>Each check carries a status glyph:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Glyph</th>
+        <th>Meaning</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><code>✓</code></td><td>ok</td></tr>
+      <tr><td><code>○</code></td><td>idle (inactive but expected)</td></tr>
+      <tr><td><code>↑</code></td><td>note (informational)</td></tr>
+      <tr><td><code>⚠</code></td><td>warning (non-fatal)</td></tr>
+      <tr><td><code>✗</code></td><td>failure</td></tr>
+    </tbody>
+  </table>
+
+  <p>The exit code makes <code>doctor</code> usable in scripts and CI:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Exit code</th>
+        <th>Meaning</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>No failures (warnings and notes are allowed)</td></tr>
+      <tr><td><code>2</code></td><td>At least one check failed</td></tr>
+      <tr><td><code>3</code></td><td>doctor itself errored (e.g. failed to write the JSON report)</td></tr>
+    </tbody>
+  </table>
 
   <hr />
 

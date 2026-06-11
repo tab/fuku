@@ -77,6 +77,8 @@ graph TD
     end
 ```
 
+Not every command boots the FX container. Utility commands (`init`, `version`, `help`) and the `doctor` diagnostic run standalone in the CLI layer. `doctor` deliberately bypasses FX and loads the config itself so it can report load and validation failures as part of its read-only health report (Environment, Configuration, Services, Topology, Runtime) rather than aborting at startup.
+
 ## 1. Data/Communication Layer
 
 **Package**: `internal/app/bus`

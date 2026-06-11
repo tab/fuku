@@ -35,3 +35,12 @@ var (
 	SpinnerStyle      = lipgloss.NewStyle().Foreground(FgPrimary)
 	LoaderSpacerStyle = lipgloss.NewStyle().PaddingLeft(1)
 )
+
+// Doctor glyph styles
+var (
+	DoctorGlyphOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	DoctorGlyphIdleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	DoctorGlyphNoteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
+	DoctorGlyphWarnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	DoctorGlyphFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+)

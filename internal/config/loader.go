@@ -55,7 +55,7 @@ func LoadFromFile(path string) (*Config, *Topology, error) {
 	return parseConfig(cfg, data)
 }
 
-// LoadEnv loads environment variables from .env files in priority order.
+// LoadEnv loads environment variables from .env files in priority order
 // Files loaded first take precedence (godotenv does not override existing vars):
 //
 //	.env.<GO_ENV>.local  (highest priority)
