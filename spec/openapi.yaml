@@ -23,7 +23,7 @@ components:
   schemas:
     ServiceStatus:
       type: string
-      enum: [starting, running, stopping, restarting, stopped, failed]
+      enum: [pending, starting, running, stopping, restarting, stopped, failed]
       description: Current service state
       example: running
 
@@ -114,11 +114,14 @@ components:
 
     ServiceCounts:
       type: object
-      required: [total, starting, running, stopping, restarting, stopped, failed]
+      required: [total, pending, starting, running, stopping, restarting, stopped, failed]
       properties:
         total:
           type: integer
           example: 8
+        pending:
+          type: integer
+          example: 0
         starting:
           type: integer
           example: 0
