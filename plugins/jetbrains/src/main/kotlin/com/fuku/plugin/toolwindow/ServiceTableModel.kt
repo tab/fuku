@@ -21,6 +21,7 @@ enum class TimelineSlot {
   companion object {
     fun forStatus(status: ServiceStatus): TimelineSlot =
       when (status) {
+        ServiceStatus.pending -> EMPTY
         ServiceStatus.running -> RUNNING
         ServiceStatus.starting, ServiceStatus.restarting, ServiceStatus.stopping -> STARTING
         ServiceStatus.failed -> FAILED

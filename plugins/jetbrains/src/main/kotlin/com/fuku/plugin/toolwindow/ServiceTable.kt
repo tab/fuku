@@ -29,6 +29,7 @@ object ServiceColors {
 
   fun forStatus(status: ServiceStatus): Color =
     when (status) {
+      ServiceStatus.pending -> muted
       ServiceStatus.running -> running
       ServiceStatus.starting, ServiceStatus.restarting -> warning
       ServiceStatus.stopping -> error
