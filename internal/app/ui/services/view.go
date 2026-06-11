@@ -130,10 +130,8 @@ func (m Model) renderStatus() string {
 		phaseStr = "starting…"
 		phaseStyle = m.theme.PhaseStartingStyle
 	case bus.PhaseRunning:
-		phaseStr = "running"
 		phaseStyle = m.theme.PhaseRunningStyle
 	case bus.PhaseStopping:
-		phaseStr = "stopping"
 		phaseStyle = m.theme.PhaseStoppingStyle
 	}
 

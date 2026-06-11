@@ -8,17 +8,17 @@ import (
 )
 
 // CommandType represents the type of CLI command
-type CommandType int
+type CommandType string
 
 // Command type values
 const (
-	CommandRun CommandType = iota
-	CommandStop
-	CommandInit
-	CommandLogs
-	CommandVersion
-	CommandHelp
-	CommandDoctor
+	CommandRun     CommandType = "run"
+	CommandStop    CommandType = "stop"
+	CommandInit    CommandType = "init"
+	CommandLogs    CommandType = "logs"
+	CommandVersion CommandType = "version"
+	CommandHelp    CommandType = "help"
+	CommandDoctor  CommandType = "doctor"
 )
 
 // Standalone returns true for commands that run without config or FX container
@@ -43,24 +43,7 @@ func (c CommandType) RequiresServices() bool {
 
 // String returns the string representation of a CommandType
 func (c CommandType) String() string {
-	switch c {
-	case CommandRun:
-		return "run"
-	case CommandStop:
-		return "stop"
-	case CommandInit:
-		return "init"
-	case CommandLogs:
-		return "logs"
-	case CommandVersion:
-		return "version"
-	case CommandHelp:
-		return "help"
-	case CommandDoctor:
-		return "doctor"
-	default:
-		return "unknown"
-	}
+	return string(c)
 }
 
 // DoctorFormat selects the doctor renderer
@@ -151,7 +134,7 @@ func Parse(args []string) (*Options, error) {
 // buildRootCommand creates the root cobra command
 func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "fuku",
+		Use:           config.AppName,
 		Short:         "A lightweight CLI orchestrator for running and managing multiple local services",
 		Long:          "Fuku is a lightweight CLI orchestrator for running and managing multiple local services in development environments",
 		SilenceUsage:  true,
@@ -163,11 +146,11 @@ func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(&result.NoUI, "no-ui", false, "Run without TUI")
 	cmd.PersistentFlags().StringVarP(&result.ConfigFile, "config", "c", "", "Path to config file (disables override merging)")
-	cmd.Flags().BoolVarP(&flags.version, "version", "v", false, "Show version information")
-	cmd.Flags().StringVarP(&flags.run, "run", "r", "", "Run services with specified profile")
-	cmd.Flags().StringVarP(&flags.stop, "stop", "s", "", "Stop services with specified profile")
-	cmd.Flags().BoolVarP(&flags.logs, "logs", "l", false, "Stream logs from running services")
-	cmd.Flags().BoolVarP(&flags.init, "init", "i", false, "Generate fuku.yaml template")
+	cmd.Flags().BoolVarP(&flags.version, CommandVersion.String(), "v", false, "Show version information")
+	cmd.Flags().StringVarP(&flags.run, CommandRun.String(), "r", "", "Run services with specified profile")
+	cmd.Flags().StringVarP(&flags.stop, CommandStop.String(), "s", "", "Stop services with specified profile")
+	cmd.Flags().BoolVarP(&flags.logs, CommandLogs.String(), "l", false, "Stream logs from running services")
+	cmd.Flags().BoolVarP(&flags.init, CommandInit.String(), "i", false, "Generate fuku.yaml template")
 
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		result.Type = CommandHelp
@@ -179,7 +162,7 @@ func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 // buildInitCommand creates the init subcommand
 func buildInitCommand(result *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "init",
+		Use:     CommandInit.String(),
 		Aliases: []string{"i"},
 		Short:   "Generate fuku.yaml template",
 		Args:    cobra.NoArgs,
@@ -194,7 +177,7 @@ func buildInitCommand(result *Options) *cobra.Command {
 // buildRunCommand creates the run subcommand
 func buildRunCommand(result *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "run [profile]",
+		Use:     CommandRun.String() + " [profile]",
 		Aliases: []string{"r"},
 		Short:   "Run services with the specified profile",
 		Args:    cobra.MaximumNArgs(1),
@@ -212,7 +195,7 @@ func buildRunCommand(result *Options) *cobra.Command {
 // buildStopCommand creates the stop subcommand
 func buildStopCommand(result *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "stop [profile]",
+		Use:     CommandStop.String() + " [profile]",
 		Aliases: []string{"s"},
 		Short:   "Stop services by killing processes in service directories",
 		Args:    cobra.MaximumNArgs(1),
@@ -232,7 +215,7 @@ func buildLogsCommand(result *Options) *cobra.Command {
 	var logsProfile string
 
 	cmd := &cobra.Command{
-		Use:     "logs [services...]",
+		Use:     CommandLogs.String() + " [services...]",
 		Aliases: []string{"l"},
 		Short:   "Stream logs from running services",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -250,7 +233,7 @@ func buildLogsCommand(result *Options) *cobra.Command {
 // buildVersionCommand creates the version subcommand
 func buildVersionCommand(result *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "version",
+		Use:   CommandVersion.String(),
 		Short: "Show version information",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -269,7 +252,7 @@ func buildDoctorCommand(result *Options) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "doctor [profile]",
+		Use:   CommandDoctor.String() + " [profile]",
 		Short: "Diagnose configuration, environment, and runtime issues",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {

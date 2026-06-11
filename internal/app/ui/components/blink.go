@@ -10,7 +10,7 @@ import (
 // Blink animation constants
 const (
 	empty = "◯"
-	full  = "◉"
+	full  = IndicatorDot
 
 	// Animation timing derived from UI tick rate
 	blinkFPS = UITicksPerSecond

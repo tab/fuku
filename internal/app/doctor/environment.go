@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+
+	"fuku/internal/config"
 )
 
 // environmentSection collects environment and toolchain checks
@@ -68,7 +70,7 @@ func checkInstall() Result {
 		{Key: "executable", Value: exe},
 	}
 
-	if pathExe, err := exec.LookPath("fuku"); err == nil {
+	if pathExe, err := exec.LookPath(config.AppName); err == nil {
 		details = append(details, Detail{Key: "PATH fuku", Value: pathExe})
 	}
 

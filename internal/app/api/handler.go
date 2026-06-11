@@ -56,6 +56,13 @@ type ServiceListSerializer struct {
 	Services []ServiceSerializer `json:"services"`
 }
 
+// Action values reported in accepted action responses
+const (
+	actionStart   = "start"
+	actionStop    = "stop"
+	actionRestart = "restart"
+)
+
 // ActionSerializer serializes an accepted action response
 type ActionSerializer struct {
 	ID     string          `json:"id"`
@@ -209,7 +216,7 @@ func (h *handler) handleStartService(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ActionSerializer{
 		ID:     svc.ID,
 		Name:   svc.Name,
-		Action: "start",
+		Action: actionStart,
 		Status: registry.StatusStarting,
 	})
 }
@@ -262,7 +269,7 @@ func (h *handler) handleStopService(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ActionSerializer{
 		ID:     svc.ID,
 		Name:   svc.Name,
-		Action: "stop",
+		Action: actionStop,
 		Status: registry.StatusStopping,
 	})
 }
@@ -315,7 +322,7 @@ func (h *handler) handleRestartService(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ActionSerializer{
 		ID:     svc.ID,
 		Name:   svc.Name,
-		Action: "restart",
+		Action: actionRestart,
 		Status: registry.StatusRestarting,
 	})
 }
