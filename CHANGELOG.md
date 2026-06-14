@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## v0.21.0
+
+### Features
+- **feat:** Add service info aside panel in TUI
+- **feat:** Add `doctor` command
+- **feat:** Add top-level `exclude` field
+
+### Fixes
+- **fix:** Keep process card stable across restarts
+- **fix:** Fix lifecycle logs
+
+### Refactor
+- **refactor:** Deduplicate string literals into constants
+
+### Build
+- **build:** Bump charm.land/bubbletea/v2 from 2.0.6 to 2.0.7
+- **build:** Bump github.com/shirou/gopsutil/v4 from 4.26.4 to 4.26.5
+- **build:** Bump CI workflow actions (codecov, golangci-lint, goreleaser)
+
+### Chore
+- **chore:** Enforce lipgloss styles live in components only
+- **chore:** Remove ENV_FILE from runner
+- **chore:** Close app.done channel after execution
+
+### Tests
+- **test:** Add e2e tests for doctor, exclude, and workers startup
+
+### Documentation
+- **docs:** Update OpenAPI schema, README, and documentation
+
 ## v0.20.0
 
 ### Features

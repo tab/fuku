@@ -97,15 +97,15 @@ func Test_Checker_Run(t *testing.T) {
 					assert.Equal(t, bus.EventUpdateAvailable, msg.Type)
 					data, ok := msg.Data.(bus.UpdateAvailable)
 					assert.True(t, ok)
-					assert.Equal(t, "v0.21.0", data.Version)
+					assert.Equal(t, "v0.23.0", data.Version)
 				})
 			},
 			updaterEnabled:   true,
 			cacheTag:         "v0.05.0",
 			cacheAge:         48 * time.Hour,
 			httpStatus:       http.StatusOK,
-			httpBody:         `{"tag_name":"v0.21.0"}`,
-			expectedCacheTag: "v0.21.0",
+			httpBody:         `{"tag_name":"v0.23.0"}`,
+			expectedCacheTag: "v0.23.0",
 		},
 		{
 			name: "no cache and HTTP newer - publishes and writes cache",
