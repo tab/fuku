@@ -16,6 +16,15 @@ Type "u"
 Sleep 0.5s
 
 Enter
-Sleep 10s
+Sleep 5s
 
-Ctrl+C
+Enter
+Sleep 3s
+
+Tab
+Sleep 2s
+
+Tab
+Sleep 2s
+
+Tab
