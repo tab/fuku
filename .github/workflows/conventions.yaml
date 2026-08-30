@@ -1,16 +1,13 @@
 name: Conventions
 on:
-  # Title edits included: nothing else re-checks a title edited after it passed
   pull_request:
     types: [opened, reopened, edited, synchronize, ready_for_review]
 concurrency:
-  # Its own group: sharing one with the code jobs lets a title edit cancel a running suite
   group: '${{ github.workflow }} @ ${{ github.event.pull_request.number }}'
   cancel-in-progress: true
 
 jobs:
   conventions:
-    # Dependabot writes its own titles, and keying on the actor would miss a human reopen
     name: Title & commits
     if: github.event.pull_request.user.login != 'dependabot[bot]'
     permissions:
@@ -27,7 +24,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Read live: a re-run replays the payload it started with, so a fixed title would never clear this
           title="$(gh pr view "$NUMBER" --json title --jq .title)"
 
           .github/scripts/subject.sh "$title"
