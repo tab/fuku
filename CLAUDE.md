@@ -14,6 +14,16 @@
 
 Package layout, interfaces, and execution flow are derivable from the code — read the source.
 
+## Area guides
+
+This file covers the Go application. Four directories carry their own guide,
+loaded when you work in them:
+
+- `e2e/CLAUDE.md`: the subprocess suite, its fixtures, and why no test runs in parallel
+- `docs/CLAUDE.md`: the Astro site and its Pages deployment
+- `plugins/jetbrains/CLAUDE.md`: the Kotlin plugin, ktlint and the version properties
+- `examples/bookstore/CLAUDE.md`: the playground the root `fuku.yaml` drives, and why nothing checks it
+
 ## Skills
 
 Procedural workflows live in `.claude/skills/`, loaded on demand:
