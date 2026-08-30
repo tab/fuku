@@ -15,9 +15,11 @@ concurrency:
 jobs:
   conventions:
     # Dependabot writes its own titles and its own trailers, and neither is ours
-    # to reword. The .githooks copies catch this before the push, when installed
+    # to reword. Keyed on the author, not the actor: a human who reopens or
+    # retitles one of its pull requests is the actor, and the title is still
+    # Dependabot's. The .githooks copies catch this before the push, when installed
     name: Title & commits
-    if: github.actor != 'dependabot[bot]'
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     permissions:
       contents: read
       pull-requests: read
