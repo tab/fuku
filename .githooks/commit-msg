@@ -1,39 +1,15 @@
 #!/usr/bin/env bash
-# Enforces the commit rules in CLAUDE.md that no linter can see: Conventional
-# Commits with a scope, and no AI attribution anywhere in the message
+# Enforces the CLAUDE.md commit rules: a scoped Conventional Commit, and no AI attribution
 set -euo pipefail
 
 file="$1"
+root="$(git rev-parse --show-toplevel)"
 status=0
 
-# Content git generates or rewrites, none of which the author is writing here
 subject="$(grep -vE '^#' "$file" | sed '/^[[:space:]]*$/d' | head -1 || true)"
-case "$subject" in
-  Merge\ *|Revert\ *|fixup!*|squash!*|"") exit 0 ;;
-esac
 
-if ! grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\([a-z0-9.-]+\): [A-Z]' <<<"$subject"; then
-  echo "commit-msg: the subject needs a scoped Conventional Commit, capitalized after the colon"
-  echo "  got:  $subject"
-  echo "  want: fix(api): Return the not-found sentinel without logging"
-  status=1
-fi
-
-if grep -qE '\.$' <<<"$subject"; then
-  echo "commit-msg: drop the trailing period from the subject"
-  status=1
-fi
-
-# CLAUDE.md: no AI attribution anywhere in the message. Matched on the
-# attribution forms rather than the bare word, so `docs(claude):` and a body
-# naming CLAUDE.md still pass
-attribution='^[[:space:]]*co-authored-by:.*(claude|anthropic|copilot|chatgpt|codex|cursor)|^[[:space:]]*claude-session:|generated (with|by) .*(claude|anthropic|copilot|chatgpt|codex|cursor)|https://claude\.(ai|com)/|🤖'
-
-if grep -vE '^#' "$file" | grep -qiE "$attribution"; then
-  echo "commit-msg: remove the AI tooling attribution"
-  grep -vE '^#' "$file" | grep -inE "$attribution" | sed 's/^/  /'
-  status=1
-fi
+"$root/.github/scripts/subject.sh" "$subject" || status=1
+"$root/.github/scripts/attribution.sh" "$file" || status=1
 
 [ "$status" -ne 0 ] && echo "commit-msg: see CLAUDE.md > Commits"
 exit "$status"
