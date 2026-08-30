@@ -45,8 +45,10 @@ jobs:
           go-version: '1.25'
       - name: static-check
         # NOTE: https://github.com/dominikh/staticcheck-action/releases/tag/v1.4.1
+        # Pinned: the action defaults to latest, and v0.8 needs Go 1.26 while go.mod says 1.25
         uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431
         with:
+          version: "v0.7.0"
           install-go: false
   tests:
     name: Tests
@@ -140,9 +142,7 @@ jobs:
           NUMBER: ${{ github.event.pull_request.number }}
           BASE: ${{ github.event.pull_request.base.ref }}
         run: |
-          # Read the labels over the API, not out of the event payload: labelling
-          # a pull request fires no run of its own, and a re-run replays the
-          # payload it was triggered with, labels and all
+          # Read live: labelling fires no run, and a re-run replays the payload it started with
           labels="$(gh pr view "$NUMBER" --json labels --jq '.labels[].name')"
 
           if grep -qx contract-unchanged <<<"$labels"; then
