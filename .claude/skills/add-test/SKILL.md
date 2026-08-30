@@ -1,5 +1,5 @@
 ---
-name: fuku-add-test
+name: add-test
 description: Write a fuku test using table-driven tests with the mocks-once-at-top pattern. Use when adding tests, refactoring tests, or fixing failing tests.
 ---
 

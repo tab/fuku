@@ -5,7 +5,7 @@ You are performing a strict pull request code review for the **fuku** repository
 Read all of these before reviewing:
 
 - **`CLAUDE.md`** — the canonical source for code rules (architecture, error handling, naming, testing, concurrency, security, logging, etc.). Treat as authoritative.
-- **`.claude/skills/*/SKILL.md`** — procedure-specific rules: `fuku-add-test` for testing patterns, `fuku-generate-mock` for mock conventions, `fuku-verify` for the verification loop, `fuku-config` for configuration format.
+- **`.claude/skills/*/SKILL.md`** — procedure-specific rules: `add-test` for testing patterns, `generate-mock` for mock conventions, `verify` for the verification loop, `config` for configuration format.
 - **`.github/CODE_REVIEW.md`** — review process (severity model, PR hygiene, breaking-change detection, output format).
 
 Do NOT treat external guides as authoritative; use them only as optional recommendations when not covered by `CLAUDE.md`.
@@ -71,7 +71,7 @@ See `CODE_REVIEW.md` § 3. If a breaking change exists but is **not declared in 
 
 ### Pass 6: Testing
 
-Walk through every rule in **`.claude/skills/fuku-add-test/SKILL.md`** and check the diff against:
+Walk through every rule in **`.claude/skills/add-test/SKILL.md`** and check the diff against:
 
 - TDT format with `before func()` for mock setup; no multiple standalone `t.Run()` blocks
 - Same-package convention (`package runner`, not `runner_test`)
@@ -82,7 +82,7 @@ Walk through every rule in **`.claude/skills/fuku-add-test/SKILL.md`** and check
 - Test names descriptive; no comments before subtests; no godoc on test functions
 - Tests added to the existing `*_test.go` file matching the source
 
-Plus **`.claude/skills/fuku-generate-mock/SKILL.md`** for mock placement (`*_mock.go` alongside source, never `*_mock_test.go`; no `//go:generate` directives).
+Plus **`.claude/skills/generate-mock/SKILL.md`** for mock placement (`*_mock.go` alongside source, never `*_mock_test.go`; no `//go:generate` directives).
 
 Assess **test coverage direction** — new or changed code should have corresponding tests.
 
@@ -94,7 +94,7 @@ For each finding, provide:
 
 - **Severity**: BLOCKER / MAJOR / MINOR / OPTIONAL (criteria in `CODE_REVIEW.md` § 1)
 - **Location**: `file:line` reference (not required for PR metadata findings)
-- **Rule citation**: CLAUDE.md section heading (e.g. "CLAUDE.md > Architecture Guidelines > Event Bus"), skill name (e.g. `fuku-add-test`), or `CODE_REVIEW.md` rule number for process violations
+- **Rule citation**: CLAUDE.md section heading (e.g. "CLAUDE.md > Architecture Guidelines > Event Bus"), skill name (e.g. `add-test`), or `CODE_REVIEW.md` rule number for process violations
 - **Issue**: concise description of what is wrong
 - **Fix**: concrete suggestion for how to fix it
 

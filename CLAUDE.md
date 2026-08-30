@@ -18,10 +18,10 @@ Package layout, interfaces, and execution flow are derivable from the code — r
 
 Procedural workflows live in `.claude/skills/`, loaded on demand:
 
-- `fuku-verify` — verification loop (format, lint, vet, test, race, e2e) before committing
-- `fuku-generate-mock` — generate or regenerate a gomock mock
-- `fuku-config` — `fuku.yaml` configuration reference
-- `fuku-add-test` — write tests using TDT with the mocks-once pattern
+- `verify` — verification loop (format, lint, vet, test, race, e2e) before committing
+- `generate-mock` — generate or regenerate a gomock mock
+- `config` — `fuku.yaml` configuration reference
+- `add-test` — write tests using TDT with the mocks-once pattern
 
 ## Primary Guidelines
 
@@ -46,7 +46,7 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - **always define interfaces for dependencies** — required for FX injection and testability
 - interfaces should be defined on the consumer side (idiomatic Go)
 - never prefix interfaces with `I`; prefer capability-based names (`Runner`, `Pool`, `Logger`)
-- every interface must have a corresponding mock; see `fuku-generate-mock`
+- every interface must have a corresponding mock; see `generate-mock`
 
 ### Event Bus as the Communication Backbone
 - **all cross-cutting concerns must subscribe to the bus, never inline into business logic** — non-negotiable
@@ -150,7 +150,7 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - separate return values from system calls — return exit codes and errors instead of calling `os.Exit()` directly
 
 ### Testing
-- see `fuku-add-test` for TDT structure, coverage target, mocking, and test-file conventions
+- see `add-test` for TDT structure, coverage target, mocking, and test-file conventions
 - never disable tests without a reason and approval
 - never modify code with special conditions just to make tests pass
 
@@ -178,7 +178,7 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - avoid command injection and path traversal vulnerabilities
 
 ## Important Workflow Notes
-- always run `fuku-verify` before committing
+- always run `verify` before committing
 - never put any mention of Claude or Claude Code in commit messages
 - never include "Test plan" sections in PR descriptions
 - comments describe the current state and purpose of the code, never its history or evolution

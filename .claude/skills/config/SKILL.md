@@ -1,5 +1,5 @@
 ---
-name: fuku-config
+name: config
 description: Reference for fuku.yaml configuration format — services, tiers, profiles, concurrency, retry, logs, watch. Use when editing fuku.yaml, adding a service, or explaining a config field.
 ---
 
