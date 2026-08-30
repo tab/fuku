@@ -43,6 +43,9 @@ coverage:
 	@echo "Generating test coverage report..."
 	GO_ENV=test go test $$(go list ./... | grep -v /e2e) -coverprofile=coverage.out && go tool cover -html=coverage.out
 
+.PHONY: check
+check: fmt lint vet test
+
 .PHONY: build\:plugin
 build\:plugin:
 	@echo "Building JetBrains plugin..."

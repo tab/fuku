@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Enforces the CLAUDE.md commit rules: a scoped Conventional Commit, and no AI attribution
+set -euo pipefail
+
+file="$1"
+root="$(git rev-parse --show-toplevel)"
+status=0
+
+subject="$(grep -vE '^#' "$file" | sed '/^[[:space:]]*$/d' | head -1 || true)"
+
+"$root/.github/scripts/subject.sh" "$subject" || status=1
+"$root/.github/scripts/attribution.sh" "$file" || status=1
+
+[ "$status" -ne 0 ] && echo "commit-msg: see CLAUDE.md > Commits"
+exit "$status"

@@ -14,14 +14,38 @@
 
 Package layout, interfaces, and execution flow are derivable from the code — read the source.
 
+## Area guides
+
+This file covers the Go application. Four directories carry their own guide,
+loaded when you work in them:
+
+- `e2e/CLAUDE.md`: the subprocess suite, its fixtures, and why no test runs in parallel
+- `docs/CLAUDE.md`: the Astro site and its Pages deployment
+- `plugins/jetbrains/CLAUDE.md`: the Kotlin plugin, ktlint and the version properties
+- `examples/bookstore/CLAUDE.md`: the playground the root `fuku.yaml` drives, and why nothing checks it
+
 ## Skills
 
 Procedural workflows live in `.claude/skills/`, loaded on demand:
 
-- `fuku-verify` — verification loop (format, lint, vet, test, race, e2e) before committing
-- `fuku-generate-mock` — generate or regenerate a gomock mock
-- `fuku-config` — `fuku.yaml` configuration reference
-- `fuku-add-test` — write tests using TDT with the mocks-once pattern
+- `verify` — verification loop (format, lint, vet, test, race, e2e) before committing
+- `generate-mock` — generate or regenerate a gomock mock
+- `config` — `fuku.yaml` configuration reference
+- `add-test` — write tests using TDT with the mocks-once pattern
+
+## Hooks
+
+`.githooks/` holds the two checks that run before the code leaves the machine.
+Turn them on once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+- `commit-msg` rejects a subject that is not a scoped Conventional Commit (`feat(ui): Add the aside panel`, imperative, capitalized, no trailing period) and any AI attribution in the message
+- `pre-push` runs `make check` when Go moved, `make lint:plugin` when the plugin moved, the Astro build when `docs/` moved, then the spec drift check; the race detector and the e2e suite stay in CI, where nobody is waiting on them
+- push with `--no-verify`, or set `SKIP_VERIFY=1`, when you mean to skip it
+- `Title & commits` in `conventions.yaml` and `Spec drift` in `checks.yaml` repeat both on the pull request, so a clone without the hooks installed still gets caught. The title check sits in its own workflow because it has to run on a title edit, and an edit must not cancel the code jobs or publish a skipped status over their result
 
 ## Primary Guidelines
 
@@ -46,7 +70,7 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - **always define interfaces for dependencies** — required for FX injection and testability
 - interfaces should be defined on the consumer side (idiomatic Go)
 - never prefix interfaces with `I`; prefer capability-based names (`Runner`, `Pool`, `Logger`)
-- every interface must have a corresponding mock; see `fuku-generate-mock`
+- every interface must have a corresponding mock; see `generate-mock`
 
 ### Event Bus as the Communication Backbone
 - **all cross-cutting concerns must subscribe to the bus, never inline into business logic** — non-negotiable
@@ -150,7 +174,7 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - separate return values from system calls — return exit codes and errors instead of calling `os.Exit()` directly
 
 ### Testing
-- see `fuku-add-test` for TDT structure, coverage target, mocking, and test-file conventions
+- see `add-test` for TDT structure, coverage target, mocking, and test-file conventions
 - never disable tests without a reason and approval
 - never modify code with special conditions just to make tests pass
 
@@ -178,8 +202,8 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - avoid command injection and path traversal vulnerabilities
 
 ## Important Workflow Notes
-- always run `fuku-verify` before committing
-- never put any mention of Claude or Claude Code in commit messages
+- always run `verify` before committing
+- never put AI attribution in commit messages: no `Co-Authored-By` or `Claude-Session` trailer, no "Generated with" line, no robot emoji. Naming a path is not attribution, so `docs(claude):` for a change under `.claude/` is fine
 - never include "Test plan" sections in PR descriptions
 - comments describe the current state and purpose of the code, never its history or evolution
 - after important functionality is added, update `README.md` or `ARCHITECTURE.md`

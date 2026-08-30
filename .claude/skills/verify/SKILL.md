@@ -1,5 +1,5 @@
 ---
-name: fuku-verify
+name: verify
 description: Run the full fuku verification loop (format, lint, vet, test, race, e2e) before committing. Use when asked to verify changes, run lint, run tests, check that changes pass CI, or before any commit/push.
 ---
 

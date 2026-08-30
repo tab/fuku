@@ -1,5 +1,5 @@
 ---
-name: fuku-generate-mock
+name: generate-mock
 description: Generate or regenerate a gomock mock for an interface in the fuku repo. Use when adding a new interface, modifying an existing one, or when tests fail due to stale mocks.
 ---
 

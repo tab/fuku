@@ -43,13 +43,16 @@ If the diff goes beyond the stated intent, request clarification — do not gues
 
 Conventional commit format: `type(scope): description`.
 
-Types: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`. Type is lowercase. Scope is optional. Description is concise.
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Type is lowercase. The scope is required, lowercase, and matches `[a-z0-9.-]+`. The description is capitalized and carries no trailing period.
+
+`.githooks/commit-msg` and the `Title & commits` job enforce exactly that, on the title and on every non-merge commit subject in the branch. Match them rather than relaxing either here. Imperative mood and a concise description are yours to judge: no check grades them.
 
 ## 2.3 Commits (MAJOR)
 
-- conventional commit format on each commit
+- conventional commit format on each commit, same rule as the title above
 - atomic — one logical change per commit
 - no generic messages (`fix`, `update`, `wip`)
+- no AI attribution anywhere in the message: no `Co-Authored-By` or `Claude-Session` trailer, no "Generated with" line, no robot emoji. Naming a path is not attribution, so `docs(claude):` is fine
 
 ---
 

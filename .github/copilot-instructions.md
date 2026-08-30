@@ -8,7 +8,7 @@ applyTo: '**/*'
 For Go code generation and PR review in this repository, the canonical sources are:
 
 - **`CLAUDE.md`** — code-quality rules (architecture, error handling, naming, testing, concurrency, security, logging, etc.). **Treat as authoritative.**
-- **`.claude/skills/*/SKILL.md`** — procedure references (`fuku-verify` for the verification loop, `fuku-add-test` for test patterns, `fuku-generate-mock` for mock conventions, `fuku-config` for `fuku.yaml`).
+- **`.claude/skills/*/SKILL.md`** — procedure references (`verify` for the verification loop, `add-test` for test patterns, `generate-mock` for mock conventions, `config` for `fuku.yaml`).
 - **`.github/CODE_REVIEW.md`** — PR review process: severity model, PR hygiene, breaking-change detection, output format.
 - **`.github/CODE_REVIEW_PROMPT.md`** — the multi-pass review checklist.
 
