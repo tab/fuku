@@ -17,7 +17,7 @@ contract="$(grep -E '^internal/app/api/.*\.go$' <<<"$changed" \
 if [ -n "$contract" ] && [ -z "${ALLOW_SPEC_DRIFT:-}" ] && ! touched '^spec/openapi\.yaml$'; then
   echo "::error::the HTTP API changed without spec/openapi.yaml"
   while IFS= read -r file; do echo "  $file"; done <<<"$contract"
-  echo "  no contract moved? label the pull request contract-unchanged"
+  echo "  no contract moved? label the pull request contract-unchanged, then re-run this job"
   status=1
 fi
 

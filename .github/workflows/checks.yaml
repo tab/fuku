@@ -1,14 +1,13 @@
 name: Checks
 on:
   pull_request:
-    types: [opened, reopened, edited, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review]
 concurrency:
   group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
   cancel-in-progress: true
 jobs:
   linter:
     name: Linter
-    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -24,7 +23,6 @@ jobs:
           version: v2.11.3
   vet:
     name: Vet
-    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -37,7 +35,6 @@ jobs:
         run: make vet
   static-check:
     name: Staticcheck
-    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -53,7 +50,6 @@ jobs:
           install-go: false
   tests:
     name: Tests
-    if: github.event.action != 'edited'
     permissions:
       contents: read
       pull-requests: write
@@ -73,7 +69,6 @@ jobs:
         run: make test:race
   e2e:
     name: E2E
-    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -89,7 +84,6 @@ jobs:
         run: make test:e2e
   plugin:
     name: Plugin
-    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -135,6 +129,7 @@ jobs:
     if: github.actor != 'dependabot[bot]'
     permissions:
       contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -143,14 +138,20 @@ jobs:
 
       - name: Title is a scoped Conventional Commit
         env:
-          TITLE: ${{ github.event.pull_request.title }}
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          if ! grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\([a-z0-9.-]+\): [A-Z]' <<<"$TITLE"; then
-            echo "::error::the title needs a scoped Conventional Commit, capitalized after the colon. Got: $TITLE"
+          # Read the title over the API, not out of the event payload: a re-run
+          # replays the payload it was triggered with, so a corrected title
+          # would never clear a failure here
+          title="$(gh pr view "$NUMBER" --json title --jq .title)"
+
+          if ! grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\([a-z0-9.-]+\): [A-Z]' <<<"$title"; then
+            echo "::error::the title needs a scoped Conventional Commit, capitalized after the colon. Got: $title"
             exit 1
           fi
-          if grep -qE '\.$' <<<"$TITLE"; then
-            echo "::error::drop the trailing period from the title. Got: $TITLE"
+          if grep -qE '\.$' <<<"$title"; then
+            echo "::error::drop the trailing period from the title. Got: $title"
             exit 1
           fi
 
@@ -170,9 +171,9 @@ jobs:
   drift:
     # The spec is hand-maintained, so nothing but a diff catches it being left behind
     name: Spec drift
-    if: github.event.action != 'edited'
     permissions:
       contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -181,6 +182,17 @@ jobs:
 
       - name: The spec ships with the change
         env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
           BASE: ${{ github.event.pull_request.base.ref }}
-          ALLOW_SPEC_DRIFT: ${{ contains(github.event.pull_request.labels.*.name, 'contract-unchanged') && '1' || '' }}
-        run: .github/scripts/openapi.sh "origin/$BASE"
+        run: |
+          # Read the labels over the API, not out of the event payload: labelling
+          # a pull request fires no run of its own, and a re-run replays the
+          # payload it was triggered with, labels and all
+          labels="$(gh pr view "$NUMBER" --json labels --jq '.labels[].name')"
+
+          if grep -qx contract-unchanged <<<"$labels"; then
+            export ALLOW_SPEC_DRIFT=1
+          fi
+
+          .github/scripts/openapi.sh "origin/$BASE"
