@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Runs the verification loop for each area the push touches, plus the spec drift
+# check CI runs on the pull request. The race detector and the e2e suite stay in
+# CI: both are minutes long, and a push gate nobody waits for gets skipped
+set -euo pipefail
+
+[ -n "${SKIP_VERIFY:-}" ] && { echo "pre-push: SKIP_VERIFY set, skipping"; exit 0; }
+
+root="$(git rev-parse --show-toplevel)"
+zero="0000000000000000000000000000000000000000"
+range=""
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$remote_sha" = "$zero" ]; then
+    range="$(git merge-base origin/master "$local_sha" 2>/dev/null || echo origin/master)..$local_sha"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+done
+
+[ -z "$range" ] && exit 0
+
+changed="$(git diff --name-only "$range")"
+[ -z "$changed" ] && exit 0
+
+run() {
+  local label="$1" dir="$2"
+  shift 2
+  echo "pre-push: $label"
+  ( cd "$root/$dir" && "$@" ) || {
+    echo "pre-push: $label failed. Fix it, or push with --no-verify when you mean to"
+    exit 1
+  }
+}
+
+# The plugin and the site sit in their own toolchains, so a push that only moves
+# one of them never pays for the Go loop
+grep -qE '^(cmd|internal|e2e|spec)/|^go\.(mod|sum)$|^Makefile$' <<<"$changed" && run "go verification loop" . make check
+grep -q '^plugins/jetbrains/' <<<"$changed" && run "plugin lint" . make lint:plugin
+grep -q '^docs/' <<<"$changed" && run "docs build" docs npm run build
+
+echo "pre-push: spec drift"
+"$root/.github/scripts/openapi.sh" "${range%%..*}" || exit 1
+
+echo "pre-push: clean"

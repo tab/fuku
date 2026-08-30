@@ -1,13 +1,14 @@
 name: Checks
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, edited, synchronize, ready_for_review]
 concurrency:
   group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
   cancel-in-progress: true
 jobs:
   linter:
     name: Linter
+    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -23,6 +24,7 @@ jobs:
           version: v2.11.3
   vet:
     name: Vet
+    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -35,6 +37,7 @@ jobs:
         run: make vet
   static-check:
     name: Staticcheck
+    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -50,6 +53,7 @@ jobs:
           install-go: false
   tests:
     name: Tests
+    if: github.event.action != 'edited'
     permissions:
       contents: read
       pull-requests: write
@@ -69,6 +73,7 @@ jobs:
         run: make test:race
   e2e:
     name: E2E
+    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -84,6 +89,7 @@ jobs:
         run: make test:e2e
   plugin:
     name: Plugin
+    if: github.event.action != 'edited'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -121,3 +127,60 @@ jobs:
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  conventions:
+    # Dependabot writes its own titles and its own trailers, and neither is ours
+    # to reword. The .githooks copies catch this before the push, when installed
+    name: Title & commits
+    if: github.actor != 'dependabot[bot]'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Title is a scoped Conventional Commit
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\([a-z0-9.-]+\): [A-Z]' <<<"$TITLE"; then
+            echo "::error::the title needs a scoped Conventional Commit, capitalized after the colon. Got: $TITLE"
+            exit 1
+          fi
+          if grep -qE '\.$' <<<"$TITLE"; then
+            echo "::error::drop the trailing period from the title. Got: $TITLE"
+            exit 1
+          fi
+
+      - name: Commit messages carry no AI attribution
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          attribution='^[[:space:]]*co-authored-by:.*(claude|anthropic|copilot|chatgpt|codex|cursor)|^[[:space:]]*claude-session:|generated (with|by) .*(claude|anthropic|copilot|chatgpt|codex|cursor)|https://claude\.(ai|com)/|🤖'
+          hits="$(git log --format='%H %s%n%b' "origin/$BASE..HEAD" \
+            | grep -inE "$attribution" || true)"
+          if [ -n "$hits" ]; then
+            echo "::error::remove the AI tooling attribution from the commit messages"
+            sed 's/^/  /' <<<"$hits"
+            exit 1
+          fi
+
+  drift:
+    # The spec is hand-maintained, so nothing but a diff catches it being left behind
+    name: Spec drift
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: The spec ships with the change
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          ALLOW_SPEC_DRIFT: ${{ contains(github.event.pull_request.labels.*.name, 'contract-unchanged') && '1' || '' }}
+        run: .github/scripts/openapi.sh "origin/$BASE"

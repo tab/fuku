@@ -23,6 +23,20 @@ Procedural workflows live in `.claude/skills/`, loaded on demand:
 - `config` — `fuku.yaml` configuration reference
 - `add-test` — write tests using TDT with the mocks-once pattern
 
+## Hooks
+
+`.githooks/` holds the two checks that run before the code leaves the machine.
+Turn them on once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+- `commit-msg` rejects a subject that is not a scoped Conventional Commit (`feat(ui): Add the aside panel`, imperative, capitalized, no trailing period) and any AI attribution in the message
+- `pre-push` runs `make check` when Go moved, `make lint:plugin` when the plugin moved, the Astro build when `docs/` moved, then the spec drift check; the race detector and the e2e suite stay in CI, where nobody is waiting on them
+- push with `--no-verify`, or set `SKIP_VERIFY=1`, when you mean to skip it
+- the `Title & commits` and `Spec drift` jobs in `checks.yaml` repeat both on the pull request, so a clone without the hooks installed still gets caught
+
 ## Primary Guidelines
 
 - provide brutally honest and realistic assessments of requests, feasibility, and potential issues. no sugar-coating. no vague possibilities where concrete answers are needed
