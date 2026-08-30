@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Runs the verification loop for each area the push touches, plus the spec drift
-# check CI runs on the pull request. The race detector and the e2e suite stay in
-# CI: both are minutes long, and a push gate nobody waits for gets skipped
+# Runs each touched area's verification loop, then the spec drift check (race and e2e stay in CI)
 set -euo pipefail
 
 [ -n "${SKIP_VERIFY:-}" ] && { echo "pre-push: SKIP_VERIFY set, skipping"; exit 0; }
@@ -34,8 +32,7 @@ run() {
   }
 }
 
-# The plugin and the site sit in their own toolchains, so a push that only moves
-# one of them never pays for the Go loop
+# The plugin and the site have their own toolchains, so neither pays for the Go loop
 grep -qE '^(cmd|internal|e2e|spec)/|^go\.(mod|sum)$|^Makefile$' <<<"$changed" && run "go verification loop" . make check
 grep -q '^plugins/jetbrains/' <<<"$changed" && run "plugin lint" . make lint:plugin
 grep -q '^docs/' <<<"$changed" && run "docs build" docs npm run build

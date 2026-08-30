@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Fails when a change to the HTTP API leaves spec/openapi.yaml behind. The spec
-# is hand-maintained, the docs site publishes it, and the JetBrains plugin is
-# written against it
+# Fails when an HTTP API change leaves spec/openapi.yaml behind (the docs site and the plugin read it)
 set -euo pipefail
 
 base="${1:-origin/master}"
