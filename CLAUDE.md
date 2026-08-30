@@ -203,7 +203,7 @@ git config core.hooksPath .githooks
 
 ## Important Workflow Notes
 - always run `verify` before committing
-- never put any mention of Claude or Claude Code in commit messages
+- never put AI attribution in commit messages: no `Co-Authored-By` or `Claude-Session` trailer, no "Generated with" line, no robot emoji. Naming a path is not attribution, so `docs(claude):` for a change under `.claude/` is fine
 - never include "Test plan" sections in PR descriptions
 - comments describe the current state and purpose of the code, never its history or evolution
 - after important functionality is added, update `README.md` or `ARCHITECTURE.md`
