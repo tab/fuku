@@ -122,52 +122,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  conventions:
-    # Dependabot writes its own titles and its own trailers, and neither is ours
-    # to reword. The .githooks copies catch this before the push, when installed
-    name: Title & commits
-    if: github.actor != 'dependabot[bot]'
-    permissions:
-      contents: read
-      pull-requests: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Title is a scoped Conventional Commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Read the title over the API, not out of the event payload: a re-run
-          # replays the payload it was triggered with, so a corrected title
-          # would never clear a failure here
-          title="$(gh pr view "$NUMBER" --json title --jq .title)"
-
-          if ! grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\([a-z0-9.-]+\): [A-Z]' <<<"$title"; then
-            echo "::error::the title needs a scoped Conventional Commit, capitalized after the colon. Got: $title"
-            exit 1
-          fi
-          if grep -qE '\.$' <<<"$title"; then
-            echo "::error::drop the trailing period from the title. Got: $title"
-            exit 1
-          fi
-
-      - name: Commit messages carry no AI attribution
-        env:
-          BASE: ${{ github.event.pull_request.base.ref }}
-        run: |
-          attribution='^[[:space:]]*co-authored-by:.*(claude|anthropic|copilot|chatgpt|codex|cursor)|^[[:space:]]*claude-session:|generated (with|by) .*(claude|anthropic|copilot|chatgpt|codex|cursor)|https://claude\.(ai|com)/|🤖'
-          hits="$(git log --format='%H %s%n%b' "origin/$BASE..HEAD" \
-            | grep -inE "$attribution" || true)"
-          if [ -n "$hits" ]; then
-            echo "::error::remove the AI tooling attribution from the commit messages"
-            sed 's/^/  /' <<<"$hits"
-            exit 1
-          fi
-
   drift:
     # The spec is hand-maintained, so nothing but a diff catches it being left behind
     name: Spec drift

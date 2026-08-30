@@ -45,7 +45,7 @@ git config core.hooksPath .githooks
 - `commit-msg` rejects a subject that is not a scoped Conventional Commit (`feat(ui): Add the aside panel`, imperative, capitalized, no trailing period) and any AI attribution in the message
 - `pre-push` runs `make check` when Go moved, `make lint:plugin` when the plugin moved, the Astro build when `docs/` moved, then the spec drift check; the race detector and the e2e suite stay in CI, where nobody is waiting on them
 - push with `--no-verify`, or set `SKIP_VERIFY=1`, when you mean to skip it
-- the `Title & commits` and `Spec drift` jobs in `checks.yaml` repeat both on the pull request, so a clone without the hooks installed still gets caught
+- `Title & commits` in `conventions.yaml` and `Spec drift` in `checks.yaml` repeat both on the pull request, so a clone without the hooks installed still gets caught. The title check sits in its own workflow because it has to run on a title edit, and an edit must not cancel the code jobs or publish a skipped status over their result
 
 ## Primary Guidelines
 
