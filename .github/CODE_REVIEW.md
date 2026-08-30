@@ -43,9 +43,9 @@ If the diff goes beyond the stated intent, request clarification — do not gues
 
 Conventional commit format: `type(scope): description`.
 
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Type is lowercase. The scope is required, lowercase, and matches `[a-z0-9.-]+`. The description is concise, imperative, capitalized, and carries no trailing period.
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Type is lowercase. The scope is required, lowercase, and matches `[a-z0-9.-]+`. The description is capitalized and carries no trailing period.
 
-This is what `.githooks/commit-msg` and the `Title & commits` job enforce. Match them exactly rather than relaxing either here.
+`.githooks/commit-msg` and the `Title & commits` job enforce exactly that, on the title and on every non-merge commit subject in the branch. Match them rather than relaxing either here. Imperative mood and a concise description are yours to judge: no check grades them.
 
 ## 2.3 Commits (MAJOR)
 

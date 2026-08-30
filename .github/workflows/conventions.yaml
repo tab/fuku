@@ -24,6 +24,10 @@ jobs:
       contents: read
       pull-requests: read
     runs-on: ubuntu-latest
+    env:
+      # Both steps below grade against this, and it has to stay identical to
+      # the pattern in .githooks/commit-msg
+      SUBJECT: '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\([a-z0-9.-]+\): [A-Z]'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,7 +43,7 @@ jobs:
           # would never clear a failure here
           title="$(gh pr view "$NUMBER" --json title --jq .title)"
 
-          if ! grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\([a-z0-9.-]+\): [A-Z]' <<<"$title"; then
+          if ! grep -qE "$SUBJECT" <<<"$title"; then
             echo "::error::the title needs a scoped Conventional Commit, capitalized after the colon. Got: $title"
             exit 1
           fi
@@ -47,6 +51,37 @@ jobs:
             echo "::error::drop the trailing period from the title. Got: $title"
             exit 1
           fi
+
+      - name: Commit subjects are scoped Conventional Commits
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          # Merge commits carry a subject git wrote, and merging master into a
+          # working branch is part of the workflow here, so they are not graded
+          subjects="$(git log --no-merges --format='%s' "origin/$BASE..HEAD")"
+
+          if [ -z "$subjects" ]; then
+            echo "no commits of our own in the range"
+            exit 0
+          fi
+
+          status=0
+
+          malformed="$(grep -vE "$SUBJECT" <<<"$subjects" || true)"
+          if [ -n "$malformed" ]; then
+            echo "::error::every commit subject needs a scoped Conventional Commit, capitalized after the colon"
+            sed 's/^/  /' <<<"$malformed"
+            status=1
+          fi
+
+          periods="$(grep -E '\.$' <<<"$subjects" || true)"
+          if [ -n "$periods" ]; then
+            echo "::error::drop the trailing period from these commit subjects"
+            sed 's/^/  /' <<<"$periods"
+            status=1
+          fi
+
+          exit "$status"
 
       - name: Commit messages carry no AI attribution
         env:
