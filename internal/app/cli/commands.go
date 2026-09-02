@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
 
 	"fuku/internal/app/errors"
@@ -63,6 +65,9 @@ type Options struct {
 	Profile      string
 	Services     []string
 	NoUI         bool
+	Tail         int
+	Since        time.Duration
+	NoFollow     bool
 	DoctorFormat DoctorFormat
 }
 
@@ -212,7 +217,12 @@ func buildStopCommand(result *Options) *cobra.Command {
 
 // buildLogsCommand creates the logs subcommand
 func buildLogsCommand(result *Options) *cobra.Command {
-	var logsProfile string
+	var (
+		logsProfile  string
+		logsTail     int
+		logsSince    time.Duration
+		logsNoFollow bool
+	)
 
 	cmd := &cobra.Command{
 		Use:     CommandLogs.String() + " [services...]",
@@ -222,10 +232,16 @@ func buildLogsCommand(result *Options) *cobra.Command {
 			result.Type = CommandLogs
 			result.Services = args
 			result.Profile = logsProfile
+			result.Tail = logsTail
+			result.Since = logsSince
+			result.NoFollow = logsNoFollow
 		},
 	}
 
 	cmd.Flags().StringVar(&logsProfile, "profile", "", "Filter by profile")
+	cmd.Flags().IntVar(&logsTail, "tail", 0, "Replay only the newest N buffered lines")
+	cmd.Flags().DurationVar(&logsSince, "since", 0, "Replay only lines buffered within this duration, such as 5m")
+	cmd.Flags().BoolVar(&logsNoFollow, "no-follow", false, "Print the buffered lines and exit")
 
 	return cmd
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -468,6 +469,66 @@ func Test_Parse_ConfigFlagNotSupported(t *testing.T) {
 
 			require.ErrorIs(t, err, errors.ErrConfigFlagNotSupported)
 			assert.Nil(t, result)
+		})
+	}
+}
+
+func Test_Parse_LogsHistoryFlags(t *testing.T) {
+	tests := []struct {
+		name             string
+		args             []string
+		expectedTail     int
+		expectedSince    time.Duration
+		expectedNoFollow bool
+		expectedServices []string
+	}{
+		{
+			name:             "follows the whole buffer by default",
+			args:             []string{"logs"},
+			expectedTail:     0,
+			expectedNoFollow: false,
+			expectedServices: []string{},
+		},
+		{
+			name:             "reads a bounded tail and exits",
+			args:             []string{"logs", "--tail", "50", "--no-follow", "api"},
+			expectedTail:     50,
+			expectedNoFollow: true,
+			expectedServices: []string{"api"},
+		},
+		{
+			name:             "keeps following when only a tail is given",
+			args:             []string{"logs", "--tail", "20"},
+			expectedTail:     20,
+			expectedNoFollow: false,
+			expectedServices: []string{},
+		},
+		{
+			name:             "bounds the replay by time",
+			args:             []string{"logs", "--since", "5m", "--no-follow"},
+			expectedSince:    5 * time.Minute,
+			expectedNoFollow: true,
+			expectedServices: []string{},
+		},
+		{
+			name:             "combines a tail and a time bound",
+			args:             []string{"logs", "--since", "90s", "--tail", "10", "api"},
+			expectedTail:     10,
+			expectedSince:    90 * time.Second,
+			expectedServices: []string{"api"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Parse(tt.args)
+
+			require.NoError(t, err)
+			assert.Equal(t, CommandLogs, result.Type)
+			assert.Equal(t, tt.expectedTail, result.Tail)
+			assert.Equal(t, tt.expectedSince, result.Since)
+			assert.Equal(t, tt.expectedNoFollow, result.NoFollow)
+			assert.Equal(t, tt.expectedServices, result.Services)
 		})
 	}
 }

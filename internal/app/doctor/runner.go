@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"time"
 
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 )
 
@@ -25,6 +26,8 @@ type Env struct {
 	LoadErr         error
 	ProfileServices []string
 	ProfileErr      error
+	Project         string
+	Fingerprint     string
 }
 
 // Run executes all doctor checks and returns the report
@@ -55,6 +58,10 @@ func loadEnv(opts Options) *Env {
 
 	env.ConfigPath, _ = config.ResolveConfigPath(opts.ConfigPath)
 	env.OverridePath, _ = config.ResolveOverridePath(env.ConfigPath)
+
+	if identity, err := instance.New(); err == nil {
+		env.Project, env.Fingerprint = identity.Project, identity.Fingerprint
+	}
 
 	cfg, topo, err := config.LoadPath(opts.ConfigPath)
 	env.Config = cfg

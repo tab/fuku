@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/instance"
 	"fuku/internal/app/registry"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -23,6 +24,8 @@ type Server struct {
 	cfg        *config.Config
 	bus        bus.Bus
 	store      registry.Store
+	journal    Journal
+	identity   instance.Identity
 	httpServer *http.Server
 	address    atomic.Value
 	log        logger.Logger
@@ -36,18 +39,20 @@ func (s *Server) Address() string {
 }
 
 // NewServer creates a new API server
-func NewServer(cfg *config.Config, store registry.Store, b bus.Bus, log logger.Logger) *Server {
+func NewServer(cfg *config.Config, store registry.Store, b bus.Bus, journal Journal, identity instance.Identity, log logger.Logger) *Server {
 	return &Server{
-		cfg:   cfg,
-		store: store,
-		bus:   b,
-		log:   log.WithComponent("API"),
+		cfg:      cfg,
+		store:    store,
+		bus:      b,
+		journal:  journal,
+		identity: identity,
+		log:      log.WithComponent("API"),
 	}
 }
 
 // Start binds the HTTP server immediately with port retry
 func (s *Server) Start() {
-	h := &handler{store: s.store, bus: s.bus}
+	h := &handler{store: s.store, bus: s.bus, journal: s.journal, identity: s.identity}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/live", h.handleLive)
@@ -55,8 +60,10 @@ func (s *Server) Start() {
 
 	authedMux := http.NewServeMux()
 	authedMux.HandleFunc("GET /api/v1/status", h.handleStatus)
+	authedMux.HandleFunc("GET /api/v1/logs", h.handleLogs)
 	authedMux.HandleFunc("GET /api/v1/services", h.handleListServices)
 	authedMux.HandleFunc("GET /api/v1/services/{id}", h.handleGetService)
+	authedMux.HandleFunc("GET /api/v1/services/{id}/logs", h.handleServiceLogs)
 	authedMux.HandleFunc("POST /api/v1/services/{id}/start", h.handleStartService)
 	authedMux.HandleFunc("POST /api/v1/services/{id}/stop", h.handleStopService)
 	authedMux.HandleFunc("POST /api/v1/services/{id}/restart", h.handleRestartService)

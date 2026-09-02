@@ -36,7 +36,7 @@ const nav = getDocsNav(base);
       <tr>
         <td><code>fuku run [profile]</code></td>
         <td><code>r</code></td>
-        <td>Run services for a profile (default if omitted)</td>
+        <td>Run services for a profile (default if omitted); refuses to start beside an instance already serving the same directory</td>
       </tr>
       <tr>
         <td><code>fuku stop [profile]</code></td>
@@ -46,7 +46,7 @@ const nav = getDocsNav(base);
       <tr>
         <td><code>fuku logs [services...]</code></td>
         <td><code>l</code></td>
-        <td>Stream logs from a running fuku instance</td>
+        <td>Stream logs from a running fuku instance, or print a bounded slice of its buffer with <code>--no-follow</code></td>
       </tr>
       <tr>
         <td><code>fuku doctor [profile]</code></td>
@@ -97,6 +97,18 @@ const nav = getDocsNav(base);
         <td>Filter by profile (used with <code>logs</code> command)</td>
       </tr>
       <tr>
+        <td><code>--tail</code></td>
+        <td>Replay only the newest N buffered lines, clamped to the buffer size (used with <code>logs</code> command)</td>
+      </tr>
+      <tr>
+        <td><code>--since</code></td>
+        <td>Replay only lines buffered within a duration such as <code>30s</code> or <code>5m</code> (used with <code>logs</code> command)</td>
+      </tr>
+      <tr>
+        <td><code>--no-follow</code></td>
+        <td>Print the replayed lines and exit instead of following the live stream (used with <code>logs</code> command)</td>
+      </tr>
+      <tr>
         <td><code>--summary</code></td>
         <td>Print a compact one-line-per-check report (used with <code>doctor</code> command)</td>
       </tr>
@@ -135,6 +147,10 @@ fuku logs api auth              # Specific services
 fuku logs --profile core api    # Filter by profile
 fuku l api db                   # Short alias
 
+# Read the buffer without following it
+fuku logs --tail 50 --no-follow api
+fuku logs --since 5m --no-follow
+
 # Use a custom config file
 fuku --config path/to/fuku.yaml run core
 fuku -c custom.yaml run core
@@ -151,6 +167,69 @@ fuku init
 # Show help / version
 fuku help
 fuku version`} />
+
+  <hr />
+
+  <div class="section-eyebrow">Instances</div>
+  <h2>One instance per project</h2>
+
+  <p>
+    Startup preflight stops processes whose working directory matches a selected service, so a second
+    <code>fuku run</code> in the same directory would stop the services the first one is running. To prevent that,
+    every instance publishes the project directory it serves, and <code>fuku run</code> exits <code>1</code> when
+    another instance is already serving the same directory &mdash; whatever profile either one uses.
+  </p>
+
+  <CodeTerminal code={`$ fuku run core
+Error: fuku is already running for this project (API on 127.0.0.1:9876)
+Read its output with 'fuku logs', or stop it before starting another instance`} />
+
+  <p>
+    Identity is published on the API. <a href={`${base}docs/api/#get-live`}>GET /api/v1/live</a> needs no token and
+    returns <code>product</code>, an <code>instance</code> id, and a <code>project</code> fingerprint &mdash; a hash
+    rather than the path, because the endpoint is unauthenticated. The authenticated
+    <a href={`${base}docs/api/#get-status`}>GET /api/v1/status</a> returns the same instance id along with the
+    absolute project directory. The same fingerprint travels in the log socket banner, so
+    <code>fuku logs</code> flags a stream that belongs to another project.
+  </p>
+
+  <p>
+    The check reads the API, so it only applies when <code>server.listen</code> is configured. Instances without an
+    API cannot be detected, and a second run will preflight-stop the first one's services.
+  </p>
+
+  <hr />
+
+  <div class="section-eyebrow">Logs</div>
+  <h2>fuku logs</h2>
+
+  <p>
+    A running instance keeps the most recent <strong>5000</strong> lines of service output in memory.
+    <code>fuku logs</code> connects to that instance over its profile socket, replays the buffer, then follows
+    the live stream until interrupted.
+  </p>
+
+  <p>
+    <code>--tail</code>, <code>--since</code>, and <code>--no-follow</code> bound that replay. The two bounds
+    combine, and <code>--no-follow</code> prints the selected lines and exits <code>0</code> instead of staying
+    attached &mdash; which is what makes the command usable from scripts, CI, and AI agents that need log
+    evidence without holding a process open.
+  </p>
+
+  <CodeTerminal code={`# Newest 50 lines from one service, then exit
+fuku logs --tail 50 --no-follow api
+
+# Everything buffered in the last 5 minutes, then exit
+fuku logs --since 5m --no-follow
+
+# Both bounds, across two services
+fuku logs --tail 20 --since 30s --no-follow api auth`} />
+
+  <p>
+    The bounds apply to the replay with or without <code>--no-follow</code>, so <code>fuku logs --tail 20</code>
+    starts from the newest 20 buffered lines and follows from there. The same buffer is readable over HTTP from
+    <a href={`${base}docs/api/#list-logs`}>GET /api/v1/logs</a>.
+  </p>
 
   <hr />
 

@@ -38,13 +38,23 @@ test\:race:
 	@echo "Running tests with race detector..."
 	GO_ENV=test go test -race -cover -coverprofile=coverage.out -covermode=atomic $$(go list ./... | grep -v /e2e)
 
+.PHONY: generate\:agents-plugin
+generate\:agents-plugin:
+	@echo "Syncing OpenAPI contract into AI agents plugin..."
+	cp spec/openapi.yaml plugins/agents/skills/fuku/references/openapi.yaml
+
+.PHONY: test\:agents-plugin
+test\:agents-plugin:
+	@echo "Testing AI agents plugin..."
+	python3 -m unittest discover -s plugins/agents/tests -p 'test_*.py'
+
 .PHONY: coverage
 coverage:
 	@echo "Generating test coverage report..."
 	GO_ENV=test go test $$(go list ./... | grep -v /e2e) -coverprofile=coverage.out && go tool cover -html=coverage.out
 
-.PHONY: build\:plugin
-build\:plugin:
+.PHONY: build\:ide-plugin
+build\:ide-plugin:
 	@echo "Building JetBrains plugin..."
 	cd plugins/jetbrains && ./gradlew buildPlugin
 

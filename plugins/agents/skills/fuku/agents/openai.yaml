@@ -1,0 +1,5 @@
+interface:
+  display_name: "fuku"
+  short_description: "Configure, debug and control local services"
+  brand_color: "#7D56F4"
+  default_prompt: "Use $fuku to configure, run and verify the requested local development workflow."

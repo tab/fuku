@@ -14,9 +14,9 @@ func topologySection(_ context.Context, env *Env) Section {
 			Results: []Result{
 				{
 					ID:       "topology.tiers",
-					Category: "topology",
+					Category: CategoryTopology,
 					Status:   StatusIdle,
-					Summary:  "skipped (config did not load)",
+					Summary:  summarySkippedNoConfig,
 				},
 			},
 		}
@@ -38,7 +38,7 @@ func checkTiers(env *Env) Result {
 	if topo.HasDefaultOnly {
 		return Result{
 			ID:       "topology.tiers",
-			Category: "topology",
+			Category: CategoryTopology,
 			Status:   StatusIdle,
 			Summary:  "no tiers defined (default tier only)",
 		}
@@ -54,7 +54,7 @@ func checkTiers(env *Env) Result {
 
 	return Result{
 		ID:       "topology.tiers",
-		Category: "topology",
+		Category: CategoryTopology,
 		Status:   StatusOK,
 		Summary:  strings.Join(topo.Order, " → "),
 		Details:  details,
@@ -66,7 +66,7 @@ func checkProfileResolves(env *Env) Result {
 	if env.ProfileErr != nil {
 		return Result{
 			ID:          "topology.profile",
-			Category:    "topology",
+			Category:    CategoryTopology,
 			Status:      StatusFail,
 			Summary:     fmt.Sprintf("profile '%s' does not resolve", env.Profile),
 			Details:     []Detail{{Key: "error", Value: env.ProfileErr.Error()}},
@@ -79,7 +79,7 @@ func checkProfileResolves(env *Env) Result {
 	if len(names) == 0 {
 		return Result{
 			ID:       "topology.profile",
-			Category: "topology",
+			Category: CategoryTopology,
 			Status:   StatusWarn,
 			Summary:  fmt.Sprintf("profile '%s' resolves to 0 services", env.Profile),
 		}
@@ -87,7 +87,7 @@ func checkProfileResolves(env *Env) Result {
 
 	return Result{
 		ID:       "topology.profile",
-		Category: "topology",
+		Category: CategoryTopology,
 		Status:   StatusOK,
 		Summary:  fmt.Sprintf("profile '%s' resolves to %d services", env.Profile, len(names)),
 	}

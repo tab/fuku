@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"fuku/internal/app/instance"
 	"fuku/internal/app/relay"
 	"fuku/internal/config"
 )
@@ -17,48 +18,152 @@ func runtimeSection(ctx context.Context, env *Env) Section {
 	return Section{
 		Title: "Runtime",
 		Results: []Result{
-			timed(func() Result { return checkInstance(env) }),
+			timed(func() Result { return checkInstance(ctx, env) }),
 			timed(checkStaleSockets),
+			timed(func() Result { return checkAPI(ctx, env) }),
 			timed(func() Result { return checkPorts(ctx, env) }),
 		},
 	}
 }
 
-// checkInstance reports whether another fuku instance is running with the same profile
-func checkInstance(env *Env) Result {
+// checkInstance reports whether another fuku instance holds the log socket for this profile
+// (the socket directory is shared by every project on the machine, so the banner is read to
+// attribute the instance rather than assuming the profile name belongs to this project)
+func checkInstance(ctx context.Context, env *Env) Result {
 	socketPath := relay.SocketPathForProfile(config.SocketDir, env.Profile)
 
 	info, err := os.Lstat(socketPath)
 	if err != nil || info.Mode()&os.ModeSocket == 0 {
 		return Result{
 			ID:       "runtime.instance",
-			Category: "runtime",
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
 			Summary:  fmt.Sprintf("no other fuku running for profile '%s'", env.Profile),
 			Details:  []Detail{{Key: "socket", Value: socketPath + " (absent)"}},
 		}
 	}
 
-	conn, dialErr := net.DialTimeout("unix", socketPath, config.SocketDialTimeout)
-	if dialErr != nil {
+	status, identifyErr := relay.Identify(ctx, socketPath)
+	if identifyErr != nil {
 		return Result{
 			ID:          "runtime.instance",
-			Category:    "runtime",
+			Category:    CategoryRuntime,
 			Status:      StatusWarn,
 			Summary:     "socket present but unreachable",
-			Details:     []Detail{{Key: "socket", Value: socketPath}, {Key: "error", Value: dialErr.Error()}},
+			Details:     []Detail{{Key: "socket", Value: socketPath}, {Key: "error", Value: identifyErr.Error()}},
 			Remediation: "remove the stale socket: rm " + socketPath,
 		}
 	}
 
-	conn.Close()
+	return instanceResult(env, socketPath, status)
+}
+
+// instanceResult describes the instance holding this profile's socket, relative to this project
+func instanceResult(env *Env, socketPath string, status relay.StatusMessage) Result {
+	details := []Detail{{Key: "socket", Value: socketPath}}
+
+	summary := fmt.Sprintf("another fuku is running for profile '%s'", env.Profile)
+	if status.Project != "" && env.Fingerprint != "" && status.Project != env.Fingerprint {
+		summary = fmt.Sprintf("profile '%s' socket belongs to another project", env.Profile)
+
+		details = append(details, Detail{Key: "project", Value: "another directory"})
+	}
+
+	if status.Project == "" {
+		details = append(details, Detail{Key: "project", Value: "not reported by that instance"})
+	}
 
 	return Result{
 		ID:       "runtime.instance",
-		Category: "runtime",
+		Category: CategoryRuntime,
 		Status:   StatusNote,
-		Summary:  fmt.Sprintf("another fuku is running for profile '%s'", env.Profile),
-		Details:  []Detail{{Key: "socket", Value: socketPath}},
+		Summary:  summary,
+		Details:  details,
+	}
+}
+
+// checkAPI reports which loopback address this project's running instance actually bound
+func checkAPI(ctx context.Context, env *Env) Result {
+	if env.Config == nil {
+		return Result{
+			ID:       "runtime.api",
+			Category: CategoryRuntime,
+			Status:   StatusIdle,
+			Summary:  summarySkippedNoConfig,
+		}
+	}
+
+	listen := env.Config.ServerListen()
+	if listen == "" {
+		return Result{
+			ID:       "runtime.api",
+			Category: CategoryRuntime,
+			Status:   StatusIdle,
+			Summary:  "skipped (server.listen is not configured)",
+		}
+	}
+
+	return apiResult(env, listen, instance.Scan(ctx, listen))
+}
+
+// apiResult describes the instances answering in the port range, relative to this project
+func apiResult(env *Env, listen string, found []instance.Instance) Result {
+	for _, candidate := range found {
+		if env.Fingerprint == "" || candidate.Project != env.Fingerprint {
+			continue
+		}
+
+		details := []Detail{
+			{Key: "bound", Value: candidate.Address},
+			{Key: "configured", Value: listen},
+			{Key: "instance", Value: candidate.ID},
+		}
+
+		return Result{
+			ID:       "runtime.api",
+			Category: CategoryRuntime,
+			Status:   StatusOK,
+			Summary:  "this project's instance is answering on " + candidate.Address,
+			Details:  details,
+		}
+	}
+
+	if len(found) == 0 {
+		return Result{
+			ID:       "runtime.api",
+			Category: CategoryRuntime,
+			Status:   StatusIdle,
+			Summary:  "no instance answering on " + portRange(listen),
+		}
+	}
+
+	details := make([]Detail, 0, len(found))
+	unidentified := 0
+
+	for _, candidate := range found {
+		if candidate.Project == "" {
+			unidentified++
+
+			details = append(details, Detail{Key: candidate.Address, Value: "did not report its project"})
+
+			continue
+		}
+
+		details = append(details, Detail{Key: candidate.Address, Value: "serves another project"})
+	}
+
+	remediation := "run the profile from this directory, or give this project its own server.listen range"
+	if unidentified == len(found) {
+		remediation = "upgrade fuku so the instance reports the project it serves"
+	}
+
+	return Result{
+		ID:          "runtime.api",
+		Category:    CategoryRuntime,
+		Status:      StatusNote,
+		Summary:     fmt.Sprintf("%d instance(s) on %s do not belong to this project", len(found), portRange(listen)),
+		Details:     details,
+		Remediation: remediation,
 	}
 }
 
@@ -70,7 +175,7 @@ func checkStaleSockets() Result {
 	if err != nil {
 		return Result{
 			ID:       "runtime.sockets",
-			Category: "runtime",
+			Category: CategoryRuntime,
 			Status:   StatusWarn,
 			Summary:  "failed to glob socket directory",
 			Details:  []Detail{{Key: "error", Value: err.Error()}},
@@ -97,7 +202,7 @@ func checkStaleSockets() Result {
 	if len(stale) == 0 {
 		return Result{
 			ID:       "runtime.sockets",
-			Category: "runtime",
+			Category: CategoryRuntime,
 			Status:   StatusOK,
 			Summary:  "no stale sockets",
 			Details:  []Detail{{Key: "scanned", Value: fmt.Sprintf("%s (%d files)", pattern, len(matches))}},
@@ -111,7 +216,7 @@ func checkStaleSockets() Result {
 
 	return Result{
 		ID:          "runtime.sockets",
-		Category:    "runtime",
+		Category:    CategoryRuntime,
 		Status:      StatusWarn,
 		Summary:     fmt.Sprintf("%d stale socket file(s)", len(stale)),
 		Details:     details,
@@ -124,16 +229,16 @@ func checkPorts(ctx context.Context, env *Env) Result {
 	if env.Config == nil {
 		return Result{
 			ID:       "runtime.ports",
-			Category: "runtime",
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
-			Summary:  "skipped (config did not load)",
+			Summary:  summarySkippedNoConfig,
 		}
 	}
 
 	if env.ProfileErr != nil {
 		return Result{
 			ID:       "runtime.ports",
-			Category: "runtime",
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
 			Summary:  "skipped (profile did not resolve)",
 		}
@@ -174,7 +279,7 @@ func checkPorts(ctx context.Context, env *Env) Result {
 	if probed == 0 {
 		return Result{
 			ID:       "runtime.ports",
-			Category: "runtime",
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
 			Summary:  "no probed readiness ports",
 		}
@@ -183,7 +288,7 @@ func checkPorts(ctx context.Context, env *Env) Result {
 	if len(busy) > 0 {
 		return Result{
 			ID:          "runtime.ports",
-			Category:    "runtime",
+			Category:    CategoryRuntime,
 			Status:      StatusWarn,
 			Summary:     fmt.Sprintf("%d readiness port(s) already bound", len(busy)),
 			Details:     busy,
@@ -193,7 +298,7 @@ func checkPorts(ctx context.Context, env *Env) Result {
 
 	return Result{
 		ID:       "runtime.ports",
-		Category: "runtime",
+		Category: CategoryRuntime,
 		Status:   StatusOK,
 		Summary:  fmt.Sprintf("%d readiness port(s) available", probed),
 	}

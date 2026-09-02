@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,13 +14,24 @@ type Hub interface {
 	Register(conn *ClientConn)
 	Unregister(conn *ClientConn)
 	Broadcast(service, message string)
+	History(query HistoryQuery) []LogMessage
 	Run(ctx context.Context)
+}
+
+// HistoryQuery selects buffered log messages without following the live stream
+type HistoryQuery struct {
+	Services []string
+	Tail     int
+	Since    time.Time
 }
 
 // ClientConn represents a connected client
 type ClientConn struct {
 	ID       string
 	Services map[string]bool // subscribed services (empty = all)
+	Tail     int             // 0 = replay the whole buffered history
+	Since    time.Time       // zero = replay without a lower time bound
+	NoFollow bool            // true = disconnect once the history is replayed
 	SendChan chan LogMessage
 }
 
@@ -86,12 +98,14 @@ func (r *ringBuffer) forEach(fn func(LogMessage)) {
 }
 
 // hub implements the Hub interface
+// (mu guards the history buffer so a reader never waits for the hub loop, which owns every other field)
 type hub struct {
 	clients    map[*ClientConn]bool
 	register   chan *ClientConn
 	unregister chan *ClientConn
 	broadcast  chan LogMessage
 	done       chan struct{}
+	mu         sync.RWMutex
 	history    *ringBuffer
 	log        logger.Logger
 	dropped    atomic.Int64
@@ -129,9 +143,10 @@ func (h *hub) Unregister(conn *ClientConn) {
 // Broadcast sends a log message to all subscribed clients
 func (h *hub) Broadcast(service, message string) {
 	msg := LogMessage{
-		Type:    MessageLog,
-		Service: service,
-		Message: message,
+		Type:      MessageLog,
+		Service:   service,
+		Message:   message,
+		Timestamp: time.Now(),
 	}
 
 	select {
@@ -139,6 +154,62 @@ func (h *hub) Broadcast(service, message string) {
 	default:
 		h.dropped.Add(1)
 	}
+}
+
+// History returns buffered log messages matching the query, oldest first, without waiting for the hub loop
+func (h *hub) History(query HistoryQuery) []LogMessage {
+	wanted := make(map[string]bool, len(query.Services))
+	for _, service := range query.Services {
+		wanted[service] = true
+	}
+
+	match := func(service string) bool {
+		return len(wanted) == 0 || wanted[service]
+	}
+
+	return h.buffered(match, query.Tail, query.Since)
+}
+
+// buffered collects history matching a service predicate, oldest first, keeping at most tail entries
+func (h *hub) buffered(match func(service string) bool, tail int, since time.Time) []LogMessage {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	messages := make([]LogMessage, 0, h.history.count)
+
+	h.history.forEach(func(msg LogMessage) {
+		if !match(msg.Service) {
+			return
+		}
+
+		if !since.IsZero() && msg.Timestamp.Before(since) {
+			return
+		}
+
+		messages = append(messages, msg)
+	})
+
+	if tail > 0 && len(messages) > tail {
+		return messages[len(messages)-tail:]
+	}
+
+	return messages
+}
+
+// replay sends the buffered history a newly registered client subscribed to
+func (h *hub) replay(client *ClientConn) int {
+	replayed := 0
+
+	for _, msg := range h.buffered(client.ShouldReceive, client.Tail, client.Since) {
+		select {
+		case client.SendChan <- msg:
+			replayed++
+		default:
+			h.dropped.Add(1)
+		}
+	}
+
+	return replayed
 }
 
 // Run starts the hub's main loop
@@ -164,29 +235,23 @@ func (h *hub) Run(ctx context.Context) {
 		case client := <-h.register:
 			h.clients[client] = true
 
-			replayed := 0
-
-			h.history.forEach(func(msg LogMessage) {
-				if !client.ShouldReceive(msg.Service) {
-					return
-				}
-
-				select {
-				case client.SendChan <- msg:
-					replayed++
-				default:
-					h.dropped.Add(1)
-				}
-			})
+			replayed := h.replay(client)
 
 			h.log.Debug().Msgf("Client %s registered, replayed %d messages", client.ID, replayed)
+
+			if client.NoFollow {
+				close(client.SendChan)
+				delete(h.clients, client)
+			}
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				close(client.SendChan)
 				delete(h.clients, client)
 			}
 		case msg := <-h.broadcast:
+			h.mu.Lock()
 			h.history.push(msg)
+			h.mu.Unlock()
 
 			for client := range h.clients {
 				if client.ShouldReceive(msg.Service) {

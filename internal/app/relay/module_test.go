@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,8 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
-	"io"
-
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -48,7 +48,7 @@ func Test_startServer(t *testing.T) {
 	b := bus.NoOp()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	server := NewServer(cfg, b, log)
+	server := NewServer(cfg, b, instance.Identity{}, log)
 
 	lc := &testLifecycle{}
 	ctx := context.Background()

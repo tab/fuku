@@ -131,15 +131,15 @@ func (mr *MockClientMockRecorder) Stream(ctx, handler any) *gomock.Call {
 }
 
 // Subscribe mocks base method.
-func (m *MockClient) Subscribe(services []string) error {
+func (m *MockClient) Subscribe(options SubscribeOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", services)
+	ret := m.ctrl.Call(m, "Subscribe", options)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Subscribe indicates an expected call of Subscribe.
-func (mr *MockClientMockRecorder) Subscribe(services any) *gomock.Call {
+func (mr *MockClientMockRecorder) Subscribe(options any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockClient)(nil).Subscribe), services)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockClient)(nil).Subscribe), options)
 }

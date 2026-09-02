@@ -10,6 +10,7 @@
 
 ## Features
 
+- **AI agents** – Let agents configure, run, debug and control local services through the CLI and API
 - **Interactive TUI** - Real-time service monitoring with status, readiness timeline, CPU, memory, and uptime
 - **Service Orchestration** - Tier-based startup ordering
 - **Service Control** - Start, stop, and restart services interactively
@@ -17,8 +18,9 @@
 - **Profile Support** - Group services for batch operations
 - **Readiness Checks** - HTTP, TCP, and log-pattern based health checks
 - **Pre-flight Cleanup** - Automatic detection and termination of orphaned processes before starting services
+- **One Instance Per Project** - A second `fuku run` in the same directory is refused instead of stopping the first one's services
 - **Hot-Reload** - Automatic service restart on file changes
-- **Log Streaming** - Stream logs from running instances via `fuku logs`
+- **Log Streaming** - Stream logs from running instances via `fuku logs`, or read a bounded slice of the buffer with `--no-follow`
 - **Diagnostics** - Health-check your setup with `fuku doctor` (config, environment, topology, and runtime checks; `--json` for scripting)
 - **REST API** - Control and monitor services via HTTP with token authentication
 - **Update Notifications** - TUI highlights a hint next to the version footer when a newer GitHub release is available (cached 24h, opt out via `FUKU_UPDATER_DISABLED=1`)
@@ -71,6 +73,10 @@ fuku stop core                  # Specific profile
 fuku logs                       # All services
 fuku logs api auth              # Specific services
 fuku l api db                   # Short alias
+
+# Read the buffer without following it
+fuku logs --tail 50 --no-follow api    # Newest 50 lines, then exit
+fuku logs --since 5m --no-follow       # Last 5 minutes, then exit
 
 # Diagnose configuration, environment, and runtime issues
 fuku doctor                     # Default profile
@@ -204,9 +210,38 @@ Full documentation is available at **[getfuku.sh](https://getfuku.sh)**:
 - [Examples](https://getfuku.sh/docs/examples/) - Real-world configuration patterns
 - [Troubleshooting](https://getfuku.sh/docs/troubleshooting/) - Common issues and solutions
 
-## IDE Plugins
+## Plugins
+
+### JetBrains
 
 A [JetBrains plugin](https://getfuku.sh/plugins/jetbrains/) is available for GoLand, IntelliJ IDEA, WebStorm, and all JetBrains IDEs.
+
+### AI agents
+
+The [AI agents plugin](https://getfuku.sh/plugins/agents/) lets Codex and Claude Code configure profiles, debug changes,
+inspect logs and control local services.
+
+The agent attaches to the instance you already have running instead of starting a second one, so you and the agent
+share a single service stack. Every instance publishes the project directory it serves, so the agent recognises your
+stack before it authenticates and never sends this project's token to another directory's instance.
+
+#### Codex
+
+```bash
+codex plugin marketplace add tab/fuku
+codex plugin add fuku@fuku
+```
+
+#### Claude Code
+
+```bash
+claude plugin marketplace add tab/fuku
+claude plugin install fuku@fuku
+```
+
+It reads recent service output from the instance's log buffer in one bounded request, so it never leaves a log
+follower running. In Claude Code it also adds a `SessionStart` hook that reports the confirmed project profile and
+service states, plus the `/fuku:status`, `/fuku:logs` and `/fuku:restart` commands.
 
 ## Architecture
 
@@ -215,15 +250,17 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architectural patterns and d
 ## Development
 
 ```bash
-make fmt        # Format code
-make vet        # Run go vet
-make lint       # Run golangci-lint
-make lint:fix   # Run golangci-lint with --fix
-make test       # Run unit tests
-make test:race  # Run tests with race detector
-make build      # Build binary
-make test:e2e   # Run e2e tests (requires build)
-make coverage   # Generate coverage report
+make fmt                    # Format code
+make vet                    # Run go vet
+make lint                   # Run golangci-lint
+make lint:fix               # Run golangci-lint with --fix
+make test                   # Run unit tests
+make test:race              # Run tests with race detector
+make build                  # Build binary
+make test:e2e               # Run e2e tests (requires build)
+make test:agents-plugin     # Test the AI agents plugin
+make generate:agents-plugin # Sync OpenAPI into the AI agents plugin
+make coverage               # Generate coverage report
 ```
 
 Verification loop:

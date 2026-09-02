@@ -485,3 +485,179 @@ func Test_Hub_HistoryReplay_WithSubscriptionFilter(t *testing.T) {
 		}
 	}
 }
+
+// seedHub starts a hub and broadcasts the given service lines, waiting until they are buffered
+func seedHub(ctx context.Context, t *testing.T, lines [][2]string) Hub {
+	t.Helper()
+
+	h := NewHub(100, 50, testLogger())
+
+	go h.Run(ctx)
+
+	for _, line := range lines {
+		h.Broadcast(line[0], line[1])
+	}
+
+	require.Eventually(t, func() bool {
+		return len(h.History(HistoryQuery{})) == len(lines)
+	}, time.Second, 5*time.Millisecond)
+
+	return h
+}
+
+func Test_Hub_History(t *testing.T) {
+	lines := [][2]string{
+		{"api", "first"},
+		{"web", "second"},
+		{"api", "third"},
+		{"api", "fourth"},
+	}
+
+	tests := []struct {
+		name     string
+		query    HistoryQuery
+		expected []string
+	}{
+		{
+			name:     "returns every buffered line oldest first",
+			query:    HistoryQuery{},
+			expected: []string{"first", "second", "third", "fourth"},
+		},
+		{
+			name:     "filters by service",
+			query:    HistoryQuery{Services: []string{"api"}},
+			expected: []string{"first", "third", "fourth"},
+		},
+		{
+			name:     "keeps only the newest tail entries",
+			query:    HistoryQuery{Tail: 2},
+			expected: []string{"third", "fourth"},
+		},
+		{
+			name:     "applies the tail after the service filter",
+			query:    HistoryQuery{Services: []string{"api"}, Tail: 2},
+			expected: []string{"third", "fourth"},
+		},
+		{
+			name:     "reports nothing for an unknown service",
+			query:    HistoryQuery{Services: []string{"missing"}},
+			expected: nil,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	h := seedHub(ctx, t, lines)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			messages := h.History(tt.query)
+
+			actual := make([]string, 0, len(messages))
+			for _, msg := range messages {
+				actual = append(actual, msg.Message)
+			}
+
+			assert.Equal(t, tt.expected, nilWhenEmpty(actual))
+		})
+	}
+}
+
+// nilWhenEmpty normalizes an empty slice to nil so table expectations stay readable
+func nilWhenEmpty(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	return values
+}
+
+func Test_Hub_History_SkipsEntriesBeforeSince(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	h := seedHub(ctx, t, [][2]string{{"api", "old"}})
+
+	cutoff := time.Now()
+
+	h.Broadcast("api", "new")
+
+	require.Eventually(t, func() bool {
+		return len(h.History(HistoryQuery{})) == 2
+	}, time.Second, 5*time.Millisecond)
+
+	messages := h.History(HistoryQuery{Since: cutoff})
+
+	require.Len(t, messages, 1)
+	assert.Equal(t, "new", messages[0].Message)
+}
+
+func Test_Hub_History_StampsBroadcastTime(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	before := time.Now()
+	h := seedHub(ctx, t, [][2]string{{"api", "line"}})
+
+	messages := h.History(HistoryQuery{})
+
+	require.Len(t, messages, 1)
+	assert.False(t, messages[0].Timestamp.Before(before))
+}
+
+func Test_Hub_History_AnswersWithoutRunningHub(t *testing.T) {
+	h := NewHub(100, 50, testLogger())
+
+	answered := make(chan []LogMessage, 1)
+
+	go func() {
+		answered <- h.History(HistoryQuery{})
+	}()
+
+	select {
+	case messages := <-answered:
+		assert.Empty(t, messages)
+	case <-time.After(time.Second):
+		t.Fatal("History blocked while the hub loop was not running")
+	}
+}
+
+func Test_Hub_Register_ClosesNoFollowClientAfterReplay(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	h := seedHub(ctx, t, [][2]string{{"api", "first"}, {"api", "second"}, {"web", "other"}})
+
+	client := NewClientConn("client-1", 10)
+	client.SetSubscription([]string{"api"})
+	client.Tail = 1
+	client.NoFollow = true
+
+	h.Register(client)
+
+	var received []string
+
+	for msg := range client.SendChan {
+		received = append(received, msg.Message)
+	}
+
+	assert.Equal(t, []string{"second"}, received)
+}
+
+func Test_Hub_Register_KeepsFollowingClientOpen(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	h := seedHub(ctx, t, [][2]string{{"api", "buffered"}})
+
+	client := NewClientConn("client-1", 10)
+
+	h.Register(client)
+
+	assert.Equal(t, "buffered", (<-client.SendChan).Message)
+
+	h.Broadcast("api", "live")
+
+	assert.Equal(t, "live", (<-client.SendChan).Message)
+}

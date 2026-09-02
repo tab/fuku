@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/instance"
 	"fuku/internal/app/relay"
 	"fuku/internal/app/render"
 	"fuku/internal/config"
@@ -28,9 +29,12 @@ func Test_NewScreen(t *testing.T) {
 	cfg := config.DefaultConfig()
 	r := render.NewLog(false)
 
-	s := NewScreen(mockClient, mockLog, r, cfg)
+	identity := instance.Identity{Fingerprint: instance.Fingerprint("/tmp/project")}
+
+	s := NewScreen(mockClient, mockLog, r, identity, cfg)
 
 	require.NotNil(t, s)
+	assert.Equal(t, identity.Fingerprint, s.(*screen).project)
 }
 
 func Test_screen_streamLogs(t *testing.T) {
@@ -45,7 +49,7 @@ func Test_screen_streamLogs(t *testing.T) {
 			services: []string{"api"},
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
-				client.EXPECT().Subscribe([]string{"api"}).Return(nil)
+				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{"api"}}).Return(nil)
 				client.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(nil)
 				client.EXPECT().Close().Return(nil)
 			},
@@ -64,7 +68,7 @@ func Test_screen_streamLogs(t *testing.T) {
 			services: []string{"api"},
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
-				client.EXPECT().Subscribe([]string{"api"}).Return(errors.New("subscribe failed"))
+				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{"api"}}).Return(errors.New("subscribe failed"))
 				client.EXPECT().Close().Return(nil)
 			},
 			expect: 1,
@@ -74,7 +78,7 @@ func Test_screen_streamLogs(t *testing.T) {
 			services: []string{"api", "web"},
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
-				client.EXPECT().Subscribe([]string{"api", "web"}).Return(nil)
+				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{"api", "web"}}).Return(nil)
 				client.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(errors.New("stream interrupted"))
 				client.EXPECT().Close().Return(nil)
 			},
@@ -105,7 +109,7 @@ func Test_screen_streamLogs(t *testing.T) {
 				width:  func() int { return 80 },
 			}
 
-			result := s.streamLogs(t.Context(), "/tmp/test.sock", tt.services)
+			result := s.streamLogs(t.Context(), "/tmp/test.sock", StreamOptions{Services: tt.services})
 
 			assert.Equal(t, tt.expect, result)
 		})
@@ -125,7 +129,7 @@ func Test_screen_streamLogs_WritesToOutput(t *testing.T) {
 	r := render.NewLog(false)
 
 	mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
-	mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
+	mockClient.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{"api"}}).Return(nil)
 	mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ any, handler relay.Handler) error {
 			handler.HandleStatus(relay.StatusMessage{
@@ -152,7 +156,7 @@ func Test_screen_streamLogs_WritesToOutput(t *testing.T) {
 		width:  func() int { return 80 },
 	}
 
-	result := s.streamLogs(t.Context(), "/tmp/test.sock", []string{"api"})
+	result := s.streamLogs(t.Context(), "/tmp/test.sock", StreamOptions{Services: []string{"api"}})
 
 	assert.Equal(t, 0, result)
 
@@ -185,7 +189,7 @@ func Test_screen_Run(t *testing.T) {
 			width:  func() int { return 80 },
 		}
 
-		result := s.Run(t.Context(), "nonexistent-profile-that-does-not-exist", nil)
+		result := s.Run(t.Context(), StreamOptions{Profile: "nonexistent-profile-that-does-not-exist"})
 
 		assert.Equal(t, 1, result)
 	})
@@ -208,7 +212,7 @@ func Test_screen_Run(t *testing.T) {
 		mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 		mockClient.EXPECT().Connect(socketPath).Return(nil)
-		mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
+		mockClient.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{"api"}}).Return(nil)
 		mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().Close().Return(nil)
 
@@ -221,7 +225,7 @@ func Test_screen_Run(t *testing.T) {
 			width:  func() int { return 80 },
 		}
 
-		result := s.Run(t.Context(), profile, []string{"api"})
+		result := s.Run(t.Context(), StreamOptions{Profile: profile, Services: []string{"api"}})
 
 		assert.Equal(t, 0, result)
 	})

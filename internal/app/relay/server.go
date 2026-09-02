@@ -13,6 +13,7 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -30,6 +31,7 @@ type Server struct {
 	cancel      context.CancelFunc
 	socketPath  string
 	profile     string
+	project     string
 	services    []string
 	bufferSize  int
 	historySize int
@@ -42,9 +44,10 @@ type Server struct {
 }
 
 // NewServer creates a new log streaming server
-func NewServer(cfg *config.Config, b bus.Bus, log logger.Logger) *Server {
+func NewServer(cfg *config.Config, b bus.Bus, identity instance.Identity, log logger.Logger) *Server {
 	return &Server{
 		bus:         b,
+		project:     identity.Fingerprint,
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log.WithComponent("HUB")),
@@ -55,6 +58,22 @@ func NewServer(cfg *config.Config, b bus.Bus, log logger.Logger) *Server {
 // SocketPath returns the socket path for this server
 func (s *Server) SocketPath() string {
 	return s.socketPath
+}
+
+// Start begins buffering log output and waits for the profile event, whether or not the socket can be bound later
+func (s *Server) Start(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
+
+	s.Subscribe(ctx)
+
+	s.wg.Go(func() {
+		s.hub.Run(ctx)
+	})
+
+	s.wg.Go(func() {
+		s.Run(ctx)
+	})
 }
 
 // Subscribe registers the server as a bus subscriber, must be called before Run
@@ -117,11 +136,15 @@ func (s *Server) activate(ctx context.Context, data bus.ProfileResolved) {
 	}
 }
 
-// Broadcast sends a log message to all connected clients
+// History returns buffered log messages matching the query without following the live stream
+// (the buffer is independent of the socket, so a read answers even when the listener never started)
+func (s *Server) History(query HistoryQuery) []LogMessage {
+	return s.hub.History(query)
+}
+
+// Broadcast buffers a log message and sends it to all connected clients
 func (s *Server) Broadcast(service, message string) {
-	if s.running.Load() {
-		s.hub.Broadcast(service, message)
-	}
+	s.hub.Broadcast(service, message)
 }
 
 func (s *Server) start(ctx context.Context) error {
@@ -147,13 +170,6 @@ func (s *Server) start(ctx context.Context) error {
 	s.running.Store(true)
 	s.log.Info().Msgf("Server listening on %s", s.socketPath)
 
-	ctx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
-
-	s.wg.Go(func() {
-		s.hub.Run(ctx)
-	})
-
 	s.wg.Go(func() {
 		s.acceptConnections(ctx)
 	})
@@ -163,11 +179,7 @@ func (s *Server) start(ctx context.Context) error {
 
 // Stop cancels server goroutines, closes the listener, waits for connections to drain, and removes the socket file
 func (s *Server) Stop() {
-	if !s.running.Load() {
-		return
-	}
-
-	s.running.Store(false)
+	listening := s.running.Swap(false)
 
 	if s.cancel != nil {
 		s.cancel()
@@ -179,8 +191,10 @@ func (s *Server) Stop() {
 
 	s.wg.Wait()
 
-	if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
-		s.log.Warn().Err(err).Msgf("Failed to remove socket file: %s", s.socketPath)
+	if listening {
+		if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
+			s.log.Warn().Err(err).Msgf("Failed to remove socket file: %s", s.socketPath)
+		}
 	}
 
 	s.log.Debug().Msg("Server stopped")
@@ -239,6 +253,12 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	client.SetSubscription(req.Services)
+	client.Tail = req.Tail
+	client.NoFollow = req.NoFollow
+
+	if req.Since > 0 {
+		client.Since = time.Now().Add(-req.Since)
+	}
 
 	s.log.Debug().Msgf("Client %s subscribed to services: %v", clientID, req.Services)
 
@@ -297,6 +317,7 @@ func (s *Server) hello(conn net.Conn, clientID string) {
 		Type:     MessageStatus,
 		Version:  config.Version,
 		Profile:  s.profile,
+		Project:  s.project,
 		Services: s.services,
 	}
 

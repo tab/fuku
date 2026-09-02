@@ -46,8 +46,18 @@ func (l *Log) WriteServiceLine(w io.Writer, service, message string) {
 	fmt.Fprint(w, line)
 }
 
+// BannerOptions selects what the log connection banner reports
+type BannerOptions struct {
+	Width      int
+	Status     relay.StatusMessage
+	Subscribed []string
+	Project    string // fingerprint of the local project, compared against the instance the socket serves
+	Following  bool
+}
+
 // RenderBanner writes a connection banner to the given writer
-func (l *Log) RenderBanner(w io.Writer, width int, status relay.StatusMessage, subscribed []string) {
+func (l *Log) RenderBanner(w io.Writer, options BannerOptions) {
+	status, subscribed := options.Status, options.Subscribed
 	serviceCount := fmt.Sprintf("%d running", len(status.Services))
 
 	const maxShown = 5
@@ -63,7 +73,7 @@ func (l *Log) RenderBanner(w io.Writer, width int, status relay.StatusMessage, s
 		showing = strings.Join(subscribed[:maxShown], ", ") + fmt.Sprintf(" and %d more", len(subscribed)-maxShown)
 	}
 
-	innerWidth := width - components.PanelInnerPadding
+	innerWidth := options.Width - components.PanelInnerPadding
 	border := func(s string) string { return components.PanelBorderStyle.Render(s) }
 
 	muted := l.theme.PanelMutedStyle.Render
@@ -82,6 +92,11 @@ func (l *Log) RenderBanner(w io.Writer, width int, status relay.StatusMessage, s
 		field("showing:", showing),
 	}
 
+	if servesAnotherProject(options) {
+		warning := l.theme.StatusStartingStyle.Render("serves a different project")
+		contentLines = append(contentLines, " "+muted("project:")+" "+warning)
+	}
+
 	lines := []string{topBorder}
 	lines = components.AppendContentLines(lines, contentLines, innerWidth, border)
 
@@ -89,8 +104,12 @@ func (l *Log) RenderBanner(w io.Writer, width int, status relay.StatusMessage, s
 	bottomBorder := components.BuildBottomBorder(border, "", versionText, innerWidth)
 	lines = append(lines, bottomBorder)
 
-	footer := " " + l.theme.HelpKeyStyle.Render("ctrl+c") + " " + l.theme.HelpDescStyle.Render("exit")
-	lines = append(lines, footer, "")
+	if options.Following {
+		footer := " " + l.theme.HelpKeyStyle.Render("ctrl+c") + " " + l.theme.HelpDescStyle.Render("exit")
+		lines = append(lines, footer)
+	}
+
+	lines = append(lines, "")
 
 	for _, line := range lines {
 		fmt.Fprintln(w, line)
@@ -156,4 +175,14 @@ func (l *Log) FormatMessage(format, service, message string) string {
 	}
 
 	return l.FormatServiceLine(service, message)
+}
+
+// servesAnotherProject reports whether the instance behind the socket belongs to a different project
+// (an instance that does not report a project is treated as a match because it cannot be compared)
+func servesAnotherProject(options BannerOptions) bool {
+	if options.Project == "" || options.Status.Project == "" {
+		return false
+	}
+
+	return options.Project != options.Status.Project
 }

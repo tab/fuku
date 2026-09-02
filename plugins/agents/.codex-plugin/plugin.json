@@ -1,0 +1,45 @@
+{
+  "name": "fuku",
+  "version": "0.1.0",
+  "description": "Configure, run and debug local services with fuku from Codex.",
+  "author": {
+    "name": "tab",
+    "url": "https://github.com/tab"
+  },
+  "homepage": "https://getfuku.sh/plugins/agents/",
+  "repository": "https://github.com/tab/fuku",
+  "license": "MIT",
+  "keywords": [
+    "fuku",
+    "local development",
+    "service orchestration",
+    "logs",
+    "codex",
+    "agent skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "fuku",
+    "shortDescription": "Configure, debug and control services with fuku",
+    "longDescription": "Let Codex use fuku for complete local development workflows: update shared or local config, run profiles, inspect state and focused logs, debug changes and control service lifecycle.",
+    "developerName": "tab",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://getfuku.sh/",
+    "privacyPolicyURL": "https://getfuku.sh/docs/privacy/",
+    "defaultPrompt": [
+      "Run the configured fuku profile and report failed services",
+      "Make a local fuku config change and restart the profile",
+      "Debug a fuku service, apply a fix and verify its logs"
+    ],
+    "brandColor": "#7D56F4",
+    "composerIcon": "./assets/logo.svg",
+    "logo": "./assets/logo.svg",
+    "logoDark": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

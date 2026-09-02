@@ -11,6 +11,8 @@ function esc(s: string): string {
 
 const statusJson = esc(`{
   "version": "0.21.0",
+  "instance": "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+  "project": "/Users/dev/projects/shop",
   "profile": "default",
   "phase": "running",
   "uptime": 3600,
@@ -35,7 +37,8 @@ const serviceJson = esc(`{
   "pid": 12345,
   "cpu": 2.4,
   "memory": 67108864,
-  "uptime": 3600
+  "uptime": 3600,
+  "revision": 42
 }`);
 
 const serviceListJson = esc(`{
@@ -49,7 +52,8 @@ const serviceListJson = esc(`{
       "pid": 12345,
       "cpu": 2.4,
       "memory": 67108864,
-      "uptime": 3600
+      "uptime": 3600,
+      "revision": 42
     }
   ]
 }`);
@@ -75,7 +79,23 @@ const restartJson = esc(`{
   "status": "restarting"
 }`);
 
-const liveJson = esc(`{ "status": "alive" }`);
+const logListJson = esc(`{
+  "lines": [
+    {
+      "service": "api-gateway",
+      "message": "listening on :8080",
+      "timestamp": "2026-08-24T12:00:00.482Z"
+    }
+  ],
+  "tail": 50
+}`);
+
+const liveJson = esc(`{
+  "status": "alive",
+  "product": "fuku",
+  "instance": "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+  "project": "9f2c4b7e1a08d356"
+}`);
 const readyJson = esc(`{ "status": "ready" }`);
 const notReadyJson = esc(`{ "status": "not ready" }`);
 
@@ -85,6 +105,8 @@ const conflictStartJson = esc(`{ "error": "service cannot be started" }`);
 const conflictStopJson = esc(`{ "error": "service is not running" }`);
 const conflictRestartJson = esc(`{ "error": "service cannot be restarted" }`);
 const notAcceptingJson = esc(`{ "error": "instance is not accepting actions" }`);
+const invalidTailJson = esc(`{ "error": "tail must be a positive whole number" }`);
+const invalidSinceJson = esc(`{ "error": "since must be a duration such as 30s or 5m" }`);
 const internalErrorJson = esc(`{ "error": "internal server error" }`);
 
 interface Endpoint {
@@ -100,7 +122,7 @@ interface Endpoint {
 const endpoints: Endpoint[] = [
   {
     id: "get-live", method: "GET", path: "/api/v1/live", apiPath: "/api/v1/live",
-    description: "Liveness probe. Returns 200 when the API server is reachable. No authentication required.",
+    description: "Liveness probe. Returns 200 when the API server is reachable, along with the identity of this instance and a fingerprint of the project directory it serves, so a caller can pick its own project out of the port range before sending a token to it. The directory itself is never returned here because the endpoint is unauthenticated. No authentication required.",
     hasId: false,
     responses: [
       { status: "success", code: "200", body: liveJson },
@@ -117,7 +139,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "get-status", method: "GET", path: "/api/v1/status", apiPath: "/api/v1/status",
-    description: "Returns fuku instance information: version, profile, phase, uptime, and service counts.",
+    description: "Returns fuku instance information: version, instance id, the absolute project directory this instance serves, profile, phase, uptime, and service counts.",
     hasId: false,
     responses: [
       { status: "success", code: "200", body: statusJson },
@@ -137,7 +159,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "get-service", method: "GET", path: "/api/v1/services/:id", apiPath: "/api/v1/services/:id",
-    description: "Returns a single service by UUID.",
+    description: "Returns a single service by UUID. revision is a monotonic counter that changes on every lifecycle transition, so a client can tell whether a requested action took effect without comparing timestamps.",
     hasId: true,
     responses: [
       { status: "success", code: "200", body: serviceJson },
@@ -185,6 +207,29 @@ const endpoints: Endpoint[] = [
       { status: "error", code: "500", body: internalErrorJson },
     ],
   },
+  {
+    id: "list-logs", method: "GET", path: "/api/v1/logs", apiPath: "/api/v1/logs?tail=50",
+    description: "Returns buffered service output, oldest line first. Repeat service=<uuid> to select services, tail=<n> to bound the line count (default 100, clamped to the 5000-line buffer), and since=<duration> to bound the age. Reads the in-memory buffer and returns immediately, so it never attaches a follower to the log stream.",
+    hasId: false,
+    responses: [
+      { status: "success", code: "200", body: logListJson },
+      { status: "error", code: "400", body: invalidTailJson },
+      { status: "error", code: "400", body: invalidSinceJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "404", body: notFoundJson },
+    ],
+  },
+  {
+    id: "get-service-logs", method: "GET", path: "/api/v1/services/:id/logs", apiPath: "/api/v1/services/:id/logs?tail=50",
+    description: "Returns buffered output for a single service by UUID. Accepts the same tail and since parameters as GET /logs.",
+    hasId: true,
+    responses: [
+      { status: "success", code: "200", body: logListJson },
+      { status: "error", code: "400", body: invalidTailJson },
+      { status: "error", code: "401", body: unauthorizedJson },
+      { status: "error", code: "404", body: notFoundJson },
+    ],
+  },
 ];
 ---
 
@@ -213,7 +258,14 @@ const endpoints: Endpoint[] = [
           </a>
         ))}
         <div class="nav-section">Services</div>
-        {endpoints.filter(e => !["get-live", "get-ready", "get-status"].includes(e.id)).map(e => (
+        {endpoints.filter(e => !["get-live", "get-ready", "get-status", "list-logs", "get-service-logs"].includes(e.id)).map(e => (
+          <a href={`#${e.id}`} class="api-link">
+            <span class={`method ${e.method.toLowerCase()}`}>{e.method}</span>
+            <span class="path">{e.path.replace('/api/v1', '')}</span>
+          </a>
+        ))}
+        <div class="nav-section">Logs</div>
+        {endpoints.filter(e => e.id === "list-logs" || e.id === "get-service-logs").map(e => (
           <a href={`#${e.id}`} class="api-link">
             <span class={`method ${e.method.toLowerCase()}`}>{e.method}</span>
             <span class="path">{e.path.replace('/api/v1', '')}</span>
@@ -316,6 +368,8 @@ const endpoints: Endpoint[] = [
             <table>
               <thead><tr><th>Status</th><th>Error</th><th>When</th></tr></thead>
               <tbody>
+                <tr><td><code>400</code></td><td>tail must be a positive whole number</td><td>Non-numeric or non-positive <code>tail</code> on a log read</td></tr>
+                <tr><td><code>400</code></td><td>since must be a duration such as 30s or 5m</td><td>Unparsable <code>since</code> on a log read</td></tr>
                 <tr><td><code>401</code></td><td>unauthorized</td><td>Missing or invalid bearer token</td></tr>
                 <tr><td><code>404</code></td><td>service not found</td><td>Unknown UUID</td></tr>
                 <tr><td><code>409</code></td><td>service cannot be started</td><td>Start on non-stopped service</td></tr>

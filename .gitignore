@@ -24,6 +24,9 @@ cmd/fuku
 # Dependency directories (remove the comment below to include it)
 vendor/
 
+__pycache__/
+*.py[cod]
+
 # Go workspace file
 go.work
 go.work.sum

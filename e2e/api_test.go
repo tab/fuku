@@ -218,6 +218,51 @@ func Test_API_RestartService(t *testing.T) {
 	}, 15*time.Second, 200*time.Millisecond)
 }
 
+func Test_API_Revision_AdvancesOnRestart(t *testing.T) {
+	runner := startAPIRunner(t)
+	defer runner.Stop()
+
+	//nolint:bodyclose // closed by apiJSON
+	listResp := apiRequest(t, http.MethodGet, "/api/v1/services", apiToken)
+	services := apiJSON(t, listResp)["services"].([]any)
+	svc := services[0].(map[string]any)
+	serviceID := svc["id"].(string)
+
+	before, ok := svc["revision"].(float64)
+	require.True(t, ok, "running service must report revision")
+	require.Positive(t, before, "a started service has already passed a lifecycle transition")
+
+	//nolint:bodyclose // closed by apiJSON
+	restartResp := apiRequest(t, http.MethodPost, "/api/v1/services/"+serviceID+"/restart", apiToken)
+	require.Equal(t, http.StatusAccepted, restartResp.StatusCode)
+
+	require.Eventually(t, func() bool {
+		//nolint:bodyclose // closed by apiJSON
+		resp := apiRequest(t, http.MethodGet, "/api/v1/services/"+serviceID, apiToken)
+		body := apiJSON(t, resp)
+
+		return body["status"] == "running" && body["revision"].(float64) > before
+	}, 15*time.Second, 200*time.Millisecond, "revision must advance across a restart")
+}
+
+func Test_API_Revision_IsReportedForEveryService(t *testing.T) {
+	runner := startAPIRunner(t)
+	defer runner.Stop()
+
+	//nolint:bodyclose // closed by apiJSON
+	resp := apiRequest(t, http.MethodGet, "/api/v1/services", apiToken)
+	services := apiJSON(t, resp)["services"].([]any)
+
+	require.NotEmpty(t, services)
+
+	for _, s := range services {
+		svc := s.(map[string]any)
+
+		_, ok := svc["revision"].(float64)
+		assert.True(t, ok, "service %s must report revision", svc["name"])
+	}
+}
+
 func Test_API_StopConflict(t *testing.T) {
 	runner := startAPIRunner(t)
 	defer runner.Stop()

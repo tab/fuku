@@ -58,8 +58,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
       - name: Build plugin
-        working-directory: plugins/jetbrains
-        run: ./gradlew buildPlugin
+        run: make build:ide-plugin
       - name: Upload plugin to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

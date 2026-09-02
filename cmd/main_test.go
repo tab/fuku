@@ -1,8 +1,11 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +13,7 @@ import (
 	"go.uber.org/fx/fxevent"
 
 	"fuku/internal/app/cli"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -204,7 +208,7 @@ func Test_CreateApp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := createApp(tt.cfg, topology, tt.cmd)
+			app := createApp(tt.cfg, topology, instance.Identity{}, tt.cmd)
 			assert.NotNil(t, app)
 		})
 	}
@@ -327,4 +331,70 @@ func Test_CreateFxLogger_FunctionCreation(t *testing.T) {
 			assert.NotNil(t, result2)
 		})
 	}
+}
+
+func Test_RefuseSecondInstance(t *testing.T) {
+	identity := instance.Identity{
+		ID:          "8c1e0b2a-77d5-4a1e-9c3b-2f5a6d7e8b90",
+		Project:     "/tmp/project",
+		Fingerprint: instance.Fingerprint("/tmp/project"),
+	}
+
+	tests := []struct {
+		name    string
+		command cli.CommandType
+		payload string
+		expect  int
+	}{
+		{
+			name:    "run is refused beside an instance serving this project",
+			command: cli.CommandRun,
+			payload: `{"status":"alive","product":"fuku","project":"` + identity.Fingerprint + `"}`,
+			expect:  1,
+		},
+		{
+			name:    "run is allowed beside an instance serving another project",
+			command: cli.CommandRun,
+			payload: `{"status":"alive","product":"fuku","project":"0123456789abcdef"}`,
+			expect:  0,
+		},
+		{
+			name:    "logs is allowed beside an instance serving this project",
+			command: cli.CommandLogs,
+			payload: `{"status":"alive","product":"fuku","project":"` + identity.Fingerprint + `"}`,
+			expect:  0,
+		},
+		{
+			name:    "stop is allowed beside an instance serving this project",
+			command: cli.CommandStop,
+			payload: `{"status":"alive","product":"fuku","project":"` + identity.Fingerprint + `"}`,
+			expect:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Write([]byte(tt.payload))
+			}))
+			defer server.Close()
+
+			cfg := config.DefaultConfig()
+			cfg.Server.Listen = strings.TrimPrefix(server.URL, "http://")
+
+			result := refuseSecondInstance(&cli.Options{Type: tt.command}, cfg, identity)
+
+			assert.Equal(t, tt.expect, result)
+		})
+	}
+}
+
+func Test_RefuseSecondInstance_WithoutAnAPI(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Server.Listen = ""
+
+	identity := instance.Identity{Fingerprint: instance.Fingerprint("/tmp/project")}
+	result := refuseSecondInstance(&cli.Options{Type: cli.CommandRun}, cfg, identity)
+
+	assert.Equal(t, 0, result)
 }

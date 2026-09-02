@@ -98,14 +98,14 @@ func Test_LogMessage_MarshalUnmarshal(t *testing.T) {
 				Service: "api",
 				Message: "server started on :8080",
 			},
-			expected: `{"type":"log","service":"api","message":"server started on :8080"}`,
+			expected: `{"type":"log","service":"api","message":"server started on :8080","timestamp":"0001-01-01T00:00:00Z"}`,
 		},
 		{
 			name: "empty fields",
 			message: LogMessage{
 				Type: MessageLog,
 			},
-			expected: `{"type":"log","service":"","message":""}`,
+			expected: `{"type":"log","service":"","message":"","timestamp":"0001-01-01T00:00:00Z"}`,
 		},
 	}
 
@@ -136,9 +136,10 @@ func Test_StatusMessage_MarshalUnmarshal(t *testing.T) {
 				Type:     MessageStatus,
 				Version:  "0.17.0",
 				Profile:  "default",
+				Project:  "9f2c4b7e1a08d356",
 				Services: []string{"api", "web"},
 			},
-			expected: `{"type":"status","version":"0.17.0","profile":"default","services":["api","web"]}`,
+			expected: `{"type":"status","version":"0.17.0","profile":"default","project":"9f2c4b7e1a08d356","services":["api","web"]}`,
 		},
 		{
 			name: "empty services",
@@ -147,7 +148,7 @@ func Test_StatusMessage_MarshalUnmarshal(t *testing.T) {
 				Version: "0.17.0",
 				Profile: "core",
 			},
-			expected: `{"type":"status","version":"0.17.0","profile":"core","services":null}`,
+			expected: `{"type":"status","version":"0.17.0","profile":"core","project":"","services":null}`,
 		},
 	}
 

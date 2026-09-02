@@ -17,6 +17,7 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -34,6 +35,7 @@ func newTestServer(t *testing.T) *Server {
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
 	return &Server{
+		project:     testIdentity.Fingerprint,
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log),
@@ -55,11 +57,18 @@ func startTestServer(t *testing.T, srv *Server, profile string, services []strin
 	return cancel
 }
 
+// testIdentity is the instance identity used by the relay server tests
+var testIdentity = instance.Identity{
+	ID:          "b0f0d9f4-6c0d-4f4a-9f5b-3f6b2a1d0c11",
+	Project:     "/tmp/project",
+	Fingerprint: instance.Fingerprint("/tmp/project"),
+}
+
 func Test_NewServer(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	s := NewServer(cfg, bus.NoOp(), testIdentity, log)
 
 	assert.NotNil(t, s)
 }
@@ -68,7 +77,7 @@ func Test_Server_Subscribe(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	s := NewServer(cfg, bus.NoOp(), testIdentity, log)
 
 	s.Subscribe(t.Context())
 
@@ -84,7 +93,7 @@ func Test_Server_Run_ActivatesOnProfileResolved(t *testing.T) {
 	defer b.Close()
 
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
-	s := NewServer(cfg, b, log)
+	s := NewServer(cfg, b, testIdentity, log)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	s.Subscribe(ctx)
@@ -121,7 +130,7 @@ func Test_Server_Run_ContextCancelled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	s := NewServer(cfg, bus.NoOp(), testIdentity, log)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	s.Subscribe(ctx)
@@ -146,7 +155,7 @@ func Test_Server_SocketPath(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	s := NewServer(cfg, bus.NoOp(), testIdentity, log)
 
 	assert.Empty(t, s.SocketPath())
 }
@@ -180,11 +189,12 @@ func Test_Server_Broadcast_Running(t *testing.T) {
 	srv.Broadcast("api", "hello")
 }
 
-func Test_Server_Broadcast_NotRunning(t *testing.T) {
+func Test_Server_Broadcast_WithoutSocket(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockHub := NewMockHub(ctrl)
+	mockHub.EXPECT().Broadcast("api", "hello").Times(1)
 
 	srv := &Server{
 		hub: mockHub,
@@ -193,6 +203,57 @@ func Test_Server_Broadcast_NotRunning(t *testing.T) {
 	srv.running.Store(false)
 
 	srv.Broadcast("api", "hello")
+}
+
+func Test_Server_Start_BuffersWhenSocketIsTaken(t *testing.T) {
+	profile := uniqueProfile(t)
+	socketPath := SocketPathForProfile(config.SocketDir, profile)
+
+	listener, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+
+	defer listener.Close()
+	defer os.Remove(socketPath)
+
+	srv := newTestServer(t)
+	srv.bus = bus.NoOp()
+	srv.profile = profile
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	srv.Start(ctx)
+
+	require.Error(t, srv.start(ctx))
+	require.False(t, srv.running.Load())
+
+	srv.Broadcast("api", "hello")
+
+	require.Eventually(t, func() bool {
+		return len(srv.History(HistoryQuery{})) == 1
+	}, time.Second, 5*time.Millisecond)
+
+	srv.Stop()
+
+	assert.FileExists(t, socketPath)
+}
+
+func Test_Server_History_WithoutSocket(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	expected := []LogMessage{{Service: "api", Message: "hello"}}
+
+	mockHub := NewMockHub(ctrl)
+	mockHub.EXPECT().History(HistoryQuery{Tail: 10}).Return(expected).Times(1)
+
+	srv := &Server{
+		hub: mockHub,
+		log: testLogger(),
+	}
+	srv.running.Store(false)
+
+	assert.Equal(t, expected, srv.History(HistoryQuery{Tail: 10}))
 }
 
 func Test_Server_Start_ActiveSocket_ReturnsError(t *testing.T) {
@@ -275,6 +336,7 @@ func Test_Server_HandleConnection_SuccessfulFlow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, MessageStatus, status.Type)
 	assert.Equal(t, profile, status.Profile)
+	assert.Equal(t, testIdentity.Fingerprint, status.Project)
 	assert.Equal(t, []string{"api", "web"}, status.Services)
 
 	srv.Broadcast("api", "test log message")

@@ -1,0 +1,167 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeEditor from "../../components/CodeEditor.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+import { getPluginsNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}plugins/agents/`;
+const nav = getPluginsNav(base);
+---
+
+<DocsLayout
+  title="AI agents plugin – fuku"
+  description="Configure, run, debug and control local services with fuku from Codex or Claude Code."
+  current={current}
+  nav={nav}
+  section="plugins"
+  breadcrumb={[{ label: "Plugins", href: `${base}plugins/` }, { label: "AI agents", href: current }]}
+>
+  <span class="kicker">// plugins &middot; agents</span>
+  <h1>AI agents plugin</h1>
+  <p class="lead">Use fuku as the control plane for complete local edit, run, debug and test workflows in Codex or Claude Code.</p>
+  <p>The agent shares the stack you already have running instead of starting services of its own.</p>
+
+  <div class="section-eyebrow">Installation</div>
+  <h2>Install for your agent</h2>
+
+  <h3>Codex</h3>
+
+  <CodeTerminal code={`codex plugin marketplace add tab/fuku
+codex plugin add fuku@fuku`} />
+
+  <h3>Claude Code</h3>
+
+  <CodeTerminal code={`claude plugin marketplace add tab/fuku
+claude plugin install fuku@fuku`} />
+
+  <p>The plugin includes a portable Agent Skill and a small Python helper for the fuku control API.</p>
+  <p>No extra service or MCP server is required.</p>
+
+  <div class="section-eyebrow">Shared stack</div>
+  <h2>One instance, two operators</h2>
+
+  <p>Use one fuku instance for the project. Run it in your own terminal and the agent attaches to it. Start nothing yourself and the agent runs the profile instead. Either way there is one stack and both of you drive it.</p>
+  <p>Before any lifecycle action the agent resolves what is already running:</p>
+
+  <CodeTerminal code={`python3 scripts/control.py discover
+{
+  "api": { "base_url": "http://localhost:1234", "reachable": true },
+  "instance": {
+    "status": { "phase": "running", "profile": "minimal" },
+    "services": [{ "name": "api", "status": "running" }]
+  },
+  "socket_profiles": ["minimal"]
+}`} />
+
+  <p>This matters because a second <code>fuku run</code> in a directory that already has one is destructive: startup preflight stops processes whose working directory matches a selected service, so it would kill the services you are using. A second run of the same profile also fails to bind the log socket and continues without it.</p>
+  <p>The helper probes the configured port and the next nine, because fuku falls back through that range when the configured port is busy. It accepts only an API that authenticates with the project's token. Give each project its own <code>server.listen</code> range and token so the instance stays unambiguous.</p>
+
+  <div class="section-eyebrow">Usage</div>
+  <h2>Ask for the workflow you need</h2>
+
+  <ul>
+    <li><code>Run minimal and check failed service logs</code></li>
+    <li><code>Locally exclude worker, restart minimal and check logs</code></li>
+    <li><code>Debug api, apply a fix, restart it and run focused tests</code></li>
+  </ul>
+
+  <p>The agent reads the effective fuku config, validates the profile and service names and keeps the headless process output available.</p>
+  <p>It reads the buffered log history for service output and uses the loopback API for service state and lifecycle actions.</p>
+
+  <div class="section-eyebrow">Logs</div>
+  <h2>Bounded reads, not followers</h2>
+
+  <p>fuku keeps recent output per instance. The agent reads that buffer in one request and exits, rather than attaching a follower it later has to kill:</p>
+
+  <CodeTerminal code={`python3 scripts/control.py logs --tail 50 api
+{
+  "profile": "minimal",
+  "tail": 50,
+  "total": 50,
+  "lines": [ { "service": "api", "message": "listening on :8080", "repeat": 1, ... } ]
+}`} />
+
+  <p>Consecutive repeats fold into a <code>repeat</code> count, an unfiltered read also carries fuku's own orchestration lines under the service name <code>fuku</code>, and <code>--summary</code> reports how often each distinct line appeared when the buffer is noisy. <code>--since 2m</code> limits the read to what happened after a restart or a code change.</p>
+  <p>The same buffer is available from the CLI with <code>fuku logs --tail 100 --no-follow</code>, and through the REST API at <code>GET /logs</code> and <code>GET /services/{"{id}"}/logs</code>.</p>
+
+  <div class="section-eyebrow">Configuration</div>
+  <h2>Shared and local changes</h2>
+
+  <p>The agent edits <code>fuku.yaml</code> or <code>fuku.yml</code> when a change should be shared with the team.</p>
+  <p>For machine-specific commands, exclusions, watch settings, ports and tokens, it keeps a small delta in <code>fuku.override.yaml</code> or <code>fuku.override.yml</code>.</p>
+  <p>Before a local-only edit, it checks whether the override is tracked and ignored so the change is not staged by mistake.</p>
+  <p>fuku loads config when the profile starts, so an API service restart does not apply YAML changes.</p>
+  <p>When asked to apply a config change, the agent validates it with <code>fuku doctor</code> and gracefully restarts the full profile with the same config selection.</p>
+
+  <div class="section-eyebrow">API setup</div>
+  <h2>Enable service control</h2>
+
+  <p>Profile runs and logs work through the fuku CLI.</p>
+  <p>Start, stop, restart and structured service status need the REST API.</p>
+  <p>Keep the token in a local ignored override rather than a shared config:</p>
+
+  <CodeEditor title="fuku.override.yaml" lang="yaml" code={`server:
+  listen: "localhost:1234"
+  auth:
+    token: "replace-with-a-local-token"`} />
+
+  <p>See the <a href={`${base}docs/api/`}>REST API reference</a> for the full contract.</p>
+
+  <div class="section-eyebrow">Behavior</div>
+  <h2>What the skill handles</h2>
+
+  <ul>
+    <li>Attaches to a running instance instead of starting a second one</li>
+    <li>Reads <code>fuku.yaml</code> and the supported local override</li>
+    <li>Changes shared config or a minimal local-only override based on the requested scope</li>
+    <li>Runs <code>fuku doctor &lt;profile&gt; --json</code> before an unclear or new profile run</li>
+    <li>Starts profiles with <code>fuku run &lt;profile&gt; --no-ui</code></li>
+    <li>Reads a bounded slice of the log buffer instead of attaching a follower</li>
+    <li>Maps exact service names to runtime UUIDs before API actions</li>
+    <li>Waits for an accepted start, stop or restart action to reach its final state</li>
+    <li>Uses watch, a service restart or a full profile restart based on the changed files</li>
+    <li>Runs focused tests and checks service state and logs after a code or config change</li>
+    <li>Keeps API tokens and unrelated environment values out of its response</li>
+  </ul>
+
+  <p>fuku profile startup can stop matching stale processes during preflight cleanup.</p>
+  <p>The agent should report this before it starts a profile and should use the owned fuku process for graceful profile shutdown.</p>
+
+  <div class="section-eyebrow">Claude Code</div>
+  <h2>Session awareness and commands</h2>
+
+  <p>In Claude Code the plugin adds a <code>SessionStart</code> hook. When the control API is enabled, every session opens with the confirmed project profile and service states:</p>
+
+  <CodeTerminal code={`This project's fuku API is running for profile 'minimal' in phase 'running' on http://localhost:1234.
+Services: storage (running), api (running).`} />
+
+  <p>The hook stays silent in projects without a fuku config and has a short timeout so it does not block a session.</p>
+  <p>Each log socket reports the project it serves, so the hook lists this project's live profiles apart from the ones started in other directories.</p>
+
+  <p>Three commands cover the common requests:</p>
+
+  <ul>
+    <li><code>/fuku:status</code> &ndash; running instances, phase and service state</li>
+    <li><code>/fuku:logs [service...]</code> &ndash; focused logs from the running profile</li>
+    <li><code>/fuku:restart &lt;service&gt;</code> &ndash; restart one service in place</li>
+  </ul>
+
+  <div class="section-eyebrow">Portability</div>
+  <h2>Shared agent package</h2>
+
+  <p>Codex and Claude Code use the same <code>skills/fuku</code> directory, helper and provider-neutral instructions.</p>
+  <p>Marketplace metadata, plugin manifests and installation commands are agent-specific, and the hook and commands are Claude Code only.</p>
+
+  <div class="section-eyebrow">Requirements</div>
+  <h2>Compatibility</h2>
+
+  <ul>
+    <li><strong>fuku</strong> – v0.21.0 or later</li>
+    <li><strong>Python</strong> – 3.10 or later for the control API helper</li>
+    <li><strong>Platform</strong> – macOS or Linux</li>
+  </ul>
+
+  <GetStartedCTA />
+</DocsLayout>

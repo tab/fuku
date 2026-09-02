@@ -176,3 +176,97 @@ func Test_checkConfigSettings(t *testing.T) {
 		})
 	}
 }
+
+// apiConfig builds a config with the built-in API enabled on the given address
+func apiConfig(listen string) *config.Config {
+	cfg := config.DefaultConfig()
+	cfg.Server.Listen = listen
+	cfg.Server.Auth.Token = "not-a-real-token"
+
+	return cfg
+}
+
+func Test_checkConfigAPI(t *testing.T) {
+	tests := []struct {
+		name     string
+		env      *Env
+		expected Status
+		summary  string
+		remedy   bool
+	}{
+		{
+			name:     "config nil reports idle",
+			env:      &Env{},
+			expected: StatusIdle,
+			summary:  "skipped",
+			remedy:   false,
+		},
+		{
+			name:     "api not configured reports idle with a remediation",
+			env:      &Env{Config: config.DefaultConfig()},
+			expected: StatusIdle,
+			summary:  "not configured",
+			remedy:   true,
+		},
+		{
+			name:     "api configured reports ok",
+			env:      &Env{Config: apiConfig("127.0.0.1:9876")},
+			expected: StatusOK,
+			summary:  "enabled on 127.0.0.1:9876",
+			remedy:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := checkConfigAPI(tt.env)
+
+			assert.Equal(t, tt.expected, r.Status)
+			assert.Equal(t, "config.api", r.ID)
+			assert.Contains(t, r.Summary, tt.summary)
+			assert.Equal(t, tt.remedy, r.Remediation != "")
+		})
+	}
+}
+
+func Test_checkConfigAPI_NeverReportsTheToken(t *testing.T) {
+	token := "private-local-token"
+
+	cfg := apiConfig("127.0.0.1:9876")
+	cfg.Server.Auth.Token = token
+
+	r := checkConfigAPI(&Env{Config: cfg})
+
+	assert.NotContains(t, r.Summary, token)
+
+	for _, detail := range r.Details {
+		assert.NotContains(t, detail.Value, token)
+	}
+
+	assert.Contains(t, r.Details, Detail{Key: "auth token", Value: "set"})
+}
+
+func Test_checkConfigAPI_ReportsThePortFallbackRange(t *testing.T) {
+	r := checkConfigAPI(&Env{Config: apiConfig("127.0.0.1:9876")})
+
+	assert.Contains(t, r.Details, Detail{Key: "port fallback", Value: "9876-9885"})
+}
+
+func Test_portRange(t *testing.T) {
+	tests := []struct {
+		name     string
+		listen   string
+		expected string
+	}{
+		{name: "loopback address", listen: "127.0.0.1:9876", expected: "9876-9885"},
+		{name: "any host", listen: ":1234", expected: "1234-1243"},
+		{name: "missing port", listen: "127.0.0.1", expected: ""},
+		{name: "named port", listen: "localhost:http", expected: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, portRange(tt.listen))
+		})
+	}
+}

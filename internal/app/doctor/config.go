@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
+	"fuku/internal/config"
 )
 
 // configSection collects config-file and validation checks
@@ -17,6 +19,7 @@ func configSection(_ context.Context, env *Env) Section {
 			timed(func() Result { return checkConfigOverride(env) }),
 			timed(func() Result { return checkConfigValidate(env) }),
 			timed(func() Result { return checkConfigSettings(env) }),
+			timed(func() Result { return checkConfigAPI(env) }),
 		},
 	}
 }
@@ -26,7 +29,7 @@ func checkConfigFile(env *Env) Result {
 	if env.ConfigPath == "" {
 		return Result{
 			ID:          "config.file",
-			Category:    "configuration",
+			Category:    CategoryConfiguration,
 			Status:      StatusFail,
 			Summary:     "no fuku.yaml found in current directory",
 			Remediation: "run `fuku init` to generate a template",
@@ -38,7 +41,7 @@ func checkConfigFile(env *Env) Result {
 	if env.LoadErr != nil && !errors.Is(env.LoadErr, errors.ErrInvalidConfig) {
 		return Result{
 			ID:       "config.file",
-			Category: "configuration",
+			Category: CategoryConfiguration,
 			Status:   StatusFail,
 			Summary:  "failed to load " + env.ConfigPath,
 			Details: []Detail{
@@ -51,7 +54,7 @@ func checkConfigFile(env *Env) Result {
 
 	return Result{
 		ID:       "config.file",
-		Category: "configuration",
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary:  "found and parsed",
 		Details: []Detail{
@@ -65,7 +68,7 @@ func checkConfigOverride(env *Env) Result {
 	if env.OverridePath == "" {
 		return Result{
 			ID:       "config.override",
-			Category: "configuration",
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
 			Summary:  "no override file present",
 		}
@@ -74,7 +77,7 @@ func checkConfigOverride(env *Env) Result {
 	if env.ExplicitConfig {
 		return Result{
 			ID:       "config.override",
-			Category: "configuration",
+			Category: CategoryConfiguration,
 			Status:   StatusNote,
 			Summary:  "override file present but skipped (--config bypasses overrides)",
 			Details: []Detail{
@@ -86,7 +89,7 @@ func checkConfigOverride(env *Env) Result {
 	if env.LoadErr != nil {
 		return Result{
 			ID:       "config.override",
-			Category: "configuration",
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
 			Summary:  "override merge status unknown (config did not load)",
 			Details: []Detail{
@@ -97,7 +100,7 @@ func checkConfigOverride(env *Env) Result {
 
 	return Result{
 		ID:       "config.override",
-		Category: "configuration",
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary:  "override applied",
 		Details: []Detail{
@@ -117,9 +120,9 @@ func checkConfigValidate(env *Env) Result {
 	if env.Config == nil {
 		return Result{
 			ID:       "config.validate",
-			Category: "configuration",
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
-			Summary:  "skipped (config did not load)",
+			Summary:  summarySkippedNoConfig,
 		}
 	}
 
@@ -129,7 +132,7 @@ func checkConfigValidate(env *Env) Result {
 
 	return Result{
 		ID:       "config.validate",
-		Category: "configuration",
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary:  "schema ok",
 	}
@@ -139,7 +142,7 @@ func checkConfigValidate(env *Env) Result {
 func invalidConfigResult(err error) Result {
 	return Result{
 		ID:       "config.validate",
-		Category: "configuration",
+		Category: CategoryConfiguration,
 		Status:   StatusFail,
 		Summary:  "schema validation failed",
 		Details: []Detail{
@@ -154,9 +157,9 @@ func checkConfigSettings(env *Env) Result {
 	if env.Config == nil {
 		return Result{
 			ID:       "config.settings",
-			Category: "configuration",
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
-			Summary:  "skipped (config did not load)",
+			Summary:  summarySkippedNoConfig,
 		}
 	}
 
@@ -164,7 +167,7 @@ func checkConfigSettings(env *Env) Result {
 
 	return Result{
 		ID:       "config.settings",
-		Category: "configuration",
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary: fmt.Sprintf("workers=%d retry=%d backoff=%s",
 			cfg.Concurrency.Workers, cfg.Retry.Attempts, cfg.Retry.Backoff),
@@ -178,4 +181,57 @@ func checkConfigSettings(env *Env) Result {
 			{Key: "logging format", Value: cfg.Logging.Format},
 		},
 	}
+}
+
+// checkConfigAPI reports whether the built-in HTTP API is configured
+// (schema validation already rejects a listen address without a token or off the loopback interface,
+// so a config that loaded is either silent about the server or fully valid)
+func checkConfigAPI(env *Env) Result {
+	if env.Config == nil {
+		return Result{
+			ID:       "config.api",
+			Category: CategoryConfiguration,
+			Status:   StatusIdle,
+			Summary:  summarySkippedNoConfig,
+		}
+	}
+
+	listen := env.Config.ServerListen()
+	if listen == "" {
+		return Result{
+			ID:       "config.api",
+			Category: CategoryConfiguration,
+			Status:   StatusIdle,
+			Summary:  "not configured (no REST API, and `fuku run` cannot detect a second instance)",
+			Remediation: "set server.listen and server.auth.token in fuku.override.yaml " +
+				"so the token stays out of the committed config",
+		}
+	}
+
+	details := []Detail{
+		{Key: "listen", Value: listen},
+		{Key: "auth token", Value: "set"},
+	}
+
+	if ports := portRange(listen); ports != "" {
+		details = append(details, Detail{Key: "port fallback", Value: ports})
+	}
+
+	return Result{
+		ID:       "config.api",
+		Category: CategoryConfiguration,
+		Status:   StatusOK,
+		Summary:  "enabled on " + listen,
+		Details:  details,
+	}
+}
+
+// portRange describes the ports fuku may bind when the configured one is taken
+func portRange(listen string) string {
+	_, port, err := instance.SplitListen(listen)
+	if err != nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%d-%d", port, port+config.APIPortRetries-1)
 }

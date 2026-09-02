@@ -21,6 +21,7 @@ export function getPluginsNav(base: string): NavItem[] {
   return [
     { label: "Overview", href: `${base}plugins/` },
     { label: "JetBrains", href: `${base}plugins/jetbrains/` },
+    { label: "AI agents", href: `${base}plugins/agents/` },
   ];
 }
 

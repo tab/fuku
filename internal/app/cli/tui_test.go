@@ -238,7 +238,8 @@ func Test_Execute_LogsMode(t *testing.T) {
 			}
 
 			ctx := t.Context()
-			mockLogsScreen.EXPECT().Run(ctx, tt.profile, tt.services).Return(0)
+			options := logs.StreamOptions{Profile: tt.profile, Services: tt.services}
+			mockLogsScreen.EXPECT().Run(ctx, options).Return(0)
 
 			exitCode, err := tu.Execute(ctx)
 

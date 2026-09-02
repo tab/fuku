@@ -119,7 +119,7 @@ func Test_Client_Subscribe(t *testing.T) {
 
 			defer c.Close()
 
-			err = c.Subscribe(tt.services)
+			err = c.Subscribe(SubscribeOptions{Services: tt.services})
 			require.NoError(t, err)
 		})
 	}
@@ -140,7 +140,7 @@ func Test_Client_Subscribe_ClosedConnection(t *testing.T) {
 	err = c.Close()
 	require.NoError(t, err)
 
-	err = c.Subscribe([]string{"api"})
+	err = c.Subscribe(SubscribeOptions{Services: []string{"api"}})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errors.ErrFailedToWriteSocket))
 }
@@ -159,7 +159,7 @@ func Test_Client_Stream_ReceivesLogMessages(t *testing.T) {
 
 	defer c.Close()
 
-	err = c.Subscribe([]string{})
+	err = c.Subscribe(SubscribeOptions{Services: []string{}})
 	require.NoError(t, err)
 
 	handler := &testHandler{}
@@ -210,7 +210,7 @@ func Test_Client_Stream_ContextCancellation(t *testing.T) {
 
 	defer c.Close()
 
-	err = c.Subscribe([]string{})
+	err = c.Subscribe(SubscribeOptions{Services: []string{}})
 	require.NoError(t, err)
 
 	handler := &testHandler{}
@@ -351,7 +351,7 @@ func Test_Client_Stream_ReceivesStatusMessage(t *testing.T) {
 
 	defer c.Close()
 
-	err = c.Subscribe([]string{})
+	err = c.Subscribe(SubscribeOptions{Services: []string{}})
 	require.NoError(t, err)
 
 	handler := &testHandler{}

@@ -32,10 +32,10 @@ const nav = getDocsNav(base);
 
   <ul>
     <li><strong>Environment</strong> &mdash; OS/arch, Go runtime, and whether the <code>fuku</code> binary resolves consistently.</li>
-    <li><strong>Configuration</strong> &mdash; the config file was found and parsed, override-file merge status, schema validation, and resolved settings.</li>
+    <li><strong>Configuration</strong> &mdash; the config file was found and parsed, override-file merge status, schema validation, resolved settings, and whether the built-in HTTP API is configured.</li>
     <li><strong>Services</strong> &mdash; per-service directories, <code>.env</code> files, and readiness configuration.</li>
     <li><strong>Topology</strong> &mdash; resolved tier order and whether the active profile resolves to a non-empty service list.</li>
-    <li><strong>Runtime</strong> &mdash; other running fuku instances, stale sockets, and readiness ports already bound by another process.</li>
+    <li><strong>Runtime</strong> &mdash; other running fuku instances and the project each one serves, the loopback address this project's instance actually bound, stale sockets, and readiness ports already bound by another process.</li>
   </ul>
 
   <CodeTerminal code={`# Full report for the default profile

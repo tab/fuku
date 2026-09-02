@@ -26,7 +26,7 @@ func environmentSection(_ context.Context, _ *Env) Section {
 func checkSystem() Result {
 	return Result{
 		ID:       "system",
-		Category: "environment",
+		Category: CategoryEnvironment,
 		Status:   StatusOK,
 		Summary:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 		Details: []Detail{
@@ -42,7 +42,7 @@ func checkSystem() Result {
 func checkRuntime() Result {
 	return Result{
 		ID:       "runtime",
-		Category: "environment",
+		Category: CategoryEnvironment,
 		Status:   StatusOK,
 		Summary:  runtime.Version(),
 		Details: []Detail{
@@ -59,7 +59,7 @@ func checkInstall() Result {
 	if exeErr != nil {
 		return Result{
 			ID:          "install",
-			Category:    "environment",
+			Category:    CategoryEnvironment,
 			Status:      StatusWarn,
 			Summary:     "could not resolve fuku executable",
 			Remediation: "ensure fuku binary is reachable on PATH",
@@ -76,7 +76,7 @@ func checkInstall() Result {
 
 	return Result{
 		ID:       "install",
-		Category: "environment",
+		Category: CategoryEnvironment,
 		Status:   StatusOK,
 		Summary:  "installation looks consistent",
 		Details:  details,

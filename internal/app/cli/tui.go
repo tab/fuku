@@ -170,5 +170,13 @@ func (t *tui) runWithUI(ctx context.Context, profile string) (int, error) {
 
 // handleLogs streams logs from a running fuku instance
 func (t *tui) handleLogs(ctx context.Context) (int, error) {
-	return t.streamer.Run(ctx, t.cmd.Profile, t.cmd.Services), nil
+	options := logs.StreamOptions{
+		Profile:  t.cmd.Profile,
+		Services: t.cmd.Services,
+		Tail:     t.cmd.Tail,
+		Since:    t.cmd.Since,
+		NoFollow: t.cmd.NoFollow,
+	}
+
+	return t.streamer.Run(ctx, options), nil
 }

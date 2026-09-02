@@ -52,6 +52,20 @@ func (mr *MockHubMockRecorder) Broadcast(service, message any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Broadcast", reflect.TypeOf((*MockHub)(nil).Broadcast), service, message)
 }
 
+// History mocks base method.
+func (m *MockHub) History(query HistoryQuery) []LogMessage {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "History", query)
+	ret0, _ := ret[0].([]LogMessage)
+	return ret0
+}
+
+// History indicates an expected call of History.
+func (mr *MockHubMockRecorder) History(query any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "History", reflect.TypeOf((*MockHub)(nil).History), query)
+}
+
 // Register mocks base method.
 func (m *MockHub) Register(conn *ClientConn) {
 	m.ctrl.T.Helper()

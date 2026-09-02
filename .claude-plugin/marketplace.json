@@ -1,0 +1,15 @@
+{
+  "name": "fuku",
+  "owner": {
+    "name": "tab"
+  },
+  "description": "Use fuku with AI agents to configure, run and debug local services",
+  "plugins": [
+    {
+      "name": "fuku",
+      "source": "./plugins/agents",
+      "description": "Configure, run and debug local services with fuku from Claude Code",
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -3,6 +3,18 @@ package doctor
 
 import "time"
 
+// Check categories grouping results in the report
+const (
+	CategoryConfiguration = "configuration"
+	CategoryEnvironment   = "environment"
+	CategoryRuntime       = "runtime"
+	CategoryServices      = "services"
+	CategoryTopology      = "topology"
+)
+
+// summarySkippedNoConfig is the summary every check reports when the config did not load
+const summarySkippedNoConfig = "skipped (config did not load)"
+
 // Status is the result status of a single check
 type Status int
 

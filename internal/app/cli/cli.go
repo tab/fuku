@@ -30,6 +30,8 @@ const (
   fuku logs [service...]          Stream logs from running services
   fuku --logs                     Same as above (--logs, -l, logs, l)
   fuku logs --profile <name> [service...] Stream logs from specific profile
+  fuku logs --tail <n> --no-follow Print the newest buffered lines and exit
+  fuku logs --since <duration> --no-follow Print lines buffered within the duration and exit
 
   fuku doctor [profile]           Diagnose configuration, environment, and runtime issues
   fuku doctor --summary           Print a compact one-line-per-check report
@@ -49,6 +51,8 @@ Examples:
   fuku stop backend               Stop backend services
   fuku logs                       Stream all logs from running fuku
   fuku logs api auth              Stream logs from api and auth services
+  fuku logs --tail 50 --no-follow api  Print the last 50 api lines and exit
+  fuku logs --since 5m --no-follow     Print the last 5 minutes and exit
   fuku -l                         Stream logs using flag
   fuku -c custom.yaml run core    Use custom config file (no override merging)
   fuku --config /path/fuku.yaml   Use config from another directory (no override merging)`

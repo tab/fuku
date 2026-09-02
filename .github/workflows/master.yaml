@@ -89,6 +89,15 @@ jobs:
         run: make build
       - name: Run e2e tests
         run: make test:e2e
+  agents-plugin:
+    name: AI Agents Plugin
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test
+        run: make test:agents-plugin
   coverage:
     name: Codecov
     needs: [linter, vet, static-check, tests, e2e]

@@ -83,7 +83,7 @@ jobs:
       - name: Run tests
         run: make test:e2e
   plugin:
-    name: Plugin
+    name: JetBrains Plugin
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -98,8 +98,16 @@ jobs:
         working-directory: plugins/jetbrains
         run: ./gradlew ktlintCheck
       - name: Build
-        working-directory: plugins/jetbrains
-        run: ./gradlew buildPlugin
+        run: make build:ide-plugin
+  agents-plugin:
+    name: AI Agents Plugin
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test
+        run: make test:agents-plugin
   coverage:
     name: Codecov
     needs: [linter, vet, static-check, tests, e2e]

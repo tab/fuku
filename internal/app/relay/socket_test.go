@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bufio"
 	"net"
 	"os"
 	"path/filepath"
@@ -256,4 +257,98 @@ func Test_Cleanup_MixedSockets(t *testing.T) {
 
 	_, err = os.Stat(regularPath)
 	require.NoError(t, err)
+}
+
+// serveBanner consumes one subscribe request before answering, so a test never races the write
+// (an empty banner closes the connection without answering at all)
+func serveBanner(listener net.Listener, banner string) {
+	conn, err := listener.Accept()
+	if err != nil {
+		return
+	}
+
+	defer conn.Close()
+
+	if _, err := bufio.NewReader(conn).ReadBytes('\n'); err != nil {
+		return
+	}
+
+	if banner == "" {
+		return
+	}
+
+	conn.Write([]byte(banner))
+}
+
+func Test_Identify(t *testing.T) {
+	srv := newTestServer(t)
+	profile := uniqueProfile(t)
+
+	cancel := startTestServer(t, srv, profile, []string{"api", "web"})
+	defer srv.Stop()
+	defer cancel()
+
+	status, err := Identify(t.Context(), srv.SocketPath())
+
+	require.NoError(t, err)
+	assert.Equal(t, MessageStatus, status.Type)
+	assert.Equal(t, profile, status.Profile)
+	assert.Equal(t, testIdentity.Fingerprint, status.Project)
+	assert.Equal(t, []string{"api", "web"}, status.Services)
+}
+
+func Test_Identify_DoesNotHoldTheConnectionOpen(t *testing.T) {
+	srv := newTestServer(t)
+
+	cancel := startTestServer(t, srv, uniqueProfile(t), []string{"api"})
+	defer srv.Stop()
+	defer cancel()
+
+	for range 3 {
+		_, err := Identify(t.Context(), srv.SocketPath())
+		require.NoError(t, err)
+	}
+}
+
+func Test_Identify_Errors(t *testing.T) {
+	t.Run("socket does not exist", func(t *testing.T) {
+		_, err := Identify(t.Context(), SocketPathForProfile(config.SocketDir, uniqueProfile(t)))
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, errors.ErrFailedToConnectSocket))
+	})
+
+	t.Run("listener closes without a banner", func(t *testing.T) {
+		socketPath := SocketPathForProfile(config.SocketDir, uniqueProfile(t))
+
+		listener, err := net.Listen("unix", socketPath)
+		require.NoError(t, err)
+
+		defer listener.Close()
+		defer os.Remove(socketPath)
+
+		go serveBanner(listener, "")
+
+		_, err = Identify(t.Context(), socketPath)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, errors.ErrFailedToReadSocket))
+	})
+
+	t.Run("banner is not valid JSON", func(t *testing.T) {
+		socketPath := SocketPathForProfile(config.SocketDir, uniqueProfile(t))
+
+		listener, err := net.Listen("unix", socketPath)
+		require.NoError(t, err)
+
+		defer listener.Close()
+		defer os.Remove(socketPath)
+
+		go serveBanner(listener, "not json\n")
+
+		_, err = Identify(t.Context(), socketPath)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, errors.ErrFailedToReadSocket))
+	})
 }

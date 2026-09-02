@@ -41,6 +41,8 @@ var (
 	ErrAPINotRunning      = errors.New("service is not running")
 	ErrAPINotRestartable  = errors.New("service cannot be restarted")
 	ErrAPINotAccepting    = errors.New("instance is not accepting actions")
+	ErrAPIInvalidTail     = errors.New("tail must be a positive whole number")
+	ErrAPIInvalidSince    = errors.New("since must be a duration such as 30s or 5m")
 
 	ErrInvalidCommand       = errors.New("command must not be whitespace-only when provided")
 	ErrWatchIncludeRequired = errors.New("watch configuration requires include field")
@@ -68,6 +70,8 @@ var (
 	ErrFailedToCleanupSocket    = errors.New("failed to cleanup stale socket")
 	ErrSocketAlreadyInUse       = errors.New("socket is already in use")
 	ErrSocketSearchFailed       = errors.New("failed to search for sockets")
+	ErrFailedToResolveProject   = errors.New("failed to resolve the project directory")
+	ErrInstanceAlreadyRunning   = errors.New("fuku is already running for this project")
 	ErrNoInstanceRunning        = errors.New("no fuku instance is running")
 	ErrMultipleInstancesRunning = errors.New("multiple fuku instances running")
 	ErrInstanceNotFound         = errors.New("no fuku instance running with profile")

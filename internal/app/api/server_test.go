@@ -12,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/instance"
 	"fuku/internal/app/registry"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -28,7 +29,7 @@ func Test_NewServer(t *testing.T) {
 	cfg.Server.Listen = "127.0.0.1:9876"
 	cfg.Server.Auth.Token = "test"
 
-	s := NewServer(cfg, nil, nil, mockLog)
+	s := NewServer(cfg, nil, nil, nil, instance.Identity{}, mockLog)
 
 	assert.NotNil(t, s)
 	assert.Equal(t, cfg, s.cfg)
@@ -52,7 +53,7 @@ func Test_Server_StartAndShutdown(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Server.Listen = "127.0.0.1:0"
 
-	s := NewServer(cfg, mockStore, mockBus, mockLog)
+	s := NewServer(cfg, mockStore, mockBus, nil, instance.Identity{}, mockLog)
 	s.Start()
 
 	require.NotNil(t, s.httpServer)
@@ -78,7 +79,7 @@ func Test_Server_Shutdown_NilServer(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().WithComponent("API").Return(mockLog)
 
-	s := NewServer(config.DefaultConfig(), nil, nil, mockLog)
+	s := NewServer(config.DefaultConfig(), nil, nil, nil, instance.Identity{}, mockLog)
 
 	s.Shutdown(context.Background())
 }
@@ -97,7 +98,7 @@ func Test_Server_Start_PortBusy(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Server.Listen = "127.0.0.1:1"
 
-	s := NewServer(cfg, mockStore, mockBus, mockLog)
+	s := NewServer(cfg, mockStore, mockBus, nil, instance.Identity{}, mockLog)
 	s.Start()
 
 	assert.Nil(t, s.httpServer)
@@ -133,7 +134,7 @@ func Test_Server_Start_InvalidListen(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.Server.Listen = tt.listen
 
-			s := NewServer(cfg, mockStore, mockBus, mockLog)
+			s := NewServer(cfg, mockStore, mockBus, nil, instance.Identity{}, mockLog)
 			s.Start()
 
 			assert.Nil(t, s.httpServer)

@@ -101,7 +101,101 @@ func Test_Log_RenderBanner(t *testing.T) {
 
 			var buf bytes.Buffer
 
-			log.RenderBanner(&buf, 80, tt.status, tt.subscribed)
+			log.RenderBanner(&buf, BannerOptions{
+				Width:      80,
+				Status:     tt.status,
+				Subscribed: tt.subscribed,
+				Following:  true,
+			})
+
+			tt.expect(t, buf.String())
+		})
+	}
+}
+
+func Test_Log_RenderBanner_ReportsAProjectMismatch(t *testing.T) {
+	tests := []struct {
+		name    string
+		local   string
+		served  string
+		warning bool
+	}{
+		{name: "same project", local: "aaaaaaaaaaaaaaaa", served: "aaaaaaaaaaaaaaaa", warning: false},
+		{name: "different project", local: "aaaaaaaaaaaaaaaa", served: "bbbbbbbbbbbbbbbb", warning: true},
+		{name: "instance does not report a project", local: "aaaaaaaaaaaaaaaa", served: "", warning: false},
+		{name: "local project is unknown", local: "", served: "bbbbbbbbbbbbbbbb", warning: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := NewLog(false)
+
+			var buf bytes.Buffer
+
+			log.RenderBanner(&buf, BannerOptions{
+				Width: 80,
+				Status: relay.StatusMessage{
+					Profile:  "default",
+					Version:  "1.0.0",
+					Project:  tt.served,
+					Services: []string{"api"},
+				},
+				Project:   tt.local,
+				Following: true,
+			})
+
+			output := buf.String()
+
+			if !tt.warning {
+				assert.NotContains(t, output, "serves a different project")
+
+				return
+			}
+
+			assert.Contains(t, output, "serves a different project")
+		})
+	}
+}
+
+func Test_Log_RenderBanner_HidesTheExitHintWhenNotFollowing(t *testing.T) {
+	tests := []struct {
+		name      string
+		following bool
+		expect    func(t *testing.T, output string)
+	}{
+		{
+			name:      "following shows how to exit",
+			following: true,
+			expect: func(t *testing.T, output string) {
+				t.Helper()
+
+				assert.Contains(t, output, "ctrl+c")
+			},
+		},
+		{
+			name:      "a bounded read has already exited",
+			following: false,
+			expect: func(t *testing.T, output string) {
+				t.Helper()
+
+				assert.NotContains(t, output, "ctrl+c")
+				assert.Contains(t, output, "minimal")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := NewLog(false)
+
+			var buf bytes.Buffer
+
+			log.RenderBanner(&buf, BannerOptions{
+				Width:      80,
+				Status:     relay.StatusMessage{Profile: "minimal", Version: "1.0.0", Services: []string{"api"}},
+				Subscribed: []string{"api"},
+				Following:  tt.following,
+			})
 
 			tt.expect(t, buf.String())
 		})

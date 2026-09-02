@@ -59,4 +59,4 @@ concurrency:
   workers: 5
 
 logging:
-  level: debug
+  level: info

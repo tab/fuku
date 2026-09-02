@@ -69,6 +69,9 @@ const (
 	SocketWriteTimeout    = 5 * time.Second
 	SocketLogsBufferSize  = 1000
 	SocketLogsHistorySize = 5000
+
+	// APILogsDefaultTail bounds a log read that does not ask for an explicit tail
+	APILogsDefaultTail = 100
 )
 
 // Watch settings
@@ -82,6 +85,11 @@ const (
 	APIReadHeaderTimeout = 5 * time.Second
 	StoreSampleInterval  = 2 * time.Second
 	StoreSampleTimeout   = 200 * time.Millisecond
+
+	// APIProbeTimeout bounds one liveness probe while looking for a running instance
+	APIProbeTimeout = 250 * time.Millisecond
+	// APIProbeBodyLimit bounds how much of a liveness response is read while identifying an instance
+	APIProbeBodyLimit = 4096
 )
 
 // Loopback hostnames (not available as stdlib constants)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"fuku/internal/app/errors"
 )
@@ -20,9 +21,17 @@ type Handler interface {
 // Client connects to a running fuku instance and streams logs
 type Client interface {
 	Connect(socketPath string) error
-	Subscribe(services []string) error
+	Subscribe(options SubscribeOptions) error
 	Stream(ctx context.Context, handler Handler) error
 	Close() error
+}
+
+// SubscribeOptions selects the services and the buffered history a client wants
+type SubscribeOptions struct {
+	Services []string
+	Tail     int
+	Since    time.Duration
+	NoFollow bool
 }
 
 // client implements the Client interface
@@ -48,10 +57,13 @@ func (c *client) Connect(socketPath string) error {
 }
 
 // Subscribe sends subscription request for the specified services
-func (c *client) Subscribe(services []string) error {
+func (c *client) Subscribe(options SubscribeOptions) error {
 	req := SubscribeRequest{
 		Type:     MessageSubscribe,
-		Services: services,
+		Services: options.Services,
+		Tail:     options.Tail,
+		Since:    options.Since,
+		NoFollow: options.NoFollow,
 	}
 
 	data, err := json.Marshal(req)

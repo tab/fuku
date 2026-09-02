@@ -1,11 +1,15 @@
 package relay
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"fuku/internal/app/errors"
 	"fuku/internal/config"
@@ -84,4 +88,43 @@ func Cleanup(socketDir string) error {
 	}
 
 	return nil
+}
+
+// Identify reads the status banner a running instance sends, without following its log stream
+// (the server answers a subscribe with the banner, so the shortest possible subscription is used)
+func Identify(ctx context.Context, socketPath string) (StatusMessage, error) {
+	var dialer net.Dialer
+
+	conn, err := dialer.DialContext(ctx, "unix", socketPath)
+	if err != nil {
+		return StatusMessage{}, fmt.Errorf("%w: %w", errors.ErrFailedToConnectSocket, err)
+	}
+
+	defer conn.Close()
+
+	if err := conn.SetDeadline(time.Now().Add(config.SocketDialTimeout)); err != nil {
+		return StatusMessage{}, fmt.Errorf("%w: %w", errors.ErrFailedToReadSocket, err)
+	}
+
+	request, err := json.Marshal(SubscribeRequest{Type: MessageSubscribe, Tail: 1, NoFollow: true})
+	if err != nil {
+		return StatusMessage{}, fmt.Errorf("%w: %w", errors.ErrFailedToMarshalMessage, err)
+	}
+
+	if _, err := conn.Write(append(request, '\n')); err != nil {
+		return StatusMessage{}, fmt.Errorf("%w: %w", errors.ErrFailedToWriteSocket, err)
+	}
+
+	line, err := bufio.NewReader(conn).ReadBytes('\n')
+	if err != nil {
+		return StatusMessage{}, fmt.Errorf("%w: %w", errors.ErrFailedToReadSocket, err)
+	}
+
+	var status StatusMessage
+
+	if err := json.Unmarshal(line, &status); err != nil {
+		return StatusMessage{}, fmt.Errorf("%w: %w", errors.ErrFailedToReadSocket, err)
+	}
+
+	return status, nil
 }
