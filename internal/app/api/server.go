@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"fuku/internal/app/bus"
+	"fuku/internal/app/instance"
 	"fuku/internal/app/registry"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
@@ -23,6 +24,7 @@ type Server struct {
 	cfg        *config.Config
 	bus        bus.Bus
 	store      registry.Store
+	identity   instance.Identity
 	httpServer *http.Server
 	address    atomic.Value
 	log        logger.Logger
@@ -36,18 +38,19 @@ func (s *Server) Address() string {
 }
 
 // NewServer creates a new API server
-func NewServer(cfg *config.Config, store registry.Store, b bus.Bus, log logger.Logger) *Server {
+func NewServer(cfg *config.Config, store registry.Store, b bus.Bus, identity instance.Identity, log logger.Logger) *Server {
 	return &Server{
-		cfg:   cfg,
-		store: store,
-		bus:   b,
-		log:   log.WithComponent("API"),
+		cfg:      cfg,
+		store:    store,
+		bus:      b,
+		identity: identity,
+		log:      log.WithComponent("API"),
 	}
 }
 
 // Start binds the HTTP server immediately with port retry
 func (s *Server) Start() {
-	h := &handler{store: s.store, bus: s.bus}
+	h := &handler{store: s.store, bus: s.bus, identity: s.identity}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/live", h.handleLive)

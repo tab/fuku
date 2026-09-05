@@ -133,21 +133,35 @@ func Test_StatusMessage_MarshalUnmarshal(t *testing.T) {
 		{
 			name: "with services",
 			message: StatusMessage{
-				Type:     MessageStatus,
-				Version:  "0.17.0",
-				Profile:  "default",
-				Services: []string{"api", "web"},
+				Type:        MessageStatus,
+				Version:     "0.17.0",
+				Instance:    "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+				Fingerprint: "3f2a9c1d8b4e6072",
+				Profile:     "default",
+				Services:    []string{"api", "web"},
 			},
-			expected: `{"type":"status","version":"0.17.0","profile":"default","services":["api","web"]}`,
+			expected: `{"type":"status","version":"0.17.0","instance":"1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24","fingerprint":"3f2a9c1d8b4e6072","profile":"default","services":["api","web"]}`,
 		},
 		{
 			name: "empty services",
 			message: StatusMessage{
-				Type:    MessageStatus,
-				Version: "0.17.0",
-				Profile: "core",
+				Type:        MessageStatus,
+				Version:     "0.17.0",
+				Instance:    "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+				Fingerprint: "3f2a9c1d8b4e6072",
+				Profile:     "core",
 			},
-			expected: `{"type":"status","version":"0.17.0","profile":"core","services":null}`,
+			expected: `{"type":"status","version":"0.17.0","instance":"1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24","fingerprint":"3f2a9c1d8b4e6072","profile":"core","services":null}`,
+		},
+		{
+			name: "empty identity",
+			message: StatusMessage{
+				Type:     MessageStatus,
+				Version:  "0.17.0",
+				Profile:  "core",
+				Services: []string{"api"},
+			},
+			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"]}`,
 		},
 	}
 

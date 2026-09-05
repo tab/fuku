@@ -13,6 +13,7 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -29,6 +30,8 @@ type Server struct {
 	cancelSub   context.CancelFunc
 	cancel      context.CancelFunc
 	socketPath  string
+	instanceID  string
+	fingerprint string
 	profile     string
 	services    []string
 	bufferSize  int
@@ -42,9 +45,11 @@ type Server struct {
 }
 
 // NewServer creates a new log streaming server
-func NewServer(cfg *config.Config, b bus.Bus, log logger.Logger) *Server {
+func NewServer(cfg *config.Config, b bus.Bus, identity instance.Identity, log logger.Logger) *Server {
 	return &Server{
 		bus:         b,
+		instanceID:  identity.ID,
+		fingerprint: identity.Fingerprint,
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log.WithComponent("HUB")),
@@ -294,10 +299,12 @@ func (s *Server) writePump(ctx context.Context, conn net.Conn, client *ClientCon
 
 func (s *Server) hello(conn net.Conn, clientID string) {
 	status := StatusMessage{
-		Type:     MessageStatus,
-		Version:  config.Version,
-		Profile:  s.profile,
-		Services: s.services,
+		Type:        MessageStatus,
+		Version:     config.Version,
+		Instance:    s.instanceID,
+		Fingerprint: s.fingerprint,
+		Profile:     s.profile,
+		Services:    s.services,
 	}
 
 	data, err := json.Marshal(status)

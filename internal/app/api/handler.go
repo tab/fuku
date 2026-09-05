@@ -7,18 +7,22 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/app/registry"
 	"fuku/internal/config"
 )
 
 type handler struct {
-	bus   bus.Bus
-	store registry.Store
+	bus      bus.Bus
+	store    registry.Store
+	identity instance.Identity
 }
 
 // StatusSerializer serializes the fuku instance status
 type StatusSerializer struct {
 	Version  string                 `json:"version"`
+	Instance string                 `json:"instance"`
+	Project  string                 `json:"project"`
 	Profile  string                 `json:"profile"`
 	Phase    string                 `json:"phase"`
 	Uptime   int64                  `json:"uptime"`
@@ -81,12 +85,26 @@ type ProbeSerializer struct {
 	Status string `json:"status"`
 }
 
+// LiveSerializer serializes the liveness probe, naming the product, the instance and the project it
+// serves (the project appears as a fingerprint because this endpoint is unauthenticated)
+type LiveSerializer struct {
+	Status      string `json:"status"`
+	Product     string `json:"product"`
+	Instance    string `json:"instance"`
+	Fingerprint string `json:"fingerprint"`
+}
+
 func (h *handler) handleLive(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	//nolint:errcheck // best-effort JSON encoding
-	json.NewEncoder(w).Encode(ProbeSerializer{Status: "alive"})
+	json.NewEncoder(w).Encode(LiveSerializer{
+		Status:      "alive",
+		Product:     config.AppName,
+		Instance:    h.identity.ID,
+		Fingerprint: h.identity.Fingerprint,
+	})
 }
 
 func (h *handler) handleReady(w http.ResponseWriter, _ *http.Request) {
@@ -115,10 +133,12 @@ func (h *handler) handleStatus(w http.ResponseWriter, _ *http.Request) {
 
 	//nolint:errcheck // best-effort JSON encoding
 	json.NewEncoder(w).Encode(StatusSerializer{
-		Version: config.Version,
-		Profile: h.store.Profile(),
-		Phase:   h.store.Phase(),
-		Uptime:  int64(h.store.Uptime().Seconds()),
+		Version:  config.Version,
+		Instance: h.identity.ID,
+		Project:  h.identity.Project,
+		Profile:  h.store.Profile(),
+		Phase:    h.store.Phase(),
+		Uptime:   int64(h.store.Uptime().Seconds()),
 		Services: ServiceCountSerializer{
 			Total:      c.Total,
 			Pending:    c.Pending,

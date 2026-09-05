@@ -11,6 +11,7 @@ import (
 	"fuku/internal/app/bus"
 	"io"
 
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -48,7 +49,13 @@ func Test_startServer(t *testing.T) {
 	b := bus.NoOp()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	server := NewServer(cfg, b, log)
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
+
+	server := NewServer(cfg, b, identity, log)
 
 	lc := &testLifecycle{}
 	ctx := context.Background()

@@ -64,7 +64,11 @@ func runApp() (exitCode int) {
 		cfg.SentryDSN = sentryDSN
 	}
 
-	application := createApp(cfg, topology, cmd)
+	application := createApp(appOptions{
+		cfg:      cfg,
+		topology: topology,
+		cmd:      cmd,
+	})
 	application.Run()
 
 	return 0
@@ -75,21 +79,28 @@ func createAppWithoutConfig(cmd *cli.Options) *cli.CLI {
 	return cli.NewCLI(cmd)
 }
 
-// createApp creates the FX application with the given config and topology
-func createApp(cfg *config.Config, topology *config.Topology, cmd *cli.Options) *fx.App {
+// appOptions holds the inputs createApp supplies to the FX container
+type appOptions struct {
+	cfg      *config.Config
+	topology *config.Topology
+	cmd      *cli.Options
+}
+
+// createApp creates the FX application with the given config, topology and instance identity
+func createApp(options appOptions) *fx.App {
 	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 	log := render.NewLog(isDark)
-	writer := render.NewWriter(cfg, log, os.Stdout)
+	writer := render.NewWriter(options.cfg, log, os.Stdout)
 
-	if cmd.NoUI || cmd.Type == cli.CommandLogs {
+	if options.cmd.NoUI || options.cmd.Type == cli.CommandLogs {
 		writer.SetEnabled(true)
 	}
 
 	return fx.New(
-		fx.WithLogger(createFxLogger(cfg)),
-		fx.Supply(cfg, topology, log, cmd, writer),
+		fx.WithLogger(createFxLogger(options.cfg)),
+		fx.Supply(options.cfg, options.topology, log, options.cmd, writer),
 		fx.Provide(func() logger.Logger {
-			return logger.NewLoggerWithOutput(cfg, writer)
+			return logger.NewLoggerWithOutput(options.cfg, writer)
 		}),
 		fx.Provide(logger.NewEventLogger),
 		sentry.Module,
