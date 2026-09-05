@@ -11,6 +11,8 @@ function esc(s: string): string {
 
 const statusJson = esc(`{
   "version": "0.21.0",
+  "instance": "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+  "project": "/Users/dev/projects/shop",
   "profile": "default",
   "phase": "running",
   "uptime": 3600,
@@ -75,7 +77,12 @@ const restartJson = esc(`{
   "status": "restarting"
 }`);
 
-const liveJson = esc(`{ "status": "alive" }`);
+const liveJson = esc(`{
+  "status": "alive",
+  "product": "fuku",
+  "instance": "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+  "fingerprint": "3f2a9c1d8b4e6072"
+}`);
 const readyJson = esc(`{ "status": "ready" }`);
 const notReadyJson = esc(`{ "status": "not ready" }`);
 
@@ -100,7 +107,7 @@ interface Endpoint {
 const endpoints: Endpoint[] = [
   {
     id: "get-live", method: "GET", path: "/api/v1/live", apiPath: "/api/v1/live",
-    description: "Liveness probe. Returns 200 when the API server is reachable. No authentication required.",
+    description: "Liveness probe. Returns 200 when the API server is reachable, along with the product name, the instance identifier and a fingerprint of the project directory. The identifier is new on every start, and the fingerprint is the first 16 hex characters of the SHA-256 of the path, so a caller that knows its own directory can check for a match without the path being exposed. No authentication required.",
     hasId: false,
     responses: [
       { status: "success", code: "200", body: liveJson },
@@ -117,7 +124,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "get-status", method: "GET", path: "/api/v1/status", apiPath: "/api/v1/status",
-    description: "Returns fuku instance information: version, profile, phase, uptime, and service counts.",
+    description: "Returns fuku instance information: version, instance identifier, project directory, profile, phase, uptime, and service counts.",
     hasId: false,
     responses: [
       { status: "success", code: "200", body: statusJson },

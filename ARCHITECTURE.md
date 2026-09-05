@@ -670,7 +670,7 @@ JSON lines over Unix socket:
 {"type":"subscribe","services":["api","db"]}
 
 // Server → Client (status - sent after subscribe)
-{"type":"status","version":"0.21.0","profile":"default","services":["api","db","web"]}
+{"type":"status","version":"0.21.0","instance":"1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24","fingerprint":"3f2a9c1d8b4e6072","profile":"default","services":["api","db","web"]}
 
 // Server → Client (log message)
 {"type":"log","service":"api","message":"Server started on :8080"}
@@ -726,16 +726,16 @@ Token-authenticated HTTP server bound to loopback. Binds immediately via FX life
 
 **Write path**: Handlers validate state via `Status.IsStartable()`/`IsStoppable()`/`IsRestartable()`, publish commands to bus, return `202 Accepted`. Commands go through the worker pool.
 
-| Endpoint                        | Method  | Auth | Description                                              |
-|---------------------------------|---------|------|----------------------------------------------------------|
-| `/api/v1/live`                  | GET     | No   | Liveness probe, always 200 once server is bound          |
-| `/api/v1/ready`                 | GET     | No   | Readiness probe, 200 after store receives profile data   |
-| `/api/v1/status`                | GET     | Yes  | Instance status, phase, uptime, service counts           |
-| `/api/v1/services`              | GET     | Yes  | All services ordered by tier then name                   |
-| `/api/v1/services/{id}`         | GET     | Yes  | Single service by UUID                                   |
-| `/api/v1/services/{id}/start`   | POST    | Yes  | Start stopped/failed service                             |
-| `/api/v1/services/{id}/stop`    | POST    | Yes  | Stop running service                                     |
-| `/api/v1/services/{id}/restart` | POST    | Yes  | Restart running/stopped/failed service                   |
+| Endpoint                        | Method  | Auth | Description                                                        |
+|---------------------------------|---------|------|--------------------------------------------------------------------|
+| `/api/v1/live`                  | GET     | No   | Liveness probe, 200 with product, instance and project fingerprint |
+| `/api/v1/ready`                 | GET     | No   | Readiness probe, 200 after store receives profile data             |
+| `/api/v1/status`                | GET     | Yes  | Instance, project path, phase, uptime, service counts              |
+| `/api/v1/services`              | GET     | Yes  | All services ordered by tier then name                             |
+| `/api/v1/services/{id}`         | GET     | Yes  | Single service by UUID                                             |
+| `/api/v1/services/{id}/start`   | POST    | Yes  | Start stopped/failed service                                       |
+| `/api/v1/services/{id}/stop`    | POST    | Yes  | Stop running service                                               |
+| `/api/v1/services/{id}/restart` | POST    | Yes  | Restart running/stopped/failed service                             |
 
 ### TUI Integration
 

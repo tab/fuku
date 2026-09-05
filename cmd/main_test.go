@@ -204,8 +204,13 @@ func Test_CreateApp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := createApp(tt.cfg, topology, tt.cmd)
+			app := createApp(appOptions{
+				cfg:      tt.cfg,
+				topology: topology,
+				cmd:      tt.cmd,
+			})
 			assert.NotNil(t, app)
+			require.NoError(t, app.Err())
 		})
 	}
 }

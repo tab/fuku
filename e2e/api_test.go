@@ -1,12 +1,16 @@
 package e2e
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -336,6 +340,41 @@ func Test_API_LiveProbe(t *testing.T) {
 
 	body := apiJSON(t, resp)
 	assert.Equal(t, "alive", body["status"])
+}
+
+func Test_API_InstanceIdentity(t *testing.T) {
+	runner := startAPIRunner(t)
+	defer runner.Stop()
+
+	//nolint:bodyclose // closed by apiJSON
+	liveResp := apiRequest(t, http.MethodGet, "/api/v1/live", "")
+	live := apiJSON(t, liveResp)
+
+	assert.Equal(t, "alive", live["status"])
+	assert.Equal(t, "fuku", live["product"])
+
+	id, ok := live["instance"].(string)
+	require.True(t, ok, "/live must report an instance identifier")
+
+	_, err := uuid.Parse(id)
+	require.NoError(t, err, "instance %q must be a UUID", id)
+
+	fingerprint, ok := live["fingerprint"].(string)
+	require.True(t, ok, "/live must report a project fingerprint")
+	assert.Regexp(t, `^[0-9a-f]{16}$`, fingerprint)
+
+	//nolint:bodyclose // closed by apiJSON
+	statusResp := apiRequest(t, http.MethodGet, "/api/v1/status", apiToken)
+	status := apiJSON(t, statusResp)
+
+	assert.Equal(t, id, status["instance"], "/live and /status must report the same instance")
+
+	project, ok := status["project"].(string)
+	require.True(t, ok, "/status must report the project directory")
+	assert.True(t, filepath.IsAbs(project), "project %q must be absolute", project)
+
+	digest := sha256.Sum256([]byte(project))
+	assert.Equal(t, hex.EncodeToString(digest[:])[:16], fingerprint)
 }
 
 func Test_API_ReadyProbe(t *testing.T) {

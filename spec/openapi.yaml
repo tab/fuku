@@ -143,11 +143,20 @@ components:
 
     Status:
       type: object
-      required: [version, profile, phase, uptime, services]
+      required: [version, instance, project, profile, phase, uptime, services]
       properties:
         version:
           type: string
           example: "0.21.0"
+        instance:
+          type: string
+          format: uuid
+          description: Identifier of this fuku process, new on every start
+          example: 1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24
+        project:
+          type: string
+          description: Canonical absolute path of the project directory this instance serves
+          example: /Users/dev/projects/shop
         profile:
           type: string
           example: default
@@ -167,6 +176,32 @@ components:
         status:
           type: string
           example: alive
+
+    Live:
+      type: object
+      required: [status, product, instance, fingerprint]
+      properties:
+        status:
+          type: string
+          example: alive
+        product:
+          type: string
+          enum: [fuku]
+          description: Always "fuku", so a client probing a loopback port can tell this API from another service answering JSON on the same route
+          example: fuku
+        instance:
+          type: string
+          format: uuid
+          description: Identifier of this fuku process, new on every start
+          example: 1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24
+        fingerprint:
+          type: string
+          pattern: "^[0-9a-f]{16}$"
+          description: >-
+            First 16 hex characters of the SHA-256 of the project directory this instance serves.
+            A caller that knows its own directory can compute the digest and check for a match;
+            the path itself stays on the authenticated /status endpoint.
+          example: 3f2a9c1d8b4e6072
 
     Error:
       type: object
@@ -232,6 +267,7 @@ paths:
   /live:
     get:
       summary: Liveness probe
+      description: Returns 200 with the product name, the instance identifier and the project fingerprint, so an unauthenticated caller can tell whose API it reached
       operationId: getLive
       security: []
       responses:
@@ -240,7 +276,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Probe"
+                $ref: "#/components/schemas/Live"
 
   /ready:
     get:

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -28,10 +29,13 @@ func Test_NewServer(t *testing.T) {
 	cfg.Server.Listen = "127.0.0.1:9876"
 	cfg.Server.Auth.Token = "test"
 
-	s := NewServer(cfg, nil, nil, mockLog)
+	identity := testIdentity()
+
+	s := NewServer(cfg, nil, nil, identity, mockLog)
 
 	assert.NotNil(t, s)
 	assert.Equal(t, cfg, s.cfg)
+	assert.Equal(t, identity, s.identity)
 }
 
 func Test_Server_StartAndShutdown(t *testing.T) {
@@ -52,7 +56,9 @@ func Test_Server_StartAndShutdown(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Server.Listen = "127.0.0.1:0"
 
-	s := NewServer(cfg, mockStore, mockBus, mockLog)
+	identity := testIdentity()
+
+	s := NewServer(cfg, mockStore, mockBus, identity, mockLog)
 	s.Start()
 
 	require.NotNil(t, s.httpServer)
@@ -61,9 +67,16 @@ func Test_Server_StartAndShutdown(t *testing.T) {
 
 	resp, err := http.Get("http://" + s.Address() + "/api/v1/live")
 	require.NoError(t, err)
+
+	var live LiveSerializer
+
+	err = json.NewDecoder(resp.Body).Decode(&live)
 	resp.Body.Close()
+	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, identity.ID, live.Instance)
+	assert.Equal(t, identity.Fingerprint, live.Fingerprint)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -78,7 +91,7 @@ func Test_Server_Shutdown_NilServer(t *testing.T) {
 	mockLog := logger.NewMockLogger(ctrl)
 	mockLog.EXPECT().WithComponent("API").Return(mockLog)
 
-	s := NewServer(config.DefaultConfig(), nil, nil, mockLog)
+	s := NewServer(config.DefaultConfig(), nil, nil, testIdentity(), mockLog)
 
 	s.Shutdown(context.Background())
 }
@@ -97,7 +110,7 @@ func Test_Server_Start_PortBusy(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Server.Listen = "127.0.0.1:1"
 
-	s := NewServer(cfg, mockStore, mockBus, mockLog)
+	s := NewServer(cfg, mockStore, mockBus, testIdentity(), mockLog)
 	s.Start()
 
 	assert.Nil(t, s.httpServer)
@@ -133,7 +146,7 @@ func Test_Server_Start_InvalidListen(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.Server.Listen = tt.listen
 
-			s := NewServer(cfg, mockStore, mockBus, mockLog)
+			s := NewServer(cfg, mockStore, mockBus, testIdentity(), mockLog)
 			s.Start()
 
 			assert.Nil(t, s.httpServer)

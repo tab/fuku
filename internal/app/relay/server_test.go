@@ -17,6 +17,7 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 )
@@ -33,7 +34,15 @@ func newTestServer(t *testing.T) *Server {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
+
 	return &Server{
+		instanceID:  identity.ID,
+		fingerprint: identity.Fingerprint,
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log),
@@ -59,16 +68,30 @@ func Test_NewServer(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
+
+	s := NewServer(cfg, bus.NoOp(), identity, log)
 
 	assert.NotNil(t, s)
+	assert.Equal(t, identity.ID, s.instanceID)
+	assert.Equal(t, identity.Fingerprint, s.fingerprint)
 }
 
 func Test_Server_Subscribe(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
+
+	s := NewServer(cfg, bus.NoOp(), identity, log)
 
 	s.Subscribe(t.Context())
 
@@ -84,7 +107,14 @@ func Test_Server_Run_ActivatesOnProfileResolved(t *testing.T) {
 	defer b.Close()
 
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
-	s := NewServer(cfg, b, log)
+
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
+
+	s := NewServer(cfg, b, identity, log)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	s.Subscribe(ctx)
@@ -121,7 +151,13 @@ func Test_Server_Run_ContextCancelled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
+
+	s := NewServer(cfg, bus.NoOp(), identity, log)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	s.Subscribe(ctx)
@@ -146,7 +182,13 @@ func Test_Server_SocketPath(t *testing.T) {
 	cfg := config.DefaultConfig()
 	log := logger.NewLoggerWithOutput(cfg, io.Discard)
 
-	s := NewServer(cfg, bus.NoOp(), log)
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
+
+	s := NewServer(cfg, bus.NoOp(), identity, log)
 
 	assert.Empty(t, s.SocketPath())
 }
@@ -274,6 +316,8 @@ func Test_Server_HandleConnection_SuccessfulFlow(t *testing.T) {
 	err = json.Unmarshal(line, &status)
 	require.NoError(t, err)
 	assert.Equal(t, MessageStatus, status.Type)
+	assert.Equal(t, srv.instanceID, status.Instance)
+	assert.Equal(t, srv.fingerprint, status.Fingerprint)
 	assert.Equal(t, profile, status.Profile)
 	assert.Equal(t, []string{"api", "web"}, status.Services)
 
