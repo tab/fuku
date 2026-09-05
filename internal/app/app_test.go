@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"syscall"
 	"testing"
 	"time"
 
@@ -11,9 +12,21 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/bus"
 	"fuku/internal/app/cli"
+	"fuku/internal/config"
+	"fuku/internal/config/logger"
 	"fuku/internal/config/sentry"
 )
+
+// newTestLogger returns a logger mock that accepts the component split NewApp performs
+func newTestLogger(ctrl *gomock.Controller) *logger.MockLogger {
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("APP").Return(mockLog).AnyTimes()
+	mockLog.EXPECT().Info().Return(nil).AnyTimes()
+
+	return mockLog
+}
 
 func Test_NewRoot(t *testing.T) {
 	root := NewRoot()
@@ -31,7 +44,7 @@ func Test_NewApp(t *testing.T) {
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
 
-	application := NewApp(mockTUI, mockSentry, &noopShutdowner{})
+	application := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
 
 	assert.NotNil(t, application)
 	assert.Equal(t, mockTUI, application.ui)
@@ -94,11 +107,15 @@ func Test_Run_SignalsShutdown(t *testing.T) {
 	mockSentry.EXPECT().Flush()
 
 	shutdowner := &recordingShutdowner{}
-	app := NewApp(mockTUI, mockSentry, shutdowner)
+	shutdown := NewShutdown()
+	app := NewApp(mockTUI, mockSentry, shutdowner, bus.NoOp(), shutdown, newTestLogger(ctrl))
 
 	app.Run(t.Context())
 
 	assert.True(t, shutdowner.called)
+
+	shutdown.Observe(syscall.SIGTERM)
+	assert.Nil(t, shutdown.Signal())
 }
 
 func Test_Register(t *testing.T) {
@@ -107,7 +124,7 @@ func Test_Register(t *testing.T) {
 
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockTUI, mockSentry, &noopShutdowner{})
+	app := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
 
 	var (
 		registered   bool
@@ -143,7 +160,7 @@ func Test_Register_OnStop_CancelsContextAndUnblocksApp(t *testing.T) {
 	mockSentry.EXPECT().Flush()
 
 	root := NewRoot()
-	app := NewApp(mockTUI, mockSentry, &noopShutdowner{})
+	app := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
 
 	var capturedHook fx.Hook
 
@@ -178,7 +195,7 @@ func Test_Register_OnStop_RespectsTimeout(t *testing.T) {
 
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockTUI, mockSentry, &noopShutdowner{})
+	app := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
 
 	var capturedHook fx.Hook
 
@@ -196,6 +213,122 @@ func Test_Register_OnStop_RespectsTimeout(t *testing.T) {
 	err := capturedHook.OnStop(ctx)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func Test_Register_OnStop_AnnouncesSignalBeforeCancel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := config.DefaultConfig()
+	cfg.Logs.Buffer = 10
+
+	b := bus.NewBus(cfg, bus.NewFormatter(logger.NewEventLogger()), nil)
+	defer b.Close()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	msgChan := b.Subscribe(ctx)
+
+	shutdown := NewShutdown()
+	shutdown.Observe(syscall.SIGINT)
+
+	root := NewRoot()
+	app := NewApp(cli.NewMockTUI(ctrl), sentry.NewMockSentry(ctrl), &noopShutdowner{}, b, shutdown, newTestLogger(ctrl))
+
+	var capturedHook fx.Hook
+
+	testLifecycle := &testLifecycleImpl{
+		onAppend: func(hook fx.Hook) {
+			capturedHook = hook
+		},
+	}
+
+	Register(testLifecycle, root, app)
+
+	stopCtx, stopCancel := context.WithCancel(context.Background())
+	stopCancel()
+
+	require.Error(t, capturedHook.OnStop(stopCtx))
+
+	assert.Equal(t, []bus.Message{
+		{Type: bus.EventSignal, Data: bus.Signal{Name: "interrupt"}, Critical: true},
+	}, drain(msgChan))
+	assert.ErrorIs(t, root.Context().Err(), context.Canceled)
+}
+
+func Test_PublishSignal(t *testing.T) {
+	tests := []struct {
+		name     string
+		before   func(s *Shutdown)
+		expected []bus.Message
+	}{
+		{
+			name:     "No signal to announce",
+			before:   func(_ *Shutdown) {},
+			expected: nil,
+		},
+		{
+			name: "Signal announced on the bus",
+			before: func(s *Shutdown) {
+				s.Observe(syscall.SIGTERM)
+			},
+			expected: []bus.Message{
+				{Type: bus.EventSignal, Data: bus.Signal{Name: "terminated"}, Critical: true},
+			},
+		},
+		{
+			name: "Application shut itself down",
+			before: func(s *Shutdown) {
+				s.Self()
+				s.Observe(syscall.SIGTERM)
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			cfg := config.DefaultConfig()
+			cfg.Logs.Buffer = 10
+
+			b := bus.NewBus(cfg, bus.NewFormatter(logger.NewEventLogger()), nil)
+			defer b.Close()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			msgChan := b.Subscribe(ctx)
+
+			shutdown := NewShutdown()
+			tt.before(shutdown)
+
+			app := NewApp(cli.NewMockTUI(ctrl), sentry.NewMockSentry(ctrl), &noopShutdowner{}, b, shutdown, newTestLogger(ctrl))
+			app.PublishSignal()
+
+			assert.Equal(t, tt.expected, drain(msgChan))
+		})
+	}
+}
+
+// drain collects the messages already buffered on a subscription
+func drain(msgChan <-chan bus.Message) []bus.Message {
+	var messages []bus.Message
+
+	for {
+		select {
+		case msg := <-msgChan:
+			msg.Seq = 0
+			msg.Timestamp = time.Time{}
+
+			messages = append(messages, msg)
+		case <-time.After(50 * time.Millisecond):
+			return messages
+		}
+	}
 }
 
 // testLifecycleImpl implements fx.Lifecycle for testing

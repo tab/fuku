@@ -2,8 +2,6 @@ package runner
 
 import (
 	"context"
-	"os"
-	"syscall"
 	"testing"
 	"time"
 
@@ -504,13 +502,12 @@ func Test_RunServicePhase_CommandStopAll(t *testing.T) {
 	defer cancel()
 
 	msgChan := b.Subscribe(ctx)
-	sigChan := make(chan os.Signal, 1)
 
 	go func() {
 		b.Publish(bus.Message{Type: bus.CommandStopAll})
 	}()
 
-	r.runServicePhase(ctx, cancel, sigChan, msgChan)
+	r.runServicePhase(ctx, cancel, msgChan)
 }
 
 func Test_RunServicePhase_ContextCancelled(t *testing.T) {
@@ -535,13 +532,12 @@ func Test_RunServicePhase_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	commandChan := make(chan bus.Message)
-	sigChan := make(chan os.Signal, 1)
 
 	go func() {
 		cancel()
 	}()
 
-	r.runServicePhase(ctx, cancel, sigChan, commandChan)
+	r.runServicePhase(ctx, cancel, commandChan)
 }
 
 func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
@@ -566,13 +562,12 @@ func Test_RunServicePhase_CommandChannelClosed(t *testing.T) {
 	defer cancel()
 
 	commandChan := make(chan bus.Message)
-	sigChan := make(chan os.Signal, 1)
 
 	go func() {
 		close(commandChan)
 	}()
 
-	r.runServicePhase(ctx, cancel, sigChan, commandChan)
+	r.runServicePhase(ctx, cancel, commandChan)
 }
 
 func Test_StartTier_Success(t *testing.T) {
@@ -674,75 +669,6 @@ func Test_StartTier_ServiceStartupError(t *testing.T) {
 	assert.Contains(t, failedServices, "api")
 }
 
-func Test_RunStartupPhase_SignalDuringStartup(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
-
-	mockLog := logger.NewMockLogger(ctrl)
-	mockLog.EXPECT().Info().Return(nil).AnyTimes()
-
-	mockProcess := process.NewMockProcess(ctrl)
-	mockProcess.EXPECT().Name().Return("api").AnyTimes()
-
-	startCalled := make(chan struct{})
-	startCanProceed := make(chan struct{})
-
-	mockService := NewMockService(ctrl)
-	mockService.EXPECT().Start(gomock.Any(), "platform", bus.Service{ID: "test-id-api", Name: "api"}).DoAndReturn(
-		func(ctx context.Context, tier string, svc bus.Service) error {
-			close(startCalled)
-			<-startCanProceed
-
-			return nil
-		})
-	mockService.EXPECT().Stop("test-id-api").AnyTimes()
-
-	mockWorkerPool := worker.NewMockPool(ctrl)
-	mockWorkerPool.EXPECT().Acquire(gomock.Any()).Return(nil)
-	mockWorkerPool.EXPECT().Release()
-
-	mockRegistry := registry.NewMockRegistry(ctrl)
-	mockRegistry.EXPECT().SnapshotReverse().Return([]registry.ProcessEntry{
-		{ID: "test-id-api", Proc: mockProcess},
-	}).AnyTimes()
-	mockRegistry.EXPECT().Detach("test-id-api").AnyTimes()
-	mockRegistry.EXPECT().Wait().AnyTimes()
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: discovery.NewMockDiscovery(ctrl),
-		preflight: preflight.NewMockPreflight(ctrl),
-		service:   mockService,
-		worker:    mockWorkerPool,
-		registry:  mockRegistry,
-		bus:       bus.NoOp(),
-		log:       mockLog,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	commandChan := make(chan bus.Message)
-
-	go func() {
-		<-startCalled
-
-		sigChan <- syscall.SIGTERM
-
-		close(startCanProceed)
-	}()
-
-	tiers := []bus.Tier{{Name: "platform", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "startup interrupted")
-}
-
 func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -788,7 +714,6 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sigChan := make(chan os.Signal, 1)
 	commandChan := make(chan bus.Message)
 
 	go func() {
@@ -798,7 +723,7 @@ func Test_RunStartupPhase_ContextCancelledDuringStartup(t *testing.T) {
 	}()
 
 	tiers := []bus.Tier{{Name: "platform", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
+	err := r.runStartupPhase(ctx, cancel, tiers, commandChan)
 
 	require.Error(t, err)
 }
@@ -849,7 +774,6 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigChan := make(chan os.Signal, 1)
 	commandChan := make(chan bus.Message)
 
 	go func() {
@@ -859,7 +783,7 @@ func Test_RunStartupPhase_CommandChannelClosedDuringStartup(t *testing.T) {
 	}()
 
 	tiers := []bus.Tier{{Name: "platform", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
+	err := r.runStartupPhase(ctx, cancel, tiers, commandChan)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errors.ErrCommandChannelClosed)
@@ -911,7 +835,6 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigChan := make(chan os.Signal, 1)
 	commandChan := make(chan bus.Message, 1)
 
 	go func() {
@@ -923,42 +846,10 @@ func Test_RunStartupPhase_StopAllCommandDuringStartup(t *testing.T) {
 	}()
 
 	tiers := []bus.Tier{{Name: "platform", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}}}
-	err := r.runStartupPhase(ctx, cancel, tiers, sigChan, commandChan)
+	err := r.runStartupPhase(ctx, cancel, tiers, commandChan)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "startup interrupted")
-}
-
-func Test_RunServicePhase_SignalReceived(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := config.DefaultConfig()
-	mockLog := logger.NewMockLogger(ctrl)
-	mockLog.EXPECT().Info().Return(nil).AnyTimes()
-
-	r := &runner{
-		cfg:       cfg,
-		discovery: discovery.NewMockDiscovery(ctrl),
-		preflight: preflight.NewMockPreflight(ctrl),
-		service:   NewMockService(ctrl),
-		worker:    worker.NewMockPool(ctrl),
-		registry:  registry.NewMockRegistry(ctrl),
-		bus:       bus.NoOp(),
-		log:       mockLog,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	commandChan := make(chan bus.Message)
-	sigChan := make(chan os.Signal, 1)
-
-	go func() {
-		sigChan <- syscall.SIGTERM
-	}()
-
-	r.runServicePhase(ctx, cancel, sigChan, commandChan)
 }
 
 func Test_HandleMessage_WatchTriggered(t *testing.T) {

@@ -234,11 +234,11 @@ func (r *runner) Run(ctx context.Context, profile string) error {
         Phase: PhaseRunning, Duration: time.Since(startupStart), ServiceCount: len(services),
     }})
 
-    // 6. Wait for signals or commands (including watch events for hot-reload)
+    // 6. Wait for cancellation or commands (including watch events for hot-reload)
     for {
         select {
-        case sig := <-sigChan:
-            // Handle OS signal
+        case <-ctx.Done():
+            // The app cancelled the root context, shut down
         case msg := <-msgChan:
             // Handle command or watch event
         }
@@ -447,6 +447,12 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 3. **Testability**: Tests can pass their own contexts for lifecycle control
 
 **Critical events**: Lifecycle state changes are marked as `Critical: true` to guarantee delivery even when event buffers are full, preventing UI state desynchronization.
+
+### Signal Ownership
+
+FX is the only OS signal receiver in the process. `cmd/main.go` starts the container, blocks on `fx.App.Wait()` and hands the received signal to `app.Shutdown` before calling `fx.App.Stop()`. The `Register` stop hook then publishes `EventSignal` on the bus and cancels the root context, in that order, so every subscriber observes the signal while the runner is still alive.
+
+A second `signal.Notify` anywhere in the process would race this one: Go delivers a signal to every registered channel, and a `select` with both a ready signal channel and a cancelled context picks between them at random. The runner therefore shuts down on context cancellation alone.
 
 ### Command Handling
 

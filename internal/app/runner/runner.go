@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"slices"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -125,12 +123,8 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 	defer cancel()
 
 	msgChan := r.bus.Subscribe(ctx)
-	sigChan := make(chan os.Signal, 1)
 
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigChan)
-
-	if err := r.runStartupPhase(ctx, cancel, tierData, sigChan, msgChan); err != nil {
+	if err := r.runStartupPhase(ctx, cancel, tierData, msgChan); err != nil {
 		r.bus.Publish(bus.Message{
 			Type:     bus.EventPhaseChanged,
 			Data:     bus.PhaseChanged{Phase: bus.PhaseStopped},
@@ -149,7 +143,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 		},
 		Critical: true,
 	})
-	r.runServicePhase(ctx, cancel, sigChan, msgChan)
+	r.runServicePhase(ctx, cancel, msgChan)
 
 	r.bus.Publish(bus.Message{
 		Type:     bus.EventPhaseChanged,
@@ -175,7 +169,7 @@ func (r *runner) Run(ctx context.Context, profile string) error {
 }
 
 // runStartupPhase handles the service startup phase
-func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []bus.Tier, sigChan chan os.Signal, msgChan <-chan bus.Message) error {
+func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc, tiers []bus.Tier, msgChan <-chan bus.Message) error {
 	startupDone := make(chan struct{}, 1)
 
 	go func() {
@@ -190,19 +184,6 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 			r.log.Info().Msg("Startup phase complete, waiting for signals...")
 
 			return nil
-		case sig := <-sigChan:
-			r.log.Info().Msgf("Received signal %s during startup, shutting down services...", sig)
-
-			r.bus.Publish(bus.Message{
-				Type:     bus.EventSignal,
-				Data:     bus.Signal{Name: sig.String()},
-				Critical: true,
-			})
-			cancel()
-			<-startupDone
-			r.shutdown()
-
-			return fmt.Errorf("%w: signal %s", errors.ErrStartupInterrupted, sig)
 		case <-ctx.Done():
 			r.log.Info().Msg("Context cancelled during startup, shutting down services...")
 			cancel()
@@ -236,20 +217,9 @@ func (r *runner) runStartupPhase(ctx context.Context, cancel context.CancelFunc,
 }
 
 // runServicePhase runs the main event loop
-func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc, sigChan chan os.Signal, msgChan <-chan bus.Message) {
+func (r *runner) runServicePhase(ctx context.Context, cancel context.CancelFunc, msgChan <-chan bus.Message) {
 	for {
 		select {
-		case sig := <-sigChan:
-			r.log.Info().Msgf("Received signal %s, shutting down services...", sig)
-
-			r.bus.Publish(bus.Message{
-				Type:     bus.EventSignal,
-				Data:     bus.Signal{Name: sig.String()},
-				Critical: true,
-			})
-			cancel()
-
-			return
 		case <-ctx.Done():
 			r.log.Info().Msg("Context cancelled, shutting down services...")
 

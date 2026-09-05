@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -64,14 +65,42 @@ func runApp() (exitCode int) {
 		cfg.SentryDSN = sentryDSN
 	}
 
+	shutdown := app.NewShutdown()
+
 	application := createApp(appOptions{
 		cfg:      cfg,
 		topology: topology,
 		cmd:      cmd,
+		shutdown: shutdown,
 	})
-	application.Run()
 
-	return 0
+	return runFxApp(application, shutdown)
+}
+
+// runFxApp starts the FX application, waits for its shutdown signal and returns the exit code
+func runFxApp(application *fx.App, shutdown *app.Shutdown) int {
+	startCtx, cancelStart := context.WithTimeout(context.Background(), application.StartTimeout())
+	defer cancelStart()
+
+	if err := application.Start(startCtx); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+
+		return 1
+	}
+
+	sig := <-application.Wait()
+	shutdown.Observe(sig.Signal)
+
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), application.StopTimeout())
+	defer cancelStop()
+
+	if err := application.Stop(stopCtx); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+
+		return 1
+	}
+
+	return sig.ExitCode
 }
 
 // createAppWithoutConfig creates a lightweight app for standalone commands (init, version, help)
@@ -84,6 +113,7 @@ type appOptions struct {
 	cfg      *config.Config
 	topology *config.Topology
 	cmd      *cli.Options
+	shutdown *app.Shutdown
 }
 
 // createApp creates the FX application with the given config, topology and instance identity
@@ -98,7 +128,7 @@ func createApp(options appOptions) *fx.App {
 
 	return fx.New(
 		fx.WithLogger(createFxLogger(options.cfg)),
-		fx.Supply(options.cfg, options.topology, log, options.cmd, writer),
+		fx.Supply(options.cfg, options.topology, log, options.cmd, writer, options.shutdown),
 		fx.Provide(func() logger.Logger {
 			return logger.NewLoggerWithOutput(options.cfg, writer)
 		}),

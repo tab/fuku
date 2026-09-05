@@ -7,8 +7,10 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/app/api"
+	"fuku/internal/app/bus"
 	"fuku/internal/app/cli"
 	"fuku/internal/config"
+	"fuku/internal/config/logger"
 	"fuku/internal/config/sentry"
 )
 
@@ -42,15 +44,21 @@ type App struct {
 	ui         cli.TUI
 	sentry     sentry.Sentry
 	shutdowner fx.Shutdowner
+	bus        bus.Bus
+	shutdown   *Shutdown
+	log        logger.Logger
 	done       chan struct{}
 }
 
 // NewApp creates a new application instance with its dependencies
-func NewApp(ui cli.TUI, sentry sentry.Sentry, shutdowner fx.Shutdowner) *App {
+func NewApp(ui cli.TUI, sentry sentry.Sentry, shutdowner fx.Shutdowner, b bus.Bus, shutdown *Shutdown, log logger.Logger) *App {
 	return &App{
 		ui:         ui,
 		sentry:     sentry,
 		shutdowner: shutdowner,
+		bus:        b,
+		shutdown:   shutdown,
+		log:        log.WithComponent("APP"),
 		done:       make(chan struct{}),
 	}
 }
@@ -60,10 +68,27 @@ func (a *App) Run(ctx context.Context) {
 	exitCode := a.execute(ctx)
 
 	a.sentry.Flush()
+	a.shutdown.Self()
 	close(a.done)
 
 	//nolint:errcheck // shutdown is best-effort at exit
 	a.shutdowner.Shutdown(fx.ExitCode(exitCode))
+}
+
+// PublishSignal announces the OS signal that initiated the shutdown on the bus
+func (a *App) PublishSignal() {
+	sig := a.shutdown.Signal()
+	if sig == nil {
+		return
+	}
+
+	a.log.Info().Msgf("Received signal %s, shutting down services...", sig)
+
+	a.bus.Publish(bus.Message{
+		Type:     bus.EventSignal,
+		Data:     bus.Signal{Name: sig.String()},
+		Critical: true,
+	})
 }
 
 // execute runs the CLI and returns exit code - extracted for testing
@@ -90,6 +115,7 @@ func Register(lifecycle fx.Lifecycle, root *Root, app *App) {
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
+			app.PublishSignal()
 			root.Cancel()
 
 			select {
