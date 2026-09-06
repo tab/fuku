@@ -42,6 +42,7 @@ var Module = fx.Options(
 	fx.Provide(NewRoot),
 	fx.Provide(func(root *Root) context.Context { return root.Context() }),
 	fx.Provide(NewApp),
+	fx.Invoke(RegisterGuard),
 	fx.Invoke(Register),
 	fx.Invoke(RegisterAPI),
 )

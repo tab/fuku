@@ -14,6 +14,7 @@ import (
 
 	"fuku/internal/app/bus"
 	"fuku/internal/app/cli"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 	"fuku/internal/config/sentry"
@@ -50,6 +51,85 @@ func Test_NewApp(t *testing.T) {
 	assert.Equal(t, mockTUI, application.ui)
 	assert.Equal(t, mockSentry, application.sentry)
 	assert.NotNil(t, application.done)
+}
+
+func Test_Run_SignalsShutdown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTUI := cli.NewMockTUI(ctrl)
+	mockTUI.EXPECT().Execute(gomock.Any()).Return(0, nil)
+
+	mockSentry := sentry.NewMockSentry(ctrl)
+	mockSentry.EXPECT().Flush()
+
+	shutdowner := &recordingShutdowner{}
+	shutdown := NewShutdown()
+	app := NewApp(mockTUI, mockSentry, shutdowner, bus.NoOp(), shutdown, newTestLogger(ctrl))
+
+	app.Run(t.Context())
+
+	assert.True(t, shutdowner.called)
+
+	shutdown.Observe(syscall.SIGTERM)
+	assert.Nil(t, shutdown.Signal())
+}
+
+func Test_PublishSignal(t *testing.T) {
+	tests := []struct {
+		name     string
+		before   func(s *Shutdown)
+		expected []bus.Message
+	}{
+		{
+			name:     "No signal to announce",
+			before:   func(_ *Shutdown) {},
+			expected: nil,
+		},
+		{
+			name: "Signal announced on the bus",
+			before: func(s *Shutdown) {
+				s.Observe(syscall.SIGTERM)
+			},
+			expected: []bus.Message{
+				{Type: bus.EventSignal, Data: bus.Signal{Name: "terminated"}, Critical: true},
+			},
+		},
+		{
+			name: "Application shut itself down",
+			before: func(s *Shutdown) {
+				s.Self()
+				s.Observe(syscall.SIGTERM)
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			cfg := config.DefaultConfig()
+			cfg.Logs.Buffer = 10
+
+			b := bus.NewBus(cfg, bus.NewFormatter(logger.NewEventLogger()), nil)
+			defer b.Close()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			msgChan := b.Subscribe(ctx)
+
+			shutdown := NewShutdown()
+			tt.before(shutdown)
+
+			app := NewApp(cli.NewMockTUI(ctrl), sentry.NewMockSentry(ctrl), &noopShutdowner{}, b, shutdown, newTestLogger(ctrl))
+			app.PublishSignal()
+
+			assert.Equal(t, tt.expected, drain(msgChan))
+		})
+	}
 }
 
 func Test_execute(t *testing.T) {
@@ -94,28 +174,6 @@ func Test_execute(t *testing.T) {
 			assert.Equal(t, tt.expectedExitCode, exitCode)
 		})
 	}
-}
-
-func Test_Run_SignalsShutdown(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTUI := cli.NewMockTUI(ctrl)
-	mockTUI.EXPECT().Execute(gomock.Any()).Return(0, nil)
-
-	mockSentry := sentry.NewMockSentry(ctrl)
-	mockSentry.EXPECT().Flush()
-
-	shutdowner := &recordingShutdowner{}
-	shutdown := NewShutdown()
-	app := NewApp(mockTUI, mockSentry, shutdowner, bus.NoOp(), shutdown, newTestLogger(ctrl))
-
-	app.Run(t.Context())
-
-	assert.True(t, shutdowner.called)
-
-	shutdown.Observe(syscall.SIGTERM)
-	assert.Nil(t, shutdown.Signal())
 }
 
 func Test_Register(t *testing.T) {
@@ -257,59 +315,100 @@ func Test_Register_OnStop_AnnouncesSignalBeforeCancel(t *testing.T) {
 	assert.ErrorIs(t, root.Context().Err(), context.Canceled)
 }
 
-func Test_PublishSignal(t *testing.T) {
+func Test_RegisterGuard(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockGuard := instance.NewMockGuard(ctrl)
+	refused := errors.New("fuku is already running for this project")
+
 	tests := []struct {
-		name     string
-		before   func(s *Shutdown)
-		expected []bus.Message
+		name          string
+		cmd           *cli.Options
+		listen        string
+		before        func()
+		registered    bool
+		expectedError error
 	}{
 		{
-			name:     "No signal to announce",
-			before:   func(_ *Shutdown) {},
-			expected: nil,
+			name:   "run with the API enabled",
+			cmd:    &cli.Options{Type: cli.CommandRun},
+			listen: "127.0.0.1:9876",
+			before: func() {
+				mockGuard.EXPECT().Check(gomock.Any()).Return(nil)
+			},
+			registered: true,
 		},
 		{
-			name: "Signal announced on the bus",
-			before: func(s *Shutdown) {
-				s.Observe(syscall.SIGTERM)
+			name:   "run refused by the guard",
+			cmd:    &cli.Options{Type: cli.CommandRun},
+			listen: "127.0.0.1:9876",
+			before: func() {
+				mockGuard.EXPECT().Check(gomock.Any()).Return(refused)
 			},
-			expected: []bus.Message{
-				{Type: bus.EventSignal, Data: bus.Signal{Name: "terminated"}, Critical: true},
-			},
+			registered:    true,
+			expectedError: refused,
 		},
 		{
-			name: "Application shut itself down",
-			before: func(s *Shutdown) {
-				s.Self()
-				s.Observe(syscall.SIGTERM)
-			},
-			expected: nil,
+			name:       "run with the API disabled",
+			cmd:        &cli.Options{Type: cli.CommandRun},
+			listen:     "",
+			before:     func() {},
+			registered: false,
+		},
+		{
+			name:       "logs command",
+			cmd:        &cli.Options{Type: cli.CommandLogs},
+			listen:     "127.0.0.1:9876",
+			before:     func() {},
+			registered: false,
+		},
+		{
+			name:       "stop command",
+			cmd:        &cli.Options{Type: cli.CommandStop},
+			listen:     "127.0.0.1:9876",
+			before:     func() {},
+			registered: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
+			tt.before()
 
-			cfg := config.DefaultConfig()
-			cfg.Logs.Buffer = 10
+			var capturedHook fx.Hook
 
-			b := bus.NewBus(cfg, bus.NewFormatter(logger.NewEventLogger()), nil)
-			defer b.Close()
+			registered := false
+			testLifecycle := &testLifecycleImpl{
+				onAppend: func(hook fx.Hook) {
+					registered = true
+					capturedHook = hook
+				},
+			}
 
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
+			cfg := &config.Config{}
+			cfg.Server.Listen = tt.listen
 
-			msgChan := b.Subscribe(ctx)
+			RegisterGuard(testLifecycle, tt.cmd, cfg, mockGuard)
 
-			shutdown := NewShutdown()
-			tt.before(shutdown)
+			assert.Equal(t, tt.registered, registered)
 
-			app := NewApp(cli.NewMockTUI(ctrl), sentry.NewMockSentry(ctrl), &noopShutdowner{}, b, shutdown, newTestLogger(ctrl))
-			app.PublishSignal()
+			if !tt.registered {
+				return
+			}
 
-			assert.Equal(t, tt.expected, drain(msgChan))
+			require.NotNil(t, capturedHook.OnStart)
+			assert.Nil(t, capturedHook.OnStop)
+
+			err := capturedHook.OnStart(t.Context())
+
+			if tt.expectedError != nil {
+				assert.ErrorIs(t, err, tt.expectedError)
+
+				return
+			}
+
+			assert.NoError(t, err)
 		})
 	}
 }

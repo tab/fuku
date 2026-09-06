@@ -9,6 +9,7 @@ import (
 	"fuku/internal/app/api"
 	"fuku/internal/app/bus"
 	"fuku/internal/app/cli"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/logger"
 	"fuku/internal/config/sentry"
@@ -124,6 +125,23 @@ func Register(lifecycle fx.Lifecycle, root *Root, app *App) {
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+		},
+	})
+}
+
+// RegisterGuard registers the instance guard lifecycle hook when server config is present
+func RegisterGuard(lc fx.Lifecycle, cmd *cli.Options, cfg *config.Config, guard instance.Guard) {
+	if cmd.Type != cli.CommandRun {
+		return
+	}
+
+	if cfg.Server.Listen == "" {
+		return
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return guard.Check(ctx)
 		},
 	})
 }
