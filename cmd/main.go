@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"charm.land/lipgloss/v2"
@@ -82,7 +83,13 @@ func runFxApp(application *fx.App, shutdown *app.Shutdown) int {
 	startCtx, cancelStart := context.WithTimeout(context.Background(), application.StartTimeout())
 	defer cancelStart()
 
-	if err := application.Start(startCtx); err != nil {
+	err := application.Start(startCtx)
+
+	if errors.Is(err, errors.ErrInstanceAlreadyRunning) {
+		return 1
+	}
+
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 
 		return 1
@@ -129,6 +136,9 @@ func createApp(options appOptions) *fx.App {
 	return fx.New(
 		fx.WithLogger(createFxLogger(options.cfg)),
 		fx.Supply(options.cfg, options.topology, log, options.cmd, writer, options.shutdown),
+		fx.Provide(fx.Annotate(func() io.Writer {
+			return os.Stderr
+		}, fx.ResultTags(`name:"stderr"`))),
 		fx.Provide(func() logger.Logger {
 			return logger.NewLoggerWithOutput(options.cfg, writer)
 		}),

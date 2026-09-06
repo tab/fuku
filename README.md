@@ -21,6 +21,7 @@
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 - **Diagnostics** - Health-check your setup with `fuku doctor` (config, environment, topology, and runtime checks; `--json` for scripting)
 - **REST API** - Control and monitor services via HTTP with token authentication
+- **Single-Instance Guard** - A second `fuku run` for the same project refuses to start while the first instance answers on its API port range, so its services survive the second process's pre-flight cleanup
 - **Update Notifications** - TUI highlights a hint next to the version footer when a newer GitHub release is available (cached 24h, opt out via `FUKU_UPDATER_DISABLED=1`)
 
 ## Installation

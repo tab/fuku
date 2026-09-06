@@ -72,6 +72,7 @@ var (
 	ErrMultipleInstancesRunning = errors.New("multiple fuku instances running")
 	ErrInstanceNotFound         = errors.New("no fuku instance running with profile")
 	ErrFailedToResolveProject   = errors.New("failed to resolve project directory")
+	ErrInstanceAlreadyRunning   = errors.New("fuku is already running for this project")
 
 	ErrEmptyReleaseTag         = errors.New("empty tag in release response")
 	ErrUnexpectedReleaseStatus = errors.New("unexpected release response status")

@@ -66,6 +66,14 @@ git config core.hooksPath .githooks
 - never instantiate dependencies manually in application code; let FX handle the wiring
 - use FX lifecycle hooks (`fx.OnStart`, `fx.OnStop`) for component initialization and cleanup
 
+### `module.go` Holds Wiring Only
+- **`module.go` contains the FX `Module` var and nothing but wiring** — `fx.Provide`, `fx.Invoke`, and `startX(lc fx.Lifecycle, ...)` helpers whose whole body appends a lifecycle hook
+- application logic never lives in `module.go` — a constructor that builds state, starts a goroutine or makes a decision belongs in its own file (`NewUI` lives in `wire/ui.go`, not `wire/module.go`)
+- **never write a `module_test.go`** — once `module.go` holds only wiring there is nothing in it worth asserting, and a test that reads the rendered `fx.Options` tree pins the declaration order of a file that is meant to be reshuffled freely
+- test the logic in the file it lives in: `ui.go` → `ui_test.go`, `server.go` → `server_test.go`
+- when a hook's ordering carries a real guarantee, express it as an FX dependency rather than a position in `Module`, so the container enforces it instead of a test
+- Audit (should return zero matches): `find . -name 'module_test.go' -not -path './vendor/*'`
+
 ### Interfaces and Mocks
 - **always define interfaces for dependencies** — required for FX injection and testability
 - interfaces should be defined on the consumer side (idiomatic Go)
@@ -181,7 +189,10 @@ git config core.hooksPath .githooks
 ## Logging Guidelines
 - use structured logging with zerolog
 - never use `fmt.Printf` for logging — only log methods
-- `fmt.Print*` and `fmt.Fprint*` are fine for non-logging uses: direct CLI output (`internal/app/cli/`), pre-logger bootstrap stderr (`cmd/main.go`, `internal/config/sentry/`), the log-writer implementation itself (`internal/app/render/`), and buffer/string formatting (TUI layout in `internal/app/ui/`)
+- `fmt.Print*` and `fmt.Fprint*` are fine for non-logging uses:
+  direct CLI output (`internal/app/cli/`), pre-logger bootstrap stderr (`cmd/main.go`, `internal/config/sentry/`),
+  the single-instance guard's refusal on its injected stderr (`internal/app/instance/guard.go`),
+  the log-writer implementation itself (`internal/app/render/`) and buffer/string formatting (TUI layout in `internal/app/ui/`)
 - metrics are emitted only through the bus-driven collector (`internal/app/metrics`) — never scatter `sentry.NewMeter` calls across packages
 - respect `FUKU_TELEMETRY_DISABLED` for telemetry opt-out
 
