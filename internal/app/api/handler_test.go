@@ -648,8 +648,7 @@ func Test_OpenAPI_ResponseSchemas(t *testing.T) {
 
 			serializer := reflect.TypeOf(tt.serializer)
 
-			for i := range serializer.NumField() {
-				field := serializer.Field(i)
+			for field := range serializer.Fields() {
 				tag, _, _ := strings.Cut(field.Tag.Get("json"), ",")
 
 				property, found := schema.Properties[tag]

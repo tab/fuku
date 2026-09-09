@@ -1,6 +1,6 @@
 module fuku
 
-go 1.25.0
+go 1.26.0
 
 require (
 	charm.land/bubbles/v2 v2.2.1
