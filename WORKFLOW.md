@@ -22,11 +22,11 @@ Primary gatekeeper. All jobs must pass before merging to master.
 
 | Job         | Go Versions  | What it does             |
 |-------------|--------------|--------------------------|
-| Linter      | 1.25         | golangci-lint v2         |
-| Vet         | 1.25         | `go vet ./...`           |
-| Staticcheck | 1.25         | Static analysis          |
-| Tests       | 1.25, 1.26   | `go test -race` (matrix) |
-| E2E         | 1.25         | Build binary + e2e tests |
+| Linter      | 1.26         | golangci-lint v2         |
+| Vet         | 1.26         | `go vet ./...`           |
+| Staticcheck | 1.26         | Static analysis          |
+| Tests       | 1.26, 1.27   | `go test -race` (matrix) |
+| E2E         | 1.26         | Build binary + e2e tests |
 
 All jobs run in parallel. Concurrency group cancels outdated runs on the same PR.
 
@@ -40,12 +40,12 @@ Post-merge safety net. Mirrors the full Checks suite and uploads coverage.
 
 | Job         | Go Versions  | What it does                               |
 |-------------|--------------|--------------------------------------------|
-| Linter      | 1.25         | golangci-lint v2                           |
-| Vet         | 1.25         | `go vet ./...`                             |
-| Staticcheck | 1.25         | Static analysis                            |
-| Tests       | 1.25, 1.26   | `go test -race` (matrix)                   |
-| E2E         | 1.25         | Build binary + e2e tests                   |
-| Codecov     | 1.25         | Coverage upload (runs after all jobs pass) |
+| Linter      | 1.26         | golangci-lint v2                           |
+| Vet         | 1.26         | `go vet ./...`                             |
+| Staticcheck | 1.26         | Static analysis                            |
+| Tests       | 1.26, 1.27   | `go test -race` (matrix)                   |
+| E2E         | 1.26         | Build binary + e2e tests                   |
+| Codecov     | 1.26         | Coverage upload (runs after all jobs pass) |
 
 Ignored paths: `docs/**`, `assets/**`, `**.md`, `LICENSE`, `.github/workflows/pages.yaml`
 
@@ -73,7 +73,7 @@ Builds and deploys the documentation site to GitHub Pages. Independent from Go C
 
 For the pipeline to be truly bulletproof, configure branch protection on `master`:
 
-- Require status checks to pass: Linter, Vet, Staticcheck, Tests (version: 1.25), Tests (version: 1.26), E2E
+- Require status checks to pass: Linter, Vet, Staticcheck, Tests (version: 1.26), Tests (version: 1.27), E2E
 - Require branches to be up to date before merging
 - Require pull request reviews (optional but recommended)
 
