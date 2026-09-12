@@ -38,7 +38,97 @@ func Test_MessageType_Constants(t *testing.T) {
 	}
 }
 
+func Test_ReplayOptions_bounded(t *testing.T) {
+	tail := 10
+
+	tests := []struct {
+		name     string
+		options  ReplayOptions
+		expected bool
+	}{
+		{
+			name:     "no options",
+			options:  ReplayOptions{},
+			expected: false,
+		},
+		{
+			name:     "tail only",
+			options:  ReplayOptions{Tail: &tail},
+			expected: true,
+		},
+		{
+			name:     "no-follow only",
+			options:  ReplayOptions{NoFollow: true},
+			expected: true,
+		},
+		{
+			name:     "tail and no-follow",
+			options:  ReplayOptions{Tail: &tail, NoFollow: true},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.options.bounded())
+		})
+	}
+}
+
+func Test_ReplayOptions_equal(t *testing.T) {
+	ten := 10
+	anotherTen := 10
+	twenty := 20
+
+	tests := []struct {
+		name     string
+		options  ReplayOptions
+		other    ReplayOptions
+		expected bool
+	}{
+		{
+			name:     "both empty",
+			options:  ReplayOptions{},
+			other:    ReplayOptions{},
+			expected: true,
+		},
+		{
+			name:     "same tail through different pointers",
+			options:  ReplayOptions{Tail: &ten, NoFollow: true},
+			other:    ReplayOptions{Tail: &anotherTen, NoFollow: true},
+			expected: true,
+		},
+		{
+			name:     "different tail",
+			options:  ReplayOptions{Tail: &ten},
+			other:    ReplayOptions{Tail: &twenty},
+			expected: false,
+		},
+		{
+			name:     "tail missing on one side",
+			options:  ReplayOptions{Tail: &ten},
+			other:    ReplayOptions{},
+			expected: false,
+		},
+		{
+			name:     "different no-follow",
+			options:  ReplayOptions{NoFollow: true},
+			other:    ReplayOptions{},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.options.equal(tt.other))
+		})
+	}
+}
+
 func Test_SubscribeRequest_MarshalUnmarshal(t *testing.T) {
+	tail := 100
+	zeroTail := 0
+
 	tests := []struct {
 		name     string
 		request  SubscribeRequest
@@ -67,6 +157,24 @@ func Test_SubscribeRequest_MarshalUnmarshal(t *testing.T) {
 			},
 			expected: `{"type":"subscribe","services":null}`,
 		},
+		{
+			name: "bounded read options",
+			request: SubscribeRequest{
+				Type:          MessageSubscribe,
+				Services:      []string{"api"},
+				ReplayOptions: ReplayOptions{Tail: &tail, NoFollow: true},
+			},
+			expected: `{"type":"subscribe","services":["api"],"tail":100,"noFollow":true}`,
+		},
+		{
+			name: "explicit zero tail differs from an omitted one",
+			request: SubscribeRequest{
+				Type:          MessageSubscribe,
+				Services:      []string{"api"},
+				ReplayOptions: ReplayOptions{Tail: &zeroTail},
+			},
+			expected: `{"type":"subscribe","services":["api"],"tail":0}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -81,6 +189,8 @@ func Test_SubscribeRequest_MarshalUnmarshal(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.request.Type, decoded.Type)
 			assert.Equal(t, tt.request.Services, decoded.Services)
+			assert.Equal(t, tt.request.Tail, decoded.Tail)
+			assert.Equal(t, tt.request.NoFollow, decoded.NoFollow)
 		})
 	}
 }
@@ -125,6 +235,8 @@ func Test_LogMessage_MarshalUnmarshal(t *testing.T) {
 }
 
 func Test_StatusMessage_MarshalUnmarshal(t *testing.T) {
+	tail := 100
+
 	tests := []struct {
 		name     string
 		message  StatusMessage
@@ -162,6 +274,17 @@ func Test_StatusMessage_MarshalUnmarshal(t *testing.T) {
 				Services: []string{"api"},
 			},
 			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"]}`,
+		},
+		{
+			name: "echoed bounded read options",
+			message: StatusMessage{
+				Type:          MessageStatus,
+				Version:       "0.17.0",
+				Profile:       "core",
+				Services:      []string{"api"},
+				ReplayOptions: ReplayOptions{Tail: &tail, NoFollow: true},
+			},
+			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"],"tail":100,"noFollow":true}`,
 		},
 	}
 
