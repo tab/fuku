@@ -15,9 +15,17 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// Options describes one log stream request
+type Options struct {
+	Profile  string
+	Services []string
+	NoUI     bool
+	relay.ReplayOptions
+}
+
 // Screen handles the fuku logs command
 type Screen interface {
-	Run(ctx context.Context, profile string, services []string) int
+	Run(ctx context.Context, options Options) int
 }
 
 // screen implements the Screen interface
@@ -53,18 +61,18 @@ func terminalWidth() int {
 }
 
 // Run handles the logs command to stream logs from a running instance
-func (s *screen) Run(ctx context.Context, profile string, services []string) int {
-	socketPath, err := relay.FindSocket(config.SocketDir, profile)
+func (s *screen) Run(ctx context.Context, options Options) int {
+	socketPath, err := relay.FindSocket(config.SocketDir, options.Profile)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to find socket")
 		return 1
 	}
 
-	return s.streamLogs(ctx, socketPath, services)
+	return s.streamLogs(ctx, socketPath, options)
 }
 
 // streamLogs connects to a running fuku instance and streams logs
-func (s *screen) streamLogs(ctx context.Context, socketPath string, services []string) int {
+func (s *screen) streamLogs(ctx context.Context, socketPath string, options Options) int {
 	if err := s.client.Connect(socketPath); err != nil {
 		s.log.Error().Err(err).Msg("Failed to connect to socket")
 		return 1
@@ -72,7 +80,12 @@ func (s *screen) streamLogs(ctx context.Context, socketPath string, services []s
 
 	defer s.client.Close()
 
-	if err := s.client.Subscribe(services); err != nil {
+	subscription := relay.SubscribeOptions{
+		Services:      options.Services,
+		ReplayOptions: options.ReplayOptions,
+	}
+
+	if err := s.client.Subscribe(subscription); err != nil {
 		s.log.Error().Err(err).Msg("Failed to subscribe to services")
 		return 1
 	}
@@ -83,9 +96,10 @@ func (s *screen) streamLogs(ctx context.Context, socketPath string, services []s
 	handler := &screenHandler{
 		render:     s.render,
 		format:     s.format,
-		subscribed: services,
+		subscribed: options.Services,
 		out:        s.out,
 		width:      s.width,
+		noUI:       options.NoUI,
 	}
 
 	if err := s.client.Stream(ctx, handler); err != nil {
@@ -103,10 +117,15 @@ type screenHandler struct {
 	subscribed []string
 	out        io.Writer
 	width      func() int
+	noUI       bool
 }
 
-// HandleStatus renders the connection banner
+// HandleStatus renders the connection banner unless the UI is disabled
 func (h *screenHandler) HandleStatus(status relay.StatusMessage) {
+	if h.noUI {
+		return
+	}
+
 	h.render.RenderBanner(h.out, h.width(), status, h.subscribed)
 }
 

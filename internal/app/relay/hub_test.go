@@ -14,6 +14,15 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// Message bodies shared by the replay tests
+const (
+	apiFirst  = "api-1"
+	apiSecond = "api-2"
+	apiThird  = "api-3"
+	webFirst  = "web-1"
+	webSecond = "web-2"
+)
+
 func testLogger() logger.Logger {
 	cfg := config.DefaultConfig()
 
@@ -483,5 +492,156 @@ func Test_Hub_HistoryReplay_WithSubscriptionFilter(t *testing.T) {
 
 			return
 		}
+	}
+}
+
+func Test_hub_replay(t *testing.T) {
+	one, two, ten := 1, 2, 10
+
+	history := []LogMessage{
+		{Type: MessageLog, Service: "api", Message: apiFirst},
+		{Type: MessageLog, Service: "web", Message: webFirst},
+		{Type: MessageLog, Service: "api", Message: apiSecond},
+		{Type: MessageLog, Service: "web", Message: webSecond},
+		{Type: MessageLog, Service: "api", Message: apiThird},
+	}
+
+	tests := []struct {
+		name     string
+		services []string
+		tail     *int
+		expected []string
+	}{
+		{
+			name:     "no tail replays the whole history",
+			expected: []string{apiFirst, webFirst, apiSecond, webSecond, apiThird},
+		},
+		{
+			name:     "tail keeps the newest messages",
+			tail:     &two,
+			expected: []string{webSecond, apiThird},
+		},
+		{
+			name:     "tail of one keeps only the newest message",
+			tail:     &one,
+			expected: []string{apiThird},
+		},
+		{
+			name:     "tail larger than the history returns everything",
+			tail:     &ten,
+			expected: []string{apiFirst, webFirst, apiSecond, webSecond, apiThird},
+		},
+		{
+			name:     "service filter without a tail",
+			services: []string{"api"},
+			expected: []string{apiFirst, apiSecond, apiThird},
+		},
+		{
+			name:     "service filter applies before the tail",
+			services: []string{"api"},
+			tail:     &two,
+			expected: []string{apiSecond, apiThird},
+		},
+		{
+			name:     "no matching service replays nothing",
+			services: []string{"worker"},
+			tail:     &two,
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHub(10, 50, testLogger()).(*hub)
+			pushHistory(h, history...)
+
+			conn := NewClientConn("client-1", 50)
+			conn.SetSubscription(tt.services)
+			conn.Tail = tt.tail
+
+			replayed := h.replay(conn)
+			close(conn.SendChan)
+
+			messages, closed := drainSendChan(t, conn.SendChan, time.Second)
+
+			assert.True(t, closed)
+			assert.Equal(t, len(tt.expected), replayed)
+			assert.Equal(t, tt.expected, messages)
+		})
+	}
+}
+
+func Test_Hub_Register_NoFollowClosesAfterReplay(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	h := NewHub(10, 50, testLogger()).(*hub)
+	pushHistory(h,
+		LogMessage{Type: MessageLog, Service: "api", Message: apiFirst},
+		LogMessage{Type: MessageLog, Service: "web", Message: webFirst},
+		LogMessage{Type: MessageLog, Service: "api", Message: apiSecond},
+	)
+
+	go h.Run(ctx)
+
+	conn := NewClientConn("client-1", 50)
+	conn.SetSubscription([]string{"api"})
+	conn.NoFollow = true
+
+	h.Register(conn)
+
+	messages, closed := drainSendChan(t, conn.SendChan, time.Second)
+
+	assert.True(t, closed)
+	assert.Equal(t, []string{apiFirst, apiSecond}, messages)
+
+	h.Unregister(conn)
+}
+
+func Test_Hub_Register_FollowClientStaysRegistered(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	h := NewHub(10, 50, testLogger()).(*hub)
+	pushHistory(h, LogMessage{Type: MessageLog, Service: "api", Message: apiFirst})
+
+	go h.Run(ctx)
+
+	conn := NewClientConn("client-1", 50)
+	h.Register(conn)
+
+	h.Broadcast("api", apiSecond)
+
+	messages, closed := drainSendChan(t, conn.SendChan, 200*time.Millisecond)
+
+	assert.False(t, closed)
+	assert.Equal(t, []string{apiFirst, apiSecond}, messages)
+}
+
+// drainSendChan collects messages until the channel closes or the timeout fires
+func drainSendChan(t *testing.T, ch chan LogMessage, timeout time.Duration) ([]string, bool) {
+	t.Helper()
+
+	messages := make([]string, 0)
+	deadline := time.After(timeout)
+
+	for {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				return messages, true
+			}
+
+			messages = append(messages, msg.Message)
+		case <-deadline:
+			return messages, false
+		}
+	}
+}
+
+// pushHistory fills the hub history before its loop starts
+func pushHistory(h *hub, entries ...LogMessage) {
+	for _, entry := range entries {
+		h.history.push(entry)
 	}
 }

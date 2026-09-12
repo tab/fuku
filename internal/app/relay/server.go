@@ -243,11 +243,18 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
+	if req.Tail != nil && *req.Tail <= 0 {
+		s.log.Error().Msgf("Rejected subscribe request from %s: tail must be greater than zero", clientID)
+
+		return
+	}
+
 	client.SetSubscription(req.Services)
+	client.ReplayOptions = req.ReplayOptions
 
 	s.log.Debug().Msgf("Client %s subscribed to services: %v", clientID, req.Services)
 
-	s.hello(conn, clientID)
+	s.hello(conn, client)
 
 	done := make(chan struct{})
 
@@ -297,19 +304,20 @@ func (s *Server) writePump(ctx context.Context, conn net.Conn, client *ClientCon
 	}
 }
 
-func (s *Server) hello(conn net.Conn, clientID string) {
+func (s *Server) hello(conn net.Conn, client *ClientConn) {
 	status := StatusMessage{
-		Type:        MessageStatus,
-		Version:     config.Version,
-		Instance:    s.instanceID,
-		Fingerprint: s.fingerprint,
-		Profile:     s.profile,
-		Services:    s.services,
+		Type:          MessageStatus,
+		Version:       config.Version,
+		Instance:      s.instanceID,
+		Fingerprint:   s.fingerprint,
+		Profile:       s.profile,
+		Services:      s.services,
+		ReplayOptions: client.ReplayOptions,
 	}
 
 	data, err := json.Marshal(status)
 	if err != nil {
-		s.log.Error().Err(err).Msgf("Failed to marshal status for %s", clientID)
+		s.log.Error().Err(err).Msgf("Failed to marshal status for %s", client.ID)
 
 		return
 	}
@@ -317,12 +325,12 @@ func (s *Server) hello(conn net.Conn, clientID string) {
 	data = append(data, '\n')
 
 	if err := conn.SetWriteDeadline(time.Now().Add(config.SocketWriteTimeout)); err != nil {
-		s.log.Debug().Err(err).Msgf("Failed to set write deadline for %s", clientID)
+		s.log.Debug().Err(err).Msgf("Failed to set write deadline for %s", client.ID)
 
 		return
 	}
 
 	if _, err := conn.Write(data); err != nil {
-		s.log.Debug().Err(err).Msgf("Failed to send status to %s", clientID)
+		s.log.Debug().Err(err).Msgf("Failed to send status to %s", client.ID)
 	}
 }

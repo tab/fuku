@@ -17,6 +17,9 @@ import (
 	"fuku/internal/config/logger"
 )
 
+// serviceName is the subscription filter repeated across the screen tests
+const serviceName = "api"
+
 func Test_NewScreen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -34,47 +37,67 @@ func Test_NewScreen(t *testing.T) {
 }
 
 func Test_screen_streamLogs(t *testing.T) {
+	tail := 100
+
 	tests := []struct {
-		name     string
-		services []string
-		before   func(client *relay.MockClient)
-		expect   int
+		name    string
+		options Options
+		before  func(client *relay.MockClient)
+		expect  int
 	}{
 		{
-			name:     "success",
-			services: []string{"api"},
+			name:    "success",
+			options: Options{Services: []string{serviceName}},
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
-				client.EXPECT().Subscribe([]string{"api"}).Return(nil)
+				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName}}).Return(nil)
 				client.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(nil)
 				client.EXPECT().Close().Return(nil)
 			},
 			expect: 0,
 		},
 		{
-			name:     "connect error",
-			services: nil,
+			name: "bounded read passes tail and no-follow",
+			options: Options{
+				Services:      []string{serviceName},
+				NoUI:          true,
+				ReplayOptions: relay.ReplayOptions{Tail: &tail, NoFollow: true},
+			},
+			before: func(client *relay.MockClient) {
+				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
+				client.EXPECT().Subscribe(relay.SubscribeOptions{
+					Services:      []string{serviceName},
+					ReplayOptions: relay.ReplayOptions{Tail: &tail, NoFollow: true},
+				}).Return(nil)
+				client.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(nil)
+				client.EXPECT().Close().Return(nil)
+			},
+			expect: 0,
+		},
+		{
+			name:    "connect error",
+			options: Options{},
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(errors.New("connection refused"))
 			},
 			expect: 1,
 		},
 		{
-			name:     "subscribe error",
-			services: []string{"api"},
+			name:    "subscribe error",
+			options: Options{Services: []string{serviceName}},
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
-				client.EXPECT().Subscribe([]string{"api"}).Return(errors.New("subscribe failed"))
+				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName}}).Return(errors.New("subscribe failed"))
 				client.EXPECT().Close().Return(nil)
 			},
 			expect: 1,
 		},
 		{
-			name:     "stream error",
-			services: []string{"api", "web"},
+			name:    "stream error",
+			options: Options{Services: []string{serviceName, "web"}},
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
-				client.EXPECT().Subscribe([]string{"api", "web"}).Return(nil)
+				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName, "web"}}).Return(nil)
 				client.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(errors.New("stream interrupted"))
 				client.EXPECT().Close().Return(nil)
 			},
@@ -105,7 +128,7 @@ func Test_screen_streamLogs(t *testing.T) {
 				width:  func() int { return 80 },
 			}
 
-			result := s.streamLogs(t.Context(), "/tmp/test.sock", tt.services)
+			result := s.streamLogs(t.Context(), "/tmp/test.sock", tt.options)
 
 			assert.Equal(t, tt.expect, result)
 		})
@@ -125,16 +148,16 @@ func Test_screen_streamLogs_WritesToOutput(t *testing.T) {
 	r := render.NewLog(false)
 
 	mockClient.EXPECT().Connect("/tmp/test.sock").Return(nil)
-	mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
+	mockClient.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName}}).Return(nil)
 	mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ any, handler relay.Handler) error {
 			handler.HandleStatus(relay.StatusMessage{
 				Profile:  "default",
 				Version:  "1.0.0",
-				Services: []string{"api"},
+				Services: []string{serviceName},
 			})
 			handler.HandleLog(relay.LogMessage{
-				Service: "api",
+				Service: serviceName,
 				Message: "hello from api",
 			})
 
@@ -152,12 +175,12 @@ func Test_screen_streamLogs_WritesToOutput(t *testing.T) {
 		width:  func() int { return 80 },
 	}
 
-	result := s.streamLogs(t.Context(), "/tmp/test.sock", []string{"api"})
+	result := s.streamLogs(t.Context(), "/tmp/test.sock", Options{Services: []string{serviceName}})
 
 	assert.Equal(t, 0, result)
 
 	output := buf.String()
-	assert.Contains(t, output, "api")
+	assert.Contains(t, output, serviceName)
 	assert.Contains(t, output, "hello from api")
 }
 
@@ -185,7 +208,7 @@ func Test_screen_Run(t *testing.T) {
 			width:  func() int { return 80 },
 		}
 
-		result := s.Run(t.Context(), "nonexistent-profile-that-does-not-exist", nil)
+		result := s.Run(t.Context(), Options{Profile: "nonexistent-profile-that-does-not-exist"})
 
 		assert.Equal(t, 1, result)
 	})
@@ -208,7 +231,7 @@ func Test_screen_Run(t *testing.T) {
 		mockLog.EXPECT().Error().Return(nil).AnyTimes()
 
 		mockClient.EXPECT().Connect(socketPath).Return(nil)
-		mockClient.EXPECT().Subscribe([]string{"api"}).Return(nil)
+		mockClient.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName}}).Return(nil)
 		mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().Close().Return(nil)
 
@@ -221,37 +244,81 @@ func Test_screen_Run(t *testing.T) {
 			width:  func() int { return 80 },
 		}
 
-		result := s.Run(t.Context(), profile, []string{"api"})
+		result := s.Run(t.Context(), Options{Profile: profile, Services: []string{serviceName}})
 
 		assert.Equal(t, 0, result)
 	})
 }
 
 func Test_screenHandler_HandleStatus(t *testing.T) {
-	var buf bytes.Buffer
-
-	r := render.NewLog(false)
-
-	handler := &screenHandler{
-		render:     r,
-		format:     logger.ConsoleFormat,
-		subscribed: []string{"api"},
-		out:        &buf,
-		width:      func() int { return 80 },
+	tests := []struct {
+		name    string
+		noUI    bool
+		expects []string
+	}{
+		{
+			name:    "renders the banner by default",
+			noUI:    false,
+			expects: []string{"default", "2 running", serviceName, "ctrl+c"},
+		},
+		{
+			name:    "hides the panel and footer",
+			noUI:    true,
+			expects: nil,
+		},
 	}
 
 	status := relay.StatusMessage{
 		Profile:  "default",
 		Version:  "1.0.0",
-		Services: []string{"api", "web"},
+		Services: []string{serviceName, "web"},
 	}
 
-	handler.HandleStatus(status)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			handler := &screenHandler{
+				render:     render.NewLog(false),
+				format:     logger.ConsoleFormat,
+				subscribed: []string{serviceName},
+				out:        &buf,
+				width:      func() int { return 80 },
+				noUI:       tt.noUI,
+			}
+
+			handler.HandleStatus(status)
+
+			output := buf.String()
+
+			if tt.noUI {
+				assert.Empty(t, output)
+			}
+
+			for _, expected := range tt.expects {
+				assert.Contains(t, output, expected)
+			}
+		})
+	}
+}
+
+func Test_screenHandler_HandleLog_NoUIStillWritesLogs(t *testing.T) {
+	var buf bytes.Buffer
+
+	handler := &screenHandler{
+		render:     render.NewLog(false),
+		format:     logger.ConsoleFormat,
+		subscribed: []string{serviceName},
+		out:        &buf,
+		width:      func() int { return 80 },
+		noUI:       true,
+	}
+
+	handler.HandleLog(relay.LogMessage{Service: serviceName, Message: "request processed"})
 
 	output := buf.String()
-	assert.Contains(t, output, "default")
-	assert.Contains(t, output, "2 running")
-	assert.Contains(t, output, "api")
+	assert.Contains(t, output, serviceName)
+	assert.Contains(t, output, "request processed")
 }
 
 func Test_screenHandler_HandleLog(t *testing.T) {
@@ -265,10 +332,10 @@ func Test_screenHandler_HandleLog(t *testing.T) {
 			name:   "console format",
 			format: logger.ConsoleFormat,
 			msg: relay.LogMessage{
-				Service: "api",
+				Service: serviceName,
 				Message: "request processed",
 			},
-			expects: []string{"api", "request processed"},
+			expects: []string{serviceName, "request processed"},
 		},
 		{
 			name:   "JSON format",

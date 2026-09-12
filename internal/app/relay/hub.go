@@ -20,6 +20,7 @@ type Hub interface {
 type ClientConn struct {
 	ID       string
 	Services map[string]bool // subscribed services (empty = all)
+	ReplayOptions
 	SendChan chan LogMessage
 }
 
@@ -162,23 +163,18 @@ func (h *hub) Run(ctx context.Context) {
 				h.log.Warn().Msgf("Dropped %d log messages (buffer full)", dropped)
 			}
 		case client := <-h.register:
+			if client.NoFollow {
+				replayed := h.replay(client)
+				close(client.SendChan)
+
+				h.log.Debug().Msgf("Client %s replayed %d messages without following", client.ID, replayed)
+
+				continue
+			}
+
 			h.clients[client] = true
 
-			replayed := 0
-
-			h.history.forEach(func(msg LogMessage) {
-				if !client.ShouldReceive(msg.Service) {
-					return
-				}
-
-				select {
-				case client.SendChan <- msg:
-					replayed++
-				default:
-					h.dropped.Add(1)
-				}
-			})
-
+			replayed := h.replay(client)
 			h.log.Debug().Msgf("Client %s registered, replayed %d messages", client.ID, replayed)
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
@@ -199,4 +195,34 @@ func (h *hub) Run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// replay sends the matching buffered history to a client, newest messages only when a tail is set
+func (h *hub) replay(client *ClientConn) int {
+	selected := make([]LogMessage, 0, h.history.count)
+
+	h.history.forEach(func(msg LogMessage) {
+		if !client.ShouldReceive(msg.Service) {
+			return
+		}
+
+		selected = append(selected, msg)
+	})
+
+	if client.Tail != nil && len(selected) > *client.Tail {
+		selected = selected[len(selected)-*client.Tail:]
+	}
+
+	replayed := 0
+
+	for _, msg := range selected {
+		select {
+		case client.SendChan <- msg:
+			replayed++
+		default:
+			h.dropped.Add(1)
+		}
+	}
+
+	return replayed
 }

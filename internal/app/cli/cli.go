@@ -29,7 +29,10 @@ const (
 
   fuku logs [service...]          Stream logs from running services
   fuku --logs                     Same as above (--logs, -l, logs, l)
-  fuku logs --profile <name> [service...] Stream logs from specific profile
+  fuku logs api --profile <name>  Stream logs from specific profile
+  fuku logs api --tail <n>        Replay at most the newest n messages
+  fuku logs api --no-follow       Exit after the buffered replay
+  fuku logs api --no-ui           Hide the logs panel and footer
 
   fuku doctor [profile]           Diagnose configuration, environment, and runtime issues
   fuku doctor --summary           Print a compact one-line-per-check report

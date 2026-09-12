@@ -47,6 +47,7 @@ var (
 	ErrInvalidLogsOutput    = errors.New("invalid service logs output value (must be 'stdout' or 'stderr')")
 
 	ErrConfigFlagNotSupported = errors.New("--config flag is not supported for this command")
+	ErrInvalidTail            = errors.New("--tail must be greater than zero")
 
 	ErrFailedToGetWorkingDir = errors.New("failed to get working directory")
 	ErrFailedToCreatePipe    = errors.New("failed to create pipe")
@@ -73,6 +74,7 @@ var (
 	ErrInstanceNotFound         = errors.New("no fuku instance running with profile")
 	ErrFailedToResolveProject   = errors.New("failed to resolve project directory")
 	ErrInstanceAlreadyRunning   = errors.New("fuku is already running for this project")
+	ErrBoundedReadNotSupported  = errors.New("the running fuku instance does not support --tail and --no-follow")
 
 	ErrEmptyReleaseTag         = errors.New("empty tag in release response")
 	ErrUnexpectedReleaseStatus = errors.New("unexpected release response status")

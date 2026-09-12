@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"strconv"
+
 	"github.com/spf13/cobra"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/relay"
 	"fuku/internal/config"
 )
 
@@ -46,6 +49,25 @@ func (c CommandType) String() string {
 	return string(c)
 }
 
+// Flag represents the name of a CLI flag
+type Flag string
+
+// Flag name values
+const (
+	FlagConfig   Flag = "config"
+	FlagNoUI     Flag = "no-ui"
+	FlagProfile  Flag = "profile"
+	FlagTail     Flag = "tail"
+	FlagNoFollow Flag = "no-follow"
+	FlagSummary  Flag = "summary"
+	FlagJSON     Flag = "json"
+)
+
+// String returns the string representation of a Flag
+func (f Flag) String() string {
+	return string(f)
+}
+
 // DoctorFormat selects the doctor renderer
 type DoctorFormat int
 
@@ -64,6 +86,7 @@ type Options struct {
 	Services     []string
 	NoUI         bool
 	DoctorFormat DoctorFormat
+	relay.ReplayOptions
 }
 
 // rootFlags holds flag values for the root command
@@ -144,8 +167,8 @@ func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().BoolVar(&result.NoUI, "no-ui", false, "Run without TUI")
-	cmd.PersistentFlags().StringVarP(&result.ConfigFile, "config", "c", "", "Path to config file (disables override merging)")
+	cmd.PersistentFlags().BoolVar(&result.NoUI, FlagNoUI.String(), false, "Run without TUI")
+	cmd.PersistentFlags().StringVarP(&result.ConfigFile, FlagConfig.String(), "c", "", "Path to config file (disables override merging)")
 	cmd.Flags().BoolVarP(&flags.version, CommandVersion.String(), "v", false, "Show version information")
 	cmd.Flags().StringVarP(&flags.run, CommandRun.String(), "r", "", "Run services with specified profile")
 	cmd.Flags().StringVarP(&flags.stop, CommandStop.String(), "s", "", "Stop services with specified profile")
@@ -212,7 +235,10 @@ func buildStopCommand(result *Options) *cobra.Command {
 
 // buildLogsCommand creates the logs subcommand
 func buildLogsCommand(result *Options) *cobra.Command {
-	var logsProfile string
+	var (
+		logsProfile string
+		logsReplay  relay.ReplayOptions
+	)
 
 	cmd := &cobra.Command{
 		Use:     CommandLogs.String() + " [services...]",
@@ -222,10 +248,13 @@ func buildLogsCommand(result *Options) *cobra.Command {
 			result.Type = CommandLogs
 			result.Services = args
 			result.Profile = logsProfile
+			result.ReplayOptions = logsReplay
 		},
 	}
 
-	cmd.Flags().StringVar(&logsProfile, "profile", "", "Filter by profile")
+	cmd.Flags().StringVar(&logsProfile, FlagProfile.String(), "", "Filter by profile")
+	cmd.Flags().Var(&tailValue{target: &logsReplay.Tail}, FlagTail.String(), "Replay at most the newest n buffered messages")
+	cmd.Flags().BoolVar(&logsReplay.NoFollow, FlagNoFollow.String(), false, "Exit after the buffered replay instead of following")
 
 	return cmd
 }
@@ -273,8 +302,43 @@ func buildDoctorCommand(result *Options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&summary, "summary", false, "Print a compact one-line-per-check report")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Print the report as JSON")
+	cmd.Flags().BoolVar(&summary, FlagSummary.String(), false, "Print a compact one-line-per-check report")
+	cmd.Flags().BoolVar(&asJSON, FlagJSON.String(), false, "Print the report as JSON")
 
 	return cmd
+}
+
+// tailValue parses the --tail flag into an optional positive integer (nil until the flag is provided)
+type tailValue struct {
+	target **int
+}
+
+// String returns the parsed value, or an empty string before the flag is provided
+func (v *tailValue) String() string {
+	if *v.target == nil {
+		return ""
+	}
+
+	return strconv.Itoa(**v.target)
+}
+
+// Set parses one --tail argument and rejects values that are not greater than zero
+func (v *tailValue) Set(raw string) error {
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return err
+	}
+
+	if n <= 0 {
+		return errors.ErrInvalidTail
+	}
+
+	*v.target = &n
+
+	return nil
+}
+
+// Type names the flag value in usage output
+func (v *tailValue) Type() string {
+	return "int"
 }

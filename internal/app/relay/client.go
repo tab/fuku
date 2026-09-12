@@ -17,17 +17,24 @@ type Handler interface {
 	HandleLog(LogMessage)
 }
 
+// SubscribeOptions describes what a client asks the relay server to send
+type SubscribeOptions struct {
+	Services []string
+	ReplayOptions
+}
+
 // Client connects to a running fuku instance and streams logs
 type Client interface {
 	Connect(socketPath string) error
-	Subscribe(services []string) error
+	Subscribe(options SubscribeOptions) error
 	Stream(ctx context.Context, handler Handler) error
 	Close() error
 }
 
 // client implements the Client interface
 type client struct {
-	conn net.Conn
+	conn      net.Conn
+	requested SubscribeOptions
 }
 
 // NewClient creates a new relay client
@@ -47,11 +54,12 @@ func (c *client) Connect(socketPath string) error {
 	return nil
 }
 
-// Subscribe sends subscription request for the specified services
-func (c *client) Subscribe(services []string) error {
+// Subscribe sends a subscription request and remembers the requested bounded-read options
+func (c *client) Subscribe(options SubscribeOptions) error {
 	req := SubscribeRequest{
-		Type:     MessageSubscribe,
-		Services: services,
+		Type:          MessageSubscribe,
+		Services:      options.Services,
+		ReplayOptions: options.ReplayOptions,
 	}
 
 	data, err := json.Marshal(req)
@@ -63,6 +71,8 @@ func (c *client) Subscribe(services []string) error {
 	if _, err := c.conn.Write(data); err != nil {
 		return fmt.Errorf("%w: %w", errors.ErrFailedToWriteSocket, err)
 	}
+
+	c.requested = options
 
 	return nil
 }
@@ -81,10 +91,20 @@ func (c *client) Stream(ctx context.Context, handler Handler) error {
 	}()
 
 	reader := bufio.NewReader(c.conn)
+	awaitingAck := c.requested.bounded()
 
 	for {
 		line, err := reader.ReadBytes('\n')
-		if err != nil && (ctx.Err() != nil || err == io.EOF) {
+
+		if err != nil && ctx.Err() != nil {
+			return nil
+		}
+
+		if errors.Is(err, io.EOF) && awaitingAck {
+			return notAcknowledged()
+		}
+
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 
@@ -92,28 +112,20 @@ func (c *client) Stream(ctx context.Context, handler Handler) error {
 			return fmt.Errorf("%w: %w", errors.ErrFailedToReadSocket, err)
 		}
 
-		var envelope MessageEnvelope
-		if err := json.Unmarshal(line, &envelope); err != nil {
+		if awaitingAck {
+			status, ok := c.acknowledgement(line)
+			if !ok {
+				return notAcknowledged()
+			}
+
+			awaitingAck = false
+
+			handler.HandleStatus(status)
+
 			continue
 		}
 
-		//nolint:exhaustive // only handling known message types
-		switch envelope.Type {
-		case MessageStatus:
-			var status StatusMessage
-			if err := json.Unmarshal(line, &status); err != nil {
-				continue
-			}
-
-			handler.HandleStatus(status)
-		case MessageLog:
-			var msg LogMessage
-			if err := json.Unmarshal(line, &msg); err != nil {
-				continue
-			}
-
-			handler.HandleLog(msg)
-		}
+		dispatch(line, handler)
 	}
 }
 
@@ -124,4 +136,55 @@ func (c *client) Close() error {
 	}
 
 	return nil
+}
+
+// notAcknowledged returns the compatibility error for a server that did not confirm the request
+func notAcknowledged() error {
+	return fmt.Errorf("%w, restart the running profile with the current fuku version", errors.ErrBoundedReadNotSupported)
+}
+
+// acknowledgement decodes a frame that must be a status echoing the exact requested bounded-read options
+func (c *client) acknowledgement(line []byte) (StatusMessage, bool) {
+	status, ok := decodeStatus(line)
+	if !ok {
+		return StatusMessage{}, false
+	}
+
+	return status, c.requested.equal(status.ReplayOptions)
+}
+
+// dispatch routes one relay frame to the handler and ignores frames it cannot decode
+func dispatch(line []byte, handler Handler) {
+	var envelope MessageEnvelope
+	if err := json.Unmarshal(line, &envelope); err != nil {
+		return
+	}
+
+	//nolint:exhaustive // only handling known message types
+	switch envelope.Type {
+	case MessageStatus:
+		status, ok := decodeStatus(line)
+		if !ok {
+			return
+		}
+
+		handler.HandleStatus(status)
+	case MessageLog:
+		var msg LogMessage
+		if err := json.Unmarshal(line, &msg); err != nil {
+			return
+		}
+
+		handler.HandleLog(msg)
+	}
+}
+
+// decodeStatus decodes a status frame and reports false for any other frame
+func decodeStatus(line []byte) (StatusMessage, bool) {
+	var status StatusMessage
+	if err := json.Unmarshal(line, &status); err != nil {
+		return StatusMessage{}, false
+	}
+
+	return status, status.Type == MessageStatus
 }

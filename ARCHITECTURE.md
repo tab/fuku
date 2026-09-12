@@ -674,15 +674,20 @@ graph TD
 JSON lines over Unix socket:
 
 ```json
-// Client → Server (subscribe)
-{"type":"subscribe","services":["api","db"]}
+// Client → Server (subscribe - tail and noFollow are optional)
+{"type":"subscribe","services":["api","db"],"tail":100,"noFollow":true}
 
-// Server → Client (status - sent after subscribe)
-{"type":"status","version":"0.21.0","instance":"1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24","fingerprint":"3f2a9c1d8b4e6072","profile":"default","services":["api","db","web"]}
+// Server → Client (status - sent after subscribe, echoing the accepted tail and noFollow)
+{"type":"status","version":"0.21.0","instance":"1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24","fingerprint":"3f2a9c1d8b4e6072","profile":"default","services":["api","db","web"],"tail":100,"noFollow":true}
 
 // Server → Client (log message)
 {"type":"log","service":"api","message":"Server started on :8080"}
 ```
+
+The server replays buffered history filtered by the requested services, keeping only the newest `tail` messages when set.
+A `tail` that is not greater than zero is rejected and the connection is closed without a status message.
+A `noFollow` subscriber receives the replay and the server closes the connection once it is written; other subscribers stay registered for live messages.
+A client that requested `tail` or `noFollow` treats anything but a status frame echoing the same values as an incompatible server.
 
 ## 5. Runtime State Store & REST API
 

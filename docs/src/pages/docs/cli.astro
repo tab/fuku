@@ -132,8 +132,13 @@ fuku stop core                  # Specific profile
 # Stream logs from running instance (separate terminal)
 fuku logs                       # All services
 fuku logs api auth              # Specific services
-fuku logs --profile core api    # Filter by profile
+fuku logs api --profile core    # Filter by profile
 fuku l api db                   # Short alias
+
+# Bounded log read for scripts and agents
+fuku logs api --tail 100        # At most the newest 100 buffered messages, then follow
+fuku logs api --no-follow       # Replay the buffered messages and exit
+fuku logs api --no-ui --tail 100 --no-follow  # No panel, at most 100 messages, then exit
 
 # Use a custom config file
 fuku --config path/to/fuku.yaml run core

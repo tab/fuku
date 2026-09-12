@@ -546,7 +546,7 @@ func Test_Server_Hello_WriteDeadlineError(t *testing.T) {
 	srv.profile = "test"
 	srv.services = []string{"api"}
 
-	srv.hello(serverConn, "client-1")
+	srv.hello(serverConn, NewClientConn("client-1", 1))
 }
 
 func Test_Server_Hello_WriteError(t *testing.T) {
@@ -583,7 +583,7 @@ func Test_Server_Hello_WriteError(t *testing.T) {
 	srv.profile = "test"
 	srv.services = []string{"api"}
 
-	srv.hello(serverSide, "client-1")
+	srv.hello(serverSide, NewClientConn("client-1", 1))
 	serverSide.Close()
 }
 
@@ -668,4 +668,235 @@ func Test_Server_Stop_RemoveSocketError(t *testing.T) {
 	srv.socketPath = tmpDir
 
 	srv.Stop()
+}
+
+func Test_Server_HandleConnection_RejectsInvalidTail(t *testing.T) {
+	zero := 0
+	negative := -1
+
+	tests := []struct {
+		name string
+		tail *int
+	}{
+		{
+			name: "explicit zero",
+			tail: &zero,
+		},
+		{
+			name: "negative value",
+			tail: &negative,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newTestServer(t)
+			profile := uniqueProfile(t)
+
+			cancel := startTestServer(t, srv, profile, []string{"api"})
+			defer srv.Stop()
+			defer cancel()
+
+			conn, err := net.Dial("unix", srv.SocketPath())
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			data, err := json.Marshal(SubscribeRequest{
+				Type:          MessageSubscribe,
+				Services:      []string{},
+				ReplayOptions: ReplayOptions{Tail: tt.tail},
+			})
+			require.NoError(t, err)
+
+			data = append(data, '\n')
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			err = conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+			require.NoError(t, err)
+
+			buf := make([]byte, 1)
+			_, err = conn.Read(buf)
+			assert.ErrorIs(t, err, io.EOF)
+		})
+	}
+}
+
+func Test_Server_HandleConnection_EchoesAcceptedOptions(t *testing.T) {
+	tail := 2
+
+	tests := []struct {
+		name     string
+		request  SubscribeRequest
+		expected StatusMessage
+	}{
+		{
+			name: "tail and no-follow",
+			request: SubscribeRequest{
+				Type:          MessageSubscribe,
+				Services:      []string{"api"},
+				ReplayOptions: ReplayOptions{Tail: &tail, NoFollow: true},
+			},
+			expected: StatusMessage{
+				ReplayOptions: ReplayOptions{Tail: &tail, NoFollow: true},
+			},
+		},
+		{
+			name: "no bounded options",
+			request: SubscribeRequest{
+				Type:     MessageSubscribe,
+				Services: []string{"api"},
+			},
+			expected: StatusMessage{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newTestServer(t)
+			profile := uniqueProfile(t)
+
+			cancel := startTestServer(t, srv, profile, []string{"api"})
+			defer srv.Stop()
+			defer cancel()
+
+			conn, err := net.Dial("unix", srv.SocketPath())
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			data, err := json.Marshal(tt.request)
+			require.NoError(t, err)
+
+			data = append(data, '\n')
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			err = conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+			require.NoError(t, err)
+
+			line, err := bufio.NewReader(conn).ReadBytes('\n')
+			require.NoError(t, err)
+
+			var status StatusMessage
+
+			err = json.Unmarshal(line, &status)
+			require.NoError(t, err)
+			assert.Equal(t, MessageStatus, status.Type)
+			assert.Equal(t, tt.expected.Tail, status.Tail)
+			assert.Equal(t, tt.expected.NoFollow, status.NoFollow)
+		})
+	}
+}
+
+func Test_Server_HandleConnection_NoFollowDrainsReplayBeforeClosing(t *testing.T) {
+	tail := 2
+
+	srv := newTestServer(t)
+	profile := uniqueProfile(t)
+
+	seeded, ok := srv.hub.(*hub)
+	require.True(t, ok)
+
+	pushHistory(seeded,
+		LogMessage{Type: MessageLog, Service: "api", Message: "history-msg-1"},
+		LogMessage{Type: MessageLog, Service: "web", Message: "history-msg-2"},
+		LogMessage{Type: MessageLog, Service: "api", Message: "history-msg-3"},
+		LogMessage{Type: MessageLog, Service: "api", Message: "history-msg-4"},
+	)
+
+	cancel := startTestServer(t, srv, profile, []string{"api"})
+	defer srv.Stop()
+	defer cancel()
+
+	conn, err := net.Dial("unix", srv.SocketPath())
+	require.NoError(t, err)
+
+	defer conn.Close()
+
+	data, err := json.Marshal(SubscribeRequest{
+		Type:          MessageSubscribe,
+		Services:      []string{"api"},
+		ReplayOptions: ReplayOptions{Tail: &tail, NoFollow: true},
+	})
+	require.NoError(t, err)
+
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	err = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	require.NoError(t, err)
+
+	reader := bufio.NewReader(conn)
+
+	line, err := reader.ReadBytes('\n')
+	require.NoError(t, err)
+
+	var status StatusMessage
+
+	err = json.Unmarshal(line, &status)
+	require.NoError(t, err)
+	assert.Equal(t, MessageStatus, status.Type)
+
+	replayed := make([]string, 0, 2)
+
+	for {
+		line, err = reader.ReadBytes('\n')
+		if err != nil {
+			break
+		}
+
+		var msg LogMessage
+
+		require.NoError(t, json.Unmarshal(line, &msg))
+
+		replayed = append(replayed, msg.Message)
+	}
+
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, []string{"history-msg-3", "history-msg-4"}, replayed)
+}
+
+func Test_Server_HandleConnection_NoFollowWithEmptyHistoryClosesAfterStatus(t *testing.T) {
+	srv := newTestServer(t)
+	profile := uniqueProfile(t)
+
+	cancel := startTestServer(t, srv, profile, []string{"api"})
+	defer srv.Stop()
+	defer cancel()
+
+	conn, err := net.Dial("unix", srv.SocketPath())
+	require.NoError(t, err)
+
+	defer conn.Close()
+
+	data, err := json.Marshal(SubscribeRequest{
+		Type:          MessageSubscribe,
+		Services:      []string{"api"},
+		ReplayOptions: ReplayOptions{NoFollow: true},
+	})
+	require.NoError(t, err)
+
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	err = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	require.NoError(t, err)
+
+	reader := bufio.NewReader(conn)
+
+	line, err := reader.ReadBytes('\n')
+	require.NoError(t, err)
+
+	var status StatusMessage
+
+	err = json.Unmarshal(line, &status)
+	require.NoError(t, err)
+	assert.Equal(t, MessageStatus, status.Type)
+
+	_, err = reader.ReadBytes('\n')
+	assert.ErrorIs(t, err, io.EOF)
 }
