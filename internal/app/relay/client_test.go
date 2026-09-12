@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"io"
@@ -119,7 +120,7 @@ func Test_Client_Subscribe(t *testing.T) {
 
 			defer c.Close()
 
-			err = c.Subscribe(tt.services)
+			err = c.Subscribe(SubscribeOptions{Services: tt.services})
 			require.NoError(t, err)
 		})
 	}
@@ -140,7 +141,7 @@ func Test_Client_Subscribe_ClosedConnection(t *testing.T) {
 	err = c.Close()
 	require.NoError(t, err)
 
-	err = c.Subscribe([]string{"api"})
+	err = c.Subscribe(SubscribeOptions{Services: []string{"api"}})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errors.ErrFailedToWriteSocket))
 }
@@ -159,7 +160,7 @@ func Test_Client_Stream_ReceivesLogMessages(t *testing.T) {
 
 	defer c.Close()
 
-	err = c.Subscribe([]string{})
+	err = c.Subscribe(SubscribeOptions{})
 	require.NoError(t, err)
 
 	handler := &testHandler{}
@@ -210,7 +211,7 @@ func Test_Client_Stream_ContextCancellation(t *testing.T) {
 
 	defer c.Close()
 
-	err = c.Subscribe([]string{})
+	err = c.Subscribe(SubscribeOptions{})
 	require.NoError(t, err)
 
 	handler := &testHandler{}
@@ -351,7 +352,7 @@ func Test_Client_Stream_ReceivesStatusMessage(t *testing.T) {
 
 	defer c.Close()
 
-	err = c.Subscribe([]string{})
+	err = c.Subscribe(SubscribeOptions{})
 	require.NoError(t, err)
 
 	handler := &testHandler{}
@@ -562,4 +563,195 @@ func Test_Client_Stream_ReadError(t *testing.T) {
 	err = c.Stream(t.Context(), handler)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errors.ErrFailedToReadSocket))
+}
+
+func Test_Client_Stream_BoundedReadAcknowledgement(t *testing.T) {
+	requested := 2
+	different := 5
+
+	logLine := func(t *testing.T) string {
+		t.Helper()
+
+		return marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
+	}
+
+	statusLine := func(t *testing.T, tail *int, noFollow bool) string {
+		t.Helper()
+
+		return marshalLine(t, StatusMessage{
+			Type:          MessageStatus,
+			Version:       "0.17.0",
+			Profile:       "default",
+			Services:      []string{"api"},
+			ReplayOptions: ReplayOptions{Tail: tail, NoFollow: noFollow},
+		})
+	}
+
+	tests := []struct {
+		name             string
+		requested        SubscribeOptions
+		lines            func(t *testing.T) []string
+		expectedError    bool
+		expectedStatuses int
+		expectedLogs     int
+	}{
+		{
+			name:      "exact echo is accepted",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested, NoFollow: true}},
+			lines: func(t *testing.T) []string {
+				return []string{statusLine(t, &requested, true), logLine(t)}
+			},
+			expectedStatuses: 1,
+			expectedLogs:     1,
+		},
+		{
+			name:      "missing echo is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested, NoFollow: true}},
+			lines: func(t *testing.T) []string {
+				return []string{statusLine(t, nil, false), logLine(t)}
+			},
+			expectedError: true,
+		},
+		{
+			name:      "different tail is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested}},
+			lines: func(t *testing.T) []string {
+				return []string{statusLine(t, &different, false), logLine(t)}
+			},
+			expectedError: true,
+		},
+		{
+			name:      "missing no-follow echo is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{NoFollow: true}},
+			lines: func(t *testing.T) []string {
+				return []string{statusLine(t, nil, false), logLine(t)}
+			},
+			expectedError: true,
+		},
+		{
+			name:      "log before status is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested}},
+			lines: func(t *testing.T) []string {
+				return []string{logLine(t), statusLine(t, &requested, false)}
+			},
+			expectedError: true,
+		},
+		{
+			name:      "invalid JSON before status is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested}},
+			lines: func(t *testing.T) []string {
+				return []string{"not json", statusLine(t, &requested, false)}
+			},
+			expectedError: true,
+		},
+		{
+			name:      "unknown message type before status is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested}},
+			lines: func(t *testing.T) []string {
+				return []string{`{"type":"heartbeat"}`, statusLine(t, &requested, false)}
+			},
+			expectedError: true,
+		},
+		{
+			name:      "malformed status before status is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested}},
+			lines: func(t *testing.T) []string {
+				return []string{`{"type":"status","tail":"two"}`, statusLine(t, &requested, false)}
+			},
+			expectedError: true,
+		},
+		{
+			name:      "end of stream before status is rejected",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{NoFollow: true}},
+			lines: func(t *testing.T) []string {
+				return nil
+			},
+			expectedError: true,
+		},
+		{
+			name:      "unbounded request accepts a status without echo",
+			requested: SubscribeOptions{Services: []string{"api"}},
+			lines: func(t *testing.T) []string {
+				return []string{statusLine(t, nil, false), logLine(t)}
+			},
+			expectedStatuses: 1,
+			expectedLogs:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			socketPath := startScriptedServer(t, tt.lines(t)...)
+
+			c := NewClient()
+			require.NoError(t, c.Connect(socketPath))
+
+			defer c.Close()
+
+			require.NoError(t, c.Subscribe(tt.requested))
+
+			handler := &testHandler{}
+			err := c.Stream(t.Context(), handler)
+
+			if tt.expectedError {
+				require.ErrorIs(t, err, errors.ErrBoundedReadNotSupported)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Len(t, handler.getStatuses(), tt.expectedStatuses)
+			assert.Len(t, handler.getLogs(), tt.expectedLogs)
+		})
+	}
+}
+
+// startScriptedServer accepts one connection, reads the subscribe line, writes the given lines and closes
+func startScriptedServer(t *testing.T, lines ...string) string {
+	t.Helper()
+
+	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
+	tmpDir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir)
+	})
+
+	socketPath := tmpDir + "/test.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+
+		defer conn.Close()
+
+		if _, err := bufio.NewReader(conn).ReadBytes('\n'); err != nil {
+			return
+		}
+
+		for _, line := range lines {
+			conn.Write([]byte(line + "\n"))
+		}
+	}()
+
+	return socketPath
+}
+
+// marshalLine renders a protocol message as one wire line
+func marshalLine(t *testing.T, msg any) string {
+	t.Helper()
+
+	data, err := json.Marshal(msg)
+	require.NoError(t, err)
+
+	return string(data)
 }

@@ -41,15 +41,15 @@ func (m *MockScreen) EXPECT() *MockScreenMockRecorder {
 }
 
 // Run mocks base method.
-func (m *MockScreen) Run(ctx context.Context, profile string, services []string) int {
+func (m *MockScreen) Run(ctx context.Context, options Options) int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", ctx, profile, services)
+	ret := m.ctrl.Call(m, "Run", ctx, options)
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
 // Run indicates an expected call of Run.
-func (mr *MockScreenMockRecorder) Run(ctx, profile, services any) *gomock.Call {
+func (mr *MockScreenMockRecorder) Run(ctx, options any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockScreen)(nil).Run), ctx, profile, services)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockScreen)(nil).Run), ctx, options)
 }

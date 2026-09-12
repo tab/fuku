@@ -132,6 +132,11 @@ func (r *Runner) Stop() error {
 
 // WaitForLog blocks until pattern appears in stdout or timeout
 func (r *Runner) WaitForLog(pattern string, timeout time.Duration) error {
+	return r.WaitForLogCount(pattern, 1, timeout)
+}
+
+// WaitForLogCount blocks until pattern appears at least count times in stdout or timeout
+func (r *Runner) WaitForLogCount(pattern string, count int, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -141,9 +146,9 @@ func (r *Runner) WaitForLog(pattern string, timeout time.Duration) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for log pattern %q\nOutput:\n%s", pattern, r.Output())
+			return fmt.Errorf("timeout waiting for %d occurrences of log pattern %q\nOutput:\n%s", count, pattern, r.Output())
 		case <-ticker.C:
-			if strings.Contains(r.Output(), pattern) {
+			if strings.Count(r.Output(), pattern) >= count {
 				return nil
 			}
 		}

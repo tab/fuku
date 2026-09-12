@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,14 +11,25 @@ import (
 	"fuku/internal/config"
 )
 
+// Flag arguments repeated across the parser tests
+const (
+	tailArg     = "--" + string(FlagTail)
+	noUIArg     = "--" + string(FlagNoUI)
+	noFollowArg = "--" + string(FlagNoFollow)
+)
+
 func Test_Parse(t *testing.T) {
+	tail := 100
+
 	tests := []struct {
 		name               string
 		args               []string
 		expectedType       CommandType
 		expectedProfile    string
 		expectedServices   []string
+		expectedTail       *int
 		expectedNoUI       bool
+		expectedNoFollow   bool
 		expectedConfigFile string
 	}{
 		{
@@ -64,28 +76,28 @@ func Test_Parse(t *testing.T) {
 		},
 		{
 			name:            "--run flag with --no-ui",
-			args:            []string{"--run", "core", "--no-ui"},
+			args:            []string{"--run", "core", noUIArg},
 			expectedType:    CommandRun,
 			expectedProfile: "core",
 			expectedNoUI:    true,
 		},
 		{
 			name:            "--no-ui flag before run command",
-			args:            []string{"--no-ui", "run", "core"},
+			args:            []string{noUIArg, "run", "core"},
 			expectedType:    CommandRun,
 			expectedProfile: "core",
 			expectedNoUI:    true,
 		},
 		{
 			name:            "--no-ui flag after run command",
-			args:            []string{"run", "core", "--no-ui"},
+			args:            []string{"run", "core", noUIArg},
 			expectedType:    CommandRun,
 			expectedProfile: "core",
 			expectedNoUI:    true,
 		},
 		{
 			name:            "--no-ui flag with no command",
-			args:            []string{"--no-ui"},
+			args:            []string{noUIArg},
 			expectedType:    CommandRun,
 			expectedProfile: config.Default,
 			expectedNoUI:    true,
@@ -137,6 +149,60 @@ func Test_Parse(t *testing.T) {
 			expectedProfile:  "",
 			expectedServices: []string{},
 			expectedNoUI:     false,
+		},
+		{
+			name:             "logs command with --tail",
+			args:             []string{"logs", "api", tailArg, "100"},
+			expectedType:     CommandLogs,
+			expectedProfile:  "",
+			expectedServices: []string{"api"},
+			expectedTail:     &tail,
+		},
+		{
+			name:             "logs command with --no-follow",
+			args:             []string{"logs", "api", noFollowArg},
+			expectedType:     CommandLogs,
+			expectedProfile:  "",
+			expectedServices: []string{"api"},
+			expectedNoFollow: true,
+		},
+		{
+			name:             "logs bounded read with service names first",
+			args:             []string{"logs", "api", "--profile", "core", noUIArg, tailArg, "100", noFollowArg},
+			expectedType:     CommandLogs,
+			expectedProfile:  "core",
+			expectedServices: []string{"api"},
+			expectedTail:     &tail,
+			expectedNoUI:     true,
+			expectedNoFollow: true,
+		},
+		{
+			name:             "logs bounded read with flags before service names",
+			args:             []string{noUIArg, "logs", tailArg, "100", noFollowArg, "--profile", "core", "api"},
+			expectedType:     CommandLogs,
+			expectedProfile:  "core",
+			expectedServices: []string{"api"},
+			expectedTail:     &tail,
+			expectedNoUI:     true,
+			expectedNoFollow: true,
+		},
+		{
+			name:             "logs bounded read with flags between service names",
+			args:             []string{"logs", "api", tailArg, "100", "--profile", "core", "db", noFollowArg, noUIArg},
+			expectedType:     CommandLogs,
+			expectedProfile:  "core",
+			expectedServices: []string{"api", "db"},
+			expectedTail:     &tail,
+			expectedNoUI:     true,
+			expectedNoFollow: true,
+		},
+		{
+			name:             "logs with --no-ui after the subcommand",
+			args:             []string{"logs", "api", noUIArg},
+			expectedType:     CommandLogs,
+			expectedProfile:  "",
+			expectedServices: []string{"api"},
+			expectedNoUI:     true,
 		},
 		{
 			name:            "stop command without profile",
@@ -317,7 +383,9 @@ func Test_Parse(t *testing.T) {
 			assert.Equal(t, tt.expectedType, result.Type)
 			assert.Equal(t, tt.expectedProfile, result.Profile)
 			assert.Equal(t, tt.expectedServices, result.Services)
+			assert.Equal(t, tt.expectedTail, result.Tail)
 			assert.Equal(t, tt.expectedNoUI, result.NoUI)
+			assert.Equal(t, tt.expectedNoFollow, result.NoFollow)
 			assert.Equal(t, tt.expectedConfigFile, result.ConfigFile)
 		})
 	}
@@ -431,6 +499,35 @@ func Test_Parse_StopWithTooManyArgs(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func Test_Parse_InvalidTail(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "explicit zero",
+			args: []string{"logs", tailArg, "0"},
+		},
+		{
+			name: "negative value",
+			args: []string{"logs", tailArg, "-1"},
+		},
+		{
+			name: "negative value with service names",
+			args: []string{"logs", "api", tailArg, "-5"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Parse(tt.args)
+
+			require.ErrorIs(t, err, errors.ErrInvalidTail)
+			assert.Nil(t, result)
+		})
+	}
+}
+
 func Test_Parse_ConfigFlagNotSupported(t *testing.T) {
 	tests := []struct {
 		name string
@@ -470,4 +567,89 @@ func Test_Parse_ConfigFlagNotSupported(t *testing.T) {
 			assert.Nil(t, result)
 		})
 	}
+}
+
+func Test_tailValue_String(t *testing.T) {
+	five := 5
+
+	tests := []struct {
+		name     string
+		tail     *int
+		expected string
+	}{
+		{
+			name:     "omitted flag",
+			tail:     nil,
+			expected: "",
+		},
+		{
+			name:     "provided flag",
+			tail:     &five,
+			expected: "5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value := &tailValue{target: &tt.tail}
+
+			assert.Equal(t, tt.expected, value.String())
+		})
+	}
+}
+
+func Test_tailValue_Set(t *testing.T) {
+	hundred := 100
+
+	tests := []struct {
+		name          string
+		raw           string
+		expected      *int
+		expectedError error
+	}{
+		{
+			name:     "positive value",
+			raw:      "100",
+			expected: &hundred,
+		},
+		{
+			name:          "zero",
+			raw:           "0",
+			expectedError: errors.ErrInvalidTail,
+		},
+		{
+			name:          "negative value",
+			raw:           "-1",
+			expectedError: errors.ErrInvalidTail,
+		},
+		{
+			name:          "not a number",
+			raw:           "many",
+			expectedError: strconv.ErrSyntax,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var tail *int
+
+			err := (&tailValue{target: &tail}).Set(tt.raw)
+
+			if tt.expectedError != nil {
+				require.ErrorIs(t, err, tt.expectedError)
+				assert.Nil(t, tail)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, tail)
+		})
+	}
+}
+
+func Test_tailValue_Type(t *testing.T) {
+	var tail *int
+
+	assert.Equal(t, "int", (&tailValue{target: &tail}).Type())
 }

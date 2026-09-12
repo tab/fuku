@@ -15,6 +15,7 @@ import (
 	"fuku/internal/app/bus"
 	"fuku/internal/app/errors"
 	"fuku/internal/app/logs"
+	"fuku/internal/app/relay"
 	"fuku/internal/app/render"
 	"fuku/internal/app/runner"
 	"fuku/internal/app/ui/wire"
@@ -200,11 +201,12 @@ func Test_Execute_LogsMode(t *testing.T) {
 	mockLogsScreen := logs.NewMockScreen(ctrl)
 	mockLogger := logger.NewMockLogger(ctrl)
 
+	tail := 5
+
 	tests := []struct {
 		name     string
 		cmd      *Options
-		profile  string
-		services []string
+		expected logs.Options
 	}{
 		{
 			name: "Logs with services",
@@ -213,8 +215,10 @@ func Test_Execute_LogsMode(t *testing.T) {
 				Profile:  "",
 				Services: []string{"api"},
 			},
-			profile:  "",
-			services: []string{"api"},
+			expected: logs.Options{
+				Profile:  "",
+				Services: []string{"api"},
+			},
 		},
 		{
 			name: "Logs with profile",
@@ -223,8 +227,26 @@ func Test_Execute_LogsMode(t *testing.T) {
 				Profile:  "core",
 				Services: []string{"api", "db"},
 			},
-			profile:  "core",
-			services: []string{"api", "db"},
+			expected: logs.Options{
+				Profile:  "core",
+				Services: []string{"api", "db"},
+			},
+		},
+		{
+			name: "Logs with bounded read and no UI",
+			cmd: &Options{
+				Type:          CommandLogs,
+				Profile:       "core",
+				Services:      []string{"api"},
+				NoUI:          true,
+				ReplayOptions: relay.ReplayOptions{Tail: &tail, NoFollow: true},
+			},
+			expected: logs.Options{
+				Profile:       "core",
+				Services:      []string{"api"},
+				NoUI:          true,
+				ReplayOptions: relay.ReplayOptions{Tail: &tail, NoFollow: true},
+			},
 		},
 	}
 
@@ -238,7 +260,7 @@ func Test_Execute_LogsMode(t *testing.T) {
 			}
 
 			ctx := t.Context()
-			mockLogsScreen.EXPECT().Run(ctx, tt.profile, tt.services).Return(0)
+			mockLogsScreen.EXPECT().Run(ctx, tt.expected).Return(0)
 
 			exitCode, err := tu.Execute(ctx)
 
