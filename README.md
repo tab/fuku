@@ -71,7 +71,13 @@ fuku stop core                  # Specific profile
 # Stream logs from running instance (in separate terminal)
 fuku logs                       # All services
 fuku logs api auth              # Specific services
+fuku logs api --profile core    # Filter by profile
 fuku l api db                   # Short alias
+
+# Bounded log read for scripts and agents
+fuku logs api --tail 100        # Replay at most the newest 100 buffered messages, then follow
+fuku logs api --no-follow       # Replay the buffered messages and exit
+fuku logs api --no-ui --tail 100 --no-follow  # At most 100 messages, no panel, then exit
 
 # Diagnose configuration, environment, and runtime issues
 fuku doctor                     # Default profile

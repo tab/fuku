@@ -52,10 +52,34 @@ fuku logs
 fuku logs api auth
 
 # Filter by profile
-fuku logs --profile backend api
+fuku logs api --profile core
 
 # Short alias
 fuku l api worker`} />
+
+  <div class="section-eyebrow">Automation</div>
+  <h2>Bounded reads</h2>
+
+  <p>
+    Scripts and AI agents need a log read that ends on its own. <code>--tail</code> limits the buffered replay,
+    <code>--no-follow</code> exits once that replay has been written, and <code>--no-ui</code> drops the logs panel
+    and the <code>ctrl+c</code> footer while keeping the log lines and errors.
+  </p>
+
+  <CodeTerminal code={`# Replay at most the newest 100 buffered messages, then keep following
+fuku logs api --tail 100
+
+# Replay the buffered messages and exit
+fuku logs api --no-follow
+
+# Everything an agent needs: no panel, at most 100 buffered messages, then exit
+fuku logs api frontend-api --profile core --no-ui --tail 100 --no-follow`} />
+
+  <p>
+    The two flags are independent: <code>--tail</code> does not stop following, and <code>--no-follow</code> does not
+    apply a limit. The limit applies after service filtering, across the whole selected stream rather than per service.
+    A <code>--tail</code> value must be greater than zero.
+  </p>
 
   <div class="section-eyebrow">Output control</div>
   <h2>Per-service output</h2>
