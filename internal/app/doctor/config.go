@@ -25,8 +25,8 @@ func configSection(_ context.Context, env *Env) Section {
 func checkConfigFile(env *Env) Result {
 	if env.ConfigPath == "" {
 		return Result{
-			ID:          "config.file",
-			Category:    "configuration",
+			ID:          CheckConfigFile,
+			Category:    CategoryConfiguration,
 			Status:      StatusFail,
 			Summary:     "no fuku.yaml found in current directory",
 			Remediation: "run `fuku init` to generate a template",
@@ -37,8 +37,8 @@ func checkConfigFile(env *Env) Result {
 	// is reported by config.validate, so this check only flags read/parse failures.
 	if env.LoadErr != nil && !errors.Is(env.LoadErr, errors.ErrInvalidConfig) {
 		return Result{
-			ID:       "config.file",
-			Category: "configuration",
+			ID:       CheckConfigFile,
+			Category: CategoryConfiguration,
 			Status:   StatusFail,
 			Summary:  "failed to load " + env.ConfigPath,
 			Details: []Detail{
@@ -50,8 +50,8 @@ func checkConfigFile(env *Env) Result {
 	}
 
 	return Result{
-		ID:       "config.file",
-		Category: "configuration",
+		ID:       CheckConfigFile,
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary:  "found and parsed",
 		Details: []Detail{
@@ -64,8 +64,8 @@ func checkConfigFile(env *Env) Result {
 func checkConfigOverride(env *Env) Result {
 	if env.OverridePath == "" {
 		return Result{
-			ID:       "config.override",
-			Category: "configuration",
+			ID:       CheckConfigOverride,
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
 			Summary:  "no override file present",
 		}
@@ -73,8 +73,8 @@ func checkConfigOverride(env *Env) Result {
 
 	if env.ExplicitConfig {
 		return Result{
-			ID:       "config.override",
-			Category: "configuration",
+			ID:       CheckConfigOverride,
+			Category: CategoryConfiguration,
 			Status:   StatusNote,
 			Summary:  "override file present but skipped (--config bypasses overrides)",
 			Details: []Detail{
@@ -85,8 +85,8 @@ func checkConfigOverride(env *Env) Result {
 
 	if env.LoadErr != nil {
 		return Result{
-			ID:       "config.override",
-			Category: "configuration",
+			ID:       CheckConfigOverride,
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
 			Summary:  "override merge status unknown (config did not load)",
 			Details: []Detail{
@@ -96,8 +96,8 @@ func checkConfigOverride(env *Env) Result {
 	}
 
 	return Result{
-		ID:       "config.override",
-		Category: "configuration",
+		ID:       CheckConfigOverride,
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary:  "override applied",
 		Details: []Detail{
@@ -116,8 +116,8 @@ func checkConfigValidate(env *Env) Result {
 
 	if env.Config == nil {
 		return Result{
-			ID:       "config.validate",
-			Category: "configuration",
+			ID:       CheckConfigValidate,
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
 			Summary:  "skipped (config did not load)",
 		}
@@ -128,8 +128,8 @@ func checkConfigValidate(env *Env) Result {
 	}
 
 	return Result{
-		ID:       "config.validate",
-		Category: "configuration",
+		ID:       CheckConfigValidate,
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary:  "schema ok",
 	}
@@ -138,8 +138,8 @@ func checkConfigValidate(env *Env) Result {
 // invalidConfigResult builds the config.validate failure result for a schema error
 func invalidConfigResult(err error) Result {
 	return Result{
-		ID:       "config.validate",
-		Category: "configuration",
+		ID:       CheckConfigValidate,
+		Category: CategoryConfiguration,
 		Status:   StatusFail,
 		Summary:  "schema validation failed",
 		Details: []Detail{
@@ -153,8 +153,8 @@ func invalidConfigResult(err error) Result {
 func checkConfigSettings(env *Env) Result {
 	if env.Config == nil {
 		return Result{
-			ID:       "config.settings",
-			Category: "configuration",
+			ID:       CheckConfigSettings,
+			Category: CategoryConfiguration,
 			Status:   StatusIdle,
 			Summary:  "skipped (config did not load)",
 		}
@@ -163,8 +163,8 @@ func checkConfigSettings(env *Env) Result {
 	cfg := env.Config
 
 	return Result{
-		ID:       "config.settings",
-		Category: "configuration",
+		ID:       CheckConfigSettings,
+		Category: CategoryConfiguration,
 		Status:   StatusOK,
 		Summary: fmt.Sprintf("workers=%d retry=%d backoff=%s",
 			cfg.Concurrency.Workers, cfg.Retry.Attempts, cfg.Retry.Backoff),

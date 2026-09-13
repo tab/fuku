@@ -77,7 +77,7 @@ func Test_RenderText_NoNotes(t *testing.T) {
 		Platform:    "linux-amd64",
 		Sections: []Section{
 			{Title: "Environment", Results: []Result{
-				{ID: "system", Status: StatusOK, Summary: "ok"},
+				{ID: CheckSystem, Status: StatusOK, Summary: "ok"},
 			}},
 		},
 	}
@@ -254,8 +254,8 @@ func sampleReport() *Report {
 				Title: "Configuration",
 				Results: []Result{
 					{
-						ID:       "config.file",
-						Category: "configuration",
+						ID:       CheckConfigFile,
+						Category: CategoryConfiguration,
 						Status:   StatusOK,
 						Summary:  "loaded",
 						Details:  []Detail{{Key: "path", Value: "fuku.yaml"}},
@@ -267,8 +267,8 @@ func sampleReport() *Report {
 				Note:  "active profile: dev · 5 services",
 				Results: []Result{
 					{
-						ID:          "services.dotenv",
-						Category:    "services",
+						ID:          CheckServicesDotenv,
+						Category:    CategoryServices,
 						Status:      StatusWarn,
 						Summary:     "1 of 4 referenced .env files missing",
 						Details:     []Detail{{Key: "auth/.env.local", Value: "MISSING"}},
@@ -280,14 +280,14 @@ func sampleReport() *Report {
 				Title: "Runtime",
 				Results: []Result{
 					{
-						ID:       "runtime.sockets",
-						Category: "runtime",
+						ID:       CheckRuntimeSockets,
+						Category: CategoryRuntime,
 						Status:   StatusOK,
 						Summary:  "no stale sockets",
 					},
 					{
-						ID:       "runtime.instance",
-						Category: "runtime",
+						ID:       CheckRuntimeInstance,
+						Category: CategoryRuntime,
 						Status:   StatusIdle,
 						Summary:  "no other fuku running",
 					},

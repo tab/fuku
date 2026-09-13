@@ -61,7 +61,7 @@ func writeNotes(w io.Writer, r *Report) {
 	fmt.Fprintln(w, "Notes")
 
 	for _, res := range notes {
-		fmt.Fprintf(w, "   %s %s %s\n", styledGlyph(res.Status), padRight(res.ID, idColumnWidth), res.Summary)
+		fmt.Fprintf(w, "   %s %s %s\n", styledGlyph(res.Status), padRight(string(res.ID), idColumnWidth), res.Summary)
 	}
 
 	fmt.Fprintln(w, divider)
@@ -88,7 +88,7 @@ func writeSection(w io.Writer, s Section, withDetails bool) {
 
 // writeResult prints a single result row and its optional indented details
 func writeResult(w io.Writer, res Result, withDetails bool) {
-	fmt.Fprintf(w, "  %s %s %s\n", styledGlyph(res.Status), padRight(res.ID, idColumnWidth), res.Summary)
+	fmt.Fprintf(w, "  %s %s %s\n", styledGlyph(res.Status), padRight(string(res.ID), idColumnWidth), res.Summary)
 
 	if !withDetails {
 		return
@@ -194,16 +194,16 @@ func toJSONReport(r *Report) jsonReport {
 		ref := jsonSectionReference{Title: section.Title, Note: section.Note}
 
 		for _, res := range section.Results {
-			out.Checks[res.ID] = jsonCheck{
-				ID:          res.ID,
-				Category:    res.Category,
+			out.Checks[string(res.ID)] = jsonCheck{
+				ID:          string(res.ID),
+				Category:    string(res.Category),
 				Status:      res.Status.String(),
 				Summary:     res.Summary,
 				Details:     detailsToMap(res.Details),
 				Remediation: res.Remediation,
 				DurationMs:  res.DurationMs,
 			}
-			ref.Checks = append(ref.Checks, res.ID)
+			ref.Checks = append(ref.Checks, string(res.ID))
 		}
 
 		out.Sections = append(out.Sections, ref)

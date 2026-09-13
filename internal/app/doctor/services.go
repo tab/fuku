@@ -70,8 +70,8 @@ func checkServiceDirectories(env *Env, names []string) Result {
 
 	if len(missing) == 0 {
 		return Result{
-			ID:       "services.directories",
-			Category: "services",
+			ID:       CheckServicesDirectories,
+			Category: CategoryServices,
 			Status:   StatusOK,
 			Summary:  fmt.Sprintf("%d of %d directories present", len(names), len(names)),
 			Details:  details,
@@ -79,8 +79,8 @@ func checkServiceDirectories(env *Env, names []string) Result {
 	}
 
 	return Result{
-		ID:          "services.directories",
-		Category:    "services",
+		ID:          CheckServicesDirectories,
+		Category:    CategoryServices,
 		Status:      StatusWarn,
 		Summary:     fmt.Sprintf("%d of %d directories missing", len(missing), len(names)),
 		Details:     details,
@@ -119,8 +119,8 @@ func checkServiceDotenv(env *Env, names []string) Result {
 
 	if total == 0 {
 		return Result{
-			ID:       "services.dotenv",
-			Category: "services",
+			ID:       CheckServicesDotenv,
+			Category: CategoryServices,
 			Status:   StatusIdle,
 			Summary:  "no .env files referenced",
 		}
@@ -128,16 +128,16 @@ func checkServiceDotenv(env *Env, names []string) Result {
 
 	if len(missing) == 0 {
 		return Result{
-			ID:       "services.dotenv",
-			Category: "services",
+			ID:       CheckServicesDotenv,
+			Category: CategoryServices,
 			Status:   StatusOK,
 			Summary:  fmt.Sprintf("%d files referenced, all readable", total),
 		}
 	}
 
 	return Result{
-		ID:          "services.dotenv",
-		Category:    "services",
+		ID:          CheckServicesDotenv,
+		Category:    CategoryServices,
 		Status:      StatusWarn,
 		Summary:     fmt.Sprintf("%d of %d referenced .env files missing", len(missing), total),
 		Details:     details,
@@ -185,8 +185,8 @@ func checkServiceReadiness(env *Env, names []string) Result {
 	total := http + tcp + log
 	if total == 0 {
 		return Result{
-			ID:       "services.readiness",
-			Category: "services",
+			ID:       CheckServicesReadiness,
+			Category: CategoryServices,
 			Status:   StatusIdle,
 			Summary:  "no readiness probes defined",
 		}
@@ -194,8 +194,8 @@ func checkServiceReadiness(env *Env, names []string) Result {
 
 	if len(issues) > 0 {
 		return Result{
-			ID:          "services.readiness",
-			Category:    "services",
+			ID:          CheckServicesReadiness,
+			Category:    CategoryServices,
 			Status:      StatusFail,
 			Summary:     fmt.Sprintf("%d probe field(s) failed to parse", len(issues)),
 			Details:     issues,
@@ -204,8 +204,8 @@ func checkServiceReadiness(env *Env, names []string) Result {
 	}
 
 	return Result{
-		ID:       "services.readiness",
-		Category: "services",
+		ID:       CheckServicesReadiness,
+		Category: CategoryServices,
 		Status:   StatusOK,
 		Summary:  fmt.Sprintf("%d probes parse (http=%d tcp=%d log=%d)", total, http, tcp, log),
 	}
@@ -264,13 +264,13 @@ func serviceDirAbs(svc *config.Service) string {
 
 // skippedServiceResults returns idle placeholders for the per-service checks with the given reason
 func skippedServiceResults(reason string) []Result {
-	ids := []string{"services.directories", "services.dotenv", "services.readiness"}
+	ids := []CheckID{CheckServicesDirectories, CheckServicesDotenv, CheckServicesReadiness}
 	results := make([]Result, 0, len(ids))
 
 	for _, id := range ids {
 		results = append(results, Result{
 			ID:       id,
-			Category: "services",
+			Category: CategoryServices,
 			Status:   StatusIdle,
 			Summary:  "skipped (" + reason + ")",
 		})

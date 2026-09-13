@@ -13,7 +13,7 @@ func Test_environmentSection(t *testing.T) {
 
 	assert.Equal(t, "Environment", section.Title)
 	require.Len(t, section.Results, 3)
-	assert.Equal(t, "system", section.Results[0].ID)
-	assert.Equal(t, "runtime", section.Results[1].ID)
-	assert.Equal(t, "install", section.Results[2].ID)
+	assert.Equal(t, CheckSystem, section.Results[0].ID)
+	assert.Equal(t, CheckRuntime, section.Results[1].ID)
+	assert.Equal(t, CheckInstall, section.Results[2].ID)
 }

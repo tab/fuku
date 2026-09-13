@@ -51,7 +51,7 @@ func Test_checkConfigFile(t *testing.T) {
 			r := checkConfigFile(tt.env)
 
 			assert.Equal(t, tt.expected, r.Status)
-			assert.Equal(t, "config.file", r.ID)
+			assert.Equal(t, CheckConfigFile, r.ID)
 		})
 	}
 }
