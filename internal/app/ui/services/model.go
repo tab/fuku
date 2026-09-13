@@ -178,8 +178,8 @@ func NewModel(
 		loader:     loader,
 		dotenv:     envLoader,
 		msgChan:    msgChan,
-		log:        log,
 		theme:      theme,
+		log:        log,
 	}
 
 	m.state.profile = profile

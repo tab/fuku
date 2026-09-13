@@ -22,8 +22,8 @@ type Listener interface {
 // Server manages the HTTP API server lifecycle
 type Server struct {
 	cfg        *config.Config
-	bus        bus.Bus
 	store      registry.Store
+	bus        bus.Bus
 	identity   instance.Identity
 	httpServer *http.Server
 	address    atomic.Value

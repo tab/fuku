@@ -39,10 +39,10 @@ type Params struct {
 type proc struct {
 	name         string
 	cmd          *exec.Cmd
-	done         chan struct{}
-	ready        chan error
 	stdoutReader *io.PipeReader
 	stderrReader *io.PipeReader
+	done         chan struct{}
+	ready        chan error
 }
 
 // NewProcess creates a new Process instance and returns a Handle for lifecycle control
@@ -51,10 +51,10 @@ func NewProcess(p Params) *Handle {
 	process := &proc{
 		name:         p.Name,
 		cmd:          p.Cmd,
-		done:         done,
-		ready:        make(chan error, 1),
 		stdoutReader: p.StdoutReader,
 		stderrReader: p.StderrReader,
+		done:         done,
+		ready:        make(chan error, 1),
 	}
 
 	return &Handle{

@@ -13,11 +13,11 @@ import (
 
 // Writer implements io.Writer for the main application logger output
 type Writer struct {
-	mu      sync.RWMutex
 	format  string
-	enabled bool
 	log     *Log
 	out     io.Writer
+	mu      sync.RWMutex
+	enabled bool
 }
 
 // NewWriter creates a new Writer for application logger output

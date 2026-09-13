@@ -45,7 +45,7 @@ func Test_NewApp(t *testing.T) {
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
 
-	application := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
+	application := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
 
 	assert.NotNil(t, application)
 	assert.Equal(t, mockTUI, application.ui)
@@ -65,7 +65,7 @@ func Test_Run_SignalsShutdown(t *testing.T) {
 
 	shutdowner := &recordingShutdowner{}
 	shutdown := NewShutdown()
-	app := NewApp(mockTUI, mockSentry, shutdowner, bus.NoOp(), shutdown, newTestLogger(ctrl))
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, shutdowner, shutdown, newTestLogger(ctrl))
 
 	app.Run(t.Context())
 
@@ -124,7 +124,7 @@ func Test_PublishSignal(t *testing.T) {
 			shutdown := NewShutdown()
 			tt.before(shutdown)
 
-			app := NewApp(cli.NewMockTUI(ctrl), sentry.NewMockSentry(ctrl), &noopShutdowner{}, b, shutdown, newTestLogger(ctrl))
+			app := NewApp(cli.NewMockTUI(ctrl), b, sentry.NewMockSentry(ctrl), &noopShutdowner{}, shutdown, newTestLogger(ctrl))
 			app.PublishSignal()
 
 			assert.Equal(t, tt.expected, drain(msgChan))
@@ -182,7 +182,7 @@ func Test_Register(t *testing.T) {
 
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
 
 	var (
 		registered   bool
@@ -218,7 +218,7 @@ func Test_Register_OnStop_CancelsContextAndUnblocksApp(t *testing.T) {
 	mockSentry.EXPECT().Flush()
 
 	root := NewRoot()
-	app := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
 
 	var capturedHook fx.Hook
 
@@ -253,7 +253,7 @@ func Test_Register_OnStop_RespectsTimeout(t *testing.T) {
 
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockTUI, mockSentry, &noopShutdowner{}, bus.NoOp(), NewShutdown(), newTestLogger(ctrl))
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
 
 	var capturedHook fx.Hook
 
@@ -292,7 +292,7 @@ func Test_Register_OnStop_AnnouncesSignalBeforeCancel(t *testing.T) {
 	shutdown.Observe(syscall.SIGINT)
 
 	root := NewRoot()
-	app := NewApp(cli.NewMockTUI(ctrl), sentry.NewMockSentry(ctrl), &noopShutdowner{}, b, shutdown, newTestLogger(ctrl))
+	app := NewApp(cli.NewMockTUI(ctrl), b, sentry.NewMockSentry(ctrl), &noopShutdowner{}, shutdown, newTestLogger(ctrl))
 
 	var capturedHook fx.Hook
 

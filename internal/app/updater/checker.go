@@ -40,10 +40,10 @@ type checker struct {
 // NewChecker creates a new version checker
 func NewChecker(cfg *config.Config, b bus.Bus, log logger.Logger) Checker {
 	return &checker{
-		bus:        b,
 		cfg:        cfg,
-		log:        log,
+		bus:        b,
 		httpClient: &http.Client{Timeout: httpTimeout},
+		log:        log,
 	}
 }
 

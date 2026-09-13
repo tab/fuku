@@ -241,12 +241,12 @@ type Bus interface {
 // bus implements the Bus interface with pub/sub messaging
 type bus struct {
 	cfg         *config.Config
+	formatter   *Formatter
 	subscribers []*subscriber
 	mu          sync.RWMutex
 	publishMu   sync.Mutex
 	closed      bool
 	seq         atomic.Uint64
-	formatter   *Formatter
 	log         logger.Logger
 }
 
@@ -254,8 +254,8 @@ type bus struct {
 func NewBus(cfg *config.Config, formatter *Formatter, log logger.Logger) Bus {
 	return &bus{
 		cfg:         cfg,
-		subscribers: make([]*subscriber, 0),
 		formatter:   formatter,
+		subscribers: make([]*subscriber, 0),
 		log:         log,
 	}
 }
