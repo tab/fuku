@@ -94,9 +94,6 @@ func NewTheme(isDark bool) Theme {
 		FgStatusStopped: fgStatusStopped,
 		BgSelection:     bgSelection,
 
-		LogsSeparatorStyle:   lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#737373"), lipgloss.Color("#a3a3a3"))),
-		HelpKeyStyle:         lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#909090"), lipgloss.Color("#626262"))),
-		HelpDescStyle:        lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#B2B2B2"), lipgloss.Color("#4A4A4A"))),
 		PanelMutedStyle:      lipgloss.NewStyle().Foreground(fgMuted),
 		PlaceholderStyle:     lipgloss.NewStyle().Foreground(fgPlaceholder).Padding(0, 1),
 		CurrentVersionStyle:  lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#171717"), lipgloss.Color("15"))),
@@ -132,6 +129,11 @@ func NewTheme(isDark bool) Theme {
 		TimelineSelectedFailedStyle:   lipgloss.NewStyle().Foreground(fgStatusError).Background(bgSelection),
 		TimelineSelectedStoppedStyle:  lipgloss.NewStyle().Foreground(fgBorder).Background(bgSelection),
 		TimelineSelectedEmptyStyle:    lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#b8b8b8"), lipgloss.Color("#4a4a4a"))).Background(bgSelection),
+
+		HelpKeyStyle:  lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#909090"), lipgloss.Color("#626262"))),
+		HelpDescStyle: lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#B2B2B2"), lipgloss.Color("#4A4A4A"))),
+
+		LogsSeparatorStyle: lipgloss.NewStyle().Foreground(ld(lipgloss.Color("#737373"), lipgloss.Color("#a3a3a3"))),
 	}
 }
 

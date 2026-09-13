@@ -41,10 +41,10 @@ func newTestServer(t *testing.T) *Server {
 	}
 
 	return &Server{
-		instanceID:  identity.ID,
-		fingerprint: identity.Fingerprint,
 		bufferSize:  cfg.Logs.Buffer,
 		historySize: cfg.Logs.History,
+		instanceID:  identity.ID,
+		fingerprint: identity.Fingerprint,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log),
 		log:         log,
 	}

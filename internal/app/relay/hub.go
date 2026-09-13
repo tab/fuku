@@ -94,8 +94,8 @@ type hub struct {
 	broadcast  chan LogMessage
 	done       chan struct{}
 	history    *ringBuffer
-	log        logger.Logger
 	dropped    atomic.Int64
+	log        logger.Logger
 }
 
 // NewHub creates a new Hub instance with the specified buffer and history sizes

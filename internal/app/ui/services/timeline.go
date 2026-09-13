@@ -16,8 +16,8 @@ const (
 
 // Timeline is a fixed-capacity ring buffer that records per-second service state samples
 type Timeline struct {
-	slots    []TimelineSlot
 	capacity int
+	slots    []TimelineSlot
 	index    int
 	count    int
 }
@@ -29,8 +29,8 @@ func NewTimeline(capacity int) *Timeline {
 	}
 
 	return &Timeline{
-		slots:    make([]TimelineSlot, capacity),
 		capacity: capacity,
+		slots:    make([]TimelineSlot, capacity),
 	}
 }
 

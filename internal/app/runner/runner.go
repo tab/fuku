@@ -59,8 +59,8 @@ func NewRunner(p RunnerParams) Runner {
 	return &runner{
 		cfg:       p.Config,
 		discovery: p.Discovery,
-		registry:  p.Registry,
 		preflight: p.Preflight,
+		registry:  p.Registry,
 		service:   p.Service,
 		worker:    p.Worker,
 		bus:       p.Bus,

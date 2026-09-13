@@ -46,20 +46,20 @@ type scanFunc func() ([]entry, error)
 type killFunc func(pid int32) error
 
 type preflight struct {
-	scan   scanFunc
-	kill   killFunc
 	bus    bus.Bus
 	worker worker.Pool
+	scan   scanFunc
+	kill   killFunc
 	log    logger.Logger
 }
 
 // NewPreflight creates a new Preflight instance
 func NewPreflight(bus bus.Bus, worker worker.Pool, log logger.Logger) Preflight {
 	return &preflight{
-		scan:   scan,
-		kill:   kill,
 		bus:    bus,
 		worker: worker,
+		scan:   scan,
+		kill:   kill,
 		log:    log.WithComponent("PREFLIGHT"),
 	}
 }

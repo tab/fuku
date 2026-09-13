@@ -165,6 +165,8 @@ git config core.hooksPath .githooks
 - modular, focused responsibilities
 - file sizes 300-500 lines when possible
 - group related functionality in the same package
+- order struct fields the way the constructor receives them: a `context.Context` first where a struct may hold one, injected dependencies next, own state after, and `log logger.Logger` last; constructor parameters follow the same order
+- keep related fields next to each other (a channel and the function that closes it, a client and its address, a shutdowner and the shutdown record it triggers), even when that means a dependency sits between two pieces of own state
 - use interfaces to define behavior; pass interfaces, return concrete types when possible
 - don't keep old functions for imaginary compatibility
 - consider nested functions when they simplify complex functions

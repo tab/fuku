@@ -25,19 +25,19 @@ type Broadcaster interface {
 
 // Server manages the Unix socket server for log streaming
 type Server struct {
+	bufferSize  int
+	historySize int
 	bus         bus.Bus
+	instanceID  string
+	fingerprint string
+	hub         Hub
 	ch          <-chan bus.Message
 	cancelSub   context.CancelFunc
 	cancel      context.CancelFunc
 	socketPath  string
-	instanceID  string
-	fingerprint string
 	profile     string
 	services    []string
-	bufferSize  int
-	historySize int
 	listener    net.Listener
-	hub         Hub
 	running     atomic.Bool
 	wg          sync.WaitGroup
 	connID      atomic.Int64
@@ -47,11 +47,11 @@ type Server struct {
 // NewServer creates a new log streaming server
 func NewServer(cfg *config.Config, b bus.Bus, identity instance.Identity, log logger.Logger) *Server {
 	return &Server{
+		bufferSize:  cfg.Logs.Buffer,
+		historySize: cfg.Logs.History,
 		bus:         b,
 		instanceID:  identity.ID,
 		fingerprint: identity.Fingerprint,
-		bufferSize:  cfg.Logs.Buffer,
-		historySize: cfg.Logs.History,
 		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log.WithComponent("HUB")),
 		log:         log.WithComponent("SERVER"),
 	}

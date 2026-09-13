@@ -43,24 +43,24 @@ func (r *Root) Cancel() {
 // App represents the main application container
 type App struct {
 	ui         cli.TUI
+	bus        bus.Bus
 	sentry     sentry.Sentry
 	shutdowner fx.Shutdowner
-	bus        bus.Bus
 	shutdown   *Shutdown
-	log        logger.Logger
 	done       chan struct{}
+	log        logger.Logger
 }
 
 // NewApp creates a new application instance with its dependencies
-func NewApp(ui cli.TUI, sentry sentry.Sentry, shutdowner fx.Shutdowner, b bus.Bus, shutdown *Shutdown, log logger.Logger) *App {
+func NewApp(ui cli.TUI, b bus.Bus, sentry sentry.Sentry, shutdowner fx.Shutdowner, shutdown *Shutdown, log logger.Logger) *App {
 	return &App{
 		ui:         ui,
+		bus:        b,
 		sentry:     sentry,
 		shutdowner: shutdowner,
-		bus:        b,
 		shutdown:   shutdown,
-		log:        log.WithComponent("APP"),
 		done:       make(chan struct{}),
+		log:        log.WithComponent("APP"),
 	}
 }
 
