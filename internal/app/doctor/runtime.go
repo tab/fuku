@@ -31,8 +31,8 @@ func checkInstance(env *Env) Result {
 	info, err := os.Lstat(socketPath)
 	if err != nil || info.Mode()&os.ModeSocket == 0 {
 		return Result{
-			ID:       "runtime.instance",
-			Category: "runtime",
+			ID:       CheckRuntimeInstance,
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
 			Summary:  fmt.Sprintf("no other fuku running for profile '%s'", env.Profile),
 			Details:  []Detail{{Key: "socket", Value: socketPath + " (absent)"}},
@@ -42,8 +42,8 @@ func checkInstance(env *Env) Result {
 	conn, dialErr := net.DialTimeout("unix", socketPath, config.SocketDialTimeout)
 	if dialErr != nil {
 		return Result{
-			ID:          "runtime.instance",
-			Category:    "runtime",
+			ID:          CheckRuntimeInstance,
+			Category:    CategoryRuntime,
 			Status:      StatusWarn,
 			Summary:     "socket present but unreachable",
 			Details:     []Detail{{Key: "socket", Value: socketPath}, {Key: "error", Value: dialErr.Error()}},
@@ -54,8 +54,8 @@ func checkInstance(env *Env) Result {
 	conn.Close()
 
 	return Result{
-		ID:       "runtime.instance",
-		Category: "runtime",
+		ID:       CheckRuntimeInstance,
+		Category: CategoryRuntime,
 		Status:   StatusNote,
 		Summary:  fmt.Sprintf("another fuku is running for profile '%s'", env.Profile),
 		Details:  []Detail{{Key: "socket", Value: socketPath}},
@@ -69,8 +69,8 @@ func checkStaleSockets() Result {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return Result{
-			ID:       "runtime.sockets",
-			Category: "runtime",
+			ID:       CheckRuntimeSockets,
+			Category: CategoryRuntime,
 			Status:   StatusWarn,
 			Summary:  "failed to glob socket directory",
 			Details:  []Detail{{Key: "error", Value: err.Error()}},
@@ -96,8 +96,8 @@ func checkStaleSockets() Result {
 
 	if len(stale) == 0 {
 		return Result{
-			ID:       "runtime.sockets",
-			Category: "runtime",
+			ID:       CheckRuntimeSockets,
+			Category: CategoryRuntime,
 			Status:   StatusOK,
 			Summary:  "no stale sockets",
 			Details:  []Detail{{Key: "scanned", Value: fmt.Sprintf("%s (%d files)", pattern, len(matches))}},
@@ -110,8 +110,8 @@ func checkStaleSockets() Result {
 	}
 
 	return Result{
-		ID:          "runtime.sockets",
-		Category:    "runtime",
+		ID:          CheckRuntimeSockets,
+		Category:    CategoryRuntime,
 		Status:      StatusWarn,
 		Summary:     fmt.Sprintf("%d stale socket file(s)", len(stale)),
 		Details:     details,
@@ -123,8 +123,8 @@ func checkStaleSockets() Result {
 func checkPorts(ctx context.Context, env *Env) Result {
 	if env.Config == nil {
 		return Result{
-			ID:       "runtime.ports",
-			Category: "runtime",
+			ID:       CheckRuntimePorts,
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
 			Summary:  "skipped (config did not load)",
 		}
@@ -132,8 +132,8 @@ func checkPorts(ctx context.Context, env *Env) Result {
 
 	if env.ProfileErr != nil {
 		return Result{
-			ID:       "runtime.ports",
-			Category: "runtime",
+			ID:       CheckRuntimePorts,
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
 			Summary:  "skipped (profile did not resolve)",
 		}
@@ -173,8 +173,8 @@ func checkPorts(ctx context.Context, env *Env) Result {
 
 	if probed == 0 {
 		return Result{
-			ID:       "runtime.ports",
-			Category: "runtime",
+			ID:       CheckRuntimePorts,
+			Category: CategoryRuntime,
 			Status:   StatusIdle,
 			Summary:  "no probed readiness ports",
 		}
@@ -182,8 +182,8 @@ func checkPorts(ctx context.Context, env *Env) Result {
 
 	if len(busy) > 0 {
 		return Result{
-			ID:          "runtime.ports",
-			Category:    "runtime",
+			ID:          CheckRuntimePorts,
+			Category:    CategoryRuntime,
 			Status:      StatusWarn,
 			Summary:     fmt.Sprintf("%d readiness port(s) already bound", len(busy)),
 			Details:     busy,
@@ -192,8 +192,8 @@ func checkPorts(ctx context.Context, env *Env) Result {
 	}
 
 	return Result{
-		ID:       "runtime.ports",
-		Category: "runtime",
+		ID:       CheckRuntimePorts,
+		Category: CategoryRuntime,
 		Status:   StatusOK,
 		Summary:  fmt.Sprintf("%d readiness port(s) available", probed),
 	}

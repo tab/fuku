@@ -25,8 +25,8 @@ func environmentSection(_ context.Context, _ *Env) Section {
 // checkSystem reports basic OS and locale information (always OK)
 func checkSystem() Result {
 	return Result{
-		ID:       "system",
-		Category: "environment",
+		ID:       CheckSystem,
+		Category: CategoryEnvironment,
 		Status:   StatusOK,
 		Summary:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 		Details: []Detail{
@@ -41,8 +41,8 @@ func checkSystem() Result {
 // checkRuntime reports the active Go runtime version
 func checkRuntime() Result {
 	return Result{
-		ID:       "runtime",
-		Category: "environment",
+		ID:       CheckRuntime,
+		Category: CategoryEnvironment,
 		Status:   StatusOK,
 		Summary:  runtime.Version(),
 		Details: []Detail{
@@ -58,8 +58,8 @@ func checkInstall() Result {
 	exe, exeErr := os.Executable()
 	if exeErr != nil {
 		return Result{
-			ID:          "install",
-			Category:    "environment",
+			ID:          CheckInstall,
+			Category:    CategoryEnvironment,
 			Status:      StatusWarn,
 			Summary:     "could not resolve fuku executable",
 			Remediation: "ensure fuku binary is reachable on PATH",
@@ -75,8 +75,8 @@ func checkInstall() Result {
 	}
 
 	return Result{
-		ID:       "install",
-		Category: "environment",
+		ID:       CheckInstall,
+		Category: CategoryEnvironment,
 		Status:   StatusOK,
 		Summary:  "installation looks consistent",
 		Details:  details,

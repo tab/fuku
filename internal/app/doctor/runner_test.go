@@ -21,7 +21,7 @@ func Test_Run_NoConfig(t *testing.T) {
 	assert.NotEmpty(t, report.Platform)
 	assert.Equal(t, 2, report.ExitCode())
 
-	configCheck := findCheck(t, report, "config.file")
+	configCheck := findCheck(t, report, CheckConfigFile)
 	assert.Equal(t, StatusFail, configCheck.Status)
 }
 
@@ -62,11 +62,11 @@ func Test_Run_InvalidConfig(t *testing.T) {
 	require.NotNil(t, report)
 	assert.Equal(t, 2, report.ExitCode())
 
-	configCheck := findCheck(t, report, "config.file")
+	configCheck := findCheck(t, report, CheckConfigFile)
 	assert.Equal(t, StatusFail, configCheck.Status)
 }
 
-func findCheck(t *testing.T, r *Report, id string) Result {
+func findCheck(t *testing.T, r *Report, id CheckID) Result {
 	t.Helper()
 
 	for _, section := range r.Sections {

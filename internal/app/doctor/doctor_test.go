@@ -212,9 +212,9 @@ func Test_Report_Notes(t *testing.T) {
 	notes := report.Notes()
 
 	assert.Len(t, notes, 3)
-	assert.Equal(t, "c", notes[0].ID)
-	assert.Equal(t, "d", notes[1].ID)
-	assert.Equal(t, "e", notes[2].ID)
+	assert.Equal(t, CheckID("c"), notes[0].ID)
+	assert.Equal(t, CheckID("d"), notes[1].ID)
+	assert.Equal(t, CheckID("e"), notes[2].ID)
 }
 
 func Test_Report_GeneratedAt(t *testing.T) {

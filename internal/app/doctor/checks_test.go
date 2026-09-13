@@ -14,7 +14,7 @@ func Test_timed(t *testing.T) {
 		return Result{ID: "x", Status: StatusOK}
 	})
 
-	assert.Equal(t, "x", r.ID)
+	assert.Equal(t, CheckID("x"), r.ID)
 	assert.GreaterOrEqual(t, r.DurationMs, int64(0))
 }
 

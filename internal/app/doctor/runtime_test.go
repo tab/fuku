@@ -79,7 +79,7 @@ func Test_checkInstance_NoSocket(t *testing.T) {
 func Test_checkStaleSockets(t *testing.T) {
 	r := checkStaleSockets()
 
-	assert.Equal(t, "runtime.sockets", r.ID)
+	assert.Equal(t, CheckRuntimeSockets, r.ID)
 	assert.Contains(t, []Status{StatusOK, StatusWarn}, r.Status)
 }
 
@@ -106,5 +106,5 @@ func Test_checkPorts_ProfileError(t *testing.T) {
 	r := checkPorts(context.Background(), env)
 
 	assert.Equal(t, StatusIdle, r.Status)
-	assert.Equal(t, "runtime.ports", r.ID)
+	assert.Equal(t, CheckRuntimePorts, r.ID)
 }

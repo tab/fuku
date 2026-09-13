@@ -51,6 +51,44 @@ func (s Status) Glyph() string {
 	}
 }
 
+// Category names the report section a check belongs to
+type Category string
+
+// Categories, one per report section
+const (
+	CategoryEnvironment   Category = "environment"
+	CategoryConfiguration Category = "configuration"
+	CategoryServices      Category = "services"
+	CategoryTopology      Category = "topology"
+	CategoryRuntime       Category = "runtime"
+)
+
+// CheckID identifies a check in the text and JSON reports
+type CheckID string
+
+// Check identifiers, grouped by category
+const (
+	CheckSystem  CheckID = "system"
+	CheckRuntime CheckID = "runtime"
+	CheckInstall CheckID = "install"
+
+	CheckConfigFile     CheckID = "config.file"
+	CheckConfigOverride CheckID = "config.override"
+	CheckConfigValidate CheckID = "config.validate"
+	CheckConfigSettings CheckID = "config.settings"
+
+	CheckServicesDirectories CheckID = "services.directories"
+	CheckServicesDotenv      CheckID = "services.dotenv"
+	CheckServicesReadiness   CheckID = "services.readiness"
+
+	CheckTopologyTiers   CheckID = "topology.tiers"
+	CheckTopologyProfile CheckID = "topology.profile"
+
+	CheckRuntimeInstance CheckID = "runtime.instance"
+	CheckRuntimeSockets  CheckID = "runtime.sockets"
+	CheckRuntimePorts    CheckID = "runtime.ports"
+)
+
 // Detail is a key-value pair shown in the indented detail block of a result
 type Detail struct {
 	Key   string
@@ -59,8 +97,8 @@ type Detail struct {
 
 // Result is the outcome of a single check
 type Result struct {
-	ID          string
-	Category    string
+	ID          CheckID
+	Category    Category
 	Status      Status
 	Summary     string
 	Details     []Detail
