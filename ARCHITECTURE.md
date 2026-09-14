@@ -12,10 +12,12 @@ Fuku uses a layered architecture with three distinct patterns:
 
 ```mermaid
 graph TD
+    BOOT["Bootstrap<br><i>internal/bootstrap</i>"]
     CLI["CLI Layer<br><i>internal/app/cli</i>"]
     APP["Application Container<br><i>internal/app · Uber FX</i>"]
 
-    CLI --> APP
+    BOOT --> CLI
+    BOOT --> APP
 
     APP --> Runner
     APP --> API
@@ -77,7 +79,7 @@ graph TD
     end
 ```
 
-Not every command boots the FX container. Utility commands (`init`, `version`, `help`) and the `doctor` diagnostic run standalone in the CLI layer. `doctor` deliberately bypasses FX and loads the config itself so it can report load and validation failures as part of its read-only health report (Environment, Configuration, Services, Topology, Runtime) rather than aborting at startup.
+Not every command boots the FX container. Utility commands (`init`, `version`, `help`) and the `doctor` diagnostic run in the bootstrap without a container. `doctor` deliberately bypasses FX and loads the config itself so it can report load and validation failures as part of its read-only health report (Environment, Configuration, Services, Topology, Runtime) rather than aborting at startup.
 
 When `run` boots the container with `server.listen` set, the single-instance guard (`internal/app/instance`) runs before the application starts. FX runs invocations in declaration order, so `RegisterGuard` is declared ahead of `Register` and `RegisterAPI`; the module hooks that precede it only subscribe to the bus and park on events, so nothing has touched the project's services or its log socket by the time the guard decides. The guard sends unauthenticated `GET /api/v1/live` requests to the configured API port and its nine fallbacks, with a 250ms timeout, no redirects and a 4096-byte response limit. An HTTP 200 whose `product` is `fuku` and whose `fingerprint` matches this project means another instance already owns it: the guard writes the refusal to stderr and returns a startup error, so FX exits with code 1 before the application, the API or the pre-flight cleanup can touch the first instance's services. Every other outcome – another project, another product, a non-200, invalid JSON or an unreachable address – counts as no match, because none of them proves that another process owns this project.
 
@@ -452,7 +454,7 @@ func (c *cli) runWithUI(ctx context.Context, profile string) (int, error) {
 
 ### Signal Ownership
 
-FX is the only OS signal receiver in the process. `cmd/main.go` starts the container, blocks on `fx.App.Wait()` and hands the received signal to `app.Shutdown` before calling `fx.App.Stop()`. The `Register` stop hook then publishes `EventSignal` on the bus and cancels the root context, in that order, so every subscriber observes the signal while the runner is still alive.
+FX is the only OS signal receiver in the process. `bootstrap.ServiceCLI` (`internal/bootstrap/service.go`) starts the container, blocks on `fx.App.Wait()` and hands the received signal to `app.Shutdown` before calling `fx.App.Stop()`. The `Register` stop hook then publishes `EventSignal` on the bus and cancels the root context, in that order, so every subscriber observes the signal while the runner is still alive.
 
 A second `signal.Notify` anywhere in the process would race this one: Go delivers a signal to every registered channel, and a `select` with both a ready signal channel and a cancelled context picks between them at random. The runner therefore shuts down on context cancellation alone.
 

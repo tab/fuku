@@ -133,6 +133,9 @@ linters:
           - forbidigo
         path: ^internal/app/cli/
       - linters:
+          - forbidigo
+        path: ^internal/bootstrap/
+      - linters:
           - containedctx
           - recvcheck
         path: ^internal/app/ui/

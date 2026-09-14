@@ -57,37 +57,6 @@ Examples:
   fuku --config /path/fuku.yaml   Use config from another directory (no override merging)`
 )
 
-// CLI handles standalone commands that run without config or FX container
-type CLI struct {
-	cmd *Options
-}
-
-// NewCLI creates a new CLI for standalone command execution
-func NewCLI(cmd *Options) *CLI {
-	return &CLI{cmd: cmd}
-}
-
-// Run executes the standalone command and returns the exit code
-func (c *CLI) Run() int {
-	switch c.cmd.Type {
-	case CommandVersion:
-		fmt.Printf("Version: %s\n", config.Version)
-		return 0
-	case CommandHelp:
-		fmt.Println(Usage)
-		return 0
-	case CommandInit:
-		exitCode, err := GenerateConfigFile()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		}
-
-		return exitCode
-	default:
-		return 0
-	}
-}
-
 // ChangeToConfigDir changes to the config file's parent directory if it has path components
 func ChangeToConfigDir(cmd *Options) error {
 	if cmd.ConfigFile == "" {

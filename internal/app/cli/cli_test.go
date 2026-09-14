@@ -14,62 +14,6 @@ import (
 	"fuku/internal/config"
 )
 
-func Test_CLI_Run(t *testing.T) {
-	tests := []struct {
-		name           string
-		cmd            *Options
-		expectedExit   int
-		outputContains string
-	}{
-		{
-			name:           "version command",
-			cmd:            &Options{Type: CommandVersion},
-			expectedExit:   0,
-			outputContains: "Version",
-		},
-		{
-			name:           "help command",
-			cmd:            &Options{Type: CommandHelp},
-			expectedExit:   0,
-			outputContains: "Usage:",
-		},
-		{
-			name:           "init command",
-			cmd:            &Options{Type: CommandInit},
-			expectedExit:   0,
-			outputContains: "Created",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.cmd.Type == CommandInit {
-				t.Chdir(t.TempDir())
-			}
-
-			oldStdout := os.Stdout
-			r, w, err := os.Pipe()
-			require.NoError(t, err)
-
-			os.Stdout = w
-
-			app := NewCLI(tt.cmd)
-			exitCode := app.Run()
-
-			w.Close()
-
-			os.Stdout = oldStdout
-
-			var buf bytes.Buffer
-
-			_, _ = io.Copy(&buf, r)
-
-			assert.Equal(t, tt.expectedExit, exitCode)
-			assert.Contains(t, buf.String(), tt.outputContains)
-		})
-	}
-}
-
 func Test_RunDoctor(t *testing.T) {
 	tests := []struct {
 		name         string
