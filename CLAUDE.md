@@ -192,7 +192,7 @@ git config core.hooksPath .githooks
 - use structured logging with zerolog
 - never use `fmt.Printf` for logging — only log methods
 - `fmt.Print*` and `fmt.Fprint*` are fine for non-logging uses:
-  direct CLI output (`internal/app/cli/`), pre-logger bootstrap stderr (`cmd/main.go`, `internal/config/sentry/`),
+  direct CLI output (`internal/app/cli/`), pre-logger bootstrap output (`internal/bootstrap/`, `internal/config/sentry/`),
   the single-instance guard's refusal on its injected stderr (`internal/app/instance/guard.go`),
   the log-writer implementation itself (`internal/app/render/`) and buffer/string formatting (TUI layout in `internal/app/ui/`)
 - metrics are emitted only through the bus-driven collector (`internal/app/metrics`) — never scatter `sentry.NewMeter` calls across packages

@@ -1,335 +1,35 @@
 package main
 
 import (
+	"context"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx/fxevent"
-
-	"fuku/internal/app/cli"
-	"fuku/internal/config"
-	"fuku/internal/config/logger"
 )
 
-func Test_LoadConfig(t *testing.T) {
-	t.Chdir(t.TempDir())
+const mainTestEnv = "FUKU_TEST_MAIN"
 
-	content := `version: 1
-services:
-  api:
-    dir: ./api
-profiles:
-  default: "*"
-`
-	require.NoError(t, os.WriteFile("fuku.yaml", []byte(content), 0644))
+func Test_main(t *testing.T) {
+	if os.Getenv(mainTestEnv) == "1" {
+		os.Args = []string{os.Args[0], "version"}
 
-	cfg, topology, err := config.LoadPath("")
+		main()
+
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^Test_main$")
+	cmd.Env = append(cmd.Environ(), mainTestEnv+"=1")
+
+	output, err := cmd.Output()
+
 	require.NoError(t, err)
-
-	assert.NotNil(t, cfg)
-	assert.Contains(t, cfg.Services, "api")
-	assert.NotNil(t, cfg.Profiles)
-	assert.NotNil(t, topology)
-}
-
-func Test_LoadConfig_NoConfigFile(t *testing.T) {
-	t.Chdir(t.TempDir())
-
-	cfg, topology, err := config.LoadPath("")
-	require.NoError(t, err)
-
-	assert.NotNil(t, cfg)
-	assert.NotNil(t, topology)
-}
-
-func Test_LoadConfig_WithExplicitPath(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-
-	content := `version: 1
-services:
-  web:
-    dir: ./web
-`
-
-	filePath := filepath.Join(dir, "custom.yaml")
-	err := os.WriteFile(filePath, []byte(content), 0644)
-	require.NoError(t, err)
-
-	cfg, topology, err := config.LoadPath(filePath)
-	require.NoError(t, err)
-	assert.NotNil(t, cfg)
-	assert.NotNil(t, topology)
-	assert.Contains(t, cfg.Services, "web")
-}
-
-func Test_LoadConfig_AfterChangeToConfigDir(t *testing.T) {
-	dir := t.TempDir()
-
-	subdir := filepath.Join(dir, "project")
-	require.NoError(t, os.MkdirAll(subdir, 0755))
-
-	content := `version: 1
-services:
-  api:
-    dir: ./api
-`
-	require.NoError(t, os.WriteFile(filepath.Join(subdir, "fuku.yaml"), []byte(content), 0644))
-
-	t.Chdir(dir)
-
-	cmd := &cli.Options{ConfigFile: "project/fuku.yaml"}
-	require.NoError(t, cli.ChangeToConfigDir(cmd))
-
-	cfg, topology, err := config.LoadPath(cmd.ConfigFile)
-	require.NoError(t, err)
-	assert.NotNil(t, cfg)
-	assert.NotNil(t, topology)
-	assert.Contains(t, cfg.Services, "api")
-}
-
-func Test_LoadConfig_ExplicitPathNotFound(t *testing.T) {
-	t.Chdir(t.TempDir())
-
-	_, _, err := config.LoadPath("nonexistent.yaml")
-	require.Error(t, err)
-}
-
-func Test_CreateAppWithoutConfig(t *testing.T) {
-	tests := []struct {
-		name string
-		cmd  *cli.Options
-	}{
-		{
-			name: "version command",
-			cmd:  &cli.Options{Type: cli.CommandVersion},
-		},
-		{
-			name: "help command",
-			cmd:  &cli.Options{Type: cli.CommandHelp},
-		},
-		{
-			name: "init command",
-			cmd:  &cli.Options{Type: cli.CommandInit},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app := createAppWithoutConfig(tt.cmd)
-			assert.NotNil(t, app)
-		})
-	}
-}
-
-func Test_CreateApp(t *testing.T) {
-	topology := &config.Topology{
-		Order:        []string{},
-		TierServices: make(map[string][]string),
-	}
-
-	tests := []struct {
-		name string
-		cfg  *config.Config
-		cmd  *cli.Options
-	}{
-		{
-			name: "Creates app with info level logging and TUI",
-			cfg: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.InfoLevel,
-				},
-			},
-			cmd: &cli.Options{
-				Type:    cli.CommandRun,
-				Profile: config.Default,
-				NoUI:    false,
-			},
-		},
-		{
-			name: "Creates app with debug level logging and no UI",
-			cfg: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.DebugLevel,
-				},
-			},
-			cmd: &cli.Options{
-				Type:    cli.CommandRun,
-				Profile: config.Default,
-				NoUI:    true,
-			},
-		},
-		{
-			name: "Creates app with error level logging",
-			cfg: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.ErrorLevel,
-				},
-			},
-			cmd: &cli.Options{
-				Type:    cli.CommandRun,
-				Profile: config.Default,
-				NoUI:    false,
-			},
-		},
-		{
-			name: "Creates app with warn level logging and logs mode",
-			cfg: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.WarnLevel,
-				},
-			},
-			cmd: &cli.Options{
-				Type:    cli.CommandLogs,
-				Profile: "",
-				NoUI:    false,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app := createApp(appOptions{
-				cfg:      tt.cfg,
-				topology: topology,
-				cmd:      tt.cmd,
-			})
-			assert.NotNil(t, app)
-			require.NoError(t, app.Err())
-		})
-	}
-}
-
-func Test_CreateFxLogger(t *testing.T) {
-	tests := []struct {
-		name           string
-		config         *config.Config
-		expectedType   any
-		expectedLogger any
-	}{
-		{
-			name: "Debug level returns console logger",
-			config: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.DebugLevel,
-				},
-			},
-			expectedType: &fxevent.ConsoleLogger{},
-		},
-		{
-			name: "Info level returns nop logger",
-			config: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.InfoLevel,
-				},
-			},
-			expectedLogger: fxevent.NopLogger,
-		},
-		{
-			name: "Warn level returns nop logger",
-			config: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.WarnLevel,
-				},
-			},
-			expectedLogger: fxevent.NopLogger,
-		},
-		{
-			name: "Error level returns nop logger",
-			config: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.ErrorLevel,
-				},
-			},
-			expectedLogger: fxevent.NopLogger,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			loggerFunc := createFxLogger(tt.config)
-			assert.NotNil(t, loggerFunc)
-
-			result := loggerFunc()
-			assert.NotNil(t, result)
-
-			if tt.expectedType != nil {
-				assert.IsType(t, tt.expectedType, result)
-			}
-
-			if tt.expectedLogger != nil {
-				assert.Equal(t, tt.expectedLogger, result)
-			}
-		})
-	}
-}
-
-func Test_CreateFxLogger_FunctionCreation(t *testing.T) {
-	tests := []struct {
-		name   string
-		config *config.Config
-	}{
-		{
-			name: "Creates valid function with debug config",
-			config: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.DebugLevel,
-				},
-			},
-		},
-		{
-			name: "Creates valid function with info config",
-			config: &config.Config{
-				Logging: struct {
-					Level  string `yaml:"level"`
-					Format string `yaml:"format"`
-				}{
-					Level: logger.InfoLevel,
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			loggerFunc := createFxLogger(tt.config)
-			assert.NotNil(t, loggerFunc)
-
-			result1 := loggerFunc()
-			result2 := loggerFunc()
-
-			assert.NotNil(t, result1)
-			assert.NotNil(t, result2)
-		})
-	}
+	assert.Contains(t, string(output), "Version:")
 }
