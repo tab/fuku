@@ -34,41 +34,50 @@ class LogStreamClient(
   private var readerThread: Thread? = null
 
   @Volatile
-  private var currentProfile: String? = null
+  private var currentFingerprint: String? = null
+
+  // Fingerprint of the last reported state, so a queued or in-flight connection for an older state does nothing
+  @Volatile
+  private var wantedFingerprint: String? = null
 
   private var maxNameLen = 0
 
   override fun onStateChanged(state: PluginState) {
-    if (state.connected && state.status != null) {
-      val profile = state.status.profile
+    val fingerprint = state.fingerprint.takeIf { state.connected && !it.isNullOrBlank() }
+    wantedFingerprint = fingerprint
+    if (fingerprint != null) {
       if (channel == null) {
         ApplicationManager.getApplication().executeOnPooledThread {
-          connectSocket(profile)
+          connectSocket(fingerprint)
         }
-      } else if (profile != currentProfile) {
+      } else if (fingerprint != currentFingerprint) {
         disconnectSocket()
         ApplicationManager.getApplication().executeOnPooledThread {
-          connectSocket(profile)
+          connectSocket(fingerprint)
         }
       }
-    } else if (!state.connected && channel != null) {
+    } else if (channel != null) {
       disconnectSocket()
     }
   }
 
   @Synchronized
-  private fun connectSocket(profile: String) {
-    if (channel != null) return
+  private fun connectSocket(fingerprint: String) {
+    if (channel != null || fingerprint != wantedFingerprint) return
 
-    val socketPath = "/tmp/fuku-$profile.sock"
+    val socketPath = "/tmp/fuku-$fingerprint.sock"
     var ch: SocketChannel? = null
 
     try {
       val addr = UnixDomainSocketAddress.of(socketPath)
       ch = SocketChannel.open(StandardProtocolFamily.UNIX)
       ch.connect(addr)
+      if (fingerprint != wantedFingerprint) {
+        ch.close()
+        return
+      }
       channel = ch
-      currentProfile = profile
+      currentFingerprint = fingerprint
 
       val output = Channels.newOutputStream(ch)
       val subscribe = "{\"type\":\"subscribe\",\"services\":[]}\n"
@@ -89,7 +98,7 @@ class LogStreamClient(
       } catch (_: Exception) {
       }
       channel = null
-      currentProfile = null
+      currentFingerprint = null
     }
   }
 
@@ -111,7 +120,7 @@ class LogStreamClient(
       synchronized(this) {
         if (channel === ch) {
           channel = null
-          currentProfile = null
+          currentFingerprint = null
         }
       }
     }
@@ -157,7 +166,7 @@ class LogStreamClient(
     } catch (_: Exception) {
     }
     channel = null
-    currentProfile = null
+    currentFingerprint = null
     maxNameLen = 0
   }
 

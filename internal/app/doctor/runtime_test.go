@@ -2,11 +2,17 @@ package doctor
 
 import (
 	"context"
-	"path/filepath"
+	"fmt"
+	"net"
+	"os"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 )
 
@@ -65,15 +71,69 @@ func Test_extractAddress(t *testing.T) {
 	}
 }
 
-func Test_checkInstance_NoSocket(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
+func Test_checkInstance(t *testing.T) {
+	tests := []struct {
+		name    string
+		before  func(t *testing.T, socketPath string) func()
+		status  Status
+		summary string
+	}{
+		{
+			name: "absent socket",
+			before: func(*testing.T, string) func() {
+				return func() {}
+			},
+			status:  StatusIdle,
+			summary: "no other fuku running for this project",
+		},
+		{
+			name: "live socket",
+			before: func(t *testing.T, socketPath string) func() {
+				t.Helper()
 
-	env := &Env{Profile: "test-no-such-instance-" + filepath.Base(dir)}
+				listener, err := net.Listen("unix", socketPath)
+				require.NoError(t, err)
 
-	r := checkInstance(env)
+				return func() {
+					listener.Close()
+					os.Remove(socketPath)
+				}
+			},
+			status:  StatusNote,
+			summary: "another fuku is running for this project",
+		},
+		{
+			name: "stale socket",
+			before: func(t *testing.T, socketPath string) func() {
+				t.Helper()
 
-	assert.Equal(t, StatusIdle, r.Status)
+				fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+				require.NoError(t, err)
+				require.NoError(t, syscall.Bind(fd, &syscall.SockaddrUnix{Name: socketPath}))
+				require.NoError(t, syscall.Close(fd))
+
+				return func() { os.Remove(socketPath) }
+			},
+			status:  StatusWarn,
+			summary: "socket present but unreachable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fingerprint := instance.Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))
+			socketPath := instance.SocketPath(config.SocketDir, fingerprint)
+
+			cleanup := tt.before(t, socketPath)
+			defer cleanup()
+
+			r := checkInstance(&Env{Profile: config.Default, Fingerprint: fingerprint})
+
+			assert.Equal(t, CheckRuntimeInstance, r.ID)
+			assert.Equal(t, tt.status, r.Status)
+			assert.Equal(t, tt.summary, r.Summary)
+		})
+	}
 }
 
 func Test_checkStaleSockets(t *testing.T) {

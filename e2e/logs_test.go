@@ -42,6 +42,62 @@ func Test_Logs_NoFollowReplaysMatchingHistory(t *testing.T) {
 	assert.Contains(t, result.Stdout, "Service ready")
 }
 
+func Test_Logs_ProjectScoped(t *testing.T) {
+	tier := NewRunner(t, "testdata/tier")
+	defer tier.Stop()
+
+	defaultTier := NewRunner(t, "testdata/default-tier")
+	defer defaultTier.Stop()
+
+	require.NoError(t, tier.Start("default"))
+	require.NoError(t, tier.WaitForRunning(30*time.Second))
+
+	require.NoError(t, defaultTier.Start("default"))
+	require.NoError(t, defaultTier.WaitForRunning(15*time.Second))
+	require.NoError(t, defaultTier.WaitForLogCount("Service ready", 2, 15*time.Second))
+
+	require.FileExists(t, SocketPath(t, "testdata/tier"))
+	require.FileExists(t, SocketPath(t, "testdata/default-tier"))
+
+	tierLogs := RunOnce(t, "testdata/tier", "logs", "--no-ui", "--no-follow")
+
+	assert.Equal(t, 0, tierLogs.ExitCode)
+	assert.Contains(t, tierLogs.Stdout, "postgres")
+	assert.Contains(t, tierLogs.Stdout, "gateway")
+	assert.NotContains(t, tierLogs.Stdout, "auth-api")
+	assert.NotContains(t, tierLogs.Stdout, "user-api")
+
+	defaultLogs := RunOnce(t, "testdata/default-tier", "logs", "--no-ui", "--no-follow")
+
+	assert.Equal(t, 0, defaultLogs.ExitCode)
+	assert.Contains(t, defaultLogs.Stdout, "auth-api")
+	assert.Contains(t, defaultLogs.Stdout, "user-api")
+	assert.NotContains(t, defaultLogs.Stdout, "postgres")
+	assert.NotContains(t, defaultLogs.Stdout, "gateway")
+}
+
+func Test_Logs_ProfileMismatch(t *testing.T) {
+	runner := NewRunner(t, "testdata/default-tier")
+	defer runner.Stop()
+
+	require.NoError(t, runner.Start("default"))
+	require.NoError(t, runner.WaitForRunning(15*time.Second))
+
+	result := RunOnce(t, "testdata/default-tier", "logs", "--profile", "core", "--no-ui", "--no-follow")
+
+	assert.Equal(t, 1, result.ExitCode)
+	assert.Contains(t, result.Stdout, "'default'")
+	assert.Contains(t, result.Stdout, "'core'")
+	assert.NotContains(t, result.Stdout, "Service ready")
+}
+
+func Test_Logs_NoInstance(t *testing.T) {
+	result := RunOnce(t, t.TempDir(), "logs")
+
+	assert.Equal(t, 1, result.ExitCode)
+	assert.Contains(t, result.Stdout, "No fuku is running for project")
+}
+
 func Test_Logs_InvalidTailFailsBeforeConnecting(t *testing.T) {
 	tests := []struct {
 		name string

@@ -17,6 +17,7 @@ data class PluginState(
   val connected: Boolean = false,
   val status: Status? = null,
   val services: List<FukuService> = emptyList(),
+  val fingerprint: String? = null,
 )
 
 interface PluginStateListener {
@@ -40,6 +41,10 @@ class PluginService : Disposable {
 
   @Volatile
   private var lastSettingsSnapshot: SettingsSnapshot = takeSettingsSnapshot()
+
+  // Instance and fingerprint of the last /live probe, valid until /status reports another instance
+  @Volatile
+  private var live: Pair<String, String>? = null
 
   init {
     startPolling()
@@ -90,6 +95,8 @@ class PluginService : Disposable {
     if (snapshot != lastSettingsSnapshot) {
       lastSettingsSnapshot = snapshot
       client = createClient()
+      live = null
+      publish(PluginState(connected = false))
       startPolling()
       return
     }
@@ -103,6 +110,7 @@ class PluginService : Disposable {
           connected = true,
           status = statusResult.getOrNull(),
           services = servicesResult.getOrNull()?.services ?: emptyList(),
+          fingerprint = statusResult.getOrNull()?.let { fingerprintOf(it.instance) },
         )
       } else {
         if (state.connected) {
@@ -111,10 +119,22 @@ class PluginService : Disposable {
         PluginState(connected = false)
       }
 
+    publish(newState)
+  }
+
+  private fun publish(newState: PluginState) {
     if (newState != state) {
       state = newState
       notifyListeners(newState)
     }
+  }
+
+  private fun fingerprintOf(instance: String): String? {
+    live?.takeIf { it.first == instance }?.let { return it.second }
+
+    val fingerprint = client.getLive().getOrNull()?.fingerprint ?: return null
+    live = instance to fingerprint
+    return fingerprint
   }
 
   private fun notifyListeners(snapshot: PluginState) {

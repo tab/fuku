@@ -10,13 +10,15 @@ import (
 
 // Options controls a doctor run
 type Options struct {
-	Profile    string
-	ConfigPath string
+	Profile     string
+	ConfigPath  string
+	Fingerprint string
 }
 
 // Env holds shared loaded state passed to each check
 type Env struct {
 	Profile         string
+	Fingerprint     string
 	ConfigPath      string
 	ExplicitConfig  bool
 	OverridePath    string
@@ -51,7 +53,7 @@ func Run(ctx context.Context, opts Options) *Report {
 
 // loadEnv resolves config paths and attempts to load the config without panicking on failure
 func loadEnv(opts Options) *Env {
-	env := &Env{Profile: opts.Profile, ExplicitConfig: opts.ConfigPath != ""}
+	env := &Env{Profile: opts.Profile, Fingerprint: opts.Fingerprint, ExplicitConfig: opts.ConfigPath != ""}
 
 	env.ConfigPath, _ = config.ResolveConfigPath(opts.ConfigPath)
 	env.OverridePath, _ = config.ResolveOverridePath(env.ConfigPath)

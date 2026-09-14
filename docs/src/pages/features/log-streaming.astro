@@ -30,6 +30,12 @@ const nav = getFeaturesNav(base);
     While fuku is running, you can open another terminal and stream logs using <code>fuku logs</code>. Logs are streamed over Unix sockets with low latency and service name prefixes for easy filtering.
   </p>
 
+  <p>
+    Each project gets its own socket, <code>/tmp/fuku-&lt;fingerprint&gt;.sock</code>, named after a fingerprint of the
+    project directory. Run <code>fuku logs</code> from the project directory and it reaches the instance started there,
+    even when another project runs a profile with the same name.
+  </p>
+
   <Terminal title="terminal – fuku logs">
     <pre><span class="dim">$</span> fuku logs api auth
 <span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:01Z</span> <span class="blue">INF</span> server listening on :8080

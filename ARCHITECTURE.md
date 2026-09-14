@@ -79,9 +79,9 @@ graph TD
     end
 ```
 
-Not every command boots the FX container. Utility commands (`init`, `version`, `help`) and the `doctor` diagnostic run in the bootstrap without a container. `doctor` deliberately bypasses FX and loads the config itself so it can report load and validation failures as part of its read-only health report (Environment, Configuration, Services, Topology, Runtime) rather than aborting at startup.
+Not every command boots the full FX container. Utility commands (`init`, `version`, `help`) run in the bootstrap without a container. `doctor` runs inside a small container that provides only the command options and the instance identity, and loads the config itself so it can report load and validation failures as part of its read-only health report (Environment, Configuration, Services, Topology, Runtime) rather than aborting at startup.
 
-When `run` boots the container with `server.listen` set, the single-instance guard (`internal/app/instance`) runs before the application starts. FX runs invocations in declaration order, so `RegisterGuard` is declared ahead of `Register` and `RegisterAPI`; the module hooks that precede it only subscribe to the bus and park on events, so nothing has touched the project's services or its log socket by the time the guard decides. The guard sends unauthenticated `GET /api/v1/live` requests to the configured API port and its nine fallbacks, with a 250ms timeout, no redirects and a 4096-byte response limit. An HTTP 200 whose `product` is `fuku` and whose `fingerprint` matches this project means another instance already owns it: the guard writes the refusal to stderr and returns a startup error, so FX exits with code 1 before the application, the API or the pre-flight cleanup can touch the first instance's services. Every other outcome – another project, another product, a non-200, invalid JSON or an unreachable address – counts as no match, because none of them proves that another process owns this project.
+When `run` boots the container, the single-instance guard (`internal/app/instance`) runs before the application starts. FX runs invocations in declaration order, so `RegisterGuard` is declared ahead of `Register` and `RegisterAPI`; the module hooks that precede it only subscribe to the bus and park on events, so nothing has touched the project's services or its log socket by the time the guard decides. The guard first dials the project socket `/tmp/fuku-<fingerprint>.sock`: a socket that answers belongs to another instance of this project, whatever profile it runs, while a stale file left by a crashed instance refuses the connection and does not count. With `server.listen` set it then sends unauthenticated `GET /api/v1/live` requests to the configured API port and its nine fallbacks, with a 250ms timeout, no redirects and a 4096-byte response limit, which still catches an instance whose relay server failed to bind. An HTTP 200 whose `product` is `fuku` and whose `fingerprint` matches this project means another instance already owns it. In either case the guard writes the refusal to stderr, naming the socket or the API address, and returns a startup error, so FX exits with code 1 before the application, the API or the pre-flight cleanup can touch the first instance's services. Every other outcome – another project, another product, a non-200, invalid JSON or an unreachable address – counts as no match, because none of them proves that another process owns this project.
 
 ## 1. Data/Communication Layer
 
@@ -642,7 +642,7 @@ graph TD
     LogsCmd["fuku logs api auth<br><i>separate terminal</i>"]
     RunCmd["fuku run profile<br><i>main process</i>"]
 
-    LogsCmd -- "Unix Socket<br>/tmp/fuku-‹profile›.sock" --> RunCmd
+    LogsCmd -- "Unix Socket<br>/tmp/fuku-‹fingerprint›.sock" --> RunCmd
 
     subgraph LogsCmd["fuku logs (separate terminal)"]
         Screen --> Client

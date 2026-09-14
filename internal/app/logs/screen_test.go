@@ -2,7 +2,6 @@ package logs
 
 import (
 	"bytes"
-	"errors"
 	"net"
 	"os"
 	"testing"
@@ -11,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/app/relay"
 	"fuku/internal/app/render"
 	"fuku/internal/config"
@@ -30,10 +31,17 @@ func Test_NewScreen(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	r := render.NewLog(false)
+	identity := instance.Identity{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     "/Users/dev/projects/shop",
+		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
+	}
 
-	s := NewScreen(mockClient, mockLog, r, cfg)
+	s := NewScreen(mockClient, r, cfg, identity, mockLog)
 
 	require.NotNil(t, s)
+	assert.Equal(t, identity.Project, s.(*screen).project)
+	assert.Equal(t, identity.Fingerprint, s.(*screen).fingerprint)
 }
 
 func Test_screen_streamLogs(t *testing.T) {
@@ -43,6 +51,7 @@ func Test_screen_streamLogs(t *testing.T) {
 		name    string
 		options Options
 		before  func(client *relay.MockClient)
+		logged  int
 		expect  int
 	}{
 		{
@@ -80,6 +89,7 @@ func Test_screen_streamLogs(t *testing.T) {
 			before: func(client *relay.MockClient) {
 				client.EXPECT().Connect("/tmp/test.sock").Return(errors.New("connection refused"))
 			},
+			logged: 1,
 			expect: 1,
 		},
 		{
@@ -90,6 +100,7 @@ func Test_screen_streamLogs(t *testing.T) {
 				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName}}).Return(errors.New("subscribe failed"))
 				client.EXPECT().Close().Return(nil)
 			},
+			logged: 1,
 			expect: 1,
 		},
 		{
@@ -101,6 +112,18 @@ func Test_screen_streamLogs(t *testing.T) {
 				client.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(errors.New("stream interrupted"))
 				client.EXPECT().Close().Return(nil)
 			},
+			logged: 1,
+			expect: 1,
+		},
+		{
+			name:    "profile mismatch",
+			options: Options{Profile: "core", Services: []string{serviceName}},
+			before: func(client *relay.MockClient) {
+				client.EXPECT().Connect("/tmp/test.sock").Return(nil)
+				client.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName}}).Return(nil)
+				client.EXPECT().Stream(gomock.Any(), gomock.Any()).Return(errors.ErrProfileMismatch)
+				client.EXPECT().Close().Return(nil)
+			},
 			expect: 1,
 		},
 	}
@@ -110,22 +133,21 @@ func Test_screen_streamLogs(t *testing.T) {
 
 	mockClient := relay.NewMockClient(ctrl)
 	mockLog := logger.NewMockLogger(ctrl)
-	mockLog.EXPECT().Error().Return(nil).AnyTimes()
-	mockLog.EXPECT().Info().Return(nil).AnyTimes()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before(mockClient)
+			mockLog.EXPECT().Error().Return(nil).Times(tt.logged)
 
 			var buf bytes.Buffer
 
 			s := &screen{
 				client: mockClient,
-				log:    mockLog,
 				render: render.NewLog(false),
 				format: logger.ConsoleFormat,
 				out:    &buf,
 				width:  func() int { return 80 },
+				log:    mockLog,
 			}
 
 			result := s.streamLogs(t.Context(), "/tmp/test.sock", tt.options)
@@ -151,11 +173,14 @@ func Test_screen_streamLogs_WritesToOutput(t *testing.T) {
 	mockClient.EXPECT().Subscribe(relay.SubscribeOptions{Services: []string{serviceName}}).Return(nil)
 	mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ any, handler relay.Handler) error {
-			handler.HandleStatus(relay.StatusMessage{
+			if err := handler.HandleStatus(relay.StatusMessage{
 				Profile:  "default",
 				Version:  "1.0.0",
 				Services: []string{serviceName},
-			})
+			}); err != nil {
+				return err
+			}
+
 			handler.HandleLog(relay.LogMessage{
 				Service: serviceName,
 				Message: "hello from api",
@@ -168,11 +193,11 @@ func Test_screen_streamLogs_WritesToOutput(t *testing.T) {
 
 	s := &screen{
 		client: mockClient,
-		log:    mockLog,
 		render: r,
 		format: logger.ConsoleFormat,
 		out:    &buf,
 		width:  func() int { return 80 },
+		log:    mockLog,
 	}
 
 	result := s.streamLogs(t.Context(), "/tmp/test.sock", Options{Services: []string{serviceName}})
@@ -197,18 +222,20 @@ func Test_screen_Run(t *testing.T) {
 
 		mockClient := relay.NewMockClient(ctrl)
 		mockLog := logger.NewMockLogger(ctrl)
-		mockLog.EXPECT().Error().Return(nil).AnyTimes()
+		mockLog.EXPECT().Error().Return(nil)
 
 		s := &screen{
-			client: mockClient,
-			log:    mockLog,
-			render: render.NewLog(false),
-			format: logger.ConsoleFormat,
-			out:    &bytes.Buffer{},
-			width:  func() int { return 80 },
+			client:      mockClient,
+			render:      render.NewLog(false),
+			format:      logger.ConsoleFormat,
+			project:     "/Users/dev/projects/not-running",
+			fingerprint: instance.Fingerprint("/Users/dev/projects/not-running"),
+			out:         &bytes.Buffer{},
+			width:       func() int { return 80 },
+			log:         mockLog,
 		}
 
-		result := s.Run(t.Context(), Options{Profile: "nonexistent-profile-that-does-not-exist"})
+		result := s.Run(t.Context(), Options{})
 
 		assert.Equal(t, 1, result)
 	})
@@ -217,8 +244,8 @@ func Test_screen_Run(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		profile := "screen-run-test"
-		socketPath := relay.SocketPathForProfile(config.SocketDir, profile)
+		fingerprint := instance.Fingerprint("/Users/dev/projects/screen-run-test")
+		socketPath := instance.SocketPath(config.SocketDir, fingerprint)
 
 		ln, err := net.Listen("unix", socketPath)
 		require.NoError(t, err)
@@ -236,15 +263,16 @@ func Test_screen_Run(t *testing.T) {
 		mockClient.EXPECT().Close().Return(nil)
 
 		s := &screen{
-			client: mockClient,
-			log:    mockLog,
-			render: render.NewLog(false),
-			format: logger.ConsoleFormat,
-			out:    &bytes.Buffer{},
-			width:  func() int { return 80 },
+			client:      mockClient,
+			render:      render.NewLog(false),
+			format:      logger.ConsoleFormat,
+			fingerprint: fingerprint,
+			out:         &bytes.Buffer{},
+			width:       func() int { return 80 },
+			log:         mockLog,
 		}
 
-		result := s.Run(t.Context(), Options{Profile: profile, Services: []string{serviceName}})
+		result := s.Run(t.Context(), Options{Services: []string{serviceName}})
 
 		assert.Equal(t, 0, result)
 	})
@@ -253,7 +281,10 @@ func Test_screen_Run(t *testing.T) {
 func Test_screenHandler_HandleStatus(t *testing.T) {
 	tests := []struct {
 		name    string
+		profile string
 		noUI    bool
+		logged  int
+		wantErr error
 		expects []string
 	}{
 		{
@@ -266,6 +297,17 @@ func Test_screenHandler_HandleStatus(t *testing.T) {
 			noUI:    true,
 			expects: nil,
 		},
+		{
+			name:    "matching profile renders the banner",
+			profile: "default",
+			expects: []string{"default", "2 running", serviceName, "ctrl+c"},
+		},
+		{
+			name:    "mismatched profile renders nothing",
+			profile: "core",
+			logged:  1,
+			wantErr: errors.ErrProfileMismatch,
+		},
 	}
 
 	status := relay.StatusMessage{
@@ -274,22 +316,40 @@ func Test_screenHandler_HandleStatus(t *testing.T) {
 		Services: []string{serviceName, "web"},
 	}
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLog := logger.NewMockLogger(ctrl)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockLog.EXPECT().Error().Return(nil).Times(tt.logged)
+
 			var buf bytes.Buffer
 
 			handler := &screenHandler{
 				render:     render.NewLog(false),
 				format:     logger.ConsoleFormat,
+				profile:    tt.profile,
 				subscribed: []string{serviceName},
 				out:        &buf,
 				width:      func() int { return 80 },
 				noUI:       tt.noUI,
+				log:        mockLog,
 			}
 
-			handler.HandleStatus(status)
+			err := handler.HandleStatus(status)
 
 			output := buf.String()
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Empty(t, output)
+
+				return
+			}
+
+			require.NoError(t, err)
 
 			if tt.noUI {
 				assert.Empty(t, output)

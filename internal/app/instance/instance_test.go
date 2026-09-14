@@ -167,3 +167,32 @@ func Test_Fingerprint_DistinguishesPaths(t *testing.T) {
 		})
 	}
 }
+
+func Test_SocketPath(t *testing.T) {
+	tests := []struct {
+		name        string
+		dir         string
+		fingerprint string
+		expected    string
+	}{
+		{
+			name:        "default directory",
+			dir:         "/tmp",
+			fingerprint: "0123456789abcdef",
+			expected:    "/tmp/fuku-0123456789abcdef.sock",
+		},
+		{
+			name:        "custom directory",
+			dir:         "/var/run",
+			fingerprint: "fedcba9876543210",
+			expected:    "/var/run/fuku-fedcba9876543210.sock",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SocketPath(tt.dir, tt.fingerprint)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

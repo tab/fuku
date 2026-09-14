@@ -340,24 +340,21 @@ func Test_RegisterGuard(t *testing.T) {
 	tests := []struct {
 		name          string
 		cmd           *cli.Options
-		listen        string
 		before        func()
 		registered    bool
 		expectedError error
 	}{
 		{
-			name:   "run with the API enabled",
-			cmd:    &cli.Options{Type: cli.CommandRun},
-			listen: "127.0.0.1:9876",
+			name: "run passes the guard",
+			cmd:  &cli.Options{Type: cli.CommandRun},
 			before: func() {
 				mockGuard.EXPECT().Check(gomock.Any()).Return(nil)
 			},
 			registered: true,
 		},
 		{
-			name:   "run refused by the guard",
-			cmd:    &cli.Options{Type: cli.CommandRun},
-			listen: "127.0.0.1:9876",
+			name: "run refused by the guard",
+			cmd:  &cli.Options{Type: cli.CommandRun},
 			before: func() {
 				mockGuard.EXPECT().Check(gomock.Any()).Return(refused)
 			},
@@ -365,23 +362,14 @@ func Test_RegisterGuard(t *testing.T) {
 			expectedError: refused,
 		},
 		{
-			name:       "run with the API disabled",
-			cmd:        &cli.Options{Type: cli.CommandRun},
-			listen:     "",
-			before:     func() {},
-			registered: false,
-		},
-		{
 			name:       "logs command",
 			cmd:        &cli.Options{Type: cli.CommandLogs},
-			listen:     "127.0.0.1:9876",
 			before:     func() {},
 			registered: false,
 		},
 		{
 			name:       "stop command",
 			cmd:        &cli.Options{Type: cli.CommandStop},
-			listen:     "127.0.0.1:9876",
 			before:     func() {},
 			registered: false,
 		},
@@ -401,10 +389,7 @@ func Test_RegisterGuard(t *testing.T) {
 				},
 			}
 
-			cfg := &config.Config{}
-			cfg.Server.Listen = tt.listen
-
-			RegisterGuard(testLifecycle, tt.cmd, cfg, mockGuard)
+			RegisterGuard(testLifecycle, tt.cmd, mockGuard)
 
 			assert.Equal(t, tt.registered, registered)
 

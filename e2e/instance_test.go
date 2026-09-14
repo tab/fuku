@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +41,7 @@ func Test_Instance_RefusesSecondRun(t *testing.T) {
 	result := RunOnce(t, "testdata/api", "run", "default", "--no-ui")
 
 	assert.Equal(t, 1, result.ExitCode)
-	assert.Contains(t, result.Stderr, "127.0.0.1:19876")
+	assert.Contains(t, result.Stderr, SocketPath(t, "testdata/api"))
 	assert.Contains(t, result.Stderr, "fuku logs")
 	assert.Equal(t, 1, strings.Count(result.Stderr, "fuku is already running for this project"),
 		"the refusal must be printed once, not repeated by the generic startup error")
@@ -52,4 +53,23 @@ func Test_Instance_RefusesSecondRun(t *testing.T) {
 	status := apiJSON(t, resp)
 
 	assert.Equal(t, "running", status["phase"])
+}
+
+func Test_Instance_RefusesSecondRunWithoutAPI(t *testing.T) {
+	runner := NewRunner(t, "testdata/default-tier")
+	defer runner.Stop()
+
+	require.NoError(t, runner.Start("default"))
+	require.NoError(t, runner.WaitForRunning(15*time.Second))
+
+	result := RunOnce(t, "testdata/default-tier", "run", "default", "--no-ui")
+
+	assert.Equal(t, 1, result.ExitCode)
+	assert.Contains(t, result.Stderr, SocketPath(t, "testdata/default-tier"))
+	assert.Equal(t, 1, strings.Count(result.Stderr, "fuku is already running for this project"))
+
+	logs := RunOnce(t, "testdata/default-tier", "logs", "--no-ui", "--no-follow")
+
+	assert.Equal(t, 0, logs.ExitCode, "the first instance must still serve its socket")
+	assert.NotContains(t, runner.Output(), "service_stopped")
 }

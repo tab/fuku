@@ -2,13 +2,17 @@ package instance
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -242,6 +246,66 @@ func Test_Guard_Check(t *testing.T) {
 			require.ErrorIs(t, err, errors.ErrInstanceAlreadyRunning)
 			assert.Contains(t, buf.String(), "fuku is already running for this project")
 			assert.Contains(t, buf.String(), listen)
+			assert.Contains(t, buf.String(), "fuku logs")
+		})
+	}
+}
+
+func Test_Guard_Check_Socket(t *testing.T) {
+	tests := []struct {
+		name    string
+		before  func(t *testing.T, socketPath string)
+		refused bool
+	}{
+		{
+			name: "live socket without the API",
+			before: func(t *testing.T, socketPath string) {
+				t.Helper()
+
+				listener, err := net.Listen("unix", socketPath)
+				require.NoError(t, err)
+				t.Cleanup(func() { listener.Close() })
+			},
+			refused: true,
+		},
+		{
+			name: "stale socket without the API",
+			before: func(t *testing.T, socketPath string) {
+				t.Helper()
+
+				fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+				require.NoError(t, err)
+				require.NoError(t, syscall.Bind(fd, &syscall.SockaddrUnix{Name: socketPath}))
+				require.NoError(t, syscall.Close(fd))
+				t.Cleanup(func() { os.Remove(socketPath) })
+			},
+			refused: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf strings.Builder
+
+			project := fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano())
+			socketPath := SocketPath(config.SocketDir, Fingerprint(project))
+
+			tt.before(t, socketPath)
+
+			identity := Identity{Project: project, Fingerprint: Fingerprint(project)}
+
+			err := NewGuard(&config.Config{}, identity, &buf).Check(t.Context())
+
+			if !tt.refused {
+				require.NoError(t, err)
+				assert.Empty(t, buf.String())
+
+				return
+			}
+
+			require.ErrorIs(t, err, errors.ErrInstanceAlreadyRunning)
+			assert.Contains(t, buf.String(), "fuku is already running for this project")
+			assert.Contains(t, buf.String(), "socket "+socketPath)
 			assert.Contains(t, buf.String(), "fuku logs")
 		})
 	}

@@ -24,7 +24,7 @@ const (
 const livePath = "/api/v1/live"
 
 // refusalFormat is the message shown when another instance owns the project
-const refusalFormat = "Error: %v (API at %s)\nRun 'fuku logs' to follow it or stop that instance before starting another.\n"
+const refusalFormat = "Error: %v (%s)\nRun 'fuku logs' to follow it or stop that instance before starting another.\n"
 
 // liveResponse is the part of the liveness payload the probe reads
 type liveResponse struct {
@@ -32,7 +32,7 @@ type liveResponse struct {
 	Fingerprint string `json:"fingerprint"`
 }
 
-// Guard refuses a run when the configured API port range already serves this project
+// Guard refuses a run when the project socket or the configured API port range already serves this project
 type Guard interface {
 	Check(ctx context.Context) error
 }
@@ -61,14 +61,32 @@ func NewGuard(cfg *config.Config, identity Identity, stderr io.Writer) Guard {
 
 // Check returns ErrInstanceAlreadyRunning when another instance serves this project
 func (g *guard) Check(ctx context.Context) error {
-	address := g.find(ctx, g.cfg.ServerListen())
-	if address == "" {
+	owner := g.owner(ctx)
+	if owner == "" {
 		return nil
 	}
 
-	fmt.Fprintf(g.stderr, refusalFormat, errors.ErrInstanceAlreadyRunning, address)
+	fmt.Fprintf(g.stderr, refusalFormat, errors.ErrInstanceAlreadyRunning, owner)
 
 	return errors.ErrInstanceAlreadyRunning
+}
+
+// owner names where another instance of this project answers (its socket, else its API address), or is empty
+func (g *guard) owner(ctx context.Context) string {
+	socketPath := SocketPath(config.SocketDir, g.identity.Fingerprint)
+
+	conn, err := net.DialTimeout("unix", socketPath, config.SocketDialTimeout)
+	if err == nil {
+		conn.Close()
+
+		return "socket " + socketPath
+	}
+
+	if address := g.find(ctx, g.cfg.ServerListen()); address != "" {
+		return "API at " + address
+	}
+
+	return ""
 }
 
 // find returns the first address in the configured port range that serves this project

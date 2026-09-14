@@ -3,7 +3,6 @@ package e2e
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -92,7 +91,7 @@ func Test_Lifecycle_PreflightCleansUpOrphans(t *testing.T) {
 }
 
 func Test_Lifecycle_SocketCleanup(t *testing.T) {
-	socketPath := filepath.Join("/tmp", "fuku-default.sock")
+	socketPath := SocketPath(t, "testdata/default-tier")
 
 	os.Remove(socketPath)
 	defer os.Remove(socketPath)

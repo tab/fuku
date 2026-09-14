@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"fuku/internal/app/instance"
 	"fuku/internal/app/relay"
 	"fuku/internal/config"
 )
@@ -24,18 +25,16 @@ func runtimeSection(ctx context.Context, env *Env) Section {
 	}
 }
 
-// checkInstance reports whether another fuku instance is running with the same profile
+// checkInstance reports whether another fuku instance is running for the current project
 func checkInstance(env *Env) Result {
-	socketPath := relay.SocketPathForProfile(config.SocketDir, env.Profile)
-
-	info, err := os.Lstat(socketPath)
-	if err != nil || info.Mode()&os.ModeSocket == 0 {
+	socketPath, err := relay.FindSocket(config.SocketDir, env.Fingerprint)
+	if err != nil {
 		return Result{
 			ID:       CheckRuntimeInstance,
 			Category: CategoryRuntime,
 			Status:   StatusIdle,
-			Summary:  fmt.Sprintf("no other fuku running for profile '%s'", env.Profile),
-			Details:  []Detail{{Key: "socket", Value: socketPath + " (absent)"}},
+			Summary:  "no other fuku running for this project",
+			Details:  []Detail{{Key: "socket", Value: instance.SocketPath(config.SocketDir, env.Fingerprint) + " (absent)"}},
 		}
 	}
 
@@ -57,14 +56,14 @@ func checkInstance(env *Env) Result {
 		ID:       CheckRuntimeInstance,
 		Category: CategoryRuntime,
 		Status:   StatusNote,
-		Summary:  fmt.Sprintf("another fuku is running for profile '%s'", env.Profile),
+		Summary:  "another fuku is running for this project",
 		Details:  []Detail{{Key: "socket", Value: socketPath}},
 	}
 }
 
 // checkStaleSockets reports stale socket files from previous fuku runs
 func checkStaleSockets() Result {
-	pattern := relay.SocketPathForProfile(config.SocketDir, "*")
+	pattern := instance.SocketPath(config.SocketDir, "*")
 
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
