@@ -252,7 +252,7 @@ func buildLogsCommand(result *Options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&logsProfile, FlagProfile.String(), "", "Filter by profile")
+	cmd.Flags().StringVar(&logsProfile, FlagProfile.String(), "", "Profile the running instance must serve")
 	cmd.Flags().Var(&tailValue{target: &logsReplay.Tail}, FlagTail.String(), "Replay at most the newest n buffered messages")
 	cmd.Flags().BoolVar(&logsReplay.NoFollow, FlagNoFollow.String(), false, "Exit after the buffered replay instead of following")
 

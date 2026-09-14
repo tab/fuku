@@ -72,6 +72,7 @@ data class ServiceCounts(
 @Serializable
 data class Status(
   val version: String,
+  val instance: String,
   val profile: String,
   val phase: Phase,
   val uptime: Long,
@@ -81,6 +82,7 @@ data class Status(
 @Serializable
 data class Probe(
   val status: String,
+  val fingerprint: String? = null,
 )
 
 @Serializable

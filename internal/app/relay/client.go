@@ -13,7 +13,7 @@ import (
 
 // Handler processes messages received from the relay server
 type Handler interface {
-	HandleStatus(StatusMessage)
+	HandleStatus(StatusMessage) error
 	HandleLog(LogMessage)
 }
 
@@ -113,19 +113,18 @@ func (c *client) Stream(ctx context.Context, handler Handler) error {
 		}
 
 		if awaitingAck {
-			status, ok := c.acknowledgement(line)
-			if !ok {
-				return notAcknowledged()
-			}
-
 			awaitingAck = false
 
-			handler.HandleStatus(status)
+			if err := c.acknowledge(line, handler); err != nil {
+				return err
+			}
 
 			continue
 		}
 
-		dispatch(line, handler)
+		if err := dispatch(line, handler); err != nil {
+			return err
+		}
 	}
 }
 
@@ -143,40 +142,47 @@ func notAcknowledged() error {
 	return fmt.Errorf("%w, restart the running profile with the current fuku version", errors.ErrBoundedReadNotSupported)
 }
 
-// acknowledgement decodes a frame that must be a status echoing the exact requested bounded-read options
-func (c *client) acknowledgement(line []byte) (StatusMessage, bool) {
+// acknowledge requires a status frame echoing the exact requested bounded-read options and hands it to the handler
+func (c *client) acknowledge(line []byte, handler Handler) error {
 	status, ok := decodeStatus(line)
-	if !ok {
-		return StatusMessage{}, false
+	if !ok || !c.requested.equal(status.ReplayOptions) {
+		return notAcknowledged()
 	}
 
-	return status, c.requested.equal(status.ReplayOptions)
+	return handler.HandleStatus(status)
 }
 
-// dispatch routes one relay frame to the handler and ignores frames it cannot decode
-func dispatch(line []byte, handler Handler) {
-	var envelope MessageEnvelope
-	if err := json.Unmarshal(line, &envelope); err != nil {
-		return
-	}
-
+// dispatch routes one relay frame to the handler, ignores frames it cannot decode and returns the handler's status error
+func dispatch(line []byte, handler Handler) error {
 	//nolint:exhaustive // only handling known message types
-	switch envelope.Type {
+	switch messageType(line) {
 	case MessageStatus:
 		status, ok := decodeStatus(line)
 		if !ok {
-			return
+			return nil
 		}
 
-		handler.HandleStatus(status)
+		return handler.HandleStatus(status)
 	case MessageLog:
-		var msg LogMessage
-		if err := json.Unmarshal(line, &msg); err != nil {
-			return
+		msg, ok := decodeLog(line)
+		if !ok {
+			return nil
 		}
 
 		handler.HandleLog(msg)
 	}
+
+	return nil
+}
+
+// messageType reads the type of a frame and returns an empty type for a frame that is not JSON
+func messageType(line []byte) MessageType {
+	var envelope MessageEnvelope
+	if err := json.Unmarshal(line, &envelope); err != nil {
+		return ""
+	}
+
+	return envelope.Type
 }
 
 // decodeStatus decodes a status frame and reports false for any other frame
@@ -187,4 +193,14 @@ func decodeStatus(line []byte) (StatusMessage, bool) {
 	}
 
 	return status, status.Type == MessageStatus
+}
+
+// decodeLog decodes a log frame and reports false for a frame it cannot decode
+func decodeLog(line []byte) (LogMessage, bool) {
+	var msg LogMessage
+	if err := json.Unmarshal(line, &msg); err != nil {
+		return LogMessage{}, false
+	}
+
+	return msg, true
 }

@@ -53,9 +53,11 @@ func (mr *MockHandlerMockRecorder) HandleLog(arg0 any) *gomock.Call {
 }
 
 // HandleStatus mocks base method.
-func (m *MockHandler) HandleStatus(arg0 StatusMessage) {
+func (m *MockHandler) HandleStatus(arg0 StatusMessage) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "HandleStatus", arg0)
+	ret := m.ctrl.Call(m, "HandleStatus", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // HandleStatus indicates an expected call of HandleStatus.

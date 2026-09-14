@@ -3,6 +3,8 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -261,6 +263,26 @@ func RunOnce(t *testing.T, dir string, args ...string) RunResult {
 // indexOf returns the index of substr in s, or -1 if not found
 func indexOf(s, substr string) int {
 	return strings.Index(s, substr)
+}
+
+// SocketPath returns the relay socket of the fuku instance serving dir (the name carries the first 16 hex
+// characters of the SHA-256 of the symlink-resolved directory, the same fingerprint the binary computes)
+func SocketPath(t *testing.T, dir string) string {
+	t.Helper()
+
+	workDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+
+	project, err := filepath.EvalSymlinks(workDir)
+	if err != nil {
+		t.Fatalf("failed to resolve symlinks: %v", err)
+	}
+
+	sum := sha256.Sum256([]byte(project))
+
+	return filepath.Join("/tmp", "fuku-"+hex.EncodeToString(sum[:])[:16]+".sock")
 }
 
 // LogsRunner manages fuku logs command for e2e tests

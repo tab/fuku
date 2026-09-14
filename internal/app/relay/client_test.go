@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"io"
 	"net"
 	"os"
 	"sync"
@@ -15,21 +14,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"fuku/internal/app/errors"
-	"fuku/internal/config"
-	"fuku/internal/config/logger"
 )
 
 type testHandler struct {
-	mu       sync.Mutex
-	statuses []StatusMessage
-	logs     []LogMessage
+	mu        sync.Mutex
+	statuses  []StatusMessage
+	logs      []LogMessage
+	statusErr error
 }
 
-func (h *testHandler) HandleStatus(msg StatusMessage) {
+func (h *testHandler) HandleStatus(msg StatusMessage) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.statuses = append(h.statuses, msg)
+
+	return h.statusErr
 }
 
 func (h *testHandler) HandleLog(msg LogMessage) {
@@ -67,9 +67,8 @@ func Test_NewClient(t *testing.T) {
 
 func Test_Client_Connect_Success(t *testing.T) {
 	srv := newTestServer(t)
-	profile := uniqueProfile(t)
 
-	cancel := startTestServer(t, srv, profile, []string{"api"})
+	cancel := startTestServer(t, srv, []string{"api"})
 	defer srv.Stop()
 	defer cancel()
 
@@ -108,9 +107,8 @@ func Test_Client_Subscribe(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := newTestServer(t)
-			profile := uniqueProfile(t)
 
-			cancel := startTestServer(t, srv, profile, []string{"api", "web"})
+			cancel := startTestServer(t, srv, []string{"api", "web"})
 			defer srv.Stop()
 			defer cancel()
 
@@ -128,9 +126,8 @@ func Test_Client_Subscribe(t *testing.T) {
 
 func Test_Client_Subscribe_ClosedConnection(t *testing.T) {
 	srv := newTestServer(t)
-	profile := uniqueProfile(t)
 
-	cancel := startTestServer(t, srv, profile, []string{"api"})
+	cancel := startTestServer(t, srv, []string{"api"})
 	defer srv.Stop()
 	defer cancel()
 
@@ -148,9 +145,8 @@ func Test_Client_Subscribe_ClosedConnection(t *testing.T) {
 
 func Test_Client_Stream_ReceivesLogMessages(t *testing.T) {
 	srv := newTestServer(t)
-	profile := uniqueProfile(t)
 
-	cancel := startTestServer(t, srv, profile, []string{"api"})
+	cancel := startTestServer(t, srv, []string{"api"})
 	defer srv.Stop()
 	defer cancel()
 
@@ -199,9 +195,8 @@ func Test_Client_Stream_ReceivesLogMessages(t *testing.T) {
 
 func Test_Client_Stream_ContextCancellation(t *testing.T) {
 	srv := newTestServer(t)
-	profile := uniqueProfile(t)
 
-	cancel := startTestServer(t, srv, profile, []string{"api"})
+	cancel := startTestServer(t, srv, []string{"api"})
 	defer srv.Stop()
 	defer cancel()
 
@@ -340,9 +335,8 @@ func Test_Client_Stream_SkipsInvalidJSON(t *testing.T) {
 
 func Test_Client_Stream_ReceivesStatusMessage(t *testing.T) {
 	srv := newTestServer(t)
-	profile := uniqueProfile(t)
 
-	cancel := startTestServer(t, srv, profile, []string{"api", "web"})
+	cancel := startTestServer(t, srv, []string{"api", "web"})
 	defer srv.Stop()
 	defer cancel()
 
@@ -381,7 +375,7 @@ func Test_Client_Stream_ReceivesStatusMessage(t *testing.T) {
 	statuses := handler.getStatuses()
 	require.Len(t, statuses, 1)
 	assert.Equal(t, MessageStatus, statuses[0].Type)
-	assert.Equal(t, profile, statuses[0].Profile)
+	assert.Equal(t, testProfile, statuses[0].Profile)
 	assert.Equal(t, []string{"api", "web"}, statuses[0].Services)
 }
 
@@ -446,19 +440,8 @@ func Test_Client_Stream_SkipsNonLogMessages(t *testing.T) {
 }
 
 func Test_Client_Close_WithConnection(t *testing.T) {
-	cfg := config.DefaultConfig()
-	log := logger.NewLoggerWithOutput(cfg, io.Discard)
-
-	srv := &Server{
-		bufferSize:  cfg.Logs.Buffer,
-		historySize: cfg.Logs.History,
-		hub:         NewHub(cfg.Logs.Buffer, cfg.Logs.History, log),
-		log:         log,
-	}
-
-	profile := uniqueProfile(t)
-
-	srv.profile = profile
+	srv := newTestServer(t)
+	srv.profile = testProfile
 	srv.services = []string{"api"}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -701,6 +684,52 @@ func Test_Client_Stream_BoundedReadAcknowledgement(t *testing.T) {
 
 			assert.Len(t, handler.getStatuses(), tt.expectedStatuses)
 			assert.Len(t, handler.getLogs(), tt.expectedLogs)
+		})
+	}
+}
+
+func Test_Client_Stream_StatusError(t *testing.T) {
+	requested := 2
+
+	tests := []struct {
+		name      string
+		requested SubscribeOptions
+		status    StatusMessage
+	}{
+		{
+			name:      "acknowledgement path",
+			requested: SubscribeOptions{ReplayOptions: ReplayOptions{Tail: &requested, NoFollow: true}},
+			status: StatusMessage{
+				Type:          MessageStatus,
+				Profile:       "default",
+				ReplayOptions: ReplayOptions{Tail: &requested, NoFollow: true},
+			},
+		},
+		{
+			name:      "plain path",
+			requested: SubscribeOptions{Services: []string{"api"}},
+			status:    StatusMessage{Type: MessageStatus, Profile: "default"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logLine := marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
+			socketPath := startScriptedServer(t, marshalLine(t, tt.status), logLine)
+
+			c := NewClient()
+			require.NoError(t, c.Connect(socketPath))
+
+			defer c.Close()
+
+			require.NoError(t, c.Subscribe(tt.requested))
+
+			handler := &testHandler{statusErr: errors.ErrProfileMismatch}
+			err := c.Stream(t.Context(), handler)
+
+			require.ErrorIs(t, err, errors.ErrProfileMismatch)
+			assert.Len(t, handler.getStatuses(), 1)
+			assert.Empty(t, handler.getLogs())
 		})
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 )
 
@@ -51,7 +52,7 @@ func Test_RunDoctor(t *testing.T) {
 
 			os.Stdout = w
 
-			exitCode := RunDoctor(tt.cmd)
+			exitCode := RunDoctor(tt.cmd, instance.Identity{Fingerprint: "0123456789abcdef"})
 
 			w.Close()
 

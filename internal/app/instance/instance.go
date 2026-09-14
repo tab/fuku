@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"fuku/internal/app/errors"
+	"fuku/internal/config"
 )
 
 // FingerprintLength bounds the project fingerprint exposed to unauthenticated callers
@@ -46,4 +47,9 @@ func Fingerprint(project string) string {
 	sum := sha256.Sum256([]byte(project))
 
 	return hex.EncodeToString(sum[:])[:FingerprintLength]
+}
+
+// SocketPath returns the relay socket of the project with the given fingerprint inside socketDir
+func SocketPath(socketDir, fingerprint string) string {
+	return filepath.Join(socketDir, fmt.Sprintf("%s%s%s", config.SocketPrefix, fingerprint, config.SocketSuffix))
 }

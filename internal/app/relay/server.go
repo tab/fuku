@@ -130,7 +130,7 @@ func (s *Server) Broadcast(service, message string) {
 }
 
 func (s *Server) start(ctx context.Context) error {
-	s.socketPath = SocketPathForProfile(config.SocketDir, s.profile)
+	s.socketPath = instance.SocketPath(config.SocketDir, s.fingerprint)
 
 	conn, err := net.DialTimeout("unix", s.socketPath, config.SocketDialTimeout)
 	if err == nil {

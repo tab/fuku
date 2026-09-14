@@ -43,13 +43,8 @@ func Test_ServiceCLI_Run(t *testing.T) {
 			expect: 1,
 		},
 		{
-			name: "logs without an instance runs the container",
-			cmd: &cli.Options{
-				Type:          cli.CommandLogs,
-				Profile:       "bootstrap-no-such-profile",
-				NoUI:          true,
-				ReplayOptions: relay.ReplayOptions{NoFollow: true},
-			},
+			name:   "logs without an instance runs the container",
+			cmd:    &cli.Options{Type: cli.CommandLogs, NoUI: true, ReplayOptions: relay.ReplayOptions{NoFollow: true}},
 			expect: 1,
 		},
 	}

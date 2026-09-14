@@ -129,13 +129,9 @@ func Register(lifecycle fx.Lifecycle, root *Root, app *App) {
 	})
 }
 
-// RegisterGuard registers the instance guard lifecycle hook when server config is present
-func RegisterGuard(lc fx.Lifecycle, cmd *cli.Options, cfg *config.Config, guard instance.Guard) {
+// RegisterGuard registers the instance guard lifecycle hook for the run command
+func RegisterGuard(lc fx.Lifecycle, cmd *cli.Options, guard instance.Guard) {
 	if cmd.Type != cli.CommandRun {
-		return
-	}
-
-	if cfg.Server.Listen == "" {
 		return
 	}
 

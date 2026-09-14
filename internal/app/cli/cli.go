@@ -8,6 +8,7 @@ import (
 
 	"fuku/internal/app/doctor"
 	"fuku/internal/app/errors"
+	"fuku/internal/app/instance"
 	"fuku/internal/config"
 	"fuku/internal/config/template"
 )
@@ -29,7 +30,7 @@ const (
 
   fuku logs [service...]          Stream logs from running services
   fuku --logs                     Same as above (--logs, -l, logs, l)
-  fuku logs api --profile <name>  Stream logs from specific profile
+  fuku logs api --profile <name>  Fail unless the instance runs profile <name>
   fuku logs api --tail <n>        Replay at most the newest n messages
   fuku logs api --no-follow       Exit after the buffered replay
   fuku logs api --no-ui           Hide the logs panel and footer
@@ -78,10 +79,11 @@ func ChangeToConfigDir(cmd *Options) error {
 }
 
 // RunDoctor executes the doctor command and writes the report to stdout
-func RunDoctor(cmd *Options) int {
+func RunDoctor(cmd *Options, identity instance.Identity) int {
 	report := doctor.Run(context.Background(), doctor.Options{
-		Profile:    cmd.Profile,
-		ConfigPath: cmd.ConfigFile,
+		Profile:     cmd.Profile,
+		ConfigPath:  cmd.ConfigFile,
+		Fingerprint: identity.Fingerprint,
 	})
 
 	switch cmd.DoctorFormat {
