@@ -20,15 +20,6 @@ import (
 	"fuku/internal/config/sentry"
 )
 
-// newTestLogger returns a logger mock that accepts the component split NewApp performs
-func newTestLogger(ctrl *gomock.Controller) *logger.MockLogger {
-	mockLog := logger.NewMockLogger(ctrl)
-	mockLog.EXPECT().WithComponent("APP").Return(mockLog).AnyTimes()
-	mockLog.EXPECT().Info().Return(nil).AnyTimes()
-
-	return mockLog
-}
-
 func Test_NewRoot(t *testing.T) {
 	root := NewRoot()
 
@@ -44,8 +35,10 @@ func Test_NewApp(t *testing.T) {
 
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("APP").Return(mockLog)
 
-	application := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
+	application := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), mockLog)
 
 	assert.NotNil(t, application)
 	assert.Equal(t, mockTUI, application.ui)
@@ -63,9 +56,12 @@ func Test_Run_SignalsShutdown(t *testing.T) {
 	mockSentry := sentry.NewMockSentry(ctrl)
 	mockSentry.EXPECT().Flush()
 
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("APP").Return(mockLog)
+
 	shutdowner := &recordingShutdowner{}
 	shutdown := NewShutdown()
-	app := NewApp(mockTUI, bus.NoOp(), mockSentry, shutdowner, shutdown, newTestLogger(ctrl))
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, shutdowner, shutdown, mockLog)
 
 	app.Run(t.Context())
 
@@ -79,6 +75,7 @@ func Test_PublishSignal(t *testing.T) {
 	tests := []struct {
 		name     string
 		before   func(s *Shutdown)
+		logged   int
 		expected []bus.Message
 	}{
 		{
@@ -91,6 +88,7 @@ func Test_PublishSignal(t *testing.T) {
 			before: func(s *Shutdown) {
 				s.Observe(syscall.SIGTERM)
 			},
+			logged: 1,
 			expected: []bus.Message{
 				{Type: bus.EventSignal, Data: bus.Signal{Name: "terminated"}, Critical: true},
 			},
@@ -124,7 +122,11 @@ func Test_PublishSignal(t *testing.T) {
 			shutdown := NewShutdown()
 			tt.before(shutdown)
 
-			app := NewApp(cli.NewMockTUI(ctrl), b, sentry.NewMockSentry(ctrl), &noopShutdowner{}, shutdown, newTestLogger(ctrl))
+			mockLog := logger.NewMockLogger(ctrl)
+			mockLog.EXPECT().WithComponent("APP").Return(mockLog)
+			mockLog.EXPECT().Info().Return(nil).Times(tt.logged)
+
+			app := NewApp(cli.NewMockTUI(ctrl), b, sentry.NewMockSentry(ctrl), &noopShutdowner{}, shutdown, mockLog)
 			app.PublishSignal()
 
 			assert.Equal(t, tt.expected, drain(msgChan))
@@ -182,7 +184,10 @@ func Test_Register(t *testing.T) {
 
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("APP").Return(mockLog)
+
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), mockLog)
 
 	var (
 		registered   bool
@@ -217,8 +222,11 @@ func Test_Register_OnStop_CancelsContextAndUnblocksApp(t *testing.T) {
 	mockSentry := sentry.NewMockSentry(ctrl)
 	mockSentry.EXPECT().Flush()
 
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("APP").Return(mockLog)
+
 	root := NewRoot()
-	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), mockLog)
 
 	var capturedHook fx.Hook
 
@@ -253,7 +261,10 @@ func Test_Register_OnStop_RespectsTimeout(t *testing.T) {
 
 	mockTUI := cli.NewMockTUI(ctrl)
 	mockSentry := sentry.NewMockSentry(ctrl)
-	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), newTestLogger(ctrl))
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("APP").Return(mockLog)
+
+	app := NewApp(mockTUI, bus.NoOp(), mockSentry, &noopShutdowner{}, NewShutdown(), mockLog)
 
 	var capturedHook fx.Hook
 
@@ -291,8 +302,12 @@ func Test_Register_OnStop_AnnouncesSignalBeforeCancel(t *testing.T) {
 	shutdown := NewShutdown()
 	shutdown.Observe(syscall.SIGINT)
 
+	mockLog := logger.NewMockLogger(ctrl)
+	mockLog.EXPECT().WithComponent("APP").Return(mockLog)
+	mockLog.EXPECT().Info().Return(nil)
+
 	root := NewRoot()
-	app := NewApp(cli.NewMockTUI(ctrl), b, sentry.NewMockSentry(ctrl), &noopShutdowner{}, shutdown, newTestLogger(ctrl))
+	app := NewApp(cli.NewMockTUI(ctrl), b, sentry.NewMockSentry(ctrl), &noopShutdowner{}, shutdown, mockLog)
 
 	var capturedHook fx.Hook
 
