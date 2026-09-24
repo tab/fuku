@@ -1,15 +1,15 @@
-package updater
+package github
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
-	"golang.org/x/mod/semver"
-
-	"fuku/internal/config"
+	"fuku/internal/platform/buildinfo"
 )
 
 const (
@@ -17,29 +17,30 @@ const (
 	cacheFileName = "version.json"
 )
 
+// cache is the on-disk record of the last fetched release tag
 type cache struct {
 	Tag       string    `json:"tag"`
 	FetchedAt time.Time `json:"fetched_at"`
 }
 
-// cachePath returns the absolute path to the cached version file
-func cachePath() (string, error) {
+// DefaultCachePath returns the cache file in the user's config directory, or empty when that directory is unavailable
+func DefaultCachePath() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("resolve user config dir: %w", err)
+		return ""
 	}
 
-	return filepath.Join(dir, config.AppName, cacheFileName), nil
+	return filepath.Join(dir, buildinfo.AppName, cacheFileName)
 }
 
-// readCache decodes the cached version entry (zero cache + nil error means legitimate miss; non-nil error means IO or parse failure)
+// readCache decodes the cached release entry (a zero entry with a nil error is a miss)
 func readCache(path string) (cache, error) {
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cache{}, nil
-		}
+	if errors.Is(err, fs.ErrNotExist) {
+		return cache{}, nil
+	}
 
+	if err != nil {
 		return cache{}, fmt.Errorf("read updater cache: %w", err)
 	}
 
@@ -49,10 +50,6 @@ func readCache(path string) (cache, error) {
 	}
 
 	if entry.Tag == "" || entry.FetchedAt.IsZero() {
-		return cache{}, nil
-	}
-
-	if !semver.IsValid(normalize(entry.Tag)) {
 		return cache{}, nil
 	}
 
@@ -69,10 +66,7 @@ func writeCache(path string, entry cache) error {
 		return fmt.Errorf("create updater cache dir: %w", err)
 	}
 
-	raw, err := json.Marshal(entry)
-	if err != nil {
-		return fmt.Errorf("marshal updater cache: %w", err)
-	}
+	raw, _ := json.Marshal(entry)
 
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		return fmt.Errorf("write updater cache: %w", err)

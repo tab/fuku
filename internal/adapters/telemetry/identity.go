@@ -1,4 +1,4 @@
-package sentry
+package telemetry
 
 import (
 	"os"
@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"fuku/internal/config"
+	"fuku/internal/platform/buildinfo"
 )
 
 const (
-	configDir       = config.AppName
+	configDir       = buildinfo.AppName
 	telemetryIDFile = "telemetry.id"
 )
 
@@ -26,11 +26,9 @@ func loadTelemetryID() string {
 }
 
 func loadTelemetryIDFromPath(path string) string {
-	data, err := os.ReadFile(path)
-	if err == nil {
-		if id := strings.TrimSpace(string(data)); id != "" {
-			return id
-		}
+	data, _ := os.ReadFile(path)
+	if id := strings.TrimSpace(string(data)); id != "" {
+		return id
 	}
 
 	id := uuid.NewString()

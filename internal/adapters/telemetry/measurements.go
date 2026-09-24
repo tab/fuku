@@ -1,38 +1,4 @@
-package sentry
-
-import (
-	gosentry "github.com/getsentry/sentry-go"
-	"github.com/getsentry/sentry-go/attribute"
-)
-
-// Re-exported Meter API types from sentry-go
-type (
-	Meter       = gosentry.Meter
-	MeterOption = gosentry.MeterOption
-)
-
-// Re-exported Meter API functions from sentry-go
-var (
-	NewMeter       = gosentry.NewMeter
-	WithUnit       = gosentry.WithUnit
-	WithAttributes = gosentry.WithAttributes
-)
-
-// Re-exported unit constants from sentry-go
-const (
-	UnitMillisecond = gosentry.UnitMillisecond
-	UnitSecond      = gosentry.UnitSecond
-	UnitPercent     = gosentry.UnitPercent
-	UnitMegabyte    = gosentry.UnitMegabyte
-)
-
-// Re-exported attribute builders from sentry-go/attribute
-var (
-	StringAttr  = attribute.String
-	IntAttr     = attribute.Int
-	BoolAttr    = attribute.Bool
-	Float64Attr = attribute.Float64
-)
+package telemetry
 
 // Gauge metrics measure current values
 const (
