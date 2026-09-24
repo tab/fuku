@@ -1,4 +1,4 @@
-package api
+package rest
 
 import (
 	"encoding/json"
@@ -17,24 +17,29 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.yaml.in/yaml/v3"
 
-	"fuku/internal/app/bus"
-	"fuku/internal/app/instance"
-	"fuku/internal/app/registry"
-	"fuku/internal/config"
+	"fuku/internal/adapters/instance"
+	"fuku/internal/app/services"
+	"fuku/internal/contracts"
+	"fuku/internal/model"
+	"fuku/internal/platform/buildinfo"
 )
 
 const testProject = "/Users/dev/projects/shop"
 
-func testIdentity() instance.Identity {
-	return instance.Identity{
-		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
-		Project:     testProject,
-		Fingerprint: instance.Fingerprint(testProject),
+// readFrom stands in for Registry.Read and runs the callback on the fixture snapshot
+func readFrom(snapshot *model.Snapshot) func(func(*model.Snapshot)) {
+	return func(fn func(*model.Snapshot)) {
+		fn(snapshot)
 	}
 }
 
 func Test_HandleLive(t *testing.T) {
-	identity := testIdentity()
+	identity := model.Instance{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     testProject,
+		Fingerprint: instance.Fingerprint(testProject),
+	}
+
 	h := &handler{identity: identity}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/live", nil)
@@ -48,7 +53,7 @@ func Test_HandleLive(t *testing.T) {
 	var body LiveSerializer
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "alive", body.Status)
-	assert.Equal(t, config.AppName, body.Product)
+	assert.Equal(t, buildinfo.AppName, body.Product)
 	assert.Equal(t, identity.ID, body.Instance)
 	assert.Equal(t, identity.Fingerprint, body.Fingerprint)
 	assert.Len(t, body.Fingerprint, instance.FingerprintLength)
@@ -56,28 +61,36 @@ func Test_HandleLive(t *testing.T) {
 
 func Test_HandleReady(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mockStore := registry.NewMockStore(ctrl)
-	h := &handler{store: mockStore}
+	defer ctrl.Finish()
+
+	mockRegistry := NewMockRegistry(ctrl)
+
+	h := &handler{registry: mockRegistry}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ready", nil)
 
 	tests := []struct {
 		name       string
 		before     func()
+		recorder   *httptest.ResponseRecorder
 		statusCode int
 		body       string
 	}{
 		{
 			name: "ready when store is resolved",
 			before: func() {
-				mockStore.EXPECT().IsResolved().Return(true)
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{Resolved: true}))
 			},
+			recorder:   httptest.NewRecorder(),
 			statusCode: http.StatusOK,
 			body:       `{"status":"ready"}`,
 		},
 		{
 			name: "not ready when store is not resolved",
 			before: func() {
-				mockStore.EXPECT().IsResolved().Return(false)
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{Resolved: false}))
 			},
+			recorder:   httptest.NewRecorder(),
 			statusCode: http.StatusServiceUnavailable,
 			body:       `{"status":"not ready"}`,
 		},
@@ -87,32 +100,41 @@ func Test_HandleReady(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/ready", nil)
-			w := httptest.NewRecorder()
+			h.handleReady(tt.recorder, req)
 
-			h.handleReady(w, req)
-
-			assert.Equal(t, tt.statusCode, w.Code)
-			assert.JSONEq(t, tt.body, w.Body.String())
+			assert.Equal(t, tt.statusCode, tt.recorder.Code)
+			assert.JSONEq(t, tt.body, tt.recorder.Body.String())
 		})
 	}
 }
 
 func Test_HandleStatus(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mockStore := registry.NewMockStore(ctrl)
-	identity := testIdentity()
-	h := &handler{store: mockStore, bus: bus.NewMockBus(ctrl), identity: identity}
+	defer ctrl.Finish()
 
-	mockStore.EXPECT().Counts().Return(registry.StatusCounts{
-		Total:   4,
-		Running: 2,
-		Stopped: 1,
-		Failed:  1,
-	})
-	mockStore.EXPECT().Profile().Return("default")
-	mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-	mockStore.EXPECT().Uptime().Return(3600 * time.Second)
+	mockRegistry := NewMockRegistry(ctrl)
+
+	identity := model.Instance{
+		ID:          "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24",
+		Project:     testProject,
+		Fingerprint: instance.Fingerprint(testProject),
+	}
+
+	h := &handler{registry: mockRegistry, identity: identity}
+
+	snapshot := &model.Snapshot{
+		Phase:     model.PhaseRunning,
+		Profile:   "default",
+		StartedAt: time.Now().Add(-time.Hour),
+		Services: map[string]*model.Service{
+			"id-api":    {Status: model.StatusRunning},
+			"id-web":    {Status: model.StatusRunning},
+			"id-worker": {Status: model.StatusStopped},
+			"id-db":     {Status: model.StatusFailed},
+		},
+	}
+
+	mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(snapshot))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
 	w := httptest.NewRecorder()
@@ -126,7 +148,7 @@ func Test_HandleStatus(t *testing.T) {
 	assert.Equal(t, identity.ID, body.Instance)
 	assert.Equal(t, testProject, body.Project)
 	assert.Equal(t, "default", body.Profile)
-	assert.Equal(t, string(bus.PhaseRunning), body.Phase)
+	assert.Equal(t, string(model.PhaseRunning), body.Phase)
 	assert.Equal(t, int64(3600), body.Uptime)
 	assert.Equal(t, 4, body.Services.Total)
 	assert.Equal(t, 2, body.Services.Running)
@@ -136,15 +158,25 @@ func Test_HandleStatus(t *testing.T) {
 
 func Test_HandleListServices(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mockStore := registry.NewMockStore(ctrl)
-	h := &handler{store: mockStore, bus: bus.NewMockBus(ctrl)}
+	defer ctrl.Finish()
+
+	mockRegistry := NewMockRegistry(ctrl)
+
+	h := &handler{registry: mockRegistry}
 
 	now := time.Now()
-	mockStore.EXPECT().Services().Return([]registry.ServiceSnapshot{
-		{ID: "id-1", Name: "db", Tier: "foundation", Status: registry.StatusRunning, PID: 100, CPU: 1.5, Memory: 1024, StartTime: now},
-		{ID: "id-2", Name: "api", Tier: "application", Status: registry.StatusStopped},
-		{ID: "id-3", Name: "worker", Tier: "application", Status: registry.StatusStarting, PID: 200, CPU: 0.5, Memory: 512, StartTime: now},
-	})
+	db := &model.Service{ID: "id-1", Name: "db", Tier: "foundation", Status: model.StatusRunning, Process: model.Process{PID: 100, CPU: 1.5, Memory: 1024, StartedAt: now}}
+	api := &model.Service{ID: "id-2", Name: "api", Tier: "application", Status: model.StatusStopped}
+	worker := &model.Service{ID: "id-3", Name: "worker", Tier: "application", Status: model.StatusStarting, Process: model.Process{PID: 200, CPU: 0.5, Memory: 512, StartedAt: now}}
+	snapshot := &model.Snapshot{
+		Tiers: []*model.Tier{
+			{Name: "foundation", Services: []*model.Service{db}},
+			{Name: "application", Services: []*model.Service{api, worker}},
+		},
+		Services: map[string]*model.Service{"id-1": db, "id-2": api, "id-3": worker},
+	}
+
+	mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(snapshot))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/services", nil)
 	w := httptest.NewRecorder()
@@ -157,18 +189,18 @@ func Test_HandleListServices(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	require.Len(t, body.Services, 3)
 	assert.Equal(t, "db", body.Services[0].Name)
-	assert.Equal(t, registry.StatusRunning, body.Services[0].Status)
+	assert.Equal(t, model.StatusRunning, body.Services[0].Status)
 	assert.Equal(t, 100, body.Services[0].PID)
 	assert.InDelta(t, 1.5, body.Services[0].CPU, 0.01)
 	assert.Equal(t, uint64(1024), body.Services[0].Memory)
 
 	assert.Equal(t, "api", body.Services[1].Name)
-	assert.Equal(t, registry.StatusStopped, body.Services[1].Status)
+	assert.Equal(t, model.StatusStopped, body.Services[1].Status)
 	assert.Equal(t, 0, body.Services[1].PID)
 	assert.Equal(t, int64(0), body.Services[1].Uptime)
 
 	assert.Equal(t, "worker", body.Services[2].Name)
-	assert.Equal(t, registry.StatusStarting, body.Services[2].Status)
+	assert.Equal(t, model.StatusStarting, body.Services[2].Status)
 	assert.Equal(t, 0, body.Services[2].PID)
 	assert.InDelta(t, 0, body.Services[2].CPU, 0.01)
 	assert.Equal(t, uint64(0), body.Services[2].Memory)
@@ -179,37 +211,46 @@ func Test_HandleGetService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockStore := registry.NewMockStore(ctrl)
-	h := &handler{store: mockStore, bus: bus.NewMockBus(ctrl)}
+	mockRegistry := NewMockRegistry(ctrl)
+
+	h := &handler{registry: mockRegistry}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/services/{id}", h.handleGetService)
 
 	tests := []struct {
 		name         string
-		serviceID    string
 		before       func()
+		request      *http.Request
+		recorder     *httptest.ResponseRecorder
 		expectStatus int
 		expectBody   string
 	}{
 		{
-			name:      "service found",
-			serviceID: "id-api",
+			name: "service found",
 			before: func() {
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{Services: map[string]*model.Service{"id-api": {
 					ID:     "id-api",
 					Name:   "api",
 					Tier:   "foundation",
-					Status: registry.StatusRunning,
-					PID:    1234,
-				}, true)
+					Status: model.StatusRunning,
+					Process: model.Process{
+						PID: 1234,
+					},
+				}}}))
 			},
+			request:      httptest.NewRequest(http.MethodGet, "/api/v1/services/id-api", nil),
+			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusOK,
 			expectBody:   "api",
 		},
 		{
-			name:      "service not found",
-			serviceID: "id-unknown",
+			name: "service not found",
 			before: func() {
-				mockStore.EXPECT().Service("id-unknown").Return(registry.ServiceSnapshot{}, false)
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{}))
 			},
+			request:      httptest.NewRequest(http.MethodGet, "/api/v1/services/id-unknown", nil),
+			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusNotFound,
 			expectBody:   "service not found",
 		},
@@ -219,87 +260,146 @@ func Test_HandleGetService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			mux := http.NewServeMux()
-			mux.HandleFunc("GET /api/v1/services/{id}", h.handleGetService)
+			mux.ServeHTTP(tt.recorder, tt.request)
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/services/"+tt.serviceID, nil)
-			w := httptest.NewRecorder()
-
-			mux.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.expectStatus, w.Code)
-			assert.Contains(t, w.Body.String(), tt.expectBody)
+			assert.Equal(t, tt.expectStatus, tt.recorder.Code)
+			assert.Contains(t, tt.recorder.Body.String(), tt.expectBody)
 		})
 	}
 }
 
-func Test_HandleStartService(t *testing.T) {
+func Test_HandleAction(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockStore := registry.NewMockStore(ctrl)
-	mockBus := bus.NewMockBus(ctrl)
-	h := &handler{store: mockStore, bus: mockBus}
+	mockControl := NewMockControl(ctrl)
+
+	h := &handler{control: mockControl}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/services/{id}/start", h.handleStartService)
+	mux.HandleFunc("POST /api/v1/services/{id}/stop", h.handleStopService)
+	mux.HandleFunc("POST /api/v1/services/{id}/restart", h.handleRestartService)
+
+	api := model.Service{ID: "id-api", Name: "api"}
 
 	tests := []struct {
 		name         string
-		serviceID    string
 		before       func()
+		request      *http.Request
+		recorder     *httptest.ResponseRecorder
 		expectStatus int
 		expectBody   string
 	}{
 		{
-			name:      "start stopped service",
-			serviceID: "id-api",
+			name: "start admitted",
 			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
-				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
-					assert.Equal(t, bus.CommandStartService, msg.Type)
-				})
+				mockControl.EXPECT().Start("id-api").Return(services.Admission{Service: api, Action: contracts.ActionStart, Status: model.StatusStarting}, nil)
 			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", nil),
+			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusAccepted,
-			expectBody:   "starting",
+			expectBody:   `{"id":"id-api","name":"api","action":"start","status":"starting"}`,
 		},
 		{
-			name:      "start failed service",
-			serviceID: "id-api",
+			name: "stop admitted",
 			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusFailed}, true)
-				mockBus.EXPECT().Publish(gomock.Any())
+				mockControl.EXPECT().Stop("id-api").Return(services.Admission{Service: api, Action: contracts.ActionStop, Status: model.StatusStopping}, nil)
 			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/stop", nil),
+			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusAccepted,
-			expectBody:   "starting",
+			expectBody:   `{"id":"id-api","name":"api","action":"stop","status":"stopping"}`,
 		},
 		{
-			name:      "cannot start running service",
-			serviceID: "id-api",
+			name: "restart admitted",
 			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
+				mockControl.EXPECT().Restart("id-api").Return(services.Admission{Service: api, Action: contracts.ActionRestart, Status: model.StatusRestarting}, nil)
 			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/restart", nil),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusAccepted,
+			expectBody:   `{"id":"id-api","name":"api","action":"restart","status":"restarting"}`,
+		},
+		{
+			name: "start not allowed",
+			before: func() {
+				mockControl.EXPECT().Start("id-api").Return(services.Admission{}, contracts.ActionNotAllowedError{Action: contracts.ActionStart})
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", nil),
+			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusConflict,
-			expectBody:   "service cannot be started",
+			expectBody:   `{"error":"service cannot be started"}`,
 		},
 		{
-			name:      "service not found",
-			serviceID: "id-unknown",
+			name: "stop not allowed",
 			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-unknown").Return(registry.ServiceSnapshot{}, false)
+				mockControl.EXPECT().Stop("id-api").Return(services.Admission{}, contracts.ActionNotAllowedError{Action: contracts.ActionStop})
 			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/stop", nil),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusConflict,
+			expectBody:   `{"error":"service is not running"}`,
+		},
+		{
+			name: "restart not allowed",
+			before: func() {
+				mockControl.EXPECT().Restart("id-api").Return(services.Admission{}, contracts.ActionNotAllowedError{Action: contracts.ActionRestart})
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/restart", nil),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusConflict,
+			expectBody:   `{"error":"service cannot be restarted"}`,
+		},
+		{
+			name: "busy service answers with the action's conflict",
+			before: func() {
+				mockControl.EXPECT().Restart("id-api").Return(services.Admission{}, contracts.ErrServiceBusy)
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/restart", nil),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusConflict,
+			expectBody:   `{"error":"service cannot be restarted"}`,
+		},
+		{
+			name: "service not found",
+			before: func() {
+				mockControl.EXPECT().Start("id-unknown").Return(services.Admission{}, contracts.ErrServiceNotFound)
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-unknown/start", nil),
+			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusNotFound,
-			expectBody:   "service not found",
+			expectBody:   `{"error":"service not found"}`,
 		},
 		{
-			name:      "instance not accepting actions",
-			serviceID: "id-api",
+			name: "instance not accepting actions",
 			before: func() {
-				mockStore.EXPECT().Phase().Return("startup")
+				mockControl.EXPECT().Stop("id-api").Return(services.Admission{}, contracts.ErrNotAccepting)
 			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/stop", nil),
+			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusConflict,
-			expectBody:   "instance is not accepting actions",
+			expectBody:   `{"error":"instance is not accepting actions"}`,
+		},
+		{
+			name: "bus closed",
+			before: func() {
+				mockControl.EXPECT().Start("id-api").Return(services.Admission{}, contracts.ErrBusClosed)
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", nil),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusConflict,
+			expectBody:   `{"error":"instance is not accepting actions"}`,
+		},
+		{
+			name: "bus overloaded",
+			before: func() {
+				mockControl.EXPECT().Restart("id-api").Return(services.Admission{}, contracts.ErrBusOverloaded)
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/restart", nil),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusInternalServerError,
+			expectBody:   `{"error":"instance is overloaded"}`,
 		},
 	}
 
@@ -307,196 +407,10 @@ func Test_HandleStartService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			mux := http.NewServeMux()
-			mux.HandleFunc("POST /api/v1/services/{id}/start", h.handleStartService)
+			mux.ServeHTTP(tt.recorder, tt.request)
 
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/services/"+tt.serviceID+"/start", nil)
-			w := httptest.NewRecorder()
-
-			mux.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.expectStatus, w.Code)
-			assert.Contains(t, w.Body.String(), tt.expectBody)
-		})
-	}
-}
-
-func Test_HandleStopService(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockStore := registry.NewMockStore(ctrl)
-	mockBus := bus.NewMockBus(ctrl)
-	h := &handler{store: mockStore, bus: mockBus}
-
-	tests := []struct {
-		name         string
-		serviceID    string
-		before       func()
-		expectStatus int
-		expectBody   string
-	}{
-		{
-			name:      "stop running service",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
-				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
-					assert.Equal(t, bus.CommandStopService, msg.Type)
-				})
-			},
-			expectStatus: http.StatusAccepted,
-			expectBody:   "stopping",
-		},
-		{
-			name:      "cannot stop stopped service",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
-			},
-			expectStatus: http.StatusConflict,
-			expectBody:   "service is not running",
-		},
-		{
-			name:      "service not found",
-			serviceID: "id-unknown",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-unknown").Return(registry.ServiceSnapshot{}, false)
-			},
-			expectStatus: http.StatusNotFound,
-			expectBody:   "service not found",
-		},
-		{
-			name:      "instance not accepting actions",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseStopping))
-			},
-			expectStatus: http.StatusConflict,
-			expectBody:   "instance is not accepting actions",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.before()
-
-			mux := http.NewServeMux()
-			mux.HandleFunc("POST /api/v1/services/{id}/stop", h.handleStopService)
-
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/services/"+tt.serviceID+"/stop", nil)
-			w := httptest.NewRecorder()
-
-			mux.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.expectStatus, w.Code)
-			assert.Contains(t, w.Body.String(), tt.expectBody)
-		})
-	}
-}
-
-func Test_HandleRestartService(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockStore := registry.NewMockStore(ctrl)
-	mockBus := bus.NewMockBus(ctrl)
-	h := &handler{store: mockStore, bus: mockBus}
-
-	tests := []struct {
-		name         string
-		serviceID    string
-		before       func()
-		expectStatus int
-		expectBody   string
-	}{
-		{
-			name:      "restart running service",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusRunning}, true)
-				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
-					assert.Equal(t, bus.CommandRestartService, msg.Type)
-				})
-			},
-			expectStatus: http.StatusAccepted,
-			expectBody:   "restarting",
-		},
-		{
-			name:      "restart stopped service",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStopped}, true)
-				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
-					assert.Equal(t, bus.CommandRestartService, msg.Type)
-				})
-			},
-			expectStatus: http.StatusAccepted,
-			expectBody:   "restarting",
-		},
-		{
-			name:      "restart failed service",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusFailed}, true)
-				mockBus.EXPECT().Publish(gomock.Any()).Do(func(msg bus.Message) {
-					assert.Equal(t, bus.CommandRestartService, msg.Type)
-				})
-			},
-			expectStatus: http.StatusAccepted,
-			expectBody:   "restarting",
-		},
-		{
-			name:      "cannot restart starting service",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-api").Return(registry.ServiceSnapshot{ID: "id-api", Name: "api", Status: registry.StatusStarting}, true)
-			},
-			expectStatus: http.StatusConflict,
-			expectBody:   "service cannot be restarted",
-		},
-		{
-			name:      "service not found",
-			serviceID: "id-unknown",
-			before: func() {
-				mockStore.EXPECT().Phase().Return(string(bus.PhaseRunning))
-				mockStore.EXPECT().Service("id-unknown").Return(registry.ServiceSnapshot{}, false)
-			},
-			expectStatus: http.StatusNotFound,
-			expectBody:   "service not found",
-		},
-		{
-			name:      "instance not accepting actions",
-			serviceID: "id-api",
-			before: func() {
-				mockStore.EXPECT().Phase().Return("startup")
-			},
-			expectStatus: http.StatusConflict,
-			expectBody:   "instance is not accepting actions",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.before()
-
-			mux := http.NewServeMux()
-			mux.HandleFunc("POST /api/v1/services/{id}/restart", h.handleRestartService)
-
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/services/"+tt.serviceID+"/restart", nil)
-			w := httptest.NewRecorder()
-
-			mux.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.expectStatus, w.Code)
-			assert.Contains(t, w.Body.String(), tt.expectBody)
+			assert.Equal(t, tt.expectStatus, tt.recorder.Code)
+			assert.JSONEq(t, tt.expectBody, tt.recorder.Body.String())
 		})
 	}
 }
@@ -677,7 +591,7 @@ func Test_OpenAPI_IdentityConstraints(t *testing.T) {
 			name:        "live product is pinned to the product name",
 			schema:      "Live",
 			property:    "product",
-			enum:        []string{config.AppName},
+			enum:        []string{buildinfo.AppName},
 			description: "Always \"fuku\"",
 		},
 		{

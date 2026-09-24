@@ -1,4 +1,4 @@
-package api
+package rest
 
 import (
 	"encoding/json"
@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"fuku/internal/app/bus"
-	"fuku/internal/config"
+	"fuku/internal/contracts"
 )
 
 func Test_AuthMiddleware(t *testing.T) {
@@ -22,11 +22,14 @@ func Test_AuthMiddleware(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	unauthorized := `{"error":"unauthorized"}` + "\n"
+
 	tests := []struct {
 		name         string
 		header       string
 		expectStatus int
 		expectNext   bool
+		expectBody   string
 	}{
 		{
 			name:         "valid token",
@@ -39,18 +42,21 @@ func Test_AuthMiddleware(t *testing.T) {
 			header:       "",
 			expectStatus: http.StatusUnauthorized,
 			expectNext:   false,
+			expectBody:   unauthorized,
 		},
 		{
 			name:         "wrong token",
 			header:       "Bearer wrong-token",
 			expectStatus: http.StatusUnauthorized,
 			expectNext:   false,
+			expectBody:   unauthorized,
 		},
 		{
 			name:         "missing bearer prefix",
 			header:       "test-token",
 			expectStatus: http.StatusUnauthorized,
 			expectNext:   false,
+			expectBody:   unauthorized,
 		},
 		{
 			name:         "lowercase bearer prefix",
@@ -69,6 +75,7 @@ func Test_AuthMiddleware(t *testing.T) {
 			header:       "Basic dXNlcjpwYXNz",
 			expectStatus: http.StatusUnauthorized,
 			expectNext:   false,
+			expectBody:   unauthorized,
 		},
 	}
 
@@ -79,21 +86,14 @@ func Test_AuthMiddleware(t *testing.T) {
 			handler := authMiddleware("test-token", next)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
-			if tt.header != "" {
-				req.Header.Set("Authorization", tt.header)
-			}
+			req.Header.Set("Authorization", tt.header)
 
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
 			assert.Equal(t, tt.expectStatus, w.Code)
 			assert.Equal(t, tt.expectNext, nextCalled)
-
-			if !tt.expectNext {
-				var body map[string]string
-				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-				assert.Equal(t, "unauthorized", body["error"])
-			}
+			assert.Equal(t, tt.expectBody, w.Body.String())
 		})
 	}
 }
@@ -131,9 +131,7 @@ func Test_AuthMiddleware_EmptyToken(t *testing.T) {
 			handler := authMiddleware("", next)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
-			if tt.header != "" {
-				req.Header.Set("Authorization", tt.header)
-			}
+			req.Header.Set("Authorization", tt.header)
 
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -191,68 +189,70 @@ func Test_CorsMiddleware(t *testing.T) {
 }
 
 func Test_TelemetryMiddleware(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Logs.Buffer = 10
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	b := bus.NewBus(cfg, nil, nil)
-	defer b.Close()
+	mockPublisher := NewMockPublisher(ctrl)
 
-	ch := b.Subscribe(t.Context())
+	var status int
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(status)
 	})
 
-	handler := telemetryMiddleware(b, next)
+	handler := telemetryMiddleware(mockPublisher, next)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
-	w := httptest.NewRecorder()
+	tests := []struct {
+		name   string
+		before func() (*http.Request, *httptest.ResponseRecorder)
+		status int
+	}{
+		{
+			name: "publishes the request with its status",
+			before: func() (*http.Request, *httptest.ResponseRecorder) {
+				status = http.StatusOK
 
-	handler.ServeHTTP(w, req)
+				mockPublisher.EXPECT().Publish(gomock.Any()).Do(func(msg contracts.Message) {
+					assert.Equal(t, contracts.EventAPIRequested, msg.Type)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+					data, ok := msg.Data.(contracts.APIRequested)
+					require.True(t, ok)
+					assert.Equal(t, http.MethodGet, data.Method)
+					assert.Equal(t, "/api/v1/status", data.Path)
+					assert.Equal(t, http.StatusOK, data.Status)
+					assert.Greater(t, data.Duration, time.Duration(0))
+				})
 
-	select {
-	case msg := <-ch:
-		assert.Equal(t, bus.EventAPIRequest, msg.Type)
+				return httptest.NewRequest(http.MethodGet, "/api/v1/status", nil), httptest.NewRecorder()
+			},
+			status: http.StatusOK,
+		},
+		{
+			name: "captures a non-default status code",
+			before: func() (*http.Request, *httptest.ResponseRecorder) {
+				status = http.StatusNotFound
 
-		data, ok := msg.Data.(bus.APIRequest)
-		require.True(t, ok)
-		assert.Equal(t, http.MethodGet, data.Method)
-		assert.Equal(t, "/api/v1/status", data.Path)
-		assert.Equal(t, http.StatusOK, data.Status)
-		assert.Greater(t, data.Duration, time.Duration(0))
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("Expected telemetry event")
+				mockPublisher.EXPECT().Publish(gomock.Any()).Do(func(msg contracts.Message) {
+					data, ok := msg.Data.(contracts.APIRequested)
+					require.True(t, ok)
+					assert.Equal(t, "/api/v1/services/unknown", data.Path)
+					assert.Equal(t, http.StatusNotFound, data.Status)
+				})
+
+				return httptest.NewRequest(http.MethodGet, "/api/v1/services/unknown", nil), httptest.NewRecorder()
+			},
+			status: http.StatusNotFound,
+		},
 	}
-}
 
-func Test_TelemetryMiddleware_CapturesStatusCode(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Logs.Buffer = 10
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, w := tt.before()
 
-	b := bus.NewBus(cfg, nil, nil)
-	defer b.Close()
+			handler.ServeHTTP(w, req)
 
-	ch := b.Subscribe(t.Context())
-
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	})
-
-	handler := telemetryMiddleware(b, next)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/services/unknown", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	select {
-	case msg := <-ch:
-		data := msg.Data.(bus.APIRequest)
-		assert.Equal(t, http.StatusNotFound, data.Status)
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("Expected telemetry event")
+			assert.Equal(t, tt.status, w.Code)
+		})
 	}
 }
 

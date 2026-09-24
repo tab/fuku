@@ -1,26 +1,25 @@
-package api
+package rest
 
 import (
 	"crypto/subtle"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
-	"fuku/internal/app/bus"
-	"fuku/internal/app/errors"
+	"fuku/internal/contracts"
 )
 
-func telemetryMiddleware(b bus.Bus, next http.Handler) http.Handler {
+func telemetryMiddleware(publisher contracts.Publisher, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 
 		next.ServeHTTP(rw, r)
 
-		b.Publish(bus.Message{
-			Type: bus.EventAPIRequest,
-			Data: bus.APIRequest{
+		//nolint:errcheck // a non-critical publish never fails
+		publisher.Publish(contracts.Message{
+			Type: contracts.EventAPIRequested,
+			Data: contracts.APIRequested{
 				Method:   r.Method,
 				Path:     r.URL.Path,
 				Status:   rw.status,
@@ -36,6 +35,7 @@ type responseWriter struct {
 	status int
 }
 
+// WriteHeader records the status code before passing it to the wrapped writer
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
@@ -60,11 +60,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 func authMiddleware(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if token == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-
-			//nolint:errcheck // best-effort JSON encoding
-			json.NewEncoder(w).Encode(ErrorSerializer{Error: errors.ErrAPIUnauthorized.Error()})
+			writeError(w, http.StatusUnauthorized, ErrAPIUnauthorized)
 
 			return
 		}
@@ -72,21 +68,13 @@ func authMiddleware(token string, next http.Handler) http.Handler {
 		header := r.Header.Get("Authorization")
 
 		if header == "" || len(header) < 7 || !strings.EqualFold(header[:7], "Bearer ") {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-
-			//nolint:errcheck // best-effort JSON encoding
-			json.NewEncoder(w).Encode(ErrorSerializer{Error: errors.ErrAPIUnauthorized.Error()})
+			writeError(w, http.StatusUnauthorized, ErrAPIUnauthorized)
 
 			return
 		}
 
 		if subtle.ConstantTimeCompare([]byte(header[7:]), []byte(token)) != 1 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-
-			//nolint:errcheck // best-effort JSON encoding
-			json.NewEncoder(w).Encode(ErrorSerializer{Error: errors.ErrAPIUnauthorized.Error()})
+			writeError(w, http.StatusUnauthorized, ErrAPIUnauthorized)
 
 			return
 		}
