@@ -1,629 +1,369 @@
 package registry
 
 import (
-	"context"
-	"sort"
 	"sync"
-	"sync/atomic"
-	"time"
 
-	"fuku/internal/app/bus"
-	"fuku/internal/app/monitor"
-	"fuku/internal/config"
+	"fuku/internal/contracts"
+	"fuku/internal/model"
 )
 
-// Status represents the lifecycle status of a service
-type Status string
-
-// Status values for service lifecycle
-const (
-	StatusPending    Status = "pending"
-	StatusStarting   Status = "starting"
-	StatusRunning    Status = "running"
-	StatusStopping   Status = "stopping"
-	StatusRestarting Status = "restarting"
-	StatusFailed     Status = "failed"
-	StatusStopped    Status = "stopped"
-)
-
-// IsRunning returns true if the status is running
-func (s Status) IsRunning() bool {
-	return s == StatusRunning
-}
-
-// IsStartable returns true if the service can be started
-func (s Status) IsStartable() bool {
-	return s == StatusStopped || s == StatusFailed
-}
-
-// IsStoppable returns true if the service can be stopped
-func (s Status) IsStoppable() bool {
-	return s == StatusRunning
-}
-
-// IsRestartable returns true if the service can be restarted
-func (s Status) IsRestartable() bool {
-	return s == StatusRunning || s == StatusFailed || s == StatusStopped
-}
-
-// ServiceSnapshot contains a point-in-time snapshot of a service
-type ServiceSnapshot struct {
-	ID               string
-	Name             string
-	Tier             string
-	Status           Status
-	Watching         bool
-	Error            string
-	PID              int
-	CPU              float64
-	Memory           uint64
-	StartTime        time.Time
-	AttemptStartedAt time.Time
-	LifecycleAt      time.Time
-	LifecycleSeq     uint64
-	WatchAt          time.Time
-	WatchSeq         uint64
-}
-
-// StatusCounts contains service counts grouped by status
-type StatusCounts struct {
-	Total      int
-	Pending    int
-	Starting   int
-	Running    int
-	Stopping   int
-	Restarting int
-	Stopped    int
-	Failed     int
-}
-
-// Store provides a bus-backed snapshot of the runtime state
-type Store interface {
-	Run(ctx context.Context)
-	WaitReady()
-	WaitResolved(ctx context.Context)
-	IsResolved() bool
-	Phase() string
-	Profile() string
-	Uptime() time.Duration
-	Services() []ServiceSnapshot
-	Service(id string) (ServiceSnapshot, bool)
-	Counts() StatusCounts
-}
-
-// serviceState tracks the mutable state of a single service
-type serviceState struct {
-	id               string
-	name             string
-	tier             string
-	status           Status
-	watching         bool
-	err              string
-	pid              int
-	cpu              float64
-	memory           uint64
-	startTime        time.Time
-	attemptStartedAt time.Time
-	lifecycleAt      time.Time
-	lifecycleSeq     uint64
-	watchAt          time.Time
-	watchSeq         uint64
-}
-
-// store implements the Store interface
-type store struct {
-	bus         bus.Bus
-	monitor     monitor.Monitor
-	ready       chan struct{}
+// Store projects the bus events into the runtime read model and serves it under one lock
+type Store struct {
+	subscriber  contracts.Subscriber
+	publisher   contracts.Publisher
+	loop        *contracts.Loop
 	resolved    chan struct{}
 	resolveOnce sync.Once
-	sampling    atomic.Bool
 
-	mu           sync.RWMutex
-	phase        string
-	profile      string
-	startTime    time.Time
-	tiers        []bus.Tier
-	services     map[string]*serviceState
-	serviceOrder []string
-	counts       StatusCounts
+	mu       sync.RWMutex
+	snapshot *model.Snapshot
 }
 
 // NewStore creates a new runtime store
-func NewStore(b bus.Bus, mon monitor.Monitor) Store {
-	return &store{
-		bus:      b,
-		monitor:  mon,
-		ready:    make(chan struct{}),
-		resolved: make(chan struct{}),
-		services: make(map[string]*serviceState),
+func NewStore(subscriber contracts.Subscriber, publisher contracts.Publisher) *Store {
+	return &Store{
+		subscriber: subscriber,
+		publisher:  publisher,
+		resolved:   make(chan struct{}),
+		snapshot:   &model.Snapshot{},
 	}
 }
 
-// WaitReady blocks until the store has subscribed to the bus
-func (s *store) WaitReady() {
-	<-s.ready
-}
-
-// WaitResolved blocks until the store has received the first ProfileResolved event or the context is cancelled
-func (s *store) WaitResolved(ctx context.Context) {
-	select {
-	case <-s.resolved:
-	case <-ctx.Done():
-	}
-}
-
-// IsResolved returns true if the store has received profile data
-func (s *store) IsResolved() bool {
-	select {
-	case <-s.resolved:
-		return true
-	default:
-		return false
-	}
-}
-
-// Run subscribes to the bus and maintains the runtime snapshot
-func (s *store) Run(ctx context.Context) {
-	msgChan := s.bus.Subscribe(ctx)
-	close(s.ready)
-
-	sampleTicker := time.NewTicker(config.StoreSampleInterval)
-	defer sampleTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-msgChan:
-			if !ok {
-				return
-			}
-
-			s.handleEvent(msg)
-		case <-sampleTicker.C:
-			if s.sampling.CompareAndSwap(false, true) {
-				go s.sampleStats(ctx)
-			}
-		}
-	}
-}
-
-// Phase returns the current instance phase
-func (s *store) Phase() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.phase
-}
-
-// Profile returns the active profile name
-func (s *store) Profile() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.profile
-}
-
-// Uptime returns the duration since the instance started (includes startup phase)
-func (s *store) Uptime() time.Duration {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.startTime.IsZero() {
-		return 0
-	}
-
-	return time.Since(s.startTime)
-}
-
-// Services returns all services ordered by tier then name
-func (s *store) Services() []ServiceSnapshot {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	snapshots := make([]ServiceSnapshot, 0, len(s.serviceOrder))
-
-	for _, id := range s.serviceOrder {
-		svc, exists := s.services[id]
-		if !exists {
-			continue
-		}
-
-		snapshots = append(snapshots, s.snapshot(svc))
-	}
-
-	return snapshots
-}
-
-// Service returns a single service snapshot by ID
-func (s *store) Service(id string) (ServiceSnapshot, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	svc, exists := s.services[id]
-	if !exists {
-		return ServiceSnapshot{}, false
-	}
-
-	return s.snapshot(svc), true
-}
-
-// Counts returns the current service status counts
-func (s *store) Counts() StatusCounts {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.counts
-}
-
-func (s *store) transitionStatus(svc *serviceState, newStatus Status) {
-	s.decrementCount(svc.status)
-	svc.status = newStatus
-	s.incrementCount(newStatus)
-}
-
-func (s *store) incrementCount(status Status) {
-	switch status {
-	case StatusPending:
-		s.counts.Pending++
-	case StatusStarting:
-		s.counts.Starting++
-	case StatusRunning:
-		s.counts.Running++
-	case StatusStopping:
-		s.counts.Stopping++
-	case StatusRestarting:
-		s.counts.Restarting++
-	case StatusStopped:
-		s.counts.Stopped++
-	case StatusFailed:
-		s.counts.Failed++
-	}
-}
-
-func (s *store) decrementCount(status Status) {
-	switch status {
-	case StatusPending:
-		s.counts.Pending--
-	case StatusStarting:
-		s.counts.Starting--
-	case StatusRunning:
-		s.counts.Running--
-	case StatusStopping:
-		s.counts.Stopping--
-	case StatusRestarting:
-		s.counts.Restarting--
-	case StatusStopped:
-		s.counts.Stopped--
-	case StatusFailed:
-		s.counts.Failed--
-	}
-}
-
-func (s *store) snapshot(svc *serviceState) ServiceSnapshot {
-	return ServiceSnapshot{
-		ID:               svc.id,
-		Name:             svc.name,
-		Tier:             svc.tier,
-		Status:           svc.status,
-		Watching:         svc.watching,
-		Error:            svc.err,
-		PID:              svc.pid,
-		CPU:              svc.cpu,
-		Memory:           svc.memory,
-		StartTime:        svc.startTime,
-		AttemptStartedAt: svc.attemptStartedAt,
-		LifecycleAt:      svc.lifecycleAt,
-		LifecycleSeq:     svc.lifecycleSeq,
-		WatchAt:          svc.watchAt,
-		WatchSeq:         svc.watchSeq,
-	}
-}
-
-func (s *store) handleEvent(msg bus.Message) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	//nolint:exhaustive // only handling lifecycle events relevant to the store
-	switch msg.Type {
-	case bus.EventProfileResolved:
-		s.handleProfileResolved(msg)
-	case bus.EventPhaseChanged:
-		s.handlePhaseChanged(msg)
-	case bus.EventServiceStarting:
-		s.handleServiceStarting(msg)
-	case bus.EventServiceReady:
-		s.handleServiceReady(msg)
-	case bus.EventServiceFailed:
-		s.handleServiceFailed(msg)
-	case bus.EventServiceStopping:
-		s.setServiceStatus(msg, StatusStopping)
-	case bus.EventServiceStopped:
-		s.handleServiceStopped(msg)
-	case bus.EventServiceRestarting:
-		s.handleServiceRestarting(msg)
-	case bus.EventWatchStarted:
-		s.setWatching(msg, true)
-	case bus.EventWatchStopped:
-		s.setWatching(msg, false)
-	}
-}
-
-func (s *store) handleProfileResolved(msg bus.Message) {
-	data, ok := msg.Data.(bus.ProfileResolved)
-	if !ok {
+// update runs fn under the write lock and announces the change once the lock is released when fn reports one
+func (s *Store) update(fn func(*model.Snapshot) bool) {
+	if !s.commit(fn) {
 		return
 	}
 
-	s.profile = data.Profile
-	s.tiers = data.Tiers
-	s.initServices(data.Tiers)
+	//nolint:errcheck // a non-critical publish never fails
+	s.publisher.Publish(contracts.Message{
+		Type: contracts.EventSnapshotChanged,
+		Data: contracts.SnapshotChanged{},
+	})
+}
+
+// commit runs fn under the write lock and returns whether it changed the snapshot
+func (s *Store) commit(fn func(*model.Snapshot) bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return fn(s.snapshot)
+}
+
+// apply projects one message onto the snapshot and reports whether the visible state changed
+func (s *Store) apply(snapshot *model.Snapshot, msg contracts.Message) bool {
+	//nolint:exhaustive // only handling the events the read model projects
+	switch msg.Type {
+	case contracts.EventProfileResolved:
+		return s.applyProfileResolved(snapshot, msg)
+	case contracts.EventPhaseChanged:
+		return applyPhaseChanged(snapshot, msg)
+	case contracts.EventTierStarting:
+		return applyTierStarting(snapshot, msg)
+	case contracts.EventTierReady:
+		return applyTierReady(snapshot, msg)
+	case contracts.EventServiceStarting:
+		return applyServiceStarting(snapshot, msg)
+	case contracts.EventServiceReady:
+		return applyServiceReady(snapshot, msg)
+	case contracts.EventServiceFailed:
+		return applyServiceFailed(snapshot, msg)
+	case contracts.EventServiceStopping:
+		return applyServiceStopping(snapshot, msg)
+	case contracts.EventServiceStopped:
+		return applyServiceStopped(snapshot, msg)
+	case contracts.EventServiceRestarting:
+		return applyServiceRestarting(snapshot, msg)
+	case contracts.EventWatchStarted:
+		return applyWatching(snapshot, msg, true)
+	case contracts.EventWatchStopped:
+		return applyWatching(snapshot, msg, false)
+	case contracts.EventAPIStarted:
+		return applyAPIStarted(snapshot, msg)
+	case contracts.EventAPIStopped:
+		return applyAPIStopped(snapshot)
+	case contracts.EventServiceResourcesSampled:
+		return applyServiceResourcesSampled(snapshot, msg)
+	}
+
+	return false
+}
+
+// applyProfileResolved allocates the store's own tiers and services from the payload, so no payload aliases them
+func (s *Store) applyProfileResolved(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ProfileResolved)
+	if !ok {
+		return false
+	}
+
+	snapshot.Profile = data.Profile
+	snapshot.Resolved = true
+	snapshot.Tiers = make([]*model.Tier, len(data.Tiers))
+	snapshot.Services = make(map[string]*model.Service)
+
+	for i, tier := range data.Tiers {
+		own := &model.Tier{ID: tier.ID, Name: tier.Name, Services: make([]*model.Service, len(tier.Services))}
+
+		for j, svc := range tier.Services {
+			service := *svc
+			service.Status = model.StatusPending
+
+			own.Services[j] = &service
+			snapshot.Services[service.ID] = &service
+		}
+
+		snapshot.Tiers[i] = own
+	}
 
 	s.resolveOnce.Do(func() {
 		close(s.resolved)
 	})
+
+	return true
 }
 
-func (s *store) handlePhaseChanged(msg bus.Message) {
-	data, ok := msg.Data.(bus.PhaseChanged)
+func applyPhaseChanged(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.PhaseChanged)
+	if !ok || snapshot.Phase == data.Phase {
+		return false
+	}
+
+	snapshot.Phase = data.Phase
+
+	if data.Phase == model.PhaseStartup {
+		snapshot.StartedAt = msg.Timestamp
+	}
+
+	return true
+}
+
+func applyTierStarting(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.TierStarting)
 	if !ok {
-		return
+		return false
 	}
 
-	s.phase = string(data.Phase)
-
-	if data.Phase == bus.PhaseStartup {
-		s.startTime = msg.Timestamp
-	}
+	return setTierReady(snapshot, data.Name, false)
 }
 
-func (s *store) handleServiceStarting(msg bus.Message) {
-	data, ok := msg.Data.(bus.ServiceStarting)
+func applyTierReady(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.TierReady)
 	if !ok {
-		return
+		return false
 	}
 
-	svc, exists := s.services[data.Service.ID]
-	if !exists || msg.Seq <= svc.lifecycleSeq {
-		return
-	}
-
-	svc.lifecycleSeq = msg.Seq
-	svc.lifecycleAt = msg.Timestamp
-	s.transitionStatus(svc, StatusStarting)
-	svc.pid = data.PID
-	svc.err = ""
-	svc.startTime = data.StartedAt
-	svc.attemptStartedAt = data.StartedAt
-	svc.cpu = 0
-	svc.memory = 0
+	return setTierReady(snapshot, data.Name, true)
 }
 
-func (s *store) handleServiceReady(msg bus.Message) {
-	data, ok := msg.Data.(bus.ServiceReady)
-	if !ok {
-		return
-	}
-
-	svc, exists := s.services[data.Service.ID]
-	if !exists || msg.Seq <= svc.lifecycleSeq {
-		return
-	}
-
-	newProcess := svc.pid != data.PID || svc.startTime != data.StartedAt
-
-	svc.lifecycleSeq = msg.Seq
-	svc.lifecycleAt = msg.Timestamp
-	s.transitionStatus(svc, StatusRunning)
-	svc.pid = data.PID
-	svc.err = ""
-	svc.startTime = data.StartedAt
-	svc.attemptStartedAt = data.StartedAt
-
-	if newProcess {
-		svc.cpu = 0
-		svc.memory = 0
-	}
-}
-
-func (s *store) handleServiceStopped(msg bus.Message) {
-	data, ok := msg.Data.(bus.ServiceStopped)
-	if !ok {
-		return
-	}
-
-	svc, exists := s.services[data.Service.ID]
-	if !exists || msg.Seq <= svc.lifecycleSeq {
-		return
-	}
-
-	svc.lifecycleSeq = msg.Seq
-	svc.lifecycleAt = msg.Timestamp
-	s.transitionStatus(svc, StatusStopped)
-	svc.pid = 0
-	svc.cpu = 0
-	svc.memory = 0
-	svc.startTime = time.Time{}
-	svc.err = ""
-}
-
-func (s *store) handleServiceRestarting(msg bus.Message) {
-	data, ok := msg.Data.(bus.ServiceRestarting)
-	if !ok {
-		return
-	}
-
-	svc, exists := s.services[data.Service.ID]
-	if !exists || msg.Seq <= svc.lifecycleSeq {
-		return
-	}
-
-	svc.lifecycleSeq = msg.Seq
-	svc.lifecycleAt = msg.Timestamp
-	s.transitionStatus(svc, StatusRestarting)
-	svc.startTime = time.Time{}
-	svc.cpu = 0
-	svc.memory = 0
-}
-
-// serviceIdentifier extracts the service ID from bus event data
-type serviceIdentifier interface {
-	ServiceID() string
-}
-
-func (s *store) setServiceStatus(msg bus.Message, status Status) {
-	ident, ok := msg.Data.(serviceIdentifier)
-	if !ok {
-		return
-	}
-
-	svc, exists := s.services[ident.ServiceID()]
-	if !exists || msg.Seq <= svc.lifecycleSeq {
-		return
-	}
-
-	svc.lifecycleSeq = msg.Seq
-	svc.lifecycleAt = msg.Timestamp
-	s.transitionStatus(svc, status)
-}
-
-func (s *store) handleServiceFailed(msg bus.Message) {
-	data, ok := msg.Data.(bus.ServiceFailed)
-	if !ok {
-		return
-	}
-
-	svc, exists := s.services[data.Service.ID]
-	if !exists || msg.Seq <= svc.lifecycleSeq {
-		return
-	}
-
-	svc.lifecycleSeq = msg.Seq
-	svc.lifecycleAt = msg.Timestamp
-	s.transitionStatus(svc, StatusFailed)
-	svc.pid = 0
-	svc.cpu = 0
-	svc.memory = 0
-	svc.startTime = time.Time{}
-	svc.err = ""
-
-	if data.Error != nil {
-		svc.err = data.Error.Error()
-	}
-}
-
-func (s *store) setWatching(msg bus.Message, value bool) {
-	data, ok := msg.Data.(bus.Service)
-	if !ok {
-		return
-	}
-
-	svc, exists := s.services[data.ID]
-	if !exists || msg.Seq <= svc.watchSeq {
-		return
-	}
-
-	svc.watchSeq = msg.Seq
-	svc.watchAt = msg.Timestamp
-	svc.watching = value
-}
-
-func (s *store) initServices(tiers []bus.Tier) {
-	totalServices := 0
-	for _, tier := range tiers {
-		totalServices += len(tier.Services)
-	}
-
-	s.services = make(map[string]*serviceState, totalServices)
-	s.serviceOrder = nil
-	s.counts = StatusCounts{Total: totalServices, Pending: totalServices}
-
-	tierIndex := make(map[string]int, len(tiers))
-	for i, tier := range tiers {
-		tierIndex[tier.Name] = i
-	}
-
-	type serviceEntry struct {
-		id        string
-		name      string
-		tier      string
-		tierOrder int
-	}
-
-	var entries []serviceEntry
-
-	for _, tier := range tiers {
-		for _, svc := range tier.Services {
-			s.services[svc.ID] = &serviceState{
-				id:     svc.ID,
-				name:   svc.Name,
-				tier:   tier.Name,
-				status: StatusPending,
-			}
-			entries = append(entries, serviceEntry{
-				id:        svc.ID,
-				name:      svc.Name,
-				tier:      tier.Name,
-				tierOrder: tierIndex[tier.Name],
-			})
-		}
-	}
-
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].tierOrder != entries[j].tierOrder {
-			return entries[i].tierOrder < entries[j].tierOrder
-		}
-
-		return entries[i].name < entries[j].name
-	})
-
-	s.serviceOrder = make([]string, len(entries))
-	for i, e := range entries {
-		s.serviceOrder[i] = e.id
-	}
-}
-
-func (s *store) sampleStats(ctx context.Context) {
-	defer s.sampling.Store(false)
-
-	s.mu.RLock()
-	pids := make(map[string]int, len(s.services))
-
-	for id, svc := range s.services {
-		if svc.pid > 0 {
-			pids[id] = svc.pid
-		}
-	}
-
-	s.mu.RUnlock()
-
-	if len(pids) == 0 {
-		return
-	}
-
-	stats := make(map[string]monitor.Stats, len(pids))
-
-	for id, pid := range pids {
-		svcCtx, cancel := context.WithTimeout(ctx, config.StoreSampleTimeout)
-		st, err := s.monitor.GetStats(svcCtx, pid)
-
-		cancel()
-
-		if err != nil {
+func setTierReady(snapshot *model.Snapshot, name string, ready bool) bool {
+	for _, tier := range snapshot.Tiers {
+		if tier.Name != name || tier.Ready == ready {
 			continue
 		}
 
-		stats[id] = st
+		tier.Ready = ready
+
+		return true
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	return false
+}
 
-	for id, st := range stats {
-		if svc, exists := s.services[id]; exists && svc.pid == pids[id] {
-			svc.cpu = st.CPU
-			svc.memory = st.RawMEM
+func applyServiceStarting(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ServiceStarting)
+	if !ok {
+		return false
+	}
+
+	svc, ok := lifecycle(snapshot, data.Service.ID, msg)
+	if !ok {
+		return false
+	}
+
+	svc.Status = model.StatusStarting
+	svc.Error = ""
+	svc.Process = model.Process{PID: data.PID, StartedAt: data.StartedAt}
+	svc.AttemptedAt = data.StartedAt
+
+	return true
+}
+
+func applyServiceReady(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ServiceReady)
+	if !ok {
+		return false
+	}
+
+	svc, ok := lifecycle(snapshot, data.Service.ID, msg)
+	if !ok {
+		return false
+	}
+
+	newProcess := svc.Process.PID != data.PID || svc.Process.StartedAt != data.StartedAt
+
+	svc.Status = model.StatusRunning
+	svc.Error = ""
+	svc.AttemptedAt = data.StartedAt
+
+	if newProcess {
+		svc.Process = model.Process{PID: data.PID, StartedAt: data.StartedAt}
+	}
+
+	return true
+}
+
+func applyServiceStopped(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ServiceStopped)
+	if !ok {
+		return false
+	}
+
+	svc, ok := lifecycle(snapshot, data.Service.ID, msg)
+	if !ok {
+		return false
+	}
+
+	svc.Status = model.StatusStopped
+	svc.Process = model.Process{}
+	svc.Error = ""
+
+	return true
+}
+
+func applyServiceRestarting(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ServiceRestarting)
+	if !ok {
+		return false
+	}
+
+	svc, ok := lifecycle(snapshot, data.Service.ID, msg)
+	if !ok {
+		return false
+	}
+
+	svc.Status = model.StatusRestarting
+	svc.Process = model.Process{PID: svc.Process.PID}
+
+	return true
+}
+
+func applyServiceStopping(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ServiceStopping)
+	if !ok {
+		return false
+	}
+
+	svc, ok := lifecycle(snapshot, data.Service.ID, msg)
+	if !ok {
+		return false
+	}
+
+	svc.Status = model.StatusStopping
+
+	return true
+}
+
+func applyServiceFailed(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ServiceFailed)
+	if !ok {
+		return false
+	}
+
+	svc, ok := lifecycle(snapshot, data.Service.ID, msg)
+	if !ok {
+		return false
+	}
+
+	svc.Status = model.StatusFailed
+	svc.Process = model.Process{}
+	svc.Error = ""
+
+	if data.Error != nil {
+		svc.Error = data.Error.Error()
+	}
+
+	return true
+}
+
+// lifecycle returns the service a lifecycle event addresses and records the event's time
+func lifecycle(snapshot *model.Snapshot, id string, msg contracts.Message) (*model.Service, bool) {
+	svc, exists := snapshot.Services[id]
+	if !exists {
+		return nil, false
+	}
+
+	svc.LifecycleAt = msg.Timestamp
+
+	return svc, true
+}
+
+func applyWatching(snapshot *model.Snapshot, msg contracts.Message, value bool) bool {
+	var id string
+
+	switch data := msg.Data.(type) {
+	case contracts.WatchStarted:
+		id = data.Service.ID
+	case contracts.WatchStopped:
+		id = data.Service.ID
+	default:
+		return false
+	}
+
+	svc, exists := snapshot.Services[id]
+	if !exists {
+		return false
+	}
+
+	svc.Watching = value
+
+	return true
+}
+
+func applyAPIStarted(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.APIStarted)
+	if !ok {
+		return false
+	}
+
+	next := model.API{Listening: true, Address: data.Listen}
+	if snapshot.API == next {
+		return false
+	}
+
+	snapshot.API = next
+
+	return true
+}
+
+func applyAPIStopped(snapshot *model.Snapshot) bool {
+	if !snapshot.API.Listening {
+		return false
+	}
+
+	snapshot.API = model.API{}
+
+	return true
+}
+
+// applyServiceResourcesSampled records the usage of every sampled service that still runs the sampled PID
+func applyServiceResourcesSampled(snapshot *model.Snapshot, msg contracts.Message) bool {
+	data, ok := msg.Data.(contracts.ServiceResourcesSampled)
+	if !ok {
+		return false
+	}
+
+	changed := false
+
+	for _, sample := range data.Services {
+		svc, exists := snapshot.Services[sample.ID]
+		if !exists || svc.Process.PID != sample.PID || (svc.Process.CPU == sample.CPU && svc.Process.Memory == sample.Memory) {
+			continue
 		}
+
+		svc.Process.CPU = sample.CPU
+		svc.Process.Memory = sample.Memory
+		changed = true
 	}
+
+	return changed
 }

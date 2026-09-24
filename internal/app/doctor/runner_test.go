@@ -1,83 +1,222 @@
 package doctor
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"fuku/internal/contracts"
+	"fuku/internal/model"
 )
 
-func Test_Run_NoConfig(t *testing.T) {
-	t.Chdir(t.TempDir())
+func Test_NewRunner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	report := Run(context.Background(), Options{Profile: "default"})
+	mockEnvironment := NewMockEnvironment(ctrl)
+	mockFilesystem := NewMockFilesystem(ctrl)
+	mockProfiles := NewMockProfiles(ctrl)
+	mockRuntime := NewMockRuntime(ctrl)
 
-	require.NotNil(t, report)
-	assert.Equal(t, 1, report.SchemaVersion)
-	assert.NotEmpty(t, report.FukuVersion)
-	assert.NotEmpty(t, report.Platform)
-	assert.Equal(t, 2, report.ExitCode())
+	options := Options{Profile: model.ProfileDefault, Version: "0.99.0"}
+	config := model.Config{Path: "fuku.yaml"}
 
-	configCheck := findCheck(t, report, CheckConfigFile)
-	assert.Equal(t, StatusFail, configCheck.Status)
+	r := NewRunner(options, config, mockEnvironment, mockFilesystem, mockProfiles, mockRuntime)
+
+	assert.NotNil(t, r)
+	assert.Equal(t, options, r.options)
+	assert.Equal(t, config, r.config)
+	assert.Equal(t, mockEnvironment, r.environment)
+	assert.Equal(t, mockFilesystem, r.filesystem)
+	assert.Equal(t, mockProfiles, r.profiles)
+	assert.Equal(t, mockRuntime, r.runtime)
 }
 
-func Test_Run_WithMinimalConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
+func Test_Runner_Run(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	serviceDir := filepath.Join(dir, "api")
-	require.NoError(t, os.MkdirAll(serviceDir, 0755))
+	mockEnvironment := NewMockEnvironment(ctrl)
+	mockFilesystem := NewMockFilesystem(ctrl)
+	mockProfiles := NewMockProfiles(ctrl)
+	mockRuntime := NewMockRuntime(ctrl)
 
-	configContent := `version: 1
-services:
-  api:
-    command: make run
-`
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte(configContent), 0600))
-
-	report := Run(context.Background(), Options{Profile: "default"})
-
-	require.NotNil(t, report)
-	assert.Equal(t, 0, report.ExitCode())
-
-	tally := report.Tally()
-	assert.Positive(t, tally.OK)
-	assert.Equal(t, 0, tally.Fail)
-}
-
-func Test_Run_InvalidConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-
-	configContent := `not: valid: yaml: at: all
-`
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte(configContent), 0600))
-
-	report := Run(context.Background(), Options{Profile: "default"})
-
-	require.NotNil(t, report)
-	assert.Equal(t, 2, report.ExitCode())
-
-	configCheck := findCheck(t, report, CheckConfigFile)
-	assert.Equal(t, StatusFail, configCheck.Status)
-}
-
-func findCheck(t *testing.T, r *Report, id CheckID) Result {
-	t.Helper()
-
-	for _, section := range r.Sections {
-		for _, res := range section.Results {
-			if res.ID == id {
-				return res
-			}
-		}
+	project := model.Project{
+		Services:    []model.Service{{Name: "api", Command: "make run", Directory: "api", Tier: model.TierDefault}},
+		Profiles:    map[string]model.Profile{model.ProfileDefault: {All: true}},
+		Logging:     model.Logging{Level: "info", Format: "console"},
+		Concurrency: model.Concurrency{Workers: 5},
+		Retry:       model.Retry{Attempts: 3, Backoff: 500 * time.Millisecond},
+		Logs:        model.Logs{Buffer: 1000, History: 5000},
 	}
 
-	t.Fatalf("check %q not found", id)
+	topology := model.Topology{
+		Order:        []string{model.TierDefault},
+		TierServices: map[string][]string{model.TierDefault: {"api"}},
+	}
 
-	return Result{}
+	tiers := []model.Tier{{Name: model.TierDefault, Services: []*model.Service{{Name: "api"}}}}
+
+	options := Options{Profile: model.ProfileDefault, Fingerprint: "0123456789abcdef", Version: "0.99.0"}
+
+	rows := []model.CheckID{
+		model.CheckSystem, model.CheckRuntime, model.CheckInstall,
+		model.CheckConfigFile, model.CheckConfigOverride, model.CheckConfigValidate, model.CheckConfigSettings,
+		model.CheckServicesDirectories, model.CheckServicesDotenv, model.CheckServicesReadiness,
+		model.CheckTopologyTiers, model.CheckTopologyProfile,
+		model.CheckRuntimeInstance, model.CheckRuntimeSockets, model.CheckRuntimePorts,
+	}
+
+	tests := []struct {
+		name             string
+		before           func()
+		config           model.Config
+		expectedSections []string
+		expectedTally    model.Tally
+		expectedFile     model.Severity
+	}{
+		{
+			name: "no config",
+			before: func() {
+				mockEnvironment.EXPECT().Getenv("SHELL").Return("/bin/zsh")
+				mockEnvironment.EXPECT().Getenv("LANG").Return("en_US.UTF-8")
+				mockEnvironment.EXPECT().Executable().Return("/usr/local/bin/fuku", nil)
+				mockEnvironment.EXPECT().PathExecutable().Return("/usr/local/bin/fuku", nil)
+				mockProfiles.EXPECT().Resolve(model.ProfileDefault).Return(nil, contracts.ErrProfileNotFound)
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock"})
+				mockRuntime.EXPECT().Sockets().Return(model.SocketScan{Dir: "/tmp", Pattern: "/tmp/fuku-*.sock"})
+			},
+			config:           model.Config{},
+			expectedSections: []string{"Environment", "Configuration", "Services", "Topology", "Runtime"},
+			expectedTally:    model.Tally{OK: 6, Idle: 7, Fail: 2},
+			expectedFile:     model.SeverityFail,
+		},
+		{
+			name: "minimal config",
+			before: func() {
+				mockEnvironment.EXPECT().Getenv("SHELL").Return("/bin/zsh")
+				mockEnvironment.EXPECT().Getenv("LANG").Return("")
+				mockEnvironment.EXPECT().Executable().Return("/usr/local/bin/fuku", nil)
+				mockEnvironment.EXPECT().PathExecutable().Return("", assert.AnError)
+				mockFilesystem.EXPECT().Getwd().Return("/home/dev/project", nil)
+				mockFilesystem.EXPECT().DirExists("/home/dev/project/api").Return(true)
+				mockProfiles.EXPECT().Resolve(model.ProfileDefault).Return(tiers, nil)
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock"})
+				mockRuntime.EXPECT().Sockets().Return(model.SocketScan{Dir: "/tmp", Pattern: "/tmp/fuku-*.sock"})
+			},
+			config:           model.Config{Path: "fuku.yaml", Project: project, Topology: topology},
+			expectedSections: []string{"Environment", "Configuration", "Services", "Topology", "Runtime"},
+			expectedTally:    model.Tally{OK: 9, Idle: 6},
+			expectedFile:     model.SeverityOK,
+		},
+		{
+			name: "invalid config",
+			before: func() {
+				mockEnvironment.EXPECT().Getenv("SHELL").Return("/bin/zsh")
+				mockEnvironment.EXPECT().Getenv("LANG").Return("en_US.UTF-8")
+				mockEnvironment.EXPECT().Executable().Return("/usr/local/bin/fuku", nil)
+				mockEnvironment.EXPECT().PathExecutable().Return("/usr/local/bin/fuku", nil)
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock"})
+				mockRuntime.EXPECT().Sockets().Return(model.SocketScan{Dir: "/tmp", Pattern: "/tmp/fuku-*.sock"})
+			},
+			config:           model.Config{Path: "fuku.yaml", Error: contracts.ErrInvalidConfig},
+			expectedSections: []string{"Environment", "Configuration", "Services", "Topology", "Runtime"},
+			expectedTally:    model.Tally{OK: 5, Idle: 9, Fail: 1},
+			expectedFile:     model.SeverityOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+
+			report := NewRunner(options, tt.config, mockEnvironment, mockFilesystem, mockProfiles, mockRuntime).Run(t.Context())
+
+			require.NotNil(t, report)
+			assert.Equal(t, 1, report.SchemaVersion)
+			assert.Equal(t, "0.99.0", report.Version)
+			assert.NotEmpty(t, report.Platform)
+			assert.False(t, report.GeneratedAt.IsZero())
+
+			titles := make([]string, 0, len(report.Sections))
+			for _, section := range report.Sections {
+				titles = append(titles, section.Title)
+			}
+
+			ids := make([]model.CheckID, 0, len(rows))
+
+			for _, section := range report.Sections {
+				for _, result := range section.Results {
+					ids = append(ids, result.ID)
+				}
+			}
+
+			assert.Equal(t, tt.expectedSections, titles)
+			assert.Equal(t, rows, ids)
+			assert.Equal(t, tt.expectedTally, report.Tally())
+			assert.Equal(t, tt.expectedFile, report.Sections[1].Results[0].Severity)
+		})
+	}
+}
+
+func Test_Runner_load(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProfiles := NewMockProfiles(ctrl)
+
+	project := model.Project{
+		Services: []model.Service{{Name: "web"}, {Name: "api"}},
+		Profiles: map[string]model.Profile{model.ProfileDefault: {All: true}},
+	}
+
+	tiers := []model.Tier{{Name: model.TierDefault, Services: []*model.Service{{Name: "web"}, {Name: "api"}}}}
+
+	options := Options{Profile: model.ProfileDefault, ExplicitConfig: true, Fingerprint: "0123456789abcdef"}
+
+	tests := []struct {
+		name               string
+		before             func()
+		config             model.Config
+		expectedServices   []string
+		expectedProfileErr error
+	}{
+		{
+			name: "loaded config resolves the profile sorted by name",
+			before: func() {
+				mockProfiles.EXPECT().Resolve(model.ProfileDefault).Return(tiers, nil)
+			},
+			config:           model.Config{Path: "fuku.yaml", OverridePath: "fuku.override.yaml", Project: project},
+			expectedServices: []string{"api", "web"},
+		},
+		{
+			name: "unknown profile keeps the resolve error",
+			before: func() {
+				mockProfiles.EXPECT().Resolve(model.ProfileDefault).Return(nil, contracts.ErrProfileNotFound)
+			},
+			config:             model.Config{Path: "fuku.yaml", Project: model.Project{}},
+			expectedProfileErr: contracts.ErrProfileNotFound,
+		},
+		{
+			name:   "failed load resolves nothing",
+			before: func() {},
+			config: model.Config{Path: "fuku.yaml", Error: assert.AnError},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+
+			st := NewRunner(options, tt.config, nil, nil, mockProfiles, nil).load()
+
+			require.ErrorIs(t, st.profileErr, tt.expectedProfileErr)
+			assert.Equal(t, options, st.Options)
+			assert.Equal(t, tt.config, st.Config)
+			assert.Equal(t, tt.expectedServices, st.services)
+		})
+	}
 }

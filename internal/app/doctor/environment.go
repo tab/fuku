@@ -1,51 +1,55 @@
 package doctor
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"runtime"
 
-	"fuku/internal/config"
+	"fuku/internal/model"
 )
 
+// Environment observes the process environment and the fuku installation
+type Environment interface {
+	Getenv(key string) string
+	Executable() (string, error)
+	PathExecutable() (string, error)
+}
+
 // environmentSection collects environment and toolchain checks
-func environmentSection(_ context.Context, _ *Env) Section {
-	return Section{
+func (r *Runner) environmentSection() model.Section {
+	return model.Section{
 		Title: "Environment",
-		Results: []Result{
-			timed(checkSystem),
+		Results: []model.Result{
+			timed(r.checkSystem),
 			timed(checkRuntime),
-			timed(checkInstall),
+			timed(r.checkInstall),
 		},
 	}
 }
 
 // checkSystem reports basic OS and locale information (always OK)
-func checkSystem() Result {
-	return Result{
-		ID:       CheckSystem,
-		Category: CategoryEnvironment,
-		Status:   StatusOK,
+func (r *Runner) checkSystem() model.Result {
+	return model.Result{
+		ID:       model.CheckSystem,
+		Category: model.CategoryEnvironment,
+		Severity: model.SeverityOK,
 		Summary:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
-		Details: []Detail{
+		Details: []model.Detail{
 			{Key: "os", Value: runtime.GOOS},
 			{Key: "arch", Value: runtime.GOARCH},
-			{Key: "shell", Value: os.Getenv("SHELL")},
-			{Key: "LANG", Value: envOrDash("LANG")},
+			{Key: "shell", Value: r.environment.Getenv("SHELL")},
+			{Key: "LANG", Value: r.envOrDash("LANG")},
 		},
 	}
 }
 
 // checkRuntime reports the active Go runtime version
-func checkRuntime() Result {
-	return Result{
-		ID:       CheckRuntime,
-		Category: CategoryEnvironment,
-		Status:   StatusOK,
+func checkRuntime() model.Result {
+	return model.Result{
+		ID:       model.CheckRuntime,
+		Category: model.CategoryEnvironment,
+		Severity: model.SeverityOK,
 		Summary:  runtime.Version(),
-		Details: []Detail{
+		Details: []model.Detail{
 			{Key: "go version", Value: runtime.Version()},
 			{Key: "GOOS", Value: runtime.GOOS},
 			{Key: "GOARCH", Value: runtime.GOARCH},
@@ -54,38 +58,38 @@ func checkRuntime() Result {
 }
 
 // checkInstall reports the resolved fuku executable path
-func checkInstall() Result {
-	exe, exeErr := os.Executable()
+func (r *Runner) checkInstall() model.Result {
+	exe, exeErr := r.environment.Executable()
 	if exeErr != nil {
-		return Result{
-			ID:          CheckInstall,
-			Category:    CategoryEnvironment,
-			Status:      StatusWarn,
+		return model.Result{
+			ID:          model.CheckInstall,
+			Category:    model.CategoryEnvironment,
+			Severity:    model.SeverityWarn,
 			Summary:     "could not resolve fuku executable",
 			Remediation: "ensure fuku binary is reachable on PATH",
 		}
 	}
 
-	details := []Detail{
+	details := []model.Detail{
 		{Key: "executable", Value: exe},
 	}
 
-	if pathExe, err := exec.LookPath(config.AppName); err == nil {
-		details = append(details, Detail{Key: "PATH fuku", Value: pathExe})
+	if pathExe, err := r.environment.PathExecutable(); err == nil {
+		details = append(details, model.Detail{Key: "PATH fuku", Value: pathExe})
 	}
 
-	return Result{
-		ID:       CheckInstall,
-		Category: CategoryEnvironment,
-		Status:   StatusOK,
+	return model.Result{
+		ID:       model.CheckInstall,
+		Category: model.CategoryEnvironment,
+		Severity: model.SeverityOK,
 		Summary:  "installation looks consistent",
 		Details:  details,
 	}
 }
 
 // envOrDash returns the env var value or "-" when unset
-func envOrDash(key string) string {
-	if v := os.Getenv(key); v != "" {
+func (r *Runner) envOrDash(key string) string {
+	if v := r.environment.Getenv(key); v != "" {
 		return v
 	}
 

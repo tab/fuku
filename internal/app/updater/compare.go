@@ -20,13 +20,6 @@ func isNewer(current, latest string) bool {
 
 func normalize(v string) string {
 	v = strings.TrimSpace(v)
-	if v == "" {
-		return ""
-	}
 
-	if !strings.HasPrefix(v, "v") {
-		return "v" + v
-	}
-
-	return v
+	return "v" + strings.TrimPrefix(v, "v")
 }

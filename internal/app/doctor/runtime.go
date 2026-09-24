@@ -3,231 +3,160 @@ package doctor
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/url"
-	"os"
 	"path/filepath"
 
-	"fuku/internal/app/instance"
-	"fuku/internal/app/relay"
-	"fuku/internal/config"
+	"fuku/internal/model"
 )
 
+// Runtime observes the sockets and ports other processes hold
+type Runtime interface {
+	Socket(fingerprint string) model.Socket
+	Sockets() model.SocketScan
+	ProbePort(ctx context.Context, readiness model.Readiness) model.Port
+}
+
 // runtimeSection collects runtime-state checks (sockets, instances, ports)
-func runtimeSection(ctx context.Context, env *Env) Section {
-	return Section{
+func (r *Runner) runtimeSection(ctx context.Context, st *state) model.Section {
+	return model.Section{
 		Title: "Runtime",
-		Results: []Result{
-			timed(func() Result { return checkInstance(env) }),
-			timed(checkStaleSockets),
-			timed(func() Result { return checkPorts(ctx, env) }),
+		Results: []model.Result{
+			timed(func() model.Result { return r.checkInstance(st) }),
+			timed(r.checkStaleSockets),
+			timed(func() model.Result { return r.checkPorts(ctx, st) }),
 		},
 	}
 }
 
 // checkInstance reports whether another fuku instance is running for the current project
-func checkInstance(env *Env) Result {
-	socketPath, err := relay.FindSocket(config.SocketDir, env.Fingerprint)
-	if err != nil {
-		return Result{
-			ID:       CheckRuntimeInstance,
-			Category: CategoryRuntime,
-			Status:   StatusIdle,
+func (r *Runner) checkInstance(st *state) model.Result {
+	socket := r.runtime.Socket(st.Fingerprint)
+
+	if !socket.Present {
+		return model.Result{
+			ID:       model.CheckRuntimeInstance,
+			Category: model.CategoryRuntime,
+			Severity: model.SeverityIdle,
 			Summary:  "no other fuku running for this project",
-			Details:  []Detail{{Key: "socket", Value: instance.SocketPath(config.SocketDir, env.Fingerprint) + " (absent)"}},
+			Details:  []model.Detail{{Key: "socket", Value: socket.Path + " (absent)"}},
 		}
 	}
 
-	conn, dialErr := net.DialTimeout("unix", socketPath, config.SocketDialTimeout)
-	if dialErr != nil {
-		return Result{
-			ID:          CheckRuntimeInstance,
-			Category:    CategoryRuntime,
-			Status:      StatusWarn,
+	if !socket.Reachable {
+		return model.Result{
+			ID:          model.CheckRuntimeInstance,
+			Category:    model.CategoryRuntime,
+			Severity:    model.SeverityWarn,
 			Summary:     "socket present but unreachable",
-			Details:     []Detail{{Key: "socket", Value: socketPath}, {Key: "error", Value: dialErr.Error()}},
-			Remediation: "remove the stale socket: rm " + socketPath,
+			Details:     []model.Detail{{Key: "socket", Value: socket.Path}, {Key: "error", Value: socket.Error.Error()}},
+			Remediation: "remove the stale socket: rm " + socket.Path,
 		}
 	}
 
-	conn.Close()
-
-	return Result{
-		ID:       CheckRuntimeInstance,
-		Category: CategoryRuntime,
-		Status:   StatusNote,
+	return model.Result{
+		ID:       model.CheckRuntimeInstance,
+		Category: model.CategoryRuntime,
+		Severity: model.SeverityNote,
 		Summary:  "another fuku is running for this project",
-		Details:  []Detail{{Key: "socket", Value: socketPath}},
+		Details:  []model.Detail{{Key: "socket", Value: socket.Path}},
 	}
 }
 
 // checkStaleSockets reports stale socket files from previous fuku runs
-func checkStaleSockets() Result {
-	pattern := instance.SocketPath(config.SocketDir, "*")
-
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return Result{
-			ID:       CheckRuntimeSockets,
-			Category: CategoryRuntime,
-			Status:   StatusWarn,
-			Summary:  "failed to glob socket directory",
-			Details:  []Detail{{Key: "error", Value: err.Error()}},
-		}
-	}
+func (r *Runner) checkStaleSockets() model.Result {
+	scan := r.runtime.Sockets()
 
 	var stale []string
 
-	for _, socketPath := range matches {
-		info, err := os.Lstat(socketPath)
-		if err != nil || info.Mode()&os.ModeSocket == 0 {
+	for _, socket := range scan.Sockets {
+		if socket.Reachable {
 			continue
 		}
 
-		conn, err := net.DialTimeout("unix", socketPath, config.SocketDialTimeout)
-		if err == nil {
-			conn.Close()
-			continue
-		}
-
-		stale = append(stale, filepath.Base(socketPath))
+		stale = append(stale, filepath.Base(socket.Path))
 	}
 
 	if len(stale) == 0 {
-		return Result{
-			ID:       CheckRuntimeSockets,
-			Category: CategoryRuntime,
-			Status:   StatusOK,
+		return model.Result{
+			ID:       model.CheckRuntimeSockets,
+			Category: model.CategoryRuntime,
+			Severity: model.SeverityOK,
 			Summary:  "no stale sockets",
-			Details:  []Detail{{Key: "scanned", Value: fmt.Sprintf("%s (%d files)", pattern, len(matches))}},
+			Details:  []model.Detail{{Key: "scanned", Value: fmt.Sprintf("%s (%d files)", scan.Pattern, scan.Files)}},
 		}
 	}
 
-	details := make([]Detail, 0, len(stale))
+	details := make([]model.Detail, 0, len(stale))
 	for _, name := range stale {
-		details = append(details, Detail{Key: name, Value: "stale"})
+		details = append(details, model.Detail{Key: name, Value: "stale"})
 	}
 
-	return Result{
-		ID:          CheckRuntimeSockets,
-		Category:    CategoryRuntime,
-		Status:      StatusWarn,
+	return model.Result{
+		ID:          model.CheckRuntimeSockets,
+		Category:    model.CategoryRuntime,
+		Severity:    model.SeverityWarn,
 		Summary:     fmt.Sprintf("%d stale socket file(s)", len(stale)),
 		Details:     details,
-		Remediation: "remove the stale sockets from " + config.SocketDir,
+		Remediation: "remove the stale sockets from " + scan.Dir,
 	}
 }
 
 // checkPorts probes readiness ports for already-bound listeners
-func checkPorts(ctx context.Context, env *Env) Result {
-	if env.Config == nil {
-		return Result{
-			ID:       CheckRuntimePorts,
-			Category: CategoryRuntime,
-			Status:   StatusIdle,
-			Summary:  "skipped (config did not load)",
-		}
+func (r *Runner) checkPorts(ctx context.Context, st *state) model.Result {
+	if !st.loaded() {
+		return skipped(model.CheckRuntimePorts, model.CategoryRuntime, "config did not load")
 	}
 
-	if env.ProfileErr != nil {
-		return Result{
-			ID:       CheckRuntimePorts,
-			Category: CategoryRuntime,
-			Status:   StatusIdle,
-			Summary:  "skipped (profile did not resolve)",
-		}
+	if st.profileErr != nil {
+		return skipped(model.CheckRuntimePorts, model.CategoryRuntime, "profile did not resolve")
 	}
-
-	names := env.ProfileServices
 
 	var (
 		probed int
-		busy   []Detail
+		busy   []model.Detail
 	)
 
-	dialer := net.Dialer{Timeout: config.PreFlightTimeout}
-
-	for _, name := range names {
-		svc := env.Config.Services[name]
+	for _, name := range st.services {
+		svc, _ := st.Project.Service(name)
 		if svc.Readiness == nil {
 			continue
 		}
 
-		address := extractAddress(svc.Readiness)
-		if address == "" {
+		port := r.runtime.ProbePort(ctx, *svc.Readiness)
+		if port.Address == "" {
 			continue
 		}
 
 		probed++
 
-		conn, dialErr := dialer.DialContext(ctx, "tcp", address)
-		if dialErr != nil {
-			continue
+		if port.InUse {
+			busy = append(busy, model.Detail{Key: name, Value: port.Address + " already LISTENING"})
 		}
-
-		conn.Close()
-
-		busy = append(busy, Detail{Key: name, Value: address + " already LISTENING"})
 	}
 
 	if probed == 0 {
-		return Result{
-			ID:       CheckRuntimePorts,
-			Category: CategoryRuntime,
-			Status:   StatusIdle,
+		return model.Result{
+			ID:       model.CheckRuntimePorts,
+			Category: model.CategoryRuntime,
+			Severity: model.SeverityIdle,
 			Summary:  "no probed readiness ports",
 		}
 	}
 
 	if len(busy) > 0 {
-		return Result{
-			ID:          CheckRuntimePorts,
-			Category:    CategoryRuntime,
-			Status:      StatusWarn,
+		return model.Result{
+			ID:          model.CheckRuntimePorts,
+			Category:    model.CategoryRuntime,
+			Severity:    model.SeverityWarn,
 			Summary:     fmt.Sprintf("%d readiness port(s) already bound", len(busy)),
 			Details:     busy,
 			Remediation: "stop the conflicting process or change the readiness port",
 		}
 	}
 
-	return Result{
-		ID:       CheckRuntimePorts,
-		Category: CategoryRuntime,
-		Status:   StatusOK,
+	return model.Result{
+		ID:       model.CheckRuntimePorts,
+		Category: model.CategoryRuntime,
+		Severity: model.SeverityOK,
 		Summary:  fmt.Sprintf("%d readiness port(s) available", probed),
-	}
-}
-
-// portOrDefault returns the explicit URL port, falling back to scheme defaults (80/443)
-func portOrDefault(u *url.URL) string {
-	if port := u.Port(); port != "" {
-		return port
-	}
-
-	if u.Scheme == "https" {
-		return "443"
-	}
-
-	return "80"
-}
-
-// extractAddress derives host:port from a readiness probe configuration
-func extractAddress(r *config.Readiness) string {
-	switch r.Type {
-	case config.TypeTCP:
-		return r.Address
-	case config.TypeHTTP:
-		u, err := url.Parse(r.URL)
-		if err != nil || u.Host == "" {
-			return ""
-		}
-
-		if u.Scheme != "http" && u.Scheme != "https" {
-			return ""
-		}
-
-		return net.JoinHostPort(u.Hostname(), portOrDefault(u))
-	default:
-		return ""
 	}
 }

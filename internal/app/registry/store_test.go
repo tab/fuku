@@ -1,883 +1,961 @@
 package registry
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"fuku/internal/app/bus"
-	"fuku/internal/app/monitor"
-	"fuku/internal/config"
+	"fuku/internal/contracts"
+	"fuku/internal/model"
 )
 
-const (
-	testTimeout  = time.Second
-	testInterval = 10 * time.Millisecond
-)
+func Test_Store_update(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-func newTestStore(t *testing.T, cfg *config.Config) (*store, bus.Bus) {
-	t.Helper()
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
 
-	b := bus.NewBus(cfg, nil, nil)
-	mon := monitor.NewMonitor()
-	s := NewStore(b, mon).(*store)
+	s := NewStore(mockSubscriber, mockPublisher)
 
-	go s.Run(t.Context())
+	changed := contracts.Message{Type: contracts.EventSnapshotChanged, Data: contracts.SnapshotChanged{}}
+	rename := func(snapshot *model.Snapshot) bool {
+		snapshot.Profile = "renamed"
 
-	<-s.ready
+		return true
+	}
+	keep := func(*model.Snapshot) bool {
+		return false
+	}
 
-	return s, b
+	tests := []struct {
+		name     string
+		before   func()
+		fn       func(*model.Snapshot) bool
+		expected string
+	}{
+		{
+			name: "a change is applied and announced",
+			before: func() {
+				mockPublisher.EXPECT().Publish(changed).Return(nil)
+			},
+			fn:       rename,
+			expected: "renamed",
+		},
+		{
+			name:     "no change announces nothing",
+			before:   func() {},
+			fn:       keep,
+			expected: "renamed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+
+			s.update(tt.fn)
+
+			assert.Equal(t, tt.expected, s.snapshot.Profile)
+			assert.True(t, ctrl.Satisfied())
+		})
+	}
+}
+
+func Test_Store_update_AnnouncesOnceTheLockIsReleased(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	var readable string
+
+	readProfile := func(snapshot *model.Snapshot) {
+		readable = snapshot.Profile
+	}
+	capture := func(contracts.Message) error {
+		s.Read(readProfile)
+
+		return nil
+	}
+	rename := func(snapshot *model.Snapshot) bool {
+		snapshot.Profile = "default"
+
+		return true
+	}
+
+	mockPublisher.EXPECT().Publish(gomock.Any()).DoAndReturn(capture)
+
+	s.update(rename)
+
+	assert.Equal(t, "default", readable, "the notification must not go out before its change is readable")
 }
 
 func Test_Store_ProfileResolved(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil)
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	db := &model.Service{ID: "test-id-db", Name: "db", Tier: "foundation"}
+	cache := &model.Service{ID: "test-id-cache", Name: "cache", Tier: "foundation"}
+	api := &model.Service{ID: "test-id-api", Name: "api", Tier: "application"}
+	web := &model.Service{ID: "test-id-web", Name: "web", Tier: "application"}
+
+	resolved := contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
 			Profile: "default",
-			Tiers: []bus.Tier{
-				{Name: "foundation", Services: []bus.Service{
-					{ID: "test-id-db", Name: "db"},
-					{ID: "test-id-cache", Name: "cache"},
-				}},
-				{Name: "application", Services: []bus.Service{
-					{ID: "test-id-api", Name: "api"},
-					{ID: "test-id-web", Name: "web"},
-				}},
+			Tiers: []model.Tier{
+				{ID: "test-tier-foundation", Name: "foundation", Services: []*model.Service{db, cache}},
+				{ID: "test-tier-application", Name: "application", Services: []*model.Service{api, web}},
 			},
 		},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Profile() == "default"
-	}, testTimeout, testInterval)
-
-	services := s.Services()
-	require.Len(t, services, 4)
-	assert.Equal(t, "cache", services[0].Name)
-	assert.Equal(t, "db", services[1].Name)
-	assert.Equal(t, "api", services[2].Name)
-	assert.Equal(t, "web", services[3].Name)
-
-	for _, svc := range services {
-		assert.Equal(t, StatusPending, svc.Status)
-		assert.NotEmpty(t, svc.ID)
 	}
+
+	s.handle(resolved)
+
+	assert.Equal(t, "default", s.snapshot.Profile)
+	assert.True(t, s.snapshot.Resolved)
+	assert.Equal(t, []*model.Tier{
+		{ID: "test-tier-foundation", Name: "foundation", Services: []*model.Service{
+			{ID: "test-id-db", Name: "db", Tier: "foundation", Status: model.StatusPending},
+			{ID: "test-id-cache", Name: "cache", Tier: "foundation", Status: model.StatusPending},
+		}},
+		{ID: "test-tier-application", Name: "application", Services: []*model.Service{
+			{ID: "test-id-api", Name: "api", Tier: "application", Status: model.StatusPending},
+			{ID: "test-id-web", Name: "web", Tier: "application", Status: model.StatusPending},
+		}},
+	}, s.snapshot.Tiers)
+	require.Len(t, s.snapshot.Services, 4)
+	assert.Same(t, s.snapshot.Tiers[0].Services[1], s.snapshot.Services["test-id-cache"], "a tier and the map share one service")
+	assert.NotSame(t, cache, s.snapshot.Services["test-id-cache"], "the store owns its services")
+	assert.Empty(t, cache.Status, "the payload is never written")
 }
 
 func Test_Store_PhaseTransitions(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	b.Publish(bus.Message{
-		Type: bus.EventPhaseChanged,
-		Data: bus.PhaseChanged{Phase: bus.PhaseStartup},
-	})
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
 
-	require.Eventually(t, func() bool {
-		return s.Phase() == "startup"
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventPhaseChanged,
-		Data: bus.PhaseChanged{Phase: bus.PhaseRunning},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Phase() == string(bus.PhaseRunning)
-	}, testTimeout, testInterval)
-
-	assert.Positive(t, s.Uptime())
-
-	b.Publish(bus.Message{
-		Type: bus.EventPhaseChanged,
-		Data: bus.PhaseChanged{Phase: bus.PhaseStopping},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Phase() == string(bus.PhaseStopping)
-	}, testTimeout, testInterval)
-}
-
-func Test_Store_ServiceLifecycle(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
-
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
-		},
-	})
-
-	require.Eventually(t, func() bool {
-		_, found := s.Service("test-id-api")
-		return found
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStarting,
-		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
-			PID:          1234,
-		},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.PID == 1234
-	}, testTimeout, testInterval)
-
-	svc, found := s.Service("test-id-api")
-	require.True(t, found)
-	assert.Equal(t, StatusStarting, svc.Status)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusRunning
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStopping,
-		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusStopping
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStopped,
-		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusStopped
-	}, testTimeout, testInterval)
-
-	svc, found = s.Service("test-id-api")
-	require.True(t, found)
-	assert.Equal(t, 0, svc.PID)
-}
-
-func Test_Store_ServiceFailed(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
-
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
-		},
-	})
-
-	require.Eventually(t, func() bool {
-		_, found := s.Service("test-id-api")
-		return found
-	}, testTimeout, testInterval)
+	s := NewStore(mockSubscriber, mockPublisher)
 
 	startedAt := time.Now()
 
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStarting,
-		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
-			PID:          5678,
-			StartedAt:    startedAt,
+	tests := []struct {
+		name              string
+		msg               contracts.Message
+		expectedPhase     model.Phase
+		expectedStartedAt time.Time
+	}{
+		{
+			name: "startup starts the uptime clock",
+			msg: contracts.Message{
+				Timestamp: startedAt,
+				Type:      contracts.EventPhaseChanged,
+				Data:      contracts.PhaseChanged{Phase: model.PhaseStartup},
+			},
+			expectedPhase:     model.PhaseStartup,
+			expectedStartedAt: startedAt,
 		},
-	})
+		{
+			name: "running",
+			msg: contracts.Message{
+				Type: contracts.EventPhaseChanged,
+				Data: contracts.PhaseChanged{Phase: model.PhaseRunning},
+			},
+			expectedPhase:     model.PhaseRunning,
+			expectedStartedAt: startedAt,
+		},
+		{
+			name: "stopping",
+			msg: contracts.Message{
+				Type: contracts.EventPhaseChanged,
+				Data: contracts.PhaseChanged{Phase: model.PhaseStopping},
+			},
+			expectedPhase:     model.PhaseStopping,
+			expectedStartedAt: startedAt,
+		},
+	}
 
-	b.Publish(bus.Message{
-		Type: bus.EventServiceFailed,
-		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s.handle(tt.msg)
 
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusFailed
-	}, testTimeout, testInterval)
-
-	svc, found := s.Service("test-id-api")
-	require.True(t, found)
-	assert.Equal(t, 0, svc.PID)
-	assert.True(t, svc.StartTime.IsZero())
-	assert.Equal(t, startedAt, svc.AttemptStartedAt)
+			assert.Equal(t, tt.expectedPhase, s.snapshot.Phase)
+			assert.Equal(t, tt.expectedStartedAt, s.snapshot.StartedAt)
+		})
+	}
 }
 
-func Test_Store_ServiceNotFound(t *testing.T) {
-	s, _ := newTestStore(t, config.DefaultConfig())
+func Test_Store_TierReadiness(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	_, found := s.Service("nonexistent")
-	assert.False(t, found)
-}
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil)
 
-func Test_Store_ServiceOrder(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
+	s := NewStore(mockSubscriber, mockPublisher)
 
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
+	changed := contracts.Message{Type: contracts.EventSnapshotChanged, Data: contracts.SnapshotChanged{}}
+
+	s.handle(contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
 			Profile: "default",
-			Tiers: []bus.Tier{
-				{Name: "platform", Services: []bus.Service{
-					{ID: "test-id-zebra", Name: "zebra"},
-					{ID: "test-id-alpha", Name: "alpha"},
-				}},
-				{Name: "foundation", Services: []bus.Service{
-					{ID: "test-id-beta", Name: "beta"},
-				}},
+			Tiers: []model.Tier{
+				{Name: "foundation", Services: []*model.Service{{ID: "test-id-db", Name: "db"}}},
+				{Name: "application", Services: []*model.Service{{ID: "test-id-api", Name: "api"}}},
 			},
 		},
 	})
 
-	require.Eventually(t, func() bool {
-		return len(s.Services()) == 3
-	}, testTimeout, testInterval)
-
-	services := s.Services()
-	assert.Equal(t, "alpha", services[0].Name)
-	assert.Equal(t, "zebra", services[1].Name)
-	assert.Equal(t, "beta", services[2].Name)
-}
-
-func Test_Store_Uptime_ZeroBeforeRunning(t *testing.T) {
-	cfg := config.DefaultConfig()
-	b := bus.NewBus(cfg, nil, nil)
-	mon := monitor.NewMonitor()
-	s := NewStore(b, mon)
-
-	assert.Equal(t, time.Duration(0), s.Uptime())
-}
-
-func Test_Status_IsRunning(t *testing.T) {
 	tests := []struct {
-		name   string
-		status Status
-		want   bool
+		name     string
+		before   func()
+		msg      contracts.Message
+		expected []bool
 	}{
 		{
-			name:   "running",
-			status: StatusRunning,
-			want:   true,
+			name:   "a tier starts not ready",
+			before: func() {},
+			msg: contracts.Message{
+				Type: contracts.EventTierStarting,
+				Data: contracts.TierStarting{Name: "foundation"},
+			},
+			expected: []bool{false, false},
 		},
 		{
-			name:   "stopped",
-			status: StatusStopped,
-			want:   false,
+			name: "a ready tier",
+			before: func() {
+				mockPublisher.EXPECT().Publish(changed).Return(nil)
+			},
+			msg: contracts.Message{
+				Type: contracts.EventTierReady,
+				Data: contracts.TierReady{Name: "foundation"},
+			},
+			expected: []bool{true, false},
 		},
 		{
-			name:   "starting",
-			status: StatusStarting,
-			want:   false,
+			name:   "an unknown tier changes nothing",
+			before: func() {},
+			msg: contracts.Message{
+				Type: contracts.EventTierReady,
+				Data: contracts.TierReady{Name: "unknown"},
+			},
+			expected: []bool{true, false},
 		},
 		{
-			name:   "failed",
-			status: StatusFailed,
-			want:   false,
+			name: "a restarted tier is not ready",
+			before: func() {
+				mockPublisher.EXPECT().Publish(changed).Return(nil)
+			},
+			msg: contracts.Message{
+				Type: contracts.EventTierStarting,
+				Data: contracts.TierStarting{Name: "foundation"},
+			},
+			expected: []bool{false, false},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.status.IsRunning())
+			tt.before()
+
+			s.handle(tt.msg)
+
+			assert.Equal(t, tt.expected, []bool{s.snapshot.Tiers[0].Ready, s.snapshot.Tiers[1].Ready})
+			assert.True(t, ctrl.Satisfied())
 		})
 	}
 }
 
-func Test_Status_IsStartable(t *testing.T) {
+func Test_Store_API(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	changed := contracts.Message{Type: contracts.EventSnapshotChanged, Data: contracts.SnapshotChanged{}}
+
 	tests := []struct {
-		name   string
-		status Status
-		want   bool
+		name     string
+		before   func()
+		msg      contracts.Message
+		expected model.API
 	}{
 		{
-			name:   "stopped",
-			status: StatusStopped,
-			want:   true,
+			name:   "stopped before started is a no-op",
+			before: func() {},
+			msg: contracts.Message{
+				Type: contracts.EventAPIStopped,
+				Data: contracts.APIStopped{},
+			},
+			expected: model.API{},
 		},
 		{
-			name:   "failed",
-			status: StatusFailed,
-			want:   true,
+			name: "started records the bound address",
+			before: func() {
+				mockPublisher.EXPECT().Publish(changed).Return(nil)
+			},
+			msg: contracts.Message{
+				Type: contracts.EventAPIStarted,
+				Data: contracts.APIStarted{Listen: "127.0.0.1:9876"},
+			},
+			expected: model.API{Listening: true, Address: "127.0.0.1:9876"},
 		},
 		{
-			name:   "running",
-			status: StatusRunning,
-			want:   false,
+			name:   "the same address again is a no-op",
+			before: func() {},
+			msg: contracts.Message{
+				Type: contracts.EventAPIStarted,
+				Data: contracts.APIStarted{Listen: "127.0.0.1:9876"},
+			},
+			expected: model.API{Listening: true, Address: "127.0.0.1:9876"},
 		},
 		{
-			name:   "starting",
-			status: StatusStarting,
-			want:   false,
-		},
-		{
-			name:   "stopping",
-			status: StatusStopping,
-			want:   false,
-		},
-		{
-			name:   "restarting",
-			status: StatusRestarting,
-			want:   false,
-		},
-		{
-			name:   "pending",
-			status: StatusPending,
-			want:   false,
+			name: "stopped clears the listener",
+			before: func() {
+				mockPublisher.EXPECT().Publish(changed).Return(nil)
+			},
+			msg: contracts.Message{
+				Type: contracts.EventAPIStopped,
+				Data: contracts.APIStopped{},
+			},
+			expected: model.API{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.status.IsStartable())
+			tt.before()
+
+			s.handle(tt.msg)
+
+			assert.Equal(t, tt.expected, s.snapshot.API)
+			assert.True(t, ctrl.Satisfied())
 		})
 	}
 }
 
-func Test_Status_IsStoppable(t *testing.T) {
+func Test_Store_ServiceLifecycle(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	api := contracts.ServiceEvent{Service: model.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}
+
+	s.handle(contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
+			Profile: "default",
+			Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api.Service}}},
+		},
+	})
+
 	tests := []struct {
-		name   string
-		status Status
-		want   bool
+		name           string
+		msg            contracts.Message
+		expectedStatus model.Status
+		expectedPID    int
 	}{
 		{
-			name:   "running",
-			status: StatusRunning,
-			want:   true,
+			name: "starting records the pid",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStarting,
+				Data: contracts.ServiceStarting{ServiceEvent: api, PID: 1234},
+			},
+			expectedStatus: model.StatusStarting,
+			expectedPID:    1234,
 		},
 		{
-			name:   "stopped",
-			status: StatusStopped,
-			want:   false,
+			name: "ready",
+			msg: contracts.Message{
+				Type: contracts.EventServiceReady,
+				Data: contracts.ServiceReady{ServiceEvent: api, PID: 1234},
+			},
+			expectedStatus: model.StatusRunning,
+			expectedPID:    1234,
 		},
 		{
-			name:   "starting",
-			status: StatusStarting,
-			want:   false,
+			name: "stopping",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStopping,
+				Data: contracts.ServiceStopping{ServiceEvent: api},
+			},
+			expectedStatus: model.StatusStopping,
+			expectedPID:    1234,
 		},
 		{
-			name:   "failed",
-			status: StatusFailed,
-			want:   false,
-		},
-		{
-			name:   "pending",
-			status: StatusPending,
-			want:   false,
+			name: "stopped clears the pid",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStopped,
+				Data: contracts.ServiceStopped{ServiceEvent: api},
+			},
+			expectedStatus: model.StatusStopped,
+			expectedPID:    0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.status.IsStoppable())
+			s.handle(tt.msg)
+
+			svc, found := s.snapshot.Services["test-id-api"]
+
+			require.True(t, found)
+			assert.Equal(t, tt.expectedStatus, svc.Status)
+			assert.Equal(t, tt.expectedPID, svc.Process.PID)
 		})
 	}
 }
 
-func Test_Status_IsRestartable(t *testing.T) {
-	tests := []struct {
-		name   string
-		status Status
-		want   bool
-	}{
-		{
-			name:   "running",
-			status: StatusRunning,
-			want:   true,
-		},
-		{
-			name:   "failed",
-			status: StatusFailed,
-			want:   true,
-		},
-		{
-			name:   "stopped",
-			status: StatusStopped,
-			want:   true,
-		},
-		{
-			name:   "starting",
-			status: StatusStarting,
-			want:   false,
-		},
-		{
-			name:   "stopping",
-			status: StatusStopping,
-			want:   false,
-		},
-		{
-			name:   "restarting",
-			status: StatusRestarting,
-			want:   false,
-		},
-		{
-			name:   "pending",
-			status: StatusPending,
-			want:   false,
-		},
-	}
+func Test_Store_ServiceFailed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.status.IsRestartable())
-		})
-	}
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	api := contracts.ServiceEvent{Service: model.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}
+	startedAt := time.Now()
+
+	s.handle(contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
+			Profile: "default",
+			Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api.Service}}},
+		},
+	})
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceStarting,
+		Data: contracts.ServiceStarting{ServiceEvent: api, PID: 5678, StartedAt: startedAt},
+	})
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceFailed,
+		Data: contracts.ServiceFailed{ServiceEvent: api, Error: errors.New("readiness timeout")},
+	})
+
+	svc, found := s.snapshot.Services["test-id-api"]
+
+	require.True(t, found)
+	assert.Equal(t, model.StatusFailed, svc.Status)
+	assert.Equal(t, "readiness timeout", svc.Error)
+	assert.Equal(t, 0, svc.Process.PID)
+	assert.True(t, svc.Process.StartedAt.IsZero())
+	assert.Equal(t, startedAt, svc.AttemptedAt)
 }
 
 func Test_Store_Counts(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-				{ID: "test-id-db", Name: "db"},
-			}}},
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	api := contracts.ServiceEvent{Service: model.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}
+	db := contracts.ServiceEvent{Service: model.Service{ID: "test-id-db", Name: "db"}, Tier: "foundation"}
+
+	tests := []struct {
+		name     string
+		msg      contracts.Message
+		expected model.Counts
+	}{
+		{
+			name: "resolved services are pending",
+			msg: contracts.Message{
+				Type: contracts.EventProfileResolved,
+				Data: contracts.ProfileResolved{
+					Profile: "default",
+					Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api.Service, &db.Service}}},
+				},
+			},
+			expected: model.Counts{Total: 2, Pending: 2},
 		},
-	})
+		{
+			name: "starting service",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStarting,
+				Data: contracts.ServiceStarting{ServiceEvent: api},
+			},
+			expected: model.Counts{Total: 2, Pending: 1, Starting: 1},
+		},
+		{
+			name: "ready service is running",
+			msg: contracts.Message{
+				Type: contracts.EventServiceReady,
+				Data: contracts.ServiceReady{ServiceEvent: api},
+			},
+			expected: model.Counts{Total: 2, Pending: 1, Running: 1},
+		},
+		{
+			name: "restarting leaves running",
+			msg: contracts.Message{
+				Type: contracts.EventServiceRestarting,
+				Data: contracts.ServiceRestarting{ServiceEvent: api},
+			},
+			expected: model.Counts{Total: 2, Pending: 1, Restarting: 1},
+		},
+		{
+			name: "stopping leaves restarting",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStopping,
+				Data: contracts.ServiceStopping{ServiceEvent: api},
+			},
+			expected: model.Counts{Total: 2, Pending: 1, Stopping: 1},
+		},
+		{
+			name: "failed service",
+			msg: contracts.Message{
+				Type: contracts.EventServiceFailed,
+				Data: contracts.ServiceFailed{ServiceEvent: db},
+			},
+			expected: model.Counts{Total: 2, Stopping: 1, Failed: 1},
+		},
+		{
+			name: "stopped service",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStopped,
+				Data: contracts.ServiceStopped{ServiceEvent: api},
+			},
+			expected: model.Counts{Total: 2, Stopped: 1, Failed: 1},
+		},
+	}
 
-	require.Eventually(t, func() bool {
-		return s.Counts().Total == 2
-	}, testTimeout, testInterval)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s.handle(tt.msg)
 
-	counts := s.Counts()
-	assert.Equal(t, 2, counts.Total)
-	assert.Equal(t, 2, counts.Pending)
-	assert.Equal(t, 0, counts.Starting)
-	assert.Equal(t, 0, counts.Running)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Counts().Running == 1
-	}, testTimeout, testInterval)
-
-	counts = s.Counts()
-	assert.Equal(t, 2, counts.Total)
-	assert.Equal(t, 1, counts.Pending)
-	assert.Equal(t, 1, counts.Running)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceFailed,
-		Data: bus.ServiceFailed{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-db", Name: "db"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Counts().Failed == 1
-	}, testTimeout, testInterval)
-
-	counts = s.Counts()
-	assert.Equal(t, 2, counts.Total)
-	assert.Equal(t, 0, counts.Pending)
-	assert.Equal(t, 1, counts.Running)
-	assert.Equal(t, 1, counts.Failed)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStopped,
-		Data: bus.ServiceStopped{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Counts().Stopped == 1
-	}, testTimeout, testInterval)
-
-	counts = s.Counts()
-	assert.Equal(t, 0, counts.Running)
-	assert.Equal(t, 1, counts.Stopped)
-	assert.Equal(t, 1, counts.Failed)
+			assert.Equal(t, tt.expected, s.snapshot.Counts())
+		})
+	}
 }
 
 func Test_Store_Watching(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	api := model.Service{ID: "test-id-api", Name: "api"}
+
+	s.handle(contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
 			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
+			Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api}}},
 		},
 	})
 
-	require.Eventually(t, func() bool {
-		_, found := s.Service("test-id-api")
-		return found
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventWatchStarted,
-		Data: bus.Service{ID: "test-id-api", Name: "api"},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Watching
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventWatchStopped,
-		Data: bus.Service{ID: "test-id-api", Name: "api"},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return !svc.Watching
-	}, testTimeout, testInterval)
-}
-
-func Test_Store_ServiceFailedWithError(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
-
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
+	tests := []struct {
+		name     string
+		msg      contracts.Message
+		expected bool
+	}{
+		{
+			name: "watch started",
+			msg: contracts.Message{
+				Type: contracts.EventWatchStarted,
+				Data: contracts.WatchStarted{Service: api},
+			},
+			expected: true,
 		},
-	})
-
-	require.Eventually(t, func() bool {
-		_, found := s.Service("test-id-api")
-		return found
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceFailed,
-		Data: bus.ServiceFailed{
-			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
-			Error:        errors.New("readiness timeout"),
+		{
+			name: "watch stopped",
+			msg: contracts.Message{
+				Type: contracts.EventWatchStopped,
+				Data: contracts.WatchStopped{Service: api},
+			},
+			expected: false,
 		},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusFailed
-	}, testTimeout, testInterval)
-
-	svc, _ := s.Service("test-id-api")
-	assert.Equal(t, "readiness timeout", svc.Error)
-}
-
-func Test_Store_CountsRestarting(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
-
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
-		},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Counts().Total == 1
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Counts().Running == 1
-	}, testTimeout, testInterval)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceRestarting,
-		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Counts().Restarting == 1
-	}, testTimeout, testInterval)
-
-	counts := s.Counts()
-	assert.Equal(t, 0, counts.Running)
-	assert.Equal(t, 1, counts.Restarting)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStopping,
-		Data: bus.ServiceStopping{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.Counts().Stopping == 1
-	}, testTimeout, testInterval)
-
-	counts = s.Counts()
-	assert.Equal(t, 0, counts.Restarting)
-	assert.Equal(t, 1, counts.Stopping)
-}
-
-func Test_Store_WaitResolved(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
-
-	done := make(chan struct{})
-
-	go func() {
-		s.WaitResolved(t.Context())
-		close(done)
-	}()
-
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers:   []bus.Tier{{Name: "foundation", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}}},
-		},
-	})
-
-	select {
-	case <-done:
-	case <-time.After(testTimeout):
-		t.Fatal("WaitResolved did not return after ProfileResolved")
 	}
-}
 
-func Test_Store_WaitResolved_ContextCancelled(t *testing.T) {
-	s, _ := newTestStore(t, config.DefaultConfig())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s.handle(tt.msg)
 
-	ctx, cancel := context.WithCancel(t.Context())
+			svc, found := s.snapshot.Services["test-id-api"]
 
-	done := make(chan struct{})
-
-	go func() {
-		s.WaitResolved(ctx)
-		close(done)
-	}()
-
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(testTimeout):
-		t.Fatal("WaitResolved did not return after context cancellation")
+			require.True(t, found)
+			assert.Equal(t, tt.expected, svc.Watching)
+		})
 	}
-}
-
-func Test_Store_IsResolved(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
-
-	assert.False(t, s.IsResolved())
-
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers:   []bus.Tier{{Name: "foundation", Services: []bus.Service{{ID: "test-id-api", Name: "api"}}}},
-		},
-	})
-
-	require.Eventually(t, func() bool {
-		return s.IsResolved()
-	}, testTimeout, 10*time.Millisecond)
 }
 
 func Test_Store_ServiceRestarting(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
-		},
-	})
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
 
-	require.Eventually(t, func() bool {
-		_, found := s.Service("test-id-api")
-		return found
-	}, testTimeout, testInterval)
+	s := NewStore(mockSubscriber, mockPublisher)
 
-	b.Publish(bus.Message{
-		Type: bus.EventServiceRestarting,
-		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusRestarting
-	}, testTimeout, testInterval)
-}
-
-func Test_Store_ServiceRestarting_ClearsStartTimePreservesAttempt(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
-
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
-		},
-	})
-
-	require.Eventually(t, func() bool {
-		_, found := s.Service("test-id-api")
-		return found
-	}, testTimeout, testInterval)
-
+	api := contracts.ServiceEvent{Service: model.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}
 	startedAt := time.Now()
 
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStarting,
-		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
-			PID:          1234,
-			StartedAt:    startedAt,
+	s.handle(contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
+			Profile: "default",
+			Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api.Service}}},
 		},
 	})
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
-			PID:          1234,
-			StartedAt:    startedAt,
-		},
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceStarting,
+		Data: contracts.ServiceStarting{ServiceEvent: api, PID: 1234, StartedAt: startedAt},
+	})
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceReady,
+		Data: contracts.ServiceReady{ServiceEvent: api, PID: 1234, StartedAt: startedAt},
+	})
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceResourcesSampled,
+		Data: contracts.ServiceResourcesSampled{Services: []contracts.ServiceResourceSample{{ID: "test-id-api", PID: 1234, CPU: 2.5, Memory: 4096}}},
 	})
 
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusRunning
-	}, testTimeout, testInterval)
+	running := *s.snapshot.Services["test-id-api"]
 
-	svc, _ := s.Service("test-id-api")
-	assert.Equal(t, startedAt, svc.StartTime)
-	assert.Equal(t, startedAt, svc.AttemptStartedAt)
-
-	b.Publish(bus.Message{
-		Type: bus.EventServiceRestarting,
-		Data: bus.ServiceRestarting{ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}},
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceRestarting,
+		Data: contracts.ServiceRestarting{ServiceEvent: api},
 	})
 
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusRestarting
-	}, testTimeout, testInterval)
+	restarting := *s.snapshot.Services["test-id-api"]
 
-	svc, _ = s.Service("test-id-api")
-	assert.True(t, svc.StartTime.IsZero(), "StartTime must be cleared during restart")
-	assert.Equal(t, startedAt, svc.AttemptStartedAt, "AttemptStartedAt must be preserved during restart")
-	assert.InDelta(t, 0, svc.CPU, 0)
-	assert.Equal(t, uint64(0), svc.Memory)
+	assert.Equal(t, model.StatusRunning, running.Status)
+	assert.Equal(t, startedAt, running.Process.StartedAt)
+	assert.Equal(t, startedAt, running.AttemptedAt)
+	assert.InDelta(t, 2.5, running.Process.CPU, 0)
+	assert.Equal(t, uint64(4096), running.Process.Memory)
+	assert.Equal(t, model.StatusRestarting, restarting.Status)
+	assert.Equal(t, 1234, restarting.Process.PID, "PID must be kept during restart")
+	assert.True(t, restarting.Process.StartedAt.IsZero(), "StartedAt must be cleared during restart")
+	assert.Equal(t, startedAt, restarting.AttemptedAt, "AttemptedAt must be preserved during restart")
+	assert.InDelta(t, 0, restarting.Process.CPU, 0)
+	assert.Equal(t, uint64(0), restarting.Process.Memory)
 }
 
-func Test_Store_StaleLifecycleEventRejected(t *testing.T) {
-	s, b := newTestStore(t, config.DefaultConfig())
+func Test_Store_ServiceReady_KeepsUsageOfTheSameProcess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	b.Publish(bus.Message{
-		Type: bus.EventProfileResolved,
-		Data: bus.ProfileResolved{
-			Profile: "default",
-			Tiers: []bus.Tier{{Name: "foundation", Services: []bus.Service{
-				{ID: "test-id-api", Name: "api"},
-			}}},
-		},
-	})
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
 
-	require.Eventually(t, func() bool {
-		_, found := s.Service("test-id-api")
-		return found
-	}, testTimeout, testInterval)
+	s := NewStore(mockSubscriber, mockPublisher)
 
-	b.Publish(bus.Message{
-		Type: bus.EventServiceStarting,
-		Data: bus.ServiceStarting{
-			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
-			PID:          1234,
-		},
-	})
-
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusStarting
-	}, testTimeout, testInterval)
-
-	svc, _ := s.Service("test-id-api")
-	startingSeq := svc.LifecycleSeq
-
+	api := contracts.ServiceEvent{Service: model.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}
 	startedAt := time.Now()
 
-	b.Publish(bus.Message{
-		Type: bus.EventServiceReady,
-		Data: bus.ServiceReady{
-			ServiceEvent: bus.ServiceEvent{Service: bus.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"},
-			PID:          1234,
-			StartedAt:    startedAt,
+	s.handle(contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
+			Profile: "default",
+			Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api.Service}}},
+		},
+	})
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceStarting,
+		Data: contracts.ServiceStarting{ServiceEvent: api, PID: 1234, StartedAt: startedAt},
+	})
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceResourcesSampled,
+		Data: contracts.ServiceResourcesSampled{Services: []contracts.ServiceResourceSample{{ID: "test-id-api", PID: 1234, CPU: 2.5, Memory: 4096}}},
+	})
+	s.handle(contracts.Message{
+		Type: contracts.EventServiceReady,
+		Data: contracts.ServiceReady{ServiceEvent: api, PID: 1234, StartedAt: startedAt},
+	})
+
+	svc, found := s.snapshot.Services["test-id-api"]
+
+	require.True(t, found)
+	assert.Equal(t, model.StatusRunning, svc.Status)
+	assert.InDelta(t, 2.5, svc.Process.CPU, 0)
+	assert.Equal(t, uint64(4096), svc.Process.Memory)
+}
+
+func Test_Store_UnknownService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil)
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	api := contracts.ServiceEvent{Service: model.Service{ID: "test-id-api", Name: "api"}, Tier: "foundation"}
+	other := contracts.ServiceEvent{Service: model.Service{ID: "test-id-other", Name: "other"}, Tier: "foundation"}
+
+	s.handle(contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
+			Profile: "default",
+			Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api.Service}}},
 		},
 	})
 
-	require.Eventually(t, func() bool {
-		svc, _ := s.Service("test-id-api")
-		return svc.Status == StatusRunning
-	}, testTimeout, testInterval)
+	tests := []struct {
+		name string
+		msg  contracts.Message
+	}{
+		{
+			name: "starting",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStarting,
+				Data: contracts.ServiceStarting{ServiceEvent: other, PID: 1234},
+			},
+		},
+		{
+			name: "stopping",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStopping,
+				Data: contracts.ServiceStopping{ServiceEvent: other},
+			},
+		},
+		{
+			name: "ready",
+			msg: contracts.Message{
+				Type: contracts.EventServiceReady,
+				Data: contracts.ServiceReady{ServiceEvent: other, PID: 1234},
+			},
+		},
+		{
+			name: "failed",
+			msg: contracts.Message{
+				Type: contracts.EventServiceFailed,
+				Data: contracts.ServiceFailed{ServiceEvent: other},
+			},
+		},
+		{
+			name: "stopped",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStopped,
+				Data: contracts.ServiceStopped{ServiceEvent: other},
+			},
+		},
+		{
+			name: "restarting",
+			msg: contracts.Message{
+				Type: contracts.EventServiceRestarting,
+				Data: contracts.ServiceRestarting{ServiceEvent: other},
+			},
+		},
+		{
+			name: "watch started",
+			msg: contracts.Message{
+				Type: contracts.EventWatchStarted,
+				Data: contracts.WatchStarted{Service: other.Service},
+			},
+		},
+		{
+			name: "resource sample",
+			msg: contracts.Message{
+				Type: contracts.EventServiceResourcesSampled,
+				Data: contracts.ServiceResourcesSampled{Services: []contracts.ServiceResourceSample{{ID: "test-id-other", PID: 1234, CPU: 1}}},
+			},
+		},
+	}
 
-	svc, _ = s.Service("test-id-api")
-	assert.Greater(t, svc.LifecycleSeq, startingSeq)
-	assert.Equal(t, StatusRunning, svc.Status)
-	assert.Equal(t, 1234, svc.PID)
-	assert.Equal(t, startedAt, svc.StartTime)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s.handle(tt.msg)
+
+			assert.Len(t, s.snapshot.Services, 1)
+			assert.Equal(t, model.StatusPending, s.snapshot.Services["test-id-api"].Status)
+		})
+	}
 }
 
-func Test_Store_CountBookkeeping(t *testing.T) {
-	s := &store{}
+func Test_Store_apply_ForeignPayload(t *testing.T) {
+	s := NewStore(nil, nil)
 
-	statuses := []Status{
-		StatusPending,
-		StatusStarting,
-		StatusRunning,
-		StatusStopping,
-		StatusRestarting,
-		StatusStopped,
-		StatusFailed,
+	snapshot := &model.Snapshot{}
+
+	foreign := "not an event payload"
+
+	tests := []struct {
+		name string
+		msg  contracts.Message
+	}{
+		{
+			name: "profile resolved",
+			msg:  contracts.Message{Type: contracts.EventProfileResolved, Data: foreign},
+		},
+		{
+			name: "phase changed",
+			msg:  contracts.Message{Type: contracts.EventPhaseChanged, Data: foreign},
+		},
+		{
+			name: "tier starting",
+			msg:  contracts.Message{Type: contracts.EventTierStarting, Data: foreign},
+		},
+		{
+			name: "tier ready",
+			msg:  contracts.Message{Type: contracts.EventTierReady, Data: foreign},
+		},
+		{
+			name: "service starting",
+			msg:  contracts.Message{Type: contracts.EventServiceStarting, Data: foreign},
+		},
+		{
+			name: "service ready",
+			msg:  contracts.Message{Type: contracts.EventServiceReady, Data: foreign},
+		},
+		{
+			name: "service failed",
+			msg:  contracts.Message{Type: contracts.EventServiceFailed, Data: foreign},
+		},
+		{
+			name: "service stopping",
+			msg:  contracts.Message{Type: contracts.EventServiceStopping, Data: foreign},
+		},
+		{
+			name: "service stopped",
+			msg:  contracts.Message{Type: contracts.EventServiceStopped, Data: foreign},
+		},
+		{
+			name: "service restarting",
+			msg:  contracts.Message{Type: contracts.EventServiceRestarting, Data: foreign},
+		},
+		{
+			name: "watch started",
+			msg:  contracts.Message{Type: contracts.EventWatchStarted, Data: foreign},
+		},
+		{
+			name: "API started",
+			msg:  contracts.Message{Type: contracts.EventAPIStarted, Data: foreign},
+		},
+		{
+			name: "resources sampled",
+			msg:  contracts.Message{Type: contracts.EventServiceResourcesSampled, Data: foreign},
+		},
 	}
 
-	for _, status := range statuses {
-		s.incrementCount(status)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			changed := s.apply(snapshot, tt.msg)
+
+			assert.False(t, changed)
+			assert.Equal(t, &model.Snapshot{}, snapshot)
+		})
+	}
+}
+
+func Test_Store_NewAttempt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
+
+	api := contracts.ServiceEvent{Service: model.Service{ID: "test-id-api", Name: "api", Tier: "foundation"}, Tier: "foundation"}
+	first := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	second := first.Add(10 * time.Second)
+
+	resolved := contracts.Message{
+		Type: contracts.EventProfileResolved,
+		Data: contracts.ProfileResolved{
+			Profile: "default",
+			Tiers:   []model.Tier{{Name: "foundation", Services: []*model.Service{&api.Service}}},
+		},
 	}
 
-	assert.Equal(t, StatusCounts{
-		Pending:    1,
-		Starting:   1,
-		Running:    1,
-		Stopping:   1,
-		Restarting: 1,
-		Stopped:    1,
-		Failed:     1,
-	}, s.counts)
+	tests := []struct {
+		name     string
+		before   func() *Store
+		messages []contracts.Message
+		expected model.Service
+	}{
+		{
+			name: "ready of a new process drops the usage sampled for the old one",
+			before: func() *Store {
+				s := NewStore(mockSubscriber, mockPublisher)
+				s.handle(resolved)
 
-	for _, status := range statuses {
-		s.decrementCount(status)
+				return s
+			},
+			messages: []contracts.Message{
+				{Type: contracts.EventServiceStarting, Data: contracts.ServiceStarting{ServiceEvent: api, PID: 1234, StartedAt: first}},
+				{Type: contracts.EventServiceReady, Data: contracts.ServiceReady{ServiceEvent: api, PID: 1234, StartedAt: first}},
+				{Type: contracts.EventServiceResourcesSampled, Data: contracts.ServiceResourcesSampled{Services: []contracts.ServiceResourceSample{{ID: "test-id-api", PID: 1234, CPU: 2.5, Memory: 4096}}}},
+				{Type: contracts.EventServiceReady, Data: contracts.ServiceReady{ServiceEvent: api, PID: 5678, StartedAt: second}},
+			},
+			expected: model.Service{
+				ID: "test-id-api", Name: "api", Tier: "foundation", Status: model.StatusRunning,
+				Process: model.Process{PID: 5678, StartedAt: second}, AttemptedAt: second,
+			},
+		},
+		{
+			name: "starting after a failure clears the error and the usage",
+			before: func() *Store {
+				s := NewStore(mockSubscriber, mockPublisher)
+				s.handle(resolved)
+
+				return s
+			},
+			messages: []contracts.Message{
+				{Type: contracts.EventServiceStarting, Data: contracts.ServiceStarting{ServiceEvent: api, PID: 1234, StartedAt: first}},
+				{Type: contracts.EventServiceFailed, Data: contracts.ServiceFailed{ServiceEvent: api, Error: errors.New("readiness timeout")}},
+				{Type: contracts.EventServiceStarting, Data: contracts.ServiceStarting{ServiceEvent: api, PID: 5678, StartedAt: second}},
+			},
+			expected: model.Service{
+				ID: "test-id-api", Name: "api", Tier: "foundation", Status: model.StatusStarting,
+				Process: model.Process{PID: 5678, StartedAt: second}, AttemptedAt: second,
+			},
+		},
 	}
 
-	assert.Equal(t, StatusCounts{}, s.counts)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := tt.before()
+
+			for _, msg := range tt.messages {
+				s.handle(msg)
+			}
+
+			svc, found := s.snapshot.Services["test-id-api"]
+
+			require.True(t, found)
+			assert.Equal(t, tt.expected, *svc)
+		})
+	}
 }
