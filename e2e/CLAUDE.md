@@ -1,7 +1,6 @@
 # e2e
 
-End to end tests drive the built binary as a subprocess and read what it prints.
-Nothing here imports `fuku/internal`.
+End to end tests run the built binary as a subprocess and read what it prints. Nothing here imports `fuku/internal`.
 
 ## Running
 
@@ -9,19 +8,15 @@ Nothing here imports `fuku/internal`.
 make build && make test:e2e
 ```
 
-`test:e2e` passes `FUKU_BIN=$(PWD)/cmd/fuku`, so a stale binary quietly tests the
-previous change. Build first, every time. The suite is excluded from `make test`
-and `make test:race` (`go list ./... | grep -v /e2e`), which means a green
-`make check` says nothing about it.
+`test:e2e` uses `FUKU_BIN=$(PWD)/cmd/fuku`. A stale binary tests the previous change. Build first, every time.
+`make test` and `make test:race` skip the suite. A green `make check` says nothing about it.
 
 ## Fixtures
 
-A test names a directory under `testdata/`, which holds a `fuku.yaml` and
-whatever that config points at. The services those configs run are the stubs in
-`services/`, one per readiness type: `log.go`, `http.go`, `tcp.go`.
+A test names a directory under `testdata/`. It holds a `fuku.yaml` and what that config points at.
+The services are the stubs in `services/`, one per readiness type: `log.go`, `http.go`, `tcp.go`.
 
-`examples/bookstore` is the playground the root `fuku.yaml` drives by hand. It is
-not an e2e fixture, and no test reads it.
+`examples/bookstore` is not a fixture. No test reads it.
 
 ## Writing a test
 
@@ -40,14 +35,9 @@ func Test_Tier_StartsInOrder(t *testing.T) {
 }
 ```
 
-- `NewRunner` for a fuku that keeps running, `RunOnce` for a command that exits
-  on its own (`doctor`, `--version`), `LogsRunner` for `fuku logs`
-- `require` for anything the rest of the test depends on, `assert` for the
-  checks themselves
-- wait on a log line, never on a sleep: `WaitForLog`, `WaitForRunning`,
-  `WaitForServiceStarted`, `WaitForTierReady`. Give each an explicit timeout,
-  and keep the total under the suite's `-timeout 5m`
-- assert on the structured event names (`tier_starting`, `service_ready`,
-  `service=postgres`), not on prose a wording change would break
-- never `t.Parallel()`. The fixtures pin real ports, `testdata/api` binds
-  `127.0.0.1:19876`, and two runners at once fight over them
+- `NewRunner` for a fuku that keeps running. `RunOnce` for a command that exits on its own (`doctor`, `--version`). `LogsRunner` for `fuku logs`
+- `require` for what the rest of the test depends on. `assert` for the checks
+- wait on a log line, never on a sleep: `WaitForLog`, `WaitForRunning`, `WaitForServiceStarted`, `WaitForTierReady`.
+  Give each a timeout. Keep the total under the suite's `-timeout 5m`
+- assert on event names (`tier_starting`, `service_ready`, `service=postgres`), not on prose
+- never `t.Parallel()`. The fixtures pin real ports. `testdata/api` binds `127.0.0.1:19876`. Two runners fight over them

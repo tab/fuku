@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fuku doctor exit codes (mirror internal/app/doctor.Report.ExitCode):
-//   0 — no fails (warns/notes allowed)
-//   2 — at least one fail
-//   3 — doctor itself errored (e.g. RenderJSON write failure)
-
 func Test_Doctor_NoConfig(t *testing.T) {
 	dir := t.TempDir()
 
@@ -82,7 +77,6 @@ func Test_Doctor_InvalidSchema_Fails(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "api"), 0o755))
 
-	// parses as YAML but fails schema validation (unknown readiness type)
 	yaml := `version: 1
 
 services:
@@ -102,7 +96,6 @@ profiles:
 	assert.Equal(t, 2, result.ExitCode)
 	assert.Contains(t, result.Stdout, "config.validate")
 	assert.Contains(t, result.Stdout, "schema validation failed")
-	// the file parsed fine, so config.file must not claim a load failure
 	assert.Contains(t, result.Stdout, "found and parsed")
 	assert.NotContains(t, result.Stdout, "failed to load")
 }
@@ -202,7 +195,6 @@ profiles:
 }
 
 func Test_Doctor_StaleSocketRemediation_NoFixFlag(t *testing.T) {
-	// regression: doctor must not advertise a `--fix` flag that doesn't exist
 	result := RunOnce(t, "testdata/yml-config", "doctor")
 	assert.NotContains(t, result.Stdout, "doctor --fix")
 }

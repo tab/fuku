@@ -67,11 +67,9 @@ func Test_Lifecycle_PreflightCleansUpOrphans(t *testing.T) {
 	err = first.WaitForRunning(15 * time.Second)
 	require.NoError(t, err)
 
-	// Kill abruptly without graceful shutdown — leaves orphaned processes
 	first.cmd.Process.Kill()
 	first.cmd.Wait()
 
-	// Second run should clean up orphans via preflight and start normally
 	second := NewRunner(t, "testdata/default-tier")
 	defer second.Stop()
 
@@ -106,13 +104,11 @@ func Test_Lifecycle_SocketCleanup(t *testing.T) {
 
 	require.FileExists(t, socketPath)
 
-	// Kill abruptly — stale socket remains
 	first.cmd.Process.Kill()
 	first.cmd.Wait()
 
 	require.FileExists(t, socketPath)
 
-	// Second run should clean up stale socket and start normally
 	second := NewRunner(t, "testdata/default-tier")
 	defer second.Stop()
 
@@ -122,7 +118,6 @@ func Test_Lifecycle_SocketCleanup(t *testing.T) {
 	err = second.WaitForRunning(20 * time.Second)
 	require.NoError(t, err)
 
-	// Verify log streaming works through the new socket
 	logsRunner := NewLogsRunner(t, "testdata/default-tier")
 	defer logsRunner.Stop()
 

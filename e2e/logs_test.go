@@ -86,8 +86,8 @@ func Test_Logs_ProfileMismatch(t *testing.T) {
 	result := RunOnce(t, "testdata/default-tier", "logs", "--profile", "core", "--no-ui", "--no-follow")
 
 	assert.Equal(t, 1, result.ExitCode)
-	assert.Contains(t, result.Stdout, "'default'")
-	assert.Contains(t, result.Stdout, "'core'")
+	assert.Contains(t, result.Stderr, "'default'")
+	assert.Contains(t, result.Stderr, "'core'")
 	assert.NotContains(t, result.Stdout, "Service ready")
 }
 
@@ -95,7 +95,7 @@ func Test_Logs_NoInstance(t *testing.T) {
 	result := RunOnce(t, t.TempDir(), "logs")
 
 	assert.Equal(t, 1, result.ExitCode)
-	assert.Contains(t, result.Stdout, "No fuku is running for project")
+	assert.Contains(t, result.Stderr, "Error: no fuku instance is running for project")
 }
 
 func Test_Logs_InvalidTailFailsBeforeConnecting(t *testing.T) {

@@ -265,8 +265,7 @@ func indexOf(s, substr string) int {
 	return strings.Index(s, substr)
 }
 
-// SocketPath returns the relay socket of the fuku instance serving dir (the name carries the first 16 hex
-// characters of the SHA-256 of the symlink-resolved directory, the same fingerprint the binary computes)
+// SocketPath returns the socket of the fuku instance serving dir, named by the fingerprint the binary computes
 func SocketPath(t *testing.T, dir string) string {
 	t.Helper()
 

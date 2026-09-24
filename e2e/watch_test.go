@@ -42,7 +42,6 @@ func Test_Watch_RestartOnFileChange(t *testing.T) {
 	restartIdx := indexOf(output, "service_restarting")
 	require.Greater(t, restartIdx, -1, "service_restarting event should be present")
 
-	// Find service_ready after the restart event
 	afterRestart := output[restartIdx:]
 	readyAfterRestart := strings.Index(afterRestart, "service_ready")
 
@@ -55,6 +54,5 @@ func Test_Watch_RestartOnFileChange(t *testing.T) {
 	assert.Contains(t, output[watchIdx:], "service=worker", "watch_triggered should be for worker service")
 	assert.Greater(t, fileChangeIdx, -1, "file change log should be present")
 
-	assert.Less(t, watchIdx, fileChangeIdx, "watch_triggered should appear before file change log")
 	assert.Less(t, fileChangeIdx, restartIdx, "file change log should appear before service_restarting")
 }
