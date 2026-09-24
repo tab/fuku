@@ -44,7 +44,7 @@ func parseTierOrder(data []byte) (*model.Topology, error) {
 
 	for i := 0; i < len(doc.Content); i += 2 {
 		key := doc.Content[i]
-		value := doc.Content[i+1]
+		value := resolveNode(doc.Content[i+1])
 
 		if key.Value != keyDefaults || value.Kind != yaml.MappingNode {
 			continue
@@ -55,7 +55,7 @@ func parseTierOrder(data []byte) (*model.Topology, error) {
 
 	for i := 0; i < len(doc.Content); i += 2 {
 		key := doc.Content[i]
-		value := doc.Content[i+1]
+		value := resolveNode(doc.Content[i+1])
 
 		if key.Value != keyServices || value.Kind != yaml.MappingNode {
 			continue
@@ -63,7 +63,7 @@ func parseTierOrder(data []byte) (*model.Topology, error) {
 
 		for j := 0; j < len(value.Content); j += 2 {
 			serviceName := value.Content[j].Value
-			serviceNode := value.Content[j+1]
+			serviceNode := resolveNode(value.Content[j+1])
 
 			if serviceNode.Kind != yaml.MappingNode {
 				continue
@@ -106,7 +106,7 @@ func tierOf(node *yaml.Node) string {
 
 	for i := 0; i < len(flat.Content); i += 2 {
 		if flat.Content[i].Value == keyTier {
-			return normalizeTier(flat.Content[i+1].Value)
+			return normalizeTier(resolveNode(flat.Content[i+1]).Value)
 		}
 	}
 

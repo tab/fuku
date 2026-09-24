@@ -179,7 +179,7 @@ func preserveAnchor(base, override *yaml.Node) *yaml.Node {
 	return &clone
 }
 
-// resolveNode dereferences an alias node to its target for merge comparison
+// resolveNode dereferences an alias node to its target
 func resolveNode(node *yaml.Node) *yaml.Node {
 	if node.Kind != yaml.AliasNode || node.Alias == nil {
 		return node

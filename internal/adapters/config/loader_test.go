@@ -1030,6 +1030,59 @@ func Test_loadDefault_Override_MergeKeyTierAgreesWithTopology(t *testing.T) {
 	assert.Contains(t, topology.TierServices["foundation"], "api")
 }
 
+func Test_loadDefault_AliasedServiceTopology(t *testing.T) {
+	tests := []struct {
+		name             string
+		content          string
+		expectedOrder    []string
+		expectedServices map[string][]string
+	}{
+		{
+			name:             "anchor inside services",
+			content:          "version: 1\nservices:\n  storage: &base\n    dir: ./storage\n    tier: foundation\n  api: *base\n  web:\n    dir: ./web\n    tier: edge\n",
+			expectedOrder:    []string{"foundation", "edge"},
+			expectedServices: map[string][]string{"foundation": {"api", "storage"}, "edge": {"web"}},
+		},
+		{
+			name:             "top-level anchor",
+			content:          "version: 1\nx-base: &base\n  dir: ./api\n  tier: platform\nservices:\n  api: *base\n  web:\n    dir: ./web\n",
+			expectedOrder:    []string{"platform", model.TierDefault},
+			expectedServices: map[string][]string{"platform": {"api"}, model.TierDefault: {"web"}},
+		},
+		{
+			name:             "aliased defaults",
+			content:          "version: 1\nx-defaults: &d\n  tier: platform\ndefaults: *d\nservices:\n  api:\n    dir: ./api\n",
+			expectedOrder:    []string{"platform"},
+			expectedServices: map[string][]string{"platform": {"api"}},
+		},
+		{
+			name:             "aliased services",
+			content:          "version: 1\nx-services: &s\n  api:\n    dir: ./api\n    tier: platform\nservices: *s\n",
+			expectedOrder:    []string{"platform"},
+			expectedServices: map[string][]string{"platform": {"api"}},
+		},
+		{
+			name:             "aliased tier",
+			content:          "version: 1\nx-tier: &t platform\nservices:\n  api:\n    dir: ./api\n    tier: *t\n",
+			expectedOrder:    []string{"platform"},
+			expectedServices: map[string][]string{"platform": {"api"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			require.NoError(t, os.WriteFile(ConfigFile, []byte(tt.content), 0644))
+
+			_, topology, _, err := loadDefault()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedOrder, topology.Order)
+			assert.Equal(t, tt.expectedServices, topology.TierServices)
+		})
+	}
+}
+
 func Test_loadDefault_RejectsAnEmptyService(t *testing.T) {
 	tests := []struct {
 		name    string
