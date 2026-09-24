@@ -7,8 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"fuku/internal/app/errors"
-	"fuku/internal/config"
+	"fuku/internal/model"
 )
 
 // Flag arguments repeated across the parser tests
@@ -31,19 +30,20 @@ func Test_Parse(t *testing.T) {
 		expectedNoUI       bool
 		expectedNoFollow   bool
 		expectedConfigFile string
+		expectedFormat     Format
 	}{
 		{
 			name:            "no args - default profile",
 			args:            []string{},
 			expectedType:    CommandRun,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "run command without profile",
 			args:            []string{"run"},
 			expectedType:    CommandRun,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
@@ -99,7 +99,7 @@ func Test_Parse(t *testing.T) {
 			name:            "--no-ui flag with no command",
 			args:            []string{noUIArg},
 			expectedType:    CommandRun,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    true,
 		},
 		{
@@ -208,7 +208,7 @@ func Test_Parse(t *testing.T) {
 			name:            "stop command without profile",
 			args:            []string{"stop"},
 			expectedType:    CommandStop,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
@@ -243,70 +243,70 @@ func Test_Parse(t *testing.T) {
 			name:            "init command",
 			args:            []string{"init"},
 			expectedType:    CommandInit,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "init alias i",
 			args:            []string{"i"},
 			expectedType:    CommandInit,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "--init flag",
 			args:            []string{"--init"},
 			expectedType:    CommandInit,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "-i flag",
 			args:            []string{"-i"},
 			expectedType:    CommandInit,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "version command",
 			args:            []string{"version"},
 			expectedType:    CommandVersion,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "--version flag",
 			args:            []string{"--version"},
 			expectedType:    CommandVersion,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "-v flag",
 			args:            []string{"-v"},
 			expectedType:    CommandVersion,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "help command",
 			args:            []string{"help"},
 			expectedType:    CommandHelp,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "--help flag",
 			args:            []string{"--help"},
 			expectedType:    CommandHelp,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
 			name:            "-h flag",
 			args:            []string{"-h"},
 			expectedType:    CommandHelp,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
 			expectedNoUI:    false,
 		},
 		{
@@ -321,7 +321,7 @@ func Test_Parse(t *testing.T) {
 			name:               "-c shorthand with run command",
 			args:               []string{"-c", "custom.yaml", "run"},
 			expectedType:       CommandRun,
-			expectedProfile:    config.Default,
+			expectedProfile:    model.ProfileDefault,
 			expectedNoUI:       false,
 			expectedConfigFile: "custom.yaml",
 		},
@@ -352,25 +352,29 @@ func Test_Parse(t *testing.T) {
 			name:            "doctor command",
 			args:            []string{"doctor"},
 			expectedType:    CommandDoctor,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
+			expectedFormat:  FormatText,
 		},
 		{
 			name:            "doctor command with profile",
 			args:            []string{"doctor", "core"},
 			expectedType:    CommandDoctor,
 			expectedProfile: "core",
+			expectedFormat:  FormatText,
 		},
 		{
 			name:            "doctor --summary",
 			args:            []string{"doctor", "--summary"},
 			expectedType:    CommandDoctor,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
+			expectedFormat:  FormatSummary,
 		},
 		{
 			name:            "doctor --json",
 			args:            []string{"doctor", "--json"},
 			expectedType:    CommandDoctor,
-			expectedProfile: config.Default,
+			expectedProfile: model.ProfileDefault,
+			expectedFormat:  FormatJSON,
 		},
 	}
 
@@ -387,96 +391,7 @@ func Test_Parse(t *testing.T) {
 			assert.Equal(t, tt.expectedNoUI, result.NoUI)
 			assert.Equal(t, tt.expectedNoFollow, result.NoFollow)
 			assert.Equal(t, tt.expectedConfigFile, result.ConfigFile)
-		})
-	}
-}
-
-func Test_CommandType_Standalone(t *testing.T) {
-	tests := []struct {
-		name     string
-		cmd      CommandType
-		expected bool
-	}{
-		{
-			name:     "init is standalone",
-			cmd:      CommandInit,
-			expected: true,
-		},
-		{
-			name:     "version is standalone",
-			cmd:      CommandVersion,
-			expected: true,
-		},
-		{
-			name:     "help is standalone",
-			cmd:      CommandHelp,
-			expected: true,
-		},
-		{
-			name:     "run is not standalone",
-			cmd:      CommandRun,
-			expected: false,
-		},
-		{
-			name:     "stop is not standalone",
-			cmd:      CommandStop,
-			expected: false,
-		},
-		{
-			name:     "logs is not standalone",
-			cmd:      CommandLogs,
-			expected: false,
-		},
-		{
-			name:     "doctor is not standalone",
-			cmd:      CommandDoctor,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.cmd.Standalone())
-		})
-	}
-}
-
-func Test_CommandType_RequiresServices(t *testing.T) {
-	tests := []struct {
-		name     string
-		cmd      CommandType
-		expected bool
-	}{
-		{
-			name:     "run requires services",
-			cmd:      CommandRun,
-			expected: true,
-		},
-		{
-			name:     "stop requires services",
-			cmd:      CommandStop,
-			expected: true,
-		},
-		{
-			name:     "doctor does not require services",
-			cmd:      CommandDoctor,
-			expected: false,
-		},
-		{
-			name:     "logs does not require services",
-			cmd:      CommandLogs,
-			expected: false,
-		},
-		{
-			name:     "init does not require services",
-			cmd:      CommandInit,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.cmd.RequiresServices())
+			assert.Equal(t, tt.expectedFormat, result.DoctorFormat)
 		})
 	}
 }
@@ -497,6 +412,35 @@ func Test_Parse_StopWithTooManyArgs(t *testing.T) {
 	result, err := Parse([]string{"stop", "profile1", "profile2"})
 	require.Error(t, err)
 	assert.Nil(t, result)
+}
+
+func Test_Parse_ConflictingFlags(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "--run with --logs",
+			args: []string{"--run", "core", "--logs"},
+		},
+		{
+			name: "-v with -i",
+			args: []string{"-v", "-i"},
+		},
+		{
+			name: "--stop with --run",
+			args: []string{"--stop", "core", "--run", "core"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Parse(tt.args)
+
+			require.ErrorContains(t, err, "none of the others can be")
+			assert.Nil(t, result)
+		})
+	}
 }
 
 func Test_Parse_InvalidTail(t *testing.T) {
@@ -522,7 +466,7 @@ func Test_Parse_InvalidTail(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := Parse(tt.args)
 
-			require.ErrorIs(t, err, errors.ErrInvalidTail)
+			require.ErrorIs(t, err, ErrInvalidTail)
 			assert.Nil(t, result)
 		})
 	}
@@ -563,7 +507,7 @@ func Test_Parse_ConfigFlagNotSupported(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := Parse(tt.args)
 
-			require.ErrorIs(t, err, errors.ErrConfigFlagNotSupported)
+			require.ErrorIs(t, err, ErrConfigFlagNotSupported)
 			assert.Nil(t, result)
 		})
 	}
@@ -615,12 +559,12 @@ func Test_tailValue_Set(t *testing.T) {
 		{
 			name:          "zero",
 			raw:           "0",
-			expectedError: errors.ErrInvalidTail,
+			expectedError: ErrInvalidTail,
 		},
 		{
 			name:          "negative value",
 			raw:           "-1",
-			expectedError: errors.ErrInvalidTail,
+			expectedError: ErrInvalidTail,
 		},
 		{
 			name:          "not a number",
@@ -635,14 +579,7 @@ func Test_tailValue_Set(t *testing.T) {
 
 			err := (&tailValue{target: &tail}).Set(tt.raw)
 
-			if tt.expectedError != nil {
-				require.ErrorIs(t, err, tt.expectedError)
-				assert.Nil(t, tail)
-
-				return
-			}
-
-			require.NoError(t, err)
+			require.ErrorIs(t, err, tt.expectedError)
 			assert.Equal(t, tt.expected, tail)
 		})
 	}

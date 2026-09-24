@@ -3,14 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-
-	"fuku/internal/app/doctor"
-	"fuku/internal/app/errors"
-	"fuku/internal/app/instance"
-	"fuku/internal/config"
-	"fuku/internal/config/template"
+	"io"
 )
 
 // Help text constants
@@ -58,77 +51,19 @@ Examples:
   fuku --config /path/fuku.yaml   Use config from another directory (no override merging)`
 )
 
-// ChangeToConfigDir changes to the config file's parent directory if it has path components
-func ChangeToConfigDir(cmd *Options) error {
-	if cmd.ConfigFile == "" {
-		return nil
-	}
-
-	dir := filepath.Dir(cmd.ConfigFile)
-	if dir == "." {
-		return nil
-	}
-
-	if err := os.Chdir(dir); err != nil {
-		return fmt.Errorf("%w: %w", errors.ErrFailedToReadConfig, err)
-	}
-
-	cmd.ConfigFile = filepath.Base(cmd.ConfigFile)
-
-	return nil
+// Help prints the usage text
+type Help struct {
+	stdout io.Writer
 }
 
-// RunDoctor executes the doctor command and writes the report to stdout
-func RunDoctor(cmd *Options, identity instance.Identity) int {
-	report := doctor.Run(context.Background(), doctor.Options{
-		Profile:     cmd.Profile,
-		ConfigPath:  cmd.ConfigFile,
-		Fingerprint: identity.Fingerprint,
-	})
-
-	switch cmd.DoctorFormat {
-	case DoctorFormatJSON:
-		if err := doctor.RenderJSON(os.Stdout, report); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return 3
-		}
-	case DoctorFormatSummary:
-		doctor.RenderSummary(os.Stdout, report)
-	default:
-		doctor.RenderText(os.Stdout, report)
-	}
-
-	return report.ExitCode()
+// NewHelp creates the help command
+func NewHelp(stdout io.Writer) *Help {
+	return &Help{stdout: stdout}
 }
 
-// GenerateConfigFile creates a fuku.yaml template in the current directory
-func GenerateConfigFile() (int, error) {
-	for _, f := range []string{config.ConfigFile, config.ConfigFileAlt} {
-		_, err := os.Stat(f)
-
-		switch {
-		case err == nil:
-			fmt.Printf("%s already exists\n", f)
-			return 0, nil
-		case os.IsNotExist(err):
-			continue
-		default:
-			return 1, fmt.Errorf("failed to check %s: %w", f, err)
-		}
-	}
-
-	f, err := os.OpenFile(config.ConfigFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		return 1, fmt.Errorf("failed to write %s: %w", config.ConfigFile, err)
-	}
-
-	defer f.Close()
-
-	if _, err := f.Write(template.Content); err != nil {
-		return 1, fmt.Errorf("failed to write %s: %w", config.ConfigFile, err)
-	}
-
-	fmt.Printf("Created %s\n", config.ConfigFile)
+// Run prints the usage and returns the exit code
+func (h *Help) Run(context.Context) (int, error) {
+	fmt.Fprintln(h.stdout, Usage)
 
 	return 0, nil
 }

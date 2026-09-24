@@ -5,89 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"fuku/internal/app/errors"
-	"fuku/internal/app/relay"
-	"fuku/internal/config"
+	"fuku/internal/model"
+	"fuku/internal/platform/buildinfo"
 )
-
-// CommandType represents the type of CLI command
-type CommandType string
-
-// Command type values
-const (
-	CommandRun     CommandType = "run"
-	CommandStop    CommandType = "stop"
-	CommandInit    CommandType = "init"
-	CommandLogs    CommandType = "logs"
-	CommandVersion CommandType = "version"
-	CommandHelp    CommandType = "help"
-	CommandDoctor  CommandType = "doctor"
-)
-
-// Standalone returns true for commands that run without config or FX container
-func (c CommandType) Standalone() bool {
-	switch c {
-	case CommandInit, CommandVersion, CommandHelp:
-		return true
-	default:
-		return false
-	}
-}
-
-// RequiresServices returns true for commands that need at least one service defined in the config
-func (c CommandType) RequiresServices() bool {
-	switch c {
-	case CommandRun, CommandStop:
-		return true
-	default:
-		return false
-	}
-}
-
-// String returns the string representation of a CommandType
-func (c CommandType) String() string {
-	return string(c)
-}
-
-// Flag represents the name of a CLI flag
-type Flag string
-
-// Flag name values
-const (
-	FlagConfig   Flag = "config"
-	FlagNoUI     Flag = "no-ui"
-	FlagProfile  Flag = "profile"
-	FlagTail     Flag = "tail"
-	FlagNoFollow Flag = "no-follow"
-	FlagSummary  Flag = "summary"
-	FlagJSON     Flag = "json"
-)
-
-// String returns the string representation of a Flag
-func (f Flag) String() string {
-	return string(f)
-}
-
-// DoctorFormat selects the doctor renderer
-type DoctorFormat int
-
-// DoctorFormat values
-const (
-	DoctorFormatText DoctorFormat = iota
-	DoctorFormatSummary
-	DoctorFormatJSON
-)
-
-// Options contains the parsed command-line arguments
-type Options struct {
-	ConfigFile   string
-	Type         CommandType
-	Profile      string
-	Services     []string
-	NoUI         bool
-	DoctorFormat DoctorFormat
-	relay.ReplayOptions
-}
 
 // rootFlags holds flag values for the root command
 type rootFlags struct {
@@ -102,7 +22,7 @@ type rootFlags struct {
 func Parse(args []string) (*Options, error) {
 	result := &Options{
 		Type:    CommandRun,
-		Profile: config.Default,
+		Profile: model.ProfileDefault,
 	}
 
 	var flags rootFlags
@@ -147,8 +67,8 @@ func Parse(args []string) (*Options, error) {
 		result.Type = CommandInit
 	}
 
-	if result.ConfigFile != "" && result.Type.Standalone() {
-		return nil, errors.ErrConfigFlagNotSupported
+	if result.ConfigFile != "" && result.Type.standalone() {
+		return nil, ErrConfigFlagNotSupported
 	}
 
 	return result, nil
@@ -157,7 +77,7 @@ func Parse(args []string) (*Options, error) {
 // buildRootCommand creates the root cobra command
 func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           config.AppName,
+		Use:           buildinfo.AppName,
 		Short:         "A lightweight CLI orchestrator for running and managing multiple local services",
 		Long:          "Fuku is a lightweight CLI orchestrator for running and managing multiple local services in development environments",
 		SilenceUsage:  true,
@@ -174,6 +94,7 @@ func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVarP(&flags.stop, CommandStop.String(), "s", "", "Stop services with specified profile")
 	cmd.Flags().BoolVarP(&flags.logs, CommandLogs.String(), "l", false, "Stream logs from running services")
 	cmd.Flags().BoolVarP(&flags.init, CommandInit.String(), "i", false, "Generate fuku.yaml template")
+	cmd.MarkFlagsMutuallyExclusive(CommandVersion.String(), CommandRun.String(), CommandStop.String(), CommandLogs.String(), CommandInit.String())
 
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		result.Type = CommandHelp
@@ -237,7 +158,7 @@ func buildStopCommand(result *Options) *cobra.Command {
 func buildLogsCommand(result *Options) *cobra.Command {
 	var (
 		logsProfile string
-		logsReplay  relay.ReplayOptions
+		logsReplay  model.ReplayOptions
 	)
 
 	cmd := &cobra.Command{
@@ -293,11 +214,11 @@ func buildDoctorCommand(result *Options) *cobra.Command {
 
 			switch {
 			case asJSON:
-				result.DoctorFormat = DoctorFormatJSON
+				result.DoctorFormat = FormatJSON
 			case summary:
-				result.DoctorFormat = DoctorFormatSummary
+				result.DoctorFormat = FormatSummary
 			default:
-				result.DoctorFormat = DoctorFormatText
+				result.DoctorFormat = FormatText
 			}
 		},
 	}
@@ -330,7 +251,7 @@ func (v *tailValue) Set(raw string) error {
 	}
 
 	if n <= 0 {
-		return errors.ErrInvalidTail
+		return ErrInvalidTail
 	}
 
 	*v.target = &n
