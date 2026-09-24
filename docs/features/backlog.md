@@ -17,7 +17,25 @@
 - [ ] **BL-001 – Define and enforce the package-level variable policy**
   - Why: `gochecknoglobals` is not enabled, so implementation and review cannot reliably catch unwanted package-level variables
   - Added: 20260902
-  - Source: [`internal/app/instance/instance_test.go`](../../internal/app/instance/instance_test.go)
+  - Source: [`internal/adapters/instance/identity_test.go`](../../internal/adapters/instance/identity_test.go)
+
+- [ ] **BL-008 – Add CLI controls for individual services**
+  - Why: reuse core service controls without requiring TUI or duplicating start/stop/restart logic
+  - Commands: proposed `fuku start <service-name>`, `fuku stop <service-name>` and `fuku restart <service-name>`
+  - Boundary: deferred beyond the architecture refactor; target the owning runtime without starting another service runtime
+  - Compatibility: resolve the conflict with existing `fuku stop [profile]` syntax before implementation
+  - Added: 20260916
+  - Source: [Application architecture](20260915-event-driven-architecture/feature.md)
+
+- [ ] **BL-009 – Compare Fuku's bus with Watermill GoChannel**
+  - Why: find whether Watermill can improve reliability or reduce maintenance without weakening required behavior
+  - Options: keep our bus, switch behind Fuku interfaces or adopt useful Watermill ideas in our implementation
+  - Compare: ordering, bounded memory, overload, slow consumers, publishing from handlers and shutdown under the same tests
+  - Quality: check race and leak tests, maintenance, dependencies and the custom wrapper code each option would require
+  - Boundary: in-memory and in-process only; no external broker or service, no migration approved and no change to the current refactor
+  - Decision: keep our bus if the complete library-plus-wrapper solution is not a clear improvement
+  - Added: 20260916
+  - Source: [Application architecture](20260915-event-driven-architecture/feature.md) and [Watermill GoChannel](https://watermill.io/pubsubs/gochannel/)
 
 ## Low
 
@@ -26,13 +44,6 @@
     only by ktlint and `buildPlugin`; a regression in either passes CI
   - Added: 20260913
   - Source: [Project-scoped sockets](20260913-project-scoped-sockets/plan.md)
-
-- [ ] **BL-007 – Point the doctor runtime checks at an injectable socket directory**
-  - Why: `checkStaleSockets` globs and dials the host's `/tmp/fuku-*.sock`, so `Test_checkStaleSockets` reads whatever
-    sockets the machine holds and can only assert OK-or-Warn; a socket directory the test can set makes the check
-    deterministic
-  - Added: 20260914
-  - Source: [`internal/app/doctor/runtime_test.go`](../../internal/app/doctor/runtime_test.go)
 
 ## Done
 
@@ -54,3 +65,13 @@
     meets
   - Added: 20260913
   - Source: [Project-scoped sockets code review](20260913-project-scoped-sockets/code-review.md)
+
+- [x] **BL-007 – Point the doctor runtime checks at an injectable socket directory**
+  - Why: `checkStaleSockets` globs and dials the host's `/tmp/fuku-*.sock`, so `Test_checkStaleSockets` reads whatever
+    sockets the machine holds and can only assert OK-or-Warn; a socket directory the test can set makes the check
+    deterministic
+  - Status: Won't do – the check reads `Runtime.Sockets()`, an injected observer. `Test_Runner_checkStaleSockets`
+    drives the mock and asserts the exact severity. `diagnostics.Test_Runtime_Sockets` binds its own socket in
+    `instance.SocketDir` and asserts on that one. A settable directory would add a knob nothing reads
+  - Added: 20260914
+  - Source: [`internal/app/doctor/runtime_test.go`](../../internal/app/doctor/runtime_test.go)
