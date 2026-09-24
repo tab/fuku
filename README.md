@@ -18,11 +18,11 @@
 - **Readiness Checks** - HTTP, TCP, and log-pattern based health checks
 - **Pre-flight Cleanup** - Automatic detection and termination of orphaned processes before starting services
 - **Hot-Reload** - Automatic service restart on file changes
+- **Single-Instance Guard** - A second `fuku run` of the same project is refused while the first one holds the project lock.
+  A fuku older than this release running the same project holds no lock, so it is not detected during the upgrade
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
-- **Diagnostics** - Health-check your setup with `fuku doctor` (config, environment, topology, and runtime checks; `--json` for scripting)
+- **Diagnostics** - Check your config, environment, topology, and runtime with `fuku doctor`
 - **REST API** - Control and monitor services via HTTP with token authentication
-- **Single-Instance Guard** - A second `fuku run` for the same project refuses to start while the first instance answers on its API port range, so its services survive the second process's pre-flight cleanup
-- **Update Notifications** - TUI highlights a hint next to the version footer when a newer GitHub release is available (cached 24h, opt out via `FUKU_UPDATER_DISABLED=1`)
 
 ## Installation
 
@@ -113,15 +113,21 @@ esc              Close service info aside, or clear filter when it is already cl
 q                Quit (stops all services)
 ```
 
-`enter` opens a read-only info panel for the selected service with three tabs (`config`, `env`, `health`): working directory, start command, tier, readiness probe (type/address/URL/pattern), per-service log outputs, watch globs and debounce, merged contents of the service's `.env` files (display only — values are not exported to the child process), PID, uptime, retry policy, and the current lifecycle state with how long it has held. The panel auto-fits the services list to the longest service name (capped at a medium width so a single very long name cannot keep stealing aside space — names beyond the cap are truncated in the services column) and donates the rest of the terminal width to the aside; on terminals too narrow to fit both, the panel stays hidden and the services list keeps the full width. `tab` and `shift+tab` cycle the aside tabs; `\` switches keyboard focus between the services list and the aside (the focused panel takes the highlighted border and routes navigation keys). `esc` closes the panel; if the panel is already closed, `esc` clears an active filter.
+`enter` opens a read-only panel for the selected service. It has three tabs:
+
+- `config`: directory, command, tier, readiness probe, log outputs, watch globs and debounce
+- `env`: the merged `.env` files of the service. Display only. Nothing is exported to the child process
+- `health`: PID, uptime, retry policy, the current state and how long it has held
+
+The panel hides on a terminal too narrow for both columns.
 
 ## Configuration
 
-Generate a config template with `fuku init`, or create `fuku.yaml` manually in your project root (`fuku.yml` is also supported as a fallback when `fuku.yaml` is absent).
+Run `fuku init` for a template, or create `fuku.yaml` in your project root. `fuku.yml` works too.
 
 ### Local Overrides
 
-Create `fuku.override.yaml` (or `fuku.override.yml`) next to your base config for local customizations that won't be committed:
+Create `fuku.override.yaml` (or `.yml`) next to your config for local changes you do not commit:
 
 ```yaml
 # fuku.override.yaml — typically .gitignored
@@ -140,14 +146,14 @@ logging:
   level: debug
 ```
 
-Override merges are applied automatically when using default config discovery.
-Explicit `--config` skips override loading. Maps are deep-merged, arrays are concatenated, and setting a key to `null` removes it.
+The override is merged when fuku finds the config itself. An explicit `--config` skips it. Maps are deep-merged.
+Arrays are concatenated. A key set to `null` is removed.
 
 ### Excluding Services
 
-Use the top-level `exclude` list to skip services at discovery time without mutating the service catalog.
-Excluded services keep their definitions in `services:` (so profile lists referencing them still pass config validation) and `fuku run` will silently drop them at startup.
-This is the recommended way to disable services locally via `fuku.override.yaml`.
+The top-level `exclude` list skips services at startup.
+They keep their definitions in `services:`, so profiles that name them still validate.
+This is the way to disable a service locally in `fuku.override.yaml`.
 
 ```yaml
 exclude:
@@ -198,7 +204,7 @@ server:
     token: "dev-token"
 ```
 
-For the full configuration reference, examples, and advanced patterns see the [documentation](https://getfuku.sh/docs/configuration/).
+The full reference is in the [documentation](https://getfuku.sh/docs/configuration/).
 
 ## Documentation
 
@@ -217,42 +223,27 @@ A [JetBrains plugin](https://getfuku.sh/plugins/jetbrains/) is available for GoL
 
 ## Architecture
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architectural patterns and design decisions.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the layers, the features and how they are wired.
 
 ## Development
 
 ```bash
-make fmt        # Format code
-make vet        # Run go vet
-make lint       # Run golangci-lint
-make lint:fix   # Run golangci-lint with --fix
-make test       # Run unit tests
-make test:race  # Run tests with race detector
-make build      # Build binary
-make test:e2e   # Run e2e tests (requires build)
-make coverage   # Generate coverage report
-```
-
-Verification loop:
-
-```bash
-make vet && make lint && make test && make build && make test:e2e && make test:race
+make check                   # Format, lint, vet, unit tests
+make build && make test:e2e  # E2E tests against the built binary
+make test:race               # Unit tests with the race detector
+make docs                    # Check the links in ARCHITECTURE.md and the package READMEs
+make lint:plugin             # Lint the JetBrains plugin
 ```
 
 ## Privacy & Telemetry
 
-Official release binaries include [Sentry](https://sentry.io) error tracking to help identify and fix bugs. This is completely transparent and can be disabled.
-
-- Set `FUKU_TELEMETRY_DISABLED=1` to opt out
-- Build from source to disable telemetry entirely
-
-See [Privacy & Telemetry](https://getfuku.sh/docs/privacy/) for full details on what is and isn't collected.
+Release binaries include [Sentry](https://sentry.io) error tracking. Set `FUKU_TELEMETRY_DISABLED=1` to opt out, or build from source.
+See [Privacy & Telemetry](https://getfuku.sh/docs/privacy/) for what is collected.
 
 ## Update Notifications
 
-On TUI startup, fuku checks the GitHub releases API for a newer version and renders a highlighted hint next to the version footer when an update is available (e.g. `v0.19.1 - ↑ v0.20.0`, with the available version in coral). The result is cached for 24 hours; network failures are silent.
-
-- Set `FUKU_UPDATER_DISABLED=1` to disable the check entirely
+`fuku run` checks GitHub for a newer release once a day. The TUI shows it next to the version (`v0.19.1 - ↑ v0.20.0`).
+Network failures are silent. Set `FUKU_UPDATER_DISABLED=1` to turn the check off.
 
 ## About the Name
 
