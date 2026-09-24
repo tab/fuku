@@ -1,0 +1,261 @@
+package readiness
+
+import (
+	"bufio"
+	"context"
+	"io"
+	"log/slog"
+	"strings"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"fuku/internal/contracts"
+)
+
+func Test_Checker_checkLog(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPublisher := NewMockPublisher(ctrl)
+
+	log := slog.New(slog.DiscardHandler)
+
+	checker := NewChecker(mockPublisher, log)
+
+	tests := []struct {
+		name     string
+		before   func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{})
+		pattern  string
+		timeout  time.Duration
+		expected error
+	}{
+		{
+			name: "a matching stdout line is ready",
+			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
+				stdout, stdoutWriter := io.Pipe()
+				stderr, stderrWriter := io.Pipe()
+
+				t.Cleanup(func() { stdout.Close(); stderr.Close() })
+
+				go func() {
+					defer stdoutWriter.Close()
+					defer stderrWriter.Close()
+
+					stdoutWriter.Write([]byte("Server is starting...\nServer ready on port 8080\n"))
+				}()
+
+				return t.Context(), stdout, stderr, make(chan struct{})
+			},
+			pattern: "ready",
+			timeout: 2 * time.Second,
+		},
+		{
+			name: "a matching stderr line is ready",
+			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
+				stdout, stdoutWriter := io.Pipe()
+				stderr, stderrWriter := io.Pipe()
+
+				t.Cleanup(func() { stdout.Close(); stderr.Close() })
+
+				go func() {
+					defer stdoutWriter.Close()
+					defer stderrWriter.Close()
+
+					stderrWriter.Write([]byte("Server ready on port 8080\n"))
+				}()
+
+				return t.Context(), stdout, stderr, make(chan struct{})
+			},
+			pattern: "ready",
+			timeout: 2 * time.Second,
+		},
+		{
+			name: "a line longer than the default scanner buffer is scanned past",
+			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
+				stdout, stdoutWriter := io.Pipe()
+				stderr, stderrWriter := io.Pipe()
+
+				t.Cleanup(func() { stdout.Close(); stderr.Close() })
+
+				go func() {
+					defer stdoutWriter.Close()
+					defer stderrWriter.Close()
+
+					stdoutWriter.Write([]byte(strings.Repeat("x", 100*1024) + "\nServer ready on port 8080\n"))
+				}()
+
+				return t.Context(), stdout, stderr, make(chan struct{})
+			},
+			pattern: "ready",
+			timeout: 2 * time.Second,
+		},
+		{
+			name: "no matching line times out",
+			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
+				stdout, stdoutWriter := io.Pipe()
+				stderr, stderrWriter := io.Pipe()
+
+				t.Cleanup(func() { stdout.Close(); stderr.Close() })
+
+				go func() {
+					defer stdoutWriter.Close()
+					defer stderrWriter.Close()
+
+					stdoutWriter.Write([]byte("Server is starting...\n"))
+				}()
+
+				return t.Context(), stdout, stderr, make(chan struct{})
+			},
+			pattern:  "ready",
+			timeout:  50 * time.Millisecond,
+			expected: contracts.ErrReadinessTimeout,
+		},
+		{
+			name: "a negative timeout has already elapsed",
+			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
+				stdout, stdoutWriter := io.Pipe()
+				stderr, stderrWriter := io.Pipe()
+
+				t.Cleanup(func() { stdout.Close(); stderr.Close() })
+				t.Cleanup(func() { stdoutWriter.Close(); stderrWriter.Close() })
+
+				return t.Context(), stdout, stderr, make(chan struct{})
+			},
+			pattern:  "ready",
+			timeout:  -time.Second,
+			expected: contracts.ErrReadinessTimeout,
+		},
+		{
+			name: "a cancelled context stops the scan",
+			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
+				stdout, stdoutWriter := io.Pipe()
+				stderr, stderrWriter := io.Pipe()
+
+				t.Cleanup(func() { stdout.Close(); stderr.Close() })
+				t.Cleanup(func() { stdoutWriter.Close(); stderrWriter.Close() })
+
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+
+				return ctx, stdout, stderr, make(chan struct{})
+			},
+			pattern:  "ready",
+			timeout:  10 * time.Second,
+			expected: context.Canceled,
+		},
+		{
+			name: "an exited process stops the scan",
+			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
+				stdout, stdoutWriter := io.Pipe()
+				stderr, stderrWriter := io.Pipe()
+
+				t.Cleanup(func() { stdout.Close(); stderr.Close() })
+				t.Cleanup(func() { stdoutWriter.Close(); stderrWriter.Close() })
+
+				done := make(chan struct{})
+				close(done)
+
+				return t.Context(), stdout, stderr, done
+			},
+			pattern:  "ready",
+			timeout:  5 * time.Second,
+			expected: contracts.ErrProcessExited,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, stderr, done := tt.before(t)
+
+			err := checker.checkLog(ctx, tt.pattern, stdout, stderr, tt.timeout, done)
+
+			require.ErrorIs(t, err, tt.expected)
+		})
+	}
+}
+
+func Test_Checker_checkLog_InvalidPattern(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPublisher := NewMockPublisher(ctrl)
+
+	log := slog.New(slog.DiscardHandler)
+
+	checker := NewChecker(mockPublisher, log)
+
+	stdout := strings.NewReader("")
+	stderr := strings.NewReader("")
+
+	err := checker.checkLog(t.Context(), "[invalid(", stdout, stderr, time.Second, make(chan struct{}))
+
+	require.ErrorContains(t, err, "invalid regex pattern")
+}
+
+func Test_Checker_checkLog_LineTooLong(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockPublisher := NewMockPublisher(ctrl)
+		mockLog := NewMockLogger(ctrl)
+
+		checker := NewChecker(mockPublisher, mockLog)
+
+		stdout, stdoutWriter := io.Pipe()
+		stderr, stderrWriter := io.Pipe()
+
+		defer stdout.Close()
+		defer stderrWriter.Close()
+
+		line := []byte(strings.Repeat("x", maxLineSize+1))
+		writeLine := func() {
+			stdoutWriter.Write(line)
+		}
+
+		go writeLine()
+
+		mockLog.EXPECT().Warn("Log readiness scan ended before a match", "error", bufio.ErrTooLong)
+
+		err := checker.checkLog(t.Context(), "ready", stdout, stderr, time.Second, make(chan struct{}))
+
+		require.ErrorIs(t, err, contracts.ErrReadinessTimeout)
+	})
+}
+
+func Test_Checker_checkLog_NoScannerOutlivesTheCheck(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockPublisher := NewMockPublisher(ctrl)
+
+		log := slog.New(slog.DiscardHandler)
+
+		checker := NewChecker(mockPublisher, log)
+
+		stdout, stdoutWriter := io.Pipe()
+		stderr, stderrWriter := io.Pipe()
+		ready := []byte("Server ready on port 8080\n")
+		noise := []byte("GET /health 200\n")
+		writeReady := func() {
+			stdoutWriter.Write(ready)
+		}
+
+		go writeReady()
+
+		err := checker.checkLog(t.Context(), "ready", stdout, stderr, time.Second, make(chan struct{}))
+
+		require.NoError(t, err)
+
+		written, err := stderrWriter.Write(noise)
+
+		require.NoError(t, err)
+		assert.Equal(t, len(noise), written)
+	})
+}
