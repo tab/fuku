@@ -9,7 +9,7 @@ status=0
 touched() { grep -qE "$1" <<<"$changed"; }
 
 # Handlers carry the routes and the response shapes; tests and mocks carry neither
-contract="$(grep -E '^internal/app/api/.*\.go$' <<<"$changed" \
+contract="$(grep -E '^internal/adapters/rest/.*\.go$' <<<"$changed" \
   | grep -vE '_(test|mock)\.go$' || true)"
 
 if [ -n "$contract" ] && [ -z "${ALLOW_SPEC_DRIFT:-}" ] && ! touched '^spec/openapi\.yaml$'; then

@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   conventions:
-    name: Title & commits
+    name: Conventions
     if: github.event.pull_request.user.login != 'dependabot[bot]'
     permissions:
       contents: read

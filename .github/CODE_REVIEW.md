@@ -4,7 +4,8 @@
 
 This document defines the **PR review process** for the **fuku** repository.
 
-> **Canonical source.** Code rules live in `CLAUDE.md` and `.claude/skills/*/SKILL.md`. This document covers only the review process: severity, PR hygiene, breaking-change handling, and output format. When citing a code-rule violation, reference the CLAUDE.md section heading or the relevant skill.
+> Code rules live in `CLAUDE.md` and `.claude/skills/*/SKILL.md`. This document covers the review process only:
+> severity, PR hygiene, breaking changes, output format. Cite a code rule by its `CLAUDE.md` heading or its skill.
 
 ---
 
@@ -43,16 +44,19 @@ If the diff goes beyond the stated intent, request clarification — do not gues
 
 Conventional commit format: `type(scope): description`.
 
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Type is lowercase. The scope is required, lowercase, and matches `[a-z0-9.-]+`. The description is capitalized and carries no trailing period.
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. The type is lowercase.
+The scope is required, lowercase, `[a-z0-9.-]+`. The description is capitalized, with no trailing period.
 
-`.githooks/commit-msg` and the `Title & commits` job enforce exactly that, on the title and on every non-merge commit subject in the branch. Match them rather than relaxing either here. Imperative mood and a concise description are yours to judge: no check grades them.
+`.githooks/commit-msg` and the `Conventions` job enforce this on the title and on every commit subject.
+Imperative mood and a concise description are yours to judge. No check grades them.
 
 ## 2.3 Commits (MAJOR)
 
 - conventional commit format on each commit, same rule as the title above
 - atomic — one logical change per commit
 - no generic messages (`fix`, `update`, `wip`)
-- no AI attribution anywhere in the message: no `Co-Authored-By` or `Claude-Session` trailer, no "Generated with" line, no robot emoji. Naming a path is not attribution, so `docs(claude):` is fine
+- no AI attribution anywhere in the message: no `Co-Authored-By` or `Claude-Session` trailer, no "Generated with" line, no robot emoji.
+  Naming a path is not attribution, so `docs(claude):` is fine
 
 ---
 
@@ -63,7 +67,7 @@ A change is breaking if it:
 - removes or renames CLI commands or flags
 - changes CLI output that scripts may depend on
 - modifies `fuku.yaml` schema incompatibly
-- changes signal handling, startup/shutdown ordering, or bus message structures
+- changes signal handling, the start or stop order, a bus payload or a wire name
 - changes public interface method signatures
 
 If a breaking change is present but not declared in the PR summary → **BLOCKER**. If uncertain, assume breaking and flag.

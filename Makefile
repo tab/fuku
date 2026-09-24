@@ -2,6 +2,7 @@
 fmt:
 	@echo "Formatting code..."
 	go fmt ./...
+	golangci-lint fmt ./...
 
 .PHONY: build
 build:
@@ -10,6 +11,8 @@ build:
 
 .PHONY: lint
 lint:
+	@echo "Running the comments check..."
+	go run ./.github/scripts/comments
 	@echo "Running golangci-lint..."
 	golangci-lint run
 
@@ -42,6 +45,11 @@ test\:race:
 coverage:
 	@echo "Generating test coverage report..."
 	GO_ENV=test go test $$(go list ./... | grep -v /e2e) -coverprofile=coverage.out && go tool cover -html=coverage.out
+
+.PHONY: docs
+docs:
+	@echo "Checking documentation links..."
+	.github/scripts/links.sh
 
 .PHONY: check
 check: fmt lint vet test
