@@ -92,15 +92,17 @@ func (s *Server) Stop(ctx context.Context) error {
 
 	s.halt()
 
+	var err error
+
 	select {
 	case <-s.done:
 	case <-ctx.Done():
-		return ctx.Err()
+		err = ctx.Err()
 	}
 
 	s.close()
 
-	return nil
+	return err
 }
 
 // run binds the socket once the profile resolves (a bind failure is logged and the run continues without the server)

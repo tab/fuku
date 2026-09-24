@@ -20,7 +20,7 @@ An older server ignored the options and would stream forever.
 The server is a producer of the run composition.
 It is listed before the services runtime, so it stops after the runtime's final events.
 
-`Run`:
+`run`:
 
 1. waits on `registry.WaitResolved`
 2. reads one snapshot for the profile and the service names
@@ -35,6 +35,9 @@ The server answers with the status frame, takes a hub subscription and pumps its
 A closed connection unsubscribes.
 
 `Stop` cancels the accept loop, closes the listener and every connection, waits for them and removes the socket file.
+It does this even when its context ends before `run` returns. It then returns the context error.
+A bind still in flight at that moment lands after the stop. It stays open until the process exits.
+The next run's cleanup removes its socket file.
 
 ## The client
 

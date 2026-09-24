@@ -468,6 +468,29 @@ func Test_Server_Stop_ContextDone(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func Test_Server_Stop_ContextDone_ClosesABoundServer(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+
+	identity := testIdentity(t)
+	socketPath := instance.SocketPath(instance.SocketDir, identity.Fingerprint)
+
+	runCtx, halt := context.WithCancel(t.Context())
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	srv := NewServer(nil, nil, identity, log)
+	srv.halt = halt
+
+	require.NoError(t, srv.start(runCtx))
+
+	err := srv.Stop(ctx)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.False(t, srv.running.Load())
+	assert.NoFileExists(t, socketPath)
+}
+
 func Test_Server_close_DisconnectsAClientThatNeverSubscribed(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 
