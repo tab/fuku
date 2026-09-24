@@ -1,24 +1,25 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
-	"slices"
 
 	"go.yaml.in/yaml/v3"
-
-	"fuku/internal/app/errors"
 )
+
+// streamSeparator starts the override document after the base one, so the override resolves the base anchors
+const streamSeparator = "\n---\n"
 
 // mergeYAML deep-merges override YAML bytes on top of base YAML bytes and returns the merged result
 func mergeYAML(base, override []byte) ([]byte, error) {
 	var baseDoc yaml.Node
 	if err := yaml.Unmarshal(base, &baseDoc); err != nil {
-		return nil, fmt.Errorf("%w: %w", errors.ErrFailedToParseConfig, err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToParseConfig, err)
 	}
 
-	overDoc, err := parseOverride(&baseDoc, override)
+	overDoc, err := parseOverride(base, override)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errors.ErrFailedToParseConfig, err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToParseConfig, err)
 	}
 
 	if overDoc.Kind != yaml.DocumentNode || len(overDoc.Content) == 0 {
@@ -28,12 +29,7 @@ func mergeYAML(base, override []byte) ([]byte, error) {
 	if baseDoc.Kind != yaml.DocumentNode || len(baseDoc.Content) == 0 {
 		resolveAliases(overDoc.Content[0])
 
-		out, err := yaml.Marshal(&overDoc)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", errors.ErrFailedToParseConfig, err)
-		}
-
-		return out, nil
+		return encodeDocument(&overDoc)
 	}
 
 	merged := mergeNodes(baseDoc.Content[0], overDoc.Content[0])
@@ -44,9 +40,14 @@ func mergeYAML(base, override []byte) ([]byte, error) {
 	resolveAliases(merged)
 	baseDoc.Content[0] = merged
 
-	out, err := yaml.Marshal(&baseDoc)
+	return encodeDocument(&baseDoc)
+}
+
+// encodeDocument marshals a merged document node back to YAML bytes
+func encodeDocument(doc *yaml.Node) ([]byte, error) {
+	out, err := yaml.Marshal(doc)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errors.ErrFailedToParseConfig, err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToParseConfig, err)
 	}
 
 	return out, nil
@@ -303,8 +304,9 @@ func collectAnchors(node *yaml.Node, anchors map[string]*yaml.Node) {
 	}
 }
 
-// replaceAliases recursively resolves alias nodes using the merged anchor map and returns false if the node should be removed
+// replaceAliases resolves alias nodes against the merged anchors and reports false when the node should be removed
 func replaceAliases(node *yaml.Node, anchors map[string]*yaml.Node) bool {
+	//nolint:exhaustive // a scalar or an alias carries no children
 	switch node.Kind {
 	case yaml.MappingNode:
 		filtered := make([]*yaml.Node, 0, len(node.Content))
@@ -350,10 +352,6 @@ func replaceAliases(node *yaml.Node, anchors map[string]*yaml.Node) bool {
 		}
 
 		node.Content = filtered
-	default:
-		for _, child := range node.Content {
-			replaceAliases(child, anchors)
-		}
 	}
 
 	return true
@@ -400,8 +398,8 @@ func buildKeyIndex(m *yaml.Node) map[string]int {
 	return index
 }
 
-// parseOverride parses override YAML, falling back to injecting base anchor definitions if standalone parsing fails
-func parseOverride(baseDoc *yaml.Node, override []byte) (yaml.Node, error) {
+// parseOverride parses override YAML, decoding it after the base in one stream when it references a base anchor
+func parseOverride(base, override []byte) (yaml.Node, error) {
 	var overDoc yaml.Node
 
 	err := yaml.Unmarshal(override, &overDoc)
@@ -409,68 +407,17 @@ func parseOverride(baseDoc *yaml.Node, override []byte) (yaml.Node, error) {
 		return overDoc, nil
 	}
 
-	anchorDefs := extractAnchorDefs(baseDoc)
-	if len(anchorDefs) == 0 {
+	stream := make([]byte, 0, len(base)+len(streamSeparator)+len(override))
+	stream = append(stream, base...)
+	stream = append(stream, streamSeparator...)
+	stream = append(stream, override...)
+
+	decoder := yaml.NewDecoder(bytes.NewReader(stream))
+
+	var baseDoc yaml.Node
+	if decoder.Decode(&baseDoc) != nil || decoder.Decode(&overDoc) != nil {
 		return yaml.Node{}, err
 	}
 
-	combined := make([]byte, 0, len(anchorDefs)+1+len(override))
-	combined = append(combined, anchorDefs...)
-	combined = append(combined, '\n')
-	combined = append(combined, override...)
-
-	var combinedDoc yaml.Node
-	if err := yaml.Unmarshal(combined, &combinedDoc); err != nil {
-		return yaml.Node{}, err
-	}
-
-	return combinedDoc, nil
-}
-
-// extractAnchorDefs marshals top-level entries from the base document that contain anchor definitions
-func extractAnchorDefs(baseDoc *yaml.Node) []byte {
-	if baseDoc.Kind != yaml.DocumentNode || len(baseDoc.Content) == 0 {
-		return nil
-	}
-
-	doc := baseDoc.Content[0]
-	if doc.Kind != yaml.MappingNode {
-		return nil
-	}
-
-	anchorMap := &yaml.Node{
-		Kind: yaml.MappingNode,
-		Tag:  doc.Tag,
-	}
-
-	for i := 0; i < len(doc.Content); i += 2 {
-		if hasAnchors(doc.Content[i+1]) {
-			anchorMap.Content = append(anchorMap.Content, doc.Content[i], doc.Content[i+1])
-		}
-	}
-
-	if len(anchorMap.Content) == 0 {
-		return nil
-	}
-
-	wrapper := &yaml.Node{
-		Kind:    yaml.DocumentNode,
-		Content: []*yaml.Node{anchorMap},
-	}
-
-	out, err := yaml.Marshal(wrapper)
-	if err != nil {
-		return nil
-	}
-
-	return out
-}
-
-// hasAnchors reports whether a node or any of its descendants has a YAML anchor
-func hasAnchors(node *yaml.Node) bool {
-	if node.Anchor != "" {
-		return true
-	}
-
-	return slices.ContainsFunc(node.Content, hasAnchors)
+	return overDoc, nil
 }

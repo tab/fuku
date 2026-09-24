@@ -6,8 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
-
-	"fuku/internal/app/errors"
 )
 
 func Test_MergeYAML(t *testing.T) {
@@ -118,6 +116,66 @@ func Test_MergeYAML(t *testing.T) {
 			base:     "# empty\n",
 			override: "logging:\n  level: debug\n",
 			expected: "logging:\n  level: debug\n",
+		},
+		{
+			name:     "merge key sequence takes the first mapping's value",
+			base:     "x-a: &a\n  tier: foundation\nx-b: &b\n  dir: services/api\n  tier: platform\nservices:\n  api:\n    <<: [*a, *b]\n    command: make run\n",
+			override: "services:\n  api:\n    command: make debug\n",
+			expected: "x-a:\n  tier: foundation\nx-b:\n  dir: services/api\n  tier: platform\nservices:\n  api:\n    command: make debug\n    tier: foundation\n    dir: services/api\n",
+		},
+		{
+			name:     "an anchored override mapping merges into an anchored base mapping",
+			base:     "x-a: &a\n  k: 1\n",
+			override: "x-a: &b\n  j: 2\n",
+			expected: "x-a:\n  k: 1\n  j: 2\n",
+		},
+		{
+			name:     "an anchored override list concatenates onto an anchored base list",
+			base:     "exclude: &base\n  - api\n",
+			override: "exclude: &extra\n  - web\n",
+			expected: "exclude:\n  - api\n  - web\n",
+		},
+		{
+			name:     "an alias to a null removes the key",
+			base:     "x-none: &none null\nlogging:\n  level: info\n",
+			override: "logging: *none\n",
+			expected: "x-none: null\n",
+		},
+		{
+			name:     "null for a key the base lacks adds nothing",
+			base:     "logging:\n  level: info\n",
+			override: "extra: null\n",
+			expected: "logging:\n  level: info\n",
+		},
+		{
+			name:     "a merge key on an alias to a scalar merges nothing",
+			base:     "x-s: &s foo\nservices:\n  api:\n    <<: *s\n    dir: a\n",
+			override: "services:\n  api:\n    command: run\n",
+			expected: "x-s: foo\nservices:\n  api:\n    dir: a\n    command: run\n",
+		},
+		{
+			name:     "a merge key on a plain scalar merges nothing",
+			base:     "services:\n  api:\n    <<: foo\n    dir: a\n",
+			override: "services:\n  api:\n    command: run\n",
+			expected: "services:\n  api:\n    dir: a\n    command: run\n",
+		},
+		{
+			name:     "null for an anchored scalar drops its list aliases",
+			base:     "x-go: &go '*.go'\nwatch:\n  - *go\n  - '*.templ'\n",
+			override: "x-go: null\n",
+			expected: "watch:\n  - '*.templ'\n",
+		},
+		{
+			name:     "null for an anchored mapping drops the list items that merge it",
+			base:     "x-r: &r\n  a: 1\nitems:\n  - <<: *r\n    b: 2\n  - c: 3\n",
+			override: "x-r: null\n",
+			expected: "items:\n  - c: 3\n",
+		},
+		{
+			name:     "replaced anchored scalar reaches its aliases",
+			base:     "x-level: &level info\nlogging:\n  level: *level\n",
+			override: "x-level: debug\n",
+			expected: "x-level: debug\nlogging:\n  level: debug\n",
 		},
 	}
 
@@ -328,13 +386,13 @@ func Test_MergeYAML_LayeredMergeKeyExpansion(t *testing.T) {
 func Test_MergeYAML_InvalidBase(t *testing.T) {
 	_, err := mergeYAML([]byte(":\ninvalid: [yaml"), []byte("key: value"))
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errors.ErrFailedToParseConfig))
+	assert.ErrorIs(t, err, ErrFailedToParseConfig)
 }
 
 func Test_MergeYAML_InvalidOverride(t *testing.T) {
 	_, err := mergeYAML([]byte("key: value"), []byte(":\ninvalid: [yaml"))
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errors.ErrFailedToParseConfig))
+	assert.ErrorIs(t, err, ErrFailedToParseConfig)
 }
 
 // assertYAMLEqual compares two YAML strings semantically

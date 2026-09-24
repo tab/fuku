@@ -3,13 +3,15 @@ package config
 import (
 	"strings"
 	"time"
+
+	"fuku/internal/model"
 )
 
 // Config represents the application configuration
 type Config struct {
-	AppEnv      string
-	SentryDSN   string
-	Telemetry   bool
+	AppEnv      string              `mapstructure:"-"`
+	SentryDSN   string              `mapstructure:"-"`
+	Telemetry   bool                `mapstructure:"-"`
 	Services    map[string]*Service `yaml:"services"`
 	Defaults    *ServiceDefaults    `yaml:"defaults"`
 	Profiles    map[string]any      `yaml:"profiles"`
@@ -19,20 +21,18 @@ type Config struct {
 	Retry       Retry               `yaml:"retry"`
 	Logs        LogStream           `yaml:"logs"`
 	Server      Server              `yaml:"server"`
-	Updater     bool
-	Version     int
+	Updater     bool                `mapstructure:"-"`
 }
 
-// DefaultConfig returns the default configuration
-func DefaultConfig() *Config {
+// defaultConfig returns the default configuration
+func defaultConfig() *Config {
 	cfg := &Config{
 		Services: make(map[string]*Service),
 		Profiles: make(map[string]any),
-		Version:  1,
 	}
 
-	cfg.Logging.Level = LogLevel
-	cfg.Logging.Format = LogFormat
+	cfg.Logging.Level = DefaultLogLevel
+	cfg.Logging.Format = DefaultLogFormat
 
 	cfg.Concurrency.Workers = MaxWorkers
 
@@ -42,27 +42,19 @@ func DefaultConfig() *Config {
 	cfg.Logs.Buffer = SocketLogsBufferSize
 	cfg.Logs.History = SocketLogsHistorySize
 
-	cfg.Profiles[Default] = "*"
+	cfg.Profiles[model.ProfileDefault] = "*"
 
 	return cfg
 }
 
-// ServerListen returns the server listen address
-func (c *Config) ServerListen() string {
-	return c.Server.Listen
-}
-
-// ServerToken returns the server auth token
-func (c *Config) ServerToken() string {
-	return c.Server.Auth.Token
-}
-
-// ApplyDefaults applies default configuration to services
-func (c *Config) ApplyDefaults() {
+// applyDefaults applies default configuration to services
+func (c *Config) applyDefaults() {
 	for name, service := range c.Services {
 		if service.Dir == "" {
 			service.Dir = name
 		}
+
+		service.applyReadinessDefaults()
 
 		if c.Defaults == nil {
 			continue
@@ -79,28 +71,23 @@ func (c *Config) ApplyDefaults() {
 	}
 }
 
-// TelemetryEnabled reports whether telemetry is active (opted in and DSN configured)
-func (c *Config) TelemetryEnabled() bool {
-	return c.Telemetry && c.SentryDSN != ""
+// applyReadinessDefaults fills the readiness timeout and interval a service leaves unset
+func (s *Service) applyReadinessDefaults() {
+	if s.Readiness == nil {
+		return
+	}
+
+	if s.Readiness.Timeout == 0 {
+		s.Readiness.Timeout = DefaultTimeout
+	}
+
+	if s.Readiness.Interval == 0 {
+		s.Readiness.Interval = DefaultInterval
+	}
 }
 
-// TelemetryDisabled reports whether telemetry is inactive (opted out or DSN missing)
-func (c *Config) TelemetryDisabled() bool {
-	return !c.TelemetryEnabled()
-}
-
-// UpdaterEnabled reports whether the version updater check is active
-func (c *Config) UpdaterEnabled() bool {
-	return c.Updater
-}
-
-// UpdaterDisabled reports whether the version updater check is inactive
-func (c *Config) UpdaterDisabled() bool {
-	return !c.UpdaterEnabled()
-}
-
-// Normalize runs all post-parse normalization steps on the config
-func (c *Config) Normalize() {
+// normalize runs all post-parse normalization steps on the config
+func (c *Config) normalize() {
 	c.normalizeTiers()
 	c.normalizeExclude()
 }
@@ -161,19 +148,19 @@ type Service struct {
 	Env       *Env       `yaml:"env"`
 }
 
-// Env declares the .env files to read for display in the UI's env tab; values are not exported to the service process (the child still inherits fuku's own environment, and runs in cfg.Dir where its tooling can load .env files directly)
+// Env declares the .env files shown in the UI's env tab (the values are never exported to the service process)
 type Env struct {
 	Files []string `yaml:"files"`
 }
 
 // Readiness represents readiness check configuration for a service
 type Readiness struct {
-	Type     string        `yaml:"type"`
-	Address  string        `yaml:"address"`
-	URL      string        `yaml:"url"`
-	Pattern  string        `yaml:"pattern"`
-	Timeout  time.Duration `yaml:"timeout"`
-	Interval time.Duration `yaml:"interval"`
+	Type     model.ReadinessType `yaml:"type"`
+	Address  string              `yaml:"address"`
+	URL      string              `yaml:"url"`
+	Pattern  string              `yaml:"pattern"`
+	Timeout  time.Duration       `yaml:"timeout"`
+	Interval time.Duration       `yaml:"interval"`
 }
 
 // Logs represents per-service console logging configuration

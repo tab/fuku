@@ -8,22 +8,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"fuku/internal/app/errors"
+	"fuku/internal/contracts"
+	"fuku/internal/model"
 )
 
-func Test_Load(t *testing.T) {
+func Test_loadDefault(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupFunc   func() func()
-		expectError bool
-		error       error
+		name      string
+		setupFunc func() func()
+		error     error
+		loaded    bool
 	}{
 		{
 			name: "no config file found - uses default",
 			setupFunc: func() func() {
 				return func() {}
 			},
-			error: nil,
+			error:  nil,
+			loaded: true,
 		},
 		{
 			name: "valid config file",
@@ -48,7 +50,8 @@ logging:
 
 				return func() { os.Remove("fuku.yaml") }
 			},
-			error: nil,
+			error:  nil,
+			loaded: true,
 		},
 		{
 			name: "valid config file with concurrency",
@@ -68,7 +71,8 @@ concurrency:
 
 				return func() { os.Remove("fuku.yaml") }
 			},
-			error: nil,
+			error:  nil,
+			loaded: true,
 		},
 		{
 			name: "invalid concurrency workers zero",
@@ -88,7 +92,7 @@ concurrency:
 
 				return func() { os.Remove("fuku.yaml") }
 			},
-			error: errors.ErrInvalidConfig,
+			error: contracts.ErrInvalidConfig,
 		},
 		{
 			name: "invalid yaml structure for unmarshal",
@@ -104,7 +108,7 @@ services: "this should be a map not a string"
 
 				return func() { os.Remove("fuku.yaml") }
 			},
-			error: errors.ErrFailedToParseConfig,
+			error: ErrFailedToParseConfig,
 		},
 		{
 			name: "permission denied error",
@@ -125,7 +129,45 @@ services: "this should be a map not a string"
 					os.Remove("fuku.yaml")
 				}
 			},
-			error: errors.ErrFailedToReadConfig,
+			error: contracts.ErrFailedToReadConfig,
+		},
+		{
+			name: "config file that cannot be checked",
+			setupFunc: func() func() {
+				require.NoError(t, os.Symlink(ConfigFile, ConfigFile))
+
+				return func() {}
+			},
+			error: contracts.ErrFailedToReadConfig,
+		},
+		{
+			name: "override file that cannot be checked",
+			setupFunc: func() func() {
+				require.NoError(t, os.WriteFile(ConfigFile, []byte("version: 1\n"), 0644))
+				require.NoError(t, os.Symlink(OverrideConfigFile, OverrideConfigFile))
+
+				return func() {}
+			},
+			error: contracts.ErrFailedToReadConfig,
+		},
+		{
+			name: "override path that is a directory",
+			setupFunc: func() func() {
+				require.NoError(t, os.WriteFile(ConfigFile, []byte("version: 1\n"), 0644))
+				require.NoError(t, os.Mkdir(OverrideConfigFile, 0755))
+
+				return func() {}
+			},
+			error: contracts.ErrFailedToReadConfig,
+		},
+		{
+			name: "config document that is not a mapping",
+			setupFunc: func() func() {
+				require.NoError(t, os.WriteFile(ConfigFile, []byte("- api\n"), 0644))
+
+				return func() {}
+			},
+			error: ErrFailedToParseConfig,
 		},
 	}
 
@@ -136,23 +178,16 @@ services: "this should be a map not a string"
 			cleanup := tt.setupFunc()
 			defer cleanup()
 
-			cfg, topology, err := Load()
+			cfg, topology, _, err := loadDefault()
 
-			if tt.error != nil {
-				require.Error(t, err)
-				assert.True(t, errors.Is(err, tt.error), "expected error %v, got %v", tt.error, err)
-				assert.Nil(t, cfg)
-				assert.Nil(t, topology)
-			} else {
-				require.NoError(t, err)
-				assert.NotNil(t, cfg)
-				assert.NotNil(t, topology)
-			}
+			require.ErrorIs(t, err, tt.error)
+			assert.Equal(t, tt.loaded, cfg != nil)
+			assert.Equal(t, tt.loaded, topology != nil)
 		})
 	}
 }
 
-func Test_Load_YmlFallback(t *testing.T) {
+func Test_loadDefault_YmlFallback(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -165,14 +200,14 @@ services:
 	err := os.WriteFile(ConfigFileAlt, []byte(content), 0644)
 	require.NoError(t, err)
 
-	cfg, topology, err := Load()
+	cfg, topology, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, topology)
 	assert.Contains(t, cfg.Services, "api")
 }
 
-func Test_Load_SentryDSN(t *testing.T) {
+func Test_loadDefault_SentryDSN(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
@@ -195,14 +230,14 @@ func Test_Load_SentryDSN(t *testing.T) {
 			t.Chdir(t.TempDir())
 			t.Setenv("SENTRY_DSN", tt.envValue)
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, cfg.SentryDSN)
 		})
 	}
 }
 
-func Test_Load_Telemetry(t *testing.T) {
+func Test_loadDefault_Telemetry(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
@@ -230,14 +265,35 @@ func Test_Load_Telemetry(t *testing.T) {
 			t.Chdir(t.TempDir())
 			t.Setenv("FUKU_TELEMETRY_DISABLED", tt.envValue)
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, cfg.Telemetry)
 		})
 	}
 }
 
-func Test_Load_Updater(t *testing.T) {
+func Test_loadDefault_EnvironmentFieldsIgnoreTheConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("FUKU_TELEMETRY_DISABLED", "1")
+	t.Setenv("FUKU_UPDATER_DISABLED", "1")
+	t.Setenv("SENTRY_DSN", "")
+	t.Setenv("GO_ENV", "")
+
+	content := "version: 2\nappenv: development\nsentrydsn: https://yaml@sentry.io/1\ntelemetry: true\nupdater: true\nservices:\n  api:\n    dir: ./api\n"
+
+	err := os.WriteFile(ConfigFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	cfg, _, _, err := loadDefault()
+	require.NoError(t, err)
+	assert.False(t, cfg.Telemetry)
+	assert.False(t, cfg.Updater)
+	assert.Empty(t, cfg.SentryDSN)
+	assert.Equal(t, EnvProduction, cfg.AppEnv)
+}
+
+func Test_loadDefault_Updater(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
@@ -275,14 +331,14 @@ func Test_Load_Updater(t *testing.T) {
 			t.Chdir(t.TempDir())
 			t.Setenv("FUKU_UPDATER_DISABLED", tt.envValue)
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, cfg.Updater)
 		})
 	}
 }
 
-func Test_Load_ConcurrencyConfig(t *testing.T) {
+func Test_loadDefault_ConcurrencyConfig(t *testing.T) {
 	tests := []struct {
 		name            string
 		yaml            string
@@ -318,14 +374,14 @@ concurrency:
 				t.Fatal(err)
 			}
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedWorkers, cfg.Concurrency.Workers)
 		})
 	}
 }
 
-func Test_Load_RetryConfig(t *testing.T) {
+func Test_loadDefault_RetryConfig(t *testing.T) {
 	tests := []struct {
 		name             string
 		yaml             string
@@ -367,7 +423,7 @@ retry:
 				t.Fatal(err)
 			}
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedAttempts, cfg.Retry.Attempts)
 			assert.Equal(t, tt.expectedBackoff, cfg.Retry.Backoff)
@@ -375,7 +431,7 @@ retry:
 	}
 }
 
-func Test_Load_LogsConfig(t *testing.T) {
+func Test_loadDefault_LogsConfig(t *testing.T) {
 	tests := []struct {
 		name            string
 		yaml            string
@@ -424,7 +480,7 @@ logs:
 				t.Fatal(err)
 			}
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedBuffer, cfg.Logs.Buffer)
 			assert.Equal(t, tt.expectedHistory, cfg.Logs.History)
@@ -432,12 +488,12 @@ logs:
 	}
 }
 
-func Test_Load_ServiceLogsConfig(t *testing.T) {
+func Test_loadDefault_ServiceLogsConfig(t *testing.T) {
 	tests := []struct {
 		name         string
 		yaml         string
 		expectedLogs map[string]*Logs
-		expectError  bool
+		error        error
 	}{
 		{
 			name: "service with logs config both outputs",
@@ -450,7 +506,6 @@ services:
 			expectedLogs: map[string]*Logs{
 				"api": {Output: []string{"stdout", "stderr"}},
 			},
-			expectError: false,
 		},
 		{
 			name: "service with logs config stdout only",
@@ -463,7 +518,6 @@ services:
 			expectedLogs: map[string]*Logs{
 				"api": {Output: []string{"stdout"}},
 			},
-			expectError: false,
 		},
 		{
 			name: "service with logs config empty output",
@@ -476,7 +530,6 @@ services:
 			expectedLogs: map[string]*Logs{
 				"api": {Output: []string{}},
 			},
-			expectError: false,
 		},
 		{
 			name: "service without logs config",
@@ -487,7 +540,6 @@ services:
 			expectedLogs: map[string]*Logs{
 				"api": nil,
 			},
-			expectError: false,
 		},
 		{
 			name: "service with invalid logs output",
@@ -497,7 +549,7 @@ services:
     dir: ./api
     logs:
       output: [invalid]`,
-			expectError: true,
+			error: ErrInvalidLogsOutput,
 		},
 	}
 
@@ -505,34 +557,26 @@ services:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
-			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644))
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			require.ErrorIs(t, err, tt.error)
 
-				for name, expectedLogs := range tt.expectedLogs {
-					service, ok := cfg.Services[name]
-					assert.True(t, ok)
-					assert.Equal(t, expectedLogs, service.Logs)
-				}
+			for name, expectedLogs := range tt.expectedLogs {
+				require.Contains(t, cfg.Services, name)
+				assert.Equal(t, expectedLogs, cfg.Services[name].Logs)
 			}
 		})
 	}
 }
 
-func Test_Load_WatchConfig(t *testing.T) {
+func Test_loadDefault_WatchConfig(t *testing.T) {
 	tests := []struct {
 		name          string
 		yaml          string
 		expectedWatch map[string]*Watch
-		expectError   bool
+		error         error
 	}{
 		{
 			name: "service with watch config",
@@ -549,7 +593,6 @@ services:
 					Ignore:  []string{"*_test.go"},
 				},
 			},
-			expectError: false,
 		},
 		{
 			name: "service with watch config and shared dirs",
@@ -568,7 +611,6 @@ services:
 					Shared:  []string{"pkg/common", "pkg/models"},
 				},
 			},
-			expectError: false,
 		},
 		{
 			name: "service without watch config",
@@ -579,7 +621,6 @@ services:
 			expectedWatch: map[string]*Watch{
 				"api": nil,
 			},
-			expectError: false,
 		},
 		{
 			name: "service with watch but empty include",
@@ -589,7 +630,7 @@ services:
     dir: ./api
     watch:
       include: []`,
-			expectError: true,
+			error: ErrWatchIncludeRequired,
 		},
 	}
 
@@ -597,29 +638,21 @@ services:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
-			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644))
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			require.ErrorIs(t, err, tt.error)
 
-				for name, expectedWatch := range tt.expectedWatch {
-					service, ok := cfg.Services[name]
-					assert.True(t, ok)
-					assert.Equal(t, expectedWatch, service.Watch)
-				}
+			for name, expectedWatch := range tt.expectedWatch {
+				require.Contains(t, cfg.Services, name)
+				assert.Equal(t, expectedWatch, cfg.Services[name].Watch)
 			}
 		})
 	}
 }
 
-func Test_Load_Exclude(t *testing.T) {
+func Test_loadDefault_Exclude(t *testing.T) {
 	tests := []struct {
 		name     string
 		yaml     string
@@ -674,14 +707,14 @@ exclude:
 			err := os.WriteFile(ConfigFile, []byte(tt.yaml), 0644)
 			require.NoError(t, err)
 
-			cfg, _, err := Load()
+			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, cfg.Exclude)
 		})
 	}
 }
 
-func Test_Load_Exclude_OverrideConcatenatesAndDedups(t *testing.T) {
+func Test_loadDefault_Exclude_OverrideConcatenatesAndDedups(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -707,12 +740,12 @@ exclude:
 	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
 	require.NoError(t, err)
 
-	cfg, _, err := Load()
+	cfg, _, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"web", "worker"}, cfg.Exclude)
 }
 
-func Test_Load_Override(t *testing.T) {
+func Test_loadDefault_Override(t *testing.T) {
 	tests := []struct {
 		name             string
 		base             string
@@ -735,7 +768,7 @@ func Test_Load_Override(t *testing.T) {
 			override:         "services:\n  debug-tool:\n    dir: ./tools/debug\n",
 			overrideFile:     OverrideConfigFile,
 			expectedServices: []string{"api", "debug-tool"},
-			expectedLevel:    LogLevel,
+			expectedLevel:    DefaultLogLevel,
 		},
 		{
 			name:             "fuku.override.yml fallback",
@@ -743,7 +776,7 @@ func Test_Load_Override(t *testing.T) {
 			override:         "services:\n  web:\n    dir: ./web\n",
 			overrideFile:     OverrideConfigFileAlt,
 			expectedServices: []string{"api", "web"},
-			expectedLevel:    LogLevel,
+			expectedLevel:    DefaultLogLevel,
 		},
 	}
 
@@ -758,7 +791,7 @@ func Test_Load_Override(t *testing.T) {
 			err = os.WriteFile(tt.overrideFile, []byte(tt.override), 0644)
 			require.NoError(t, err)
 
-			cfg, topology, err := Load()
+			cfg, topology, _, err := loadDefault()
 			require.NoError(t, err)
 			assert.NotNil(t, cfg)
 			assert.NotNil(t, topology)
@@ -772,7 +805,7 @@ func Test_Load_Override(t *testing.T) {
 	}
 }
 
-func Test_Load_Override_AllExtensionCombinations(t *testing.T) {
+func Test_loadDefault_Override_AllExtensionCombinations(t *testing.T) {
 	tests := []struct {
 		name         string
 		baseFile     string
@@ -811,28 +844,29 @@ func Test_Load_Override_AllExtensionCombinations(t *testing.T) {
 			err = os.WriteFile(tt.overrideFile, []byte("services:\n  web:\n    dir: ./web\n"), 0644)
 			require.NoError(t, err)
 
-			cfg, _, err := Load()
+			cfg, _, source, err := loadDefault()
 			require.NoError(t, err)
 			assert.Contains(t, cfg.Services, "api")
 			assert.Contains(t, cfg.Services, "web")
+			assert.Equal(t, files{path: tt.baseFile, override: tt.overrideFile}, source)
 		})
 	}
 }
 
-func Test_Load_Override_WithoutBaseIsIgnored(t *testing.T) {
+func Test_loadDefault_Override_WithoutBaseIsIgnored(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
 	err := os.WriteFile(OverrideConfigFile, []byte("services:\n  api:\n    dir: ./api\n"), 0644)
 	require.NoError(t, err)
 
-	cfg, topology, err := Load()
+	cfg, topology, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Empty(t, cfg.Services)
-	assert.True(t, topology.HasDefaultOnly)
+	assert.True(t, topology.DefaultOnly())
 }
 
-func Test_Load_Override_InvalidYAML(t *testing.T) {
+func Test_loadDefault_Override_InvalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -842,14 +876,13 @@ func Test_Load_Override_InvalidYAML(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte(":\ninvalid: [yaml"), 0644)
 	require.NoError(t, err)
 
-	cfg, topology, err := Load()
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, errors.ErrFailedToParseConfig))
+	cfg, topology, _, err := loadDefault()
+	require.ErrorIs(t, err, ErrFailedToParseConfig)
 	assert.Nil(t, cfg)
 	assert.Nil(t, topology)
 }
 
-func Test_Load_Override_MergedConfigPassesValidation(t *testing.T) {
+func Test_loadDefault_Override_MergedConfigPassesValidation(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -862,12 +895,12 @@ func Test_Load_Override_MergedConfigPassesValidation(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
 	require.NoError(t, err)
 
-	cfg, _, err := Load()
+	cfg, _, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"*.go", "*.templ"}, cfg.Services["api"].Watch.Include)
 }
 
-func Test_Load_Override_WatchNullRemovesBlock(t *testing.T) {
+func Test_loadDefault_Override_WatchNullRemovesBlock(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -880,12 +913,12 @@ func Test_Load_Override_WatchNullRemovesBlock(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
 	require.NoError(t, err)
 
-	cfg, _, err := Load()
+	cfg, _, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Nil(t, cfg.Services["api"].Watch)
 }
 
-func Test_Load_Override_NullRespectedByRuntimeDefaults(t *testing.T) {
+func Test_loadDefault_Override_NullRespectedByRuntimeDefaults(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -898,13 +931,13 @@ func Test_Load_Override_NullRespectedByRuntimeDefaults(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
 	require.NoError(t, err)
 
-	cfg, _, err := Load()
+	cfg, _, _, err := loadDefault()
 	require.NoError(t, err)
-	assert.Equal(t, LogLevel, cfg.Logging.Level)
-	assert.Equal(t, LogFormat, cfg.Logging.Format)
+	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
+	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
 }
 
-func Test_Load_Override_AffectsDefaultsTierTopology(t *testing.T) {
+func Test_loadDefault_Override_AffectsDefaultsTierTopology(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -917,14 +950,14 @@ func Test_Load_Override_AffectsDefaultsTierTopology(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
 	require.NoError(t, err)
 
-	cfg, topology, err := Load()
+	cfg, topology, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"platform"}, topology.Order)
 	assert.Equal(t, "platform", cfg.Services["api"].Tier)
 	assert.Equal(t, "platform", cfg.Services["web"].Tier)
 }
 
-func Test_Load_Override_AffectsPerServiceTierTopology(t *testing.T) {
+func Test_loadDefault_Override_AffectsPerServiceTierTopology(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -937,13 +970,13 @@ func Test_Load_Override_AffectsPerServiceTierTopology(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
 	require.NoError(t, err)
 
-	_, topology, err := Load()
+	_, topology, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Contains(t, topology.TierServices, "foundation")
 	assert.Contains(t, topology.TierServices["foundation"], "api")
 }
 
-func Test_Load_Override_BaseAnchorInOverride(t *testing.T) {
+func Test_loadDefault_Override_BaseAnchorInOverride(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -956,12 +989,33 @@ func Test_Load_Override_BaseAnchorInOverride(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
 	require.NoError(t, err)
 
-	cfg, _, err := Load()
+	cfg, _, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"*.go"}, cfg.Services["api"].Watch.Include)
 }
 
-func Test_Load_Override_MergeKeyTierAgreesWithTopology(t *testing.T) {
+func Test_loadDefault_Override_BaseAnchorKeepsBaseListsSingle(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	base := "version: 1\nx-common: &common\n  logs:\n    output: [stdout]\n  watch:\n    include: ['*.go']\nservices:\n  api:\n    <<: *common\n    dir: ./api\n"
+	override := "services:\n  web:\n    <<: *common\n    dir: ./web\n"
+
+	err := os.WriteFile(ConfigFile, []byte(base), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(OverrideConfigFile, []byte(override), 0644)
+	require.NoError(t, err)
+
+	cfg, _, _, err := loadDefault()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"stdout"}, cfg.Services["api"].Logs.Output)
+	assert.Equal(t, []string{"*.go"}, cfg.Services["api"].Watch.Include)
+	assert.Equal(t, []string{"stdout"}, cfg.Services["web"].Logs.Output)
+	assert.Equal(t, []string{"*.go"}, cfg.Services["web"].Watch.Include)
+}
+
+func Test_loadDefault_Override_MergeKeyTierAgreesWithTopology(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -970,13 +1024,48 @@ func Test_Load_Override_MergeKeyTierAgreesWithTopology(t *testing.T) {
 	err := os.WriteFile(ConfigFile, []byte(base), 0644)
 	require.NoError(t, err)
 
-	cfg, topology, err := Load()
+	cfg, topology, _, err := loadDefault()
 	require.NoError(t, err)
 	assert.Equal(t, "foundation", cfg.Services["api"].Tier)
 	assert.Contains(t, topology.TierServices["foundation"], "api")
 }
 
-func Test_LoadFromFile(t *testing.T) {
+func Test_loadDefault_RejectsAnEmptyService(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{
+			name:    "explicit null body",
+			content: "services: {api: null}\n",
+		},
+		{
+			name:    "empty mapping",
+			content: "services: {api: {}}\n",
+		},
+		{
+			name:    "missing body beside a valid service",
+			content: "services:\n  api:\n  web:\n    dir: web\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			require.NoError(t, os.WriteFile(ConfigFile, []byte(tt.content), 0644))
+
+			cfg, topology, _, err := loadDefault()
+
+			require.ErrorIs(t, err, contracts.ErrInvalidConfig)
+			require.ErrorIs(t, err, ErrEmptyService)
+			require.ErrorContains(t, err, "service api")
+			assert.Nil(t, cfg)
+			assert.Nil(t, topology)
+		})
+	}
+}
+
+func Test_loadFromFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -990,22 +1079,31 @@ services:
 	err := os.WriteFile(filePath, []byte(content), 0644)
 	require.NoError(t, err)
 
-	cfg, topology, err := LoadFromFile(filePath)
+	cfg, topology, _, err := loadFromFile(filePath)
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, topology)
 	assert.Contains(t, cfg.Services, "web")
 }
 
-func Test_LoadFromFile_NotFound(t *testing.T) {
-	cfg, topology, err := LoadFromFile("/nonexistent/path/fuku.yaml")
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, errors.ErrFailedToReadConfig))
+func Test_loadFromFile_NotFound(t *testing.T) {
+	cfg, topology, _, err := loadFromFile("/nonexistent/path/fuku.yaml")
+	require.ErrorIs(t, err, contracts.ErrFailedToReadConfig)
 	assert.Nil(t, cfg)
 	assert.Nil(t, topology)
 }
 
-func Test_LoadFromFile_SkipsOverride(t *testing.T) {
+func Test_loadFromFile_Directory(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg, topology, _, err := loadFromFile(dir)
+
+	require.ErrorIs(t, err, contracts.ErrFailedToReadConfig)
+	assert.Nil(t, cfg)
+	assert.Nil(t, topology)
+}
+
+func Test_loadFromFile_SkipsOverride(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -1015,45 +1113,32 @@ func Test_LoadFromFile_SkipsOverride(t *testing.T) {
 	err = os.WriteFile(OverrideConfigFile, []byte("services:\n  debug-tool:\n    dir: ./tools/debug\n"), 0644)
 	require.NoError(t, err)
 
-	cfg, _, err := LoadFromFile(ConfigFile)
+	cfg, _, source, err := loadFromFile(ConfigFile)
 	require.NoError(t, err)
 	assert.Contains(t, cfg.Services, "api")
 	assert.NotContains(t, cfg.Services, "debug-tool")
+	assert.Equal(t, files{path: ConfigFile, override: OverrideConfigFile}, source)
 }
 
-func Test_LoadFromFile_ExplicitFukuYamlSkipsOverride(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-
-	err := os.WriteFile(ConfigFile, []byte("version: 1\nservices:\n  api:\n    dir: ./api\n"), 0644)
-	require.NoError(t, err)
-
-	err = os.WriteFile(OverrideConfigFile, []byte("services:\n  debug-tool:\n    dir: ./tools/debug\n"), 0644)
-	require.NoError(t, err)
-
-	cfg, _, err := LoadFromFile("fuku.yaml")
-	require.NoError(t, err)
-	assert.Contains(t, cfg.Services, "api")
-	assert.NotContains(t, cfg.Services, "debug-tool")
-}
-
-func Test_LoadEnv(t *testing.T) {
+func Test_loadEnv(t *testing.T) {
 	tests := []struct {
 		name     string
+		before   func(t *testing.T)
 		goEnv    string
 		envVar   string
 		files    map[string]string
-		existing string
 		expected string
 	}{
 		{
 			name:     "no .env files does not fail",
+			before:   func(*testing.T) {},
 			goEnv:    "",
 			envVar:   "TEST_LOADENV_NONE",
 			expected: "",
 		},
 		{
 			name:     "loads .env file",
+			before:   func(*testing.T) {},
 			goEnv:    "",
 			envVar:   "TEST_LOADENV_BASE",
 			files:    map[string]string{".env": "TEST_LOADENV_BASE=from_dotenv\n"},
@@ -1061,6 +1146,7 @@ func Test_LoadEnv(t *testing.T) {
 		},
 		{
 			name:     "loads environment-specific .env file",
+			before:   func(*testing.T) {},
 			goEnv:    "staging",
 			envVar:   "TEST_LOADENV_SPECIFIC",
 			files:    map[string]string{".env.staging": "TEST_LOADENV_SPECIFIC=from_staging\n"},
@@ -1068,6 +1154,7 @@ func Test_LoadEnv(t *testing.T) {
 		},
 		{
 			name:   "local file has highest priority",
+			before: func(*testing.T) {},
 			goEnv:  "staging",
 			envVar: "TEST_LOADENV_LOCAL",
 			files: map[string]string{
@@ -1078,6 +1165,7 @@ func Test_LoadEnv(t *testing.T) {
 		},
 		{
 			name:   "environment-specific overrides base .env",
+			before: func(*testing.T) {},
 			goEnv:  "staging",
 			envVar: "TEST_LOADENV_OVERRIDE",
 			files: map[string]string{
@@ -1087,11 +1175,13 @@ func Test_LoadEnv(t *testing.T) {
 			expected: "from_staging",
 		},
 		{
-			name:     "does not override existing env vars",
+			name: "does not override existing env vars",
+			before: func(t *testing.T) {
+				t.Setenv("TEST_LOADENV_EXISTING", "already_set")
+			},
 			goEnv:    "",
 			envVar:   "TEST_LOADENV_EXISTING",
 			files:    map[string]string{".env": "TEST_LOADENV_EXISTING=from_dotenv\n"},
-			existing: "already_set",
 			expected: "already_set",
 		},
 	}
@@ -1103,18 +1193,13 @@ func Test_LoadEnv(t *testing.T) {
 
 			os.Unsetenv(tt.envVar)
 
-			if tt.existing != "" {
-				t.Setenv(tt.envVar, tt.existing)
-			}
+			tt.before(t)
 
 			for name, content := range tt.files {
-				err := os.WriteFile(name, []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, os.WriteFile(name, []byte(content), 0644))
 			}
 
-			LoadEnv()
+			loadEnv()
 
 			assert.Equal(t, tt.expected, os.Getenv(tt.envVar))
 
@@ -1123,7 +1208,7 @@ func Test_LoadEnv(t *testing.T) {
 	}
 }
 
-func Test_ResolveEnv(t *testing.T) {
+func Test_resolveEnv(t *testing.T) {
 	tests := []struct {
 		name     string
 		goEnv    string
@@ -1141,8 +1226,8 @@ func Test_ResolveEnv(t *testing.T) {
 		},
 		{
 			name:     "Returns test when set to test",
-			goEnv:    EnvTest,
-			expected: EnvTest,
+			goEnv:    "test",
+			expected: "test",
 		},
 	}
 
@@ -1150,7 +1235,7 @@ func Test_ResolveEnv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("GO_ENV", tt.goEnv)
 
-			result := ResolveEnv()
+			result := resolveEnv()
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -1253,17 +1338,16 @@ func Test_ResolveOverrideFile_StatError(t *testing.T) {
 	t.Cleanup(func() { os.Chmod(sub, 0755) })
 
 	_, err := resolveOverrideFile(sub + "/" + ConfigFile)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, errors.ErrFailedToReadConfig))
+	require.ErrorIs(t, err, contracts.ErrFailedToReadConfig)
 }
 
 func Test_ResolveExplicitConfig(t *testing.T) {
 	tests := []struct {
-		name      string
-		path      string
-		files     []string
-		expected  string
-		expectErr bool
+		name     string
+		path     string
+		files    []string
+		expected string
+		error    error
 	}{
 		{
 			name:     "path verified and returned",
@@ -1272,9 +1356,15 @@ func Test_ResolveExplicitConfig(t *testing.T) {
 			expected: "custom.yaml",
 		},
 		{
-			name:      "path not found returns error",
-			path:      "missing.yaml",
-			expectErr: true,
+			name:  "path not found returns error",
+			path:  "missing.yaml",
+			error: contracts.ErrFailedToReadConfig,
+		},
+		{
+			name:  "path under a file fails the check",
+			path:  "custom.yaml/fuku.yaml",
+			files: []string{"custom.yaml"},
+			error: contracts.ErrFailedToReadConfig,
 		},
 	}
 
@@ -1290,12 +1380,93 @@ func Test_ResolveExplicitConfig(t *testing.T) {
 
 			result, err := resolveExplicitConfig(tt.path)
 
-			if tt.expectErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.expected, result)
-			}
+			require.ErrorIs(t, err, tt.error)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_Telemetry(t *testing.T) {
+	tests := []struct {
+		name     string
+		before   func(t *testing.T)
+		disabled string
+		env      string
+		expected model.Telemetry
+	}{
+		{
+			name:     "enabled by default in production",
+			before:   func(*testing.T) {},
+			expected: model.Telemetry{Enabled: true, Environment: EnvProduction},
+		},
+		{
+			name: "carries the DSN and the environment",
+			before: func(t *testing.T) {
+				t.Setenv("SENTRY_DSN", "https://env@sentry.io/1")
+			},
+			env:      "test",
+			expected: model.Telemetry{Enabled: true, DSN: "https://env@sentry.io/1", Environment: "test"},
+		},
+		{
+			name:     "the opt-out disables it",
+			before:   func(*testing.T) {},
+			disabled: "1",
+			expected: model.Telemetry{Environment: EnvProduction},
+		},
+		{
+			name: "reads the DSN from the env files",
+			before: func(t *testing.T) {
+				require.NoError(t, os.WriteFile(".env", []byte("SENTRY_DSN=https://file@sentry.io/3\n"), 0o644))
+			},
+			expected: model.Telemetry{Enabled: true, DSN: "https://file@sentry.io/3", Environment: EnvProduction},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("FUKU_TELEMETRY_DISABLED", tt.disabled)
+			t.Setenv("SENTRY_DSN", "")
+			t.Setenv("GO_ENV", tt.env)
+
+			os.Unsetenv("SENTRY_DSN")
+
+			tt.before(t)
+
+			assert.Equal(t, tt.expected, Telemetry())
+		})
+	}
+}
+
+func Test_parseConfig_KeepsTheCause(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *Config
+		data   []byte
+		cause  string
+	}{
+		{
+			name:   "invalid yaml carries the yaml error",
+			config: defaultConfig(),
+			data:   []byte("services: [\n"),
+			cause:  "did not find expected node content",
+		},
+		{
+			name:   "a type mismatch carries the decode error",
+			config: defaultConfig(),
+			data:   []byte("services: \"not a map\"\n"),
+			cause:  "'Services' expected type 'map[string]*config.Service'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, topology, err := parseConfig(tt.config, tt.data)
+
+			require.ErrorIs(t, err, ErrFailedToParseConfig)
+			require.ErrorContains(t, err, tt.cause)
+			assert.Nil(t, cfg)
+			assert.Nil(t, topology)
 		})
 	}
 }

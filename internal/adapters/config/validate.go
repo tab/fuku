@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"fuku/internal/app/errors"
+	"fuku/internal/model"
 )
 
-// Validate validates the configuration
-func (c *Config) Validate() error {
+// validate validates the configuration
+func (c *Config) validate() error {
 	if err := c.validateConcurrency(); err != nil {
 		return err
 	}
@@ -32,6 +32,10 @@ func (c *Config) Validate() error {
 	}
 
 	for name, service := range c.Services {
+		if service == nil {
+			return fmt.Errorf("service %s: %w", name, ErrEmptyService)
+		}
+
 		if err := service.validateCommand(); err != nil {
 			return fmt.Errorf("service %s: %w", name, err)
 		}
@@ -76,7 +80,7 @@ func (c *Config) validateProfileEntry(profile string, value any) error {
 		for _, item := range v {
 			name, ok := item.(string)
 			if !ok {
-				return fmt.Errorf("%w: profile '%s' contains non-string entry", errors.ErrUnsupportedProfileFormat, profile)
+				return fmt.Errorf("%w: profile '%s' contains non-string entry", ErrUnsupportedProfileFormat, profile)
 			}
 
 			if err := c.checkProfileService(profile, name); err != nil {
@@ -86,7 +90,7 @@ func (c *Config) validateProfileEntry(profile string, value any) error {
 
 		return nil
 	default:
-		return fmt.Errorf("%w: %s", errors.ErrUnsupportedProfileFormat, profile)
+		return fmt.Errorf("%w: %s", ErrUnsupportedProfileFormat, profile)
 	}
 }
 
@@ -96,13 +100,13 @@ func (c *Config) checkProfileService(profile, name string) error {
 		return nil
 	}
 
-	return fmt.Errorf("%w: profile '%s' references undefined service '%s'", errors.ErrProfileReferenceUndefined, profile, name)
+	return fmt.Errorf("%w: profile '%s' references undefined service '%s'", ErrProfileReferenceUndefined, profile, name)
 }
 
 // validateConcurrency validates concurrency settings
 func (c *Config) validateConcurrency() error {
 	if c.Concurrency.Workers <= 0 {
-		return errors.ErrInvalidConcurrencyWorkers
+		return ErrInvalidConcurrencyWorkers
 	}
 
 	return nil
@@ -111,11 +115,11 @@ func (c *Config) validateConcurrency() error {
 // validateRetry validates retry settings
 func (c *Config) validateRetry() error {
 	if c.Retry.Attempts <= 0 {
-		return errors.ErrInvalidRetryAttempts
+		return ErrInvalidRetryAttempts
 	}
 
 	if c.Retry.Backoff < 0 {
-		return errors.ErrInvalidRetryBackoff
+		return ErrInvalidRetryBackoff
 	}
 
 	return nil
@@ -124,11 +128,11 @@ func (c *Config) validateRetry() error {
 // validateLogs validates logs settings
 func (c *Config) validateLogs() error {
 	if c.Logs.Buffer <= 0 {
-		return errors.ErrInvalidLogsBuffer
+		return ErrInvalidLogsBuffer
 	}
 
 	if c.Logs.History <= 0 {
-		return errors.ErrInvalidLogsHistory
+		return ErrInvalidLogsHistory
 	}
 
 	return nil
@@ -141,21 +145,21 @@ func (c *Config) validateServer() error {
 	}
 
 	if c.Server.Auth.Token == "" {
-		return errors.ErrAPITokenRequired
+		return ErrAPITokenRequired
 	}
 
 	host, portStr, err := net.SplitHostPort(c.Server.Listen)
 	if err != nil || host == "" {
-		return errors.ErrAPIInvalidListen
+		return ErrAPIInvalidListen
 	}
 
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port < 1 || port > 65535 {
-		return errors.ErrAPIInvalidListen
+		return ErrAPIInvalidListen
 	}
 
 	if !isLoopback(host) {
-		return errors.ErrAPINotLoopback
+		return ErrAPINotLoopback
 	}
 
 	return nil
@@ -173,7 +177,7 @@ func isLoopback(host string) bool {
 // validateCommand validates the command configuration
 func (s *Service) validateCommand() error {
 	if s.Command != "" && strings.TrimSpace(s.Command) == "" {
-		return errors.ErrInvalidCommand
+		return ErrInvalidCommand
 	}
 
 	return nil
@@ -188,30 +192,22 @@ func (s *Service) validateReadiness() error {
 	r := s.Readiness
 
 	switch r.Type {
-	case TypeHTTP:
+	case model.ReadinessHTTP:
 		if r.URL == "" {
-			return errors.ErrReadinessURLRequired
+			return ErrReadinessURLRequired
 		}
-	case TypeTCP:
+	case model.ReadinessTCP:
 		if r.Address == "" {
-			return errors.ErrReadinessAddressRequired
+			return ErrReadinessAddressRequired
 		}
-	case TypeLog:
+	case model.ReadinessLog:
 		if r.Pattern == "" {
-			return errors.ErrReadinessPatternRequired
+			return ErrReadinessPatternRequired
 		}
 	case "":
-		return errors.ErrReadinessTypeRequired
+		return ErrReadinessTypeRequired
 	default:
-		return fmt.Errorf("%w: '%s' (must be 'http', 'tcp', or 'log')", errors.ErrInvalidReadinessType, r.Type)
-	}
-
-	if r.Timeout == 0 {
-		r.Timeout = DefaultTimeout
-	}
-
-	if r.Interval == 0 {
-		r.Interval = DefaultInterval
+		return fmt.Errorf("%w: '%s' (must be 'http', 'tcp', or 'log')", ErrInvalidReadinessType, r.Type)
 	}
 
 	return nil
@@ -227,7 +223,7 @@ func (s *Service) validateLogs() error {
 		switch strings.ToLower(output) {
 		case "stdout", "stderr":
 		default:
-			return fmt.Errorf("%w: '%s'", errors.ErrInvalidLogsOutput, output)
+			return fmt.Errorf("%w: '%s'", ErrInvalidLogsOutput, output)
 		}
 	}
 
@@ -241,7 +237,7 @@ func (s *Service) validateWatch() error {
 	}
 
 	if len(s.Watch.Include) == 0 {
-		return errors.ErrWatchIncludeRequired
+		return ErrWatchIncludeRequired
 	}
 
 	return nil

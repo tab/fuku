@@ -7,12 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_DefaultTopology(t *testing.T) {
-	topology := DefaultTopology()
+func Test_defaultTopology(t *testing.T) {
+	topology := defaultTopology()
 
 	assert.NotNil(t, topology.TierServices)
 	assert.Empty(t, topology.Order)
-	assert.True(t, topology.HasDefaultOnly)
+	assert.True(t, topology.DefaultOnly())
 }
 
 func Test_ParseTierOrder(t *testing.T) {
@@ -164,6 +164,18 @@ defaults:
 			expectedTierOrder: []string{"platform"},
 			expectedServices:  map[string][]string{"platform": {"api"}},
 		},
+		{
+			name:              "empty document",
+			yaml:              "",
+			expectedTierOrder: []string{},
+			expectedServices:  map[string][]string{},
+		},
+		{
+			name:              "document that is not a mapping",
+			yaml:              "- api",
+			expectedTierOrder: []string{},
+			expectedServices:  map[string][]string{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -176,30 +188,30 @@ defaults:
 	}
 }
 
-func Test_ParseTierOrder_HasDefaultOnly(t *testing.T) {
+func Test_ParseTierOrder_DefaultOnly(t *testing.T) {
 	tests := []struct {
-		name                   string
-		yaml                   string
-		expectedHasDefaultOnly bool
+		name                string
+		yaml                string
+		expectedDefaultOnly bool
 	}{
 		{
-			name:                   "empty services has default only",
-			yaml:                   `services: {}`,
-			expectedHasDefaultOnly: true,
+			name:                "empty services has default only",
+			yaml:                `services: {}`,
+			expectedDefaultOnly: true,
 		},
 		{
 			name: "services without tiers has default only",
 			yaml: `services:
   api:
     dir: ./api`,
-			expectedHasDefaultOnly: true,
+			expectedDefaultOnly: true,
 		},
 		{
 			name: "services with only default tier has default only",
 			yaml: `services:
   api:
     tier: default`,
-			expectedHasDefaultOnly: true,
+			expectedDefaultOnly: true,
 		},
 		{
 			name: "services with multiple tiers not default only",
@@ -208,14 +220,14 @@ func Test_ParseTierOrder_HasDefaultOnly(t *testing.T) {
     tier: foundation
   api:
     tier: platform`,
-			expectedHasDefaultOnly: false,
+			expectedDefaultOnly: false,
 		},
 		{
 			name: "services with foundation tier not default only",
 			yaml: `services:
   db:
     tier: foundation`,
-			expectedHasDefaultOnly: false,
+			expectedDefaultOnly: false,
 		},
 		{
 			name: "mixed override and default not default only",
@@ -224,7 +236,7 @@ func Test_ParseTierOrder_HasDefaultOnly(t *testing.T) {
     tier: foundation
   api:
     dir: ./api`,
-			expectedHasDefaultOnly: false,
+			expectedDefaultOnly: false,
 		},
 	}
 
@@ -232,7 +244,7 @@ func Test_ParseTierOrder_HasDefaultOnly(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			topology, err := parseTierOrder([]byte(tt.yaml))
 			require.NoError(t, err)
-			assert.Equal(t, tt.expectedHasDefaultOnly, topology.HasDefaultOnly)
+			assert.Equal(t, tt.expectedDefaultOnly, topology.DefaultOnly())
 		})
 	}
 }

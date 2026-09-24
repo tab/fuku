@@ -2,26 +2,28 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"fuku/internal/model"
 )
 
-func Test_DefaultConfig(t *testing.T) {
-	cfg := DefaultConfig()
+func Test_defaultConfig(t *testing.T) {
+	cfg := defaultConfig()
 
 	assert.NotNil(t, cfg.Services)
 	assert.NotNil(t, cfg.Profiles)
-	assert.Equal(t, LogLevel, cfg.Logging.Level)
-	assert.Equal(t, LogFormat, cfg.Logging.Format)
+	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
+	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
 	assert.Equal(t, MaxWorkers, cfg.Concurrency.Workers)
 	assert.Equal(t, RetryAttempts, cfg.Retry.Attempts)
 	assert.Equal(t, RetryBackoff, cfg.Retry.Backoff)
 	assert.Equal(t, SocketLogsBufferSize, cfg.Logs.Buffer)
 	assert.Equal(t, SocketLogsHistorySize, cfg.Logs.History)
-	assert.Equal(t, 1, cfg.Version)
 }
 
-func Test_ApplyDefaults(t *testing.T) {
+func Test_applyDefaults(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   *Config
@@ -62,6 +64,32 @@ func Test_ApplyDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "readiness without timeout and interval gets the defaults",
+			config: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Readiness: &Readiness{Type: model.ReadinessHTTP}},
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Readiness: &Readiness{Type: model.ReadinessHTTP, Timeout: DefaultTimeout, Interval: DefaultInterval}},
+				},
+			},
+		},
+		{
+			name: "readiness keeps an explicit timeout and interval",
+			config: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Readiness: &Readiness{Type: model.ReadinessHTTP, Timeout: time.Minute, Interval: time.Second}},
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Readiness: &Readiness{Type: model.ReadinessHTTP, Timeout: time.Minute, Interval: time.Second}},
+				},
+			},
+		},
+		{
 			name: "service without watch config not affected",
 			config: &Config{
 				Services: map[string]*Service{
@@ -78,186 +106,8 @@ func Test_ApplyDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.config.ApplyDefaults()
+			tt.config.applyDefaults()
 			assert.Equal(t, tt.expected, tt.config)
-		})
-	}
-}
-
-func Test_TelemetryEnabled(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *Config
-		expected bool
-	}{
-		{
-			name:     "enabled when telemetry true and DSN set",
-			cfg:      &Config{Telemetry: true, SentryDSN: "https://key@sentry.io/123"},
-			expected: true,
-		},
-		{
-			name:     "disabled when telemetry false",
-			cfg:      &Config{Telemetry: false, SentryDSN: "https://key@sentry.io/123"},
-			expected: false,
-		},
-		{
-			name:     "disabled when DSN empty",
-			cfg:      &Config{Telemetry: true, SentryDSN: ""},
-			expected: false,
-		},
-		{
-			name:     "disabled when both false and empty",
-			cfg:      &Config{Telemetry: false, SentryDSN: ""},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.cfg.TelemetryEnabled())
-		})
-	}
-}
-
-func Test_TelemetryDisabled(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *Config
-		expected bool
-	}{
-		{
-			name:     "disabled when telemetry false",
-			cfg:      &Config{Telemetry: false, SentryDSN: "https://key@sentry.io/123"},
-			expected: true,
-		},
-		{
-			name:     "disabled when DSN empty",
-			cfg:      &Config{Telemetry: true, SentryDSN: ""},
-			expected: true,
-		},
-		{
-			name:     "disabled when both false and empty",
-			cfg:      &Config{Telemetry: false, SentryDSN: ""},
-			expected: true,
-		},
-		{
-			name:     "not disabled when telemetry true and DSN set",
-			cfg:      &Config{Telemetry: true, SentryDSN: "https://key@sentry.io/123"},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.cfg.TelemetryDisabled())
-		})
-	}
-}
-
-func Test_UpdaterEnabled(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *Config
-		expected bool
-	}{
-		{
-			name:     "enabled when Updater is true",
-			cfg:      &Config{Updater: true},
-			expected: true,
-		},
-		{
-			name:     "disabled when Updater is false",
-			cfg:      &Config{Updater: false},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.cfg.UpdaterEnabled())
-		})
-	}
-}
-
-func Test_UpdaterDisabled(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *Config
-		expected bool
-	}{
-		{
-			name:     "disabled when Updater is false",
-			cfg:      &Config{Updater: false},
-			expected: true,
-		},
-		{
-			name:     "not disabled when Updater is true",
-			cfg:      &Config{Updater: true},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.cfg.UpdaterDisabled())
-		})
-	}
-}
-
-func Test_ServerListen(t *testing.T) {
-	cfg := DefaultConfig()
-
-	tests := []struct {
-		name   string
-		listen string
-		want   string
-	}{
-		{
-			name:   "configured address",
-			listen: "127.0.0.1:9876",
-			want:   "127.0.0.1:9876",
-		},
-		{
-			name:   "empty returns empty",
-			listen: "",
-			want:   "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg.Server.Listen = tt.listen
-
-			assert.Equal(t, tt.want, cfg.ServerListen())
-		})
-	}
-}
-
-func Test_ServerToken(t *testing.T) {
-	cfg := DefaultConfig()
-
-	tests := []struct {
-		name  string
-		token string
-		want  string
-	}{
-		{
-			name:  "configured token",
-			token: "my-secret",
-			want:  "my-secret",
-		},
-		{
-			name:  "empty returns empty",
-			token: "",
-			want:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg.Server.Auth.Token = tt.token
-
-			assert.Equal(t, tt.want, cfg.ServerToken())
 		})
 	}
 }
@@ -373,7 +223,7 @@ func Test_NormalizeExclude(t *testing.T) {
 	}
 }
 
-func Test_Normalize(t *testing.T) {
+func Test_normalize(t *testing.T) {
 	tests := []struct {
 		name     string
 		cfg      *Config
@@ -415,7 +265,7 @@ func Test_Normalize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.cfg.Normalize()
+			tt.cfg.normalize()
 			assert.Equal(t, tt.expected, tt.cfg)
 		})
 	}
