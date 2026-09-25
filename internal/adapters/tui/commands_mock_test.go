@@ -55,36 +55,6 @@ func (mr *MockControlMockRecorder) Restart(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockControl)(nil).Restart), id)
 }
 
-// Start mocks base method.
-func (m *MockControl) Start(id string) (services.Admission, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", id)
-	ret0, _ := ret[0].(services.Admission)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Start indicates an expected call of Start.
-func (mr *MockControlMockRecorder) Start(id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockControl)(nil).Start), id)
-}
-
-// Stop mocks base method.
-func (m *MockControl) Stop(id string) (services.Admission, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop", id)
-	ret0, _ := ret[0].(services.Admission)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Stop indicates an expected call of Stop.
-func (mr *MockControlMockRecorder) Stop(id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockControl)(nil).Stop), id)
-}
-
 // StopAll mocks base method.
 func (m *MockControl) StopAll() error {
 	m.ctrl.T.Helper()
@@ -97,4 +67,19 @@ func (m *MockControl) StopAll() error {
 func (mr *MockControlMockRecorder) StopAll() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopAll", reflect.TypeOf((*MockControl)(nil).StopAll))
+}
+
+// Toggle mocks base method.
+func (m *MockControl) Toggle(id string) (services.Admission, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Toggle", id)
+	ret0, _ := ret[0].(services.Admission)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Toggle indicates an expected call of Toggle.
+func (mr *MockControlMockRecorder) Toggle(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Toggle", reflect.TypeOf((*MockControl)(nil).Toggle), id)
 }

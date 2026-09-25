@@ -38,6 +38,15 @@ func (c *Control) Restart(id string) (Admission, error) {
 	return c.admit(id, contracts.ActionRestart, contracts.CommandRestartService)
 }
 
+// Toggle admits a stop of a service with a live child and a start of one without
+func (c *Control) Toggle(id string) (Admission, error) {
+	if c.guard.live(id) {
+		return c.Stop(id)
+	}
+
+	return c.Start(id)
+}
+
 // StopAll closes admission and requests the shutdown of every service (ErrNotAccepting before a run, nil once stopping)
 func (c *Control) StopAll() error {
 	switch c.guard.halt() {

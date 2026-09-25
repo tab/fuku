@@ -158,7 +158,7 @@ func renderError(text string) string {
 
 // getUptime returns formatted uptime string for a service
 func (m *Model) getUptime(service *model.Service) string {
-	if service.Status.IsStartable() || service.Process.StartedAt.IsZero() || m.state.now.IsZero() {
+	if service.Status == model.StatusStopped || service.Status == model.StatusFailed || service.Process.StartedAt.IsZero() || m.state.now.IsZero() {
 		return ""
 	}
 

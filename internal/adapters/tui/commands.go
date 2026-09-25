@@ -15,8 +15,7 @@ import (
 
 // Control admits the view's service actions
 type Control interface {
-	Start(id string) (services.Admission, error)
-	Stop(id string) (services.Admission, error)
+	Toggle(id string) (services.Admission, error)
 	Restart(id string) (services.Admission, error)
 	StopAll() error
 }
@@ -24,7 +23,6 @@ type Control interface {
 // admissionMsg carries the core's answer to one service action of the view
 type admissionMsg struct {
 	name      string
-	verb      string
 	seenAt    time.Time // the service's LifecycleAt when the key was pressed
 	admission services.Admission
 	err       error
@@ -44,21 +42,14 @@ func (m Model) handleQuitKey() (Model, tea.Cmd) {
 	}
 }
 
-// handleStopKey toggles the selected service between running and stopped
+// handleStopKey asks the core to start or stop the selected service
 func (m Model) handleStopKey() (Model, tea.Cmd) {
 	service := m.getSelectedService()
 	if service == nil {
 		return m, nil
 	}
 
-	switch service.Status {
-	case model.StatusStopped, model.StatusFailed:
-		return m, admitCmd(service.ID, service.Name, service.LifecycleAt, m.control.Start, "starting")
-	case model.StatusRunning:
-		return m, admitCmd(service.ID, service.Name, service.LifecycleAt, m.control.Stop, "stopping")
-	default:
-		return m, nil
-	}
+	return m, admitCmd(service.ID, service.Name, service.LifecycleAt, m.control.Toggle)
 }
 
 // handleRestartKey restarts the selected service
@@ -68,7 +59,7 @@ func (m Model) handleRestartKey() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, admitCmd(service.ID, service.Name, service.LifecycleAt, m.control.Restart, "restarting")
+	return m, admitCmd(service.ID, service.Name, service.LifecycleAt, m.control.Restart)
 }
 
 // handleRestartFailedKey restarts all services in the failed state
@@ -81,25 +72,25 @@ func (m Model) handleRestartFailedKey() (Model, tea.Cmd) {
 			continue
 		}
 
-		cmds = append(cmds, admitCmd(svc.ID, svc.Name, svc.LifecycleAt, m.control.Restart, "restarting"))
+		cmds = append(cmds, admitCmd(svc.ID, svc.Name, svc.LifecycleAt, m.control.Restart))
 	}
 
 	return m, tea.Batch(cmds...)
 }
 
 // admitCmd runs one action through the core off the registry's read lock and answers with its admission
-func admitCmd(id, name string, seenAt time.Time, action func(id string) (services.Admission, error), verb string) tea.Cmd {
+func admitCmd(id, name string, seenAt time.Time, action func(id string) (services.Admission, error)) tea.Cmd {
 	return func() tea.Msg {
 		admission, err := action(id)
 
-		return admissionMsg{name: name, verb: verb, seenAt: seenAt, admission: admission, err: err}
+		return admissionMsg{name: name, seenAt: seenAt, admission: admission, err: err}
 	}
 }
 
 // handleAdmission starts the service loader for an admitted action whose events have not arrived and logs a rejection
 func (m Model) handleAdmission(msg admissionMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
-		m.log.Debug(fmt.Sprintf("TUI: %s of '%s' rejected", msg.verb, msg.name), "error", msg.err)
+		m.log.Debug(fmt.Sprintf("TUI: Action on '%s' rejected", msg.name), "error", msg.err)
 
 		return m, nil
 	}
@@ -109,7 +100,7 @@ func (m Model) handleAdmission(msg admissionMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.loader.Start(msg.admission.Service.ID, fmt.Sprintf("%s %s…", msg.verb, msg.name))
+	m.loader.Start(msg.admission.Service.ID, fmt.Sprintf("%s %s…", msg.admission.Status, msg.name))
 
 	return m, nil
 }

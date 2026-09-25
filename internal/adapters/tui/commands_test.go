@@ -35,9 +35,9 @@ func Test_HandleStopKey(t *testing.T) {
 		expected tea.Msg
 	}{
 		{
-			name: "a stopped service is started",
+			name: "a stopped service is toggled and the core admits a start",
 			before: func() Model {
-				mockControl.EXPECT().Start("id-api").Return(starting, nil)
+				mockControl.EXPECT().Toggle("id-api").Return(starting, nil)
 
 				m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, control: mockControl}
 				m.state.serviceIDs = []string{"id-api"}
@@ -45,25 +45,12 @@ func Test_HandleStopKey(t *testing.T) {
 
 				return m
 			},
-			expected: admissionMsg{name: "api", verb: "starting", admission: starting},
+			expected: admissionMsg{name: "api", admission: starting},
 		},
 		{
-			name: "a failed service is started",
+			name: "a running service is toggled and the core admits a stop",
 			before: func() Model {
-				mockControl.EXPECT().Start("id-api").Return(starting, nil)
-
-				m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, control: mockControl}
-				m.state.serviceIDs = []string{"id-api"}
-				m.snapshot = &model.Snapshot{Services: map[string]*model.Service{"id-api": {ID: "id-api", Name: "api", Status: model.StatusFailed}}}
-
-				return m
-			},
-			expected: admissionMsg{name: "api", verb: "starting", admission: starting},
-		},
-		{
-			name: "a running service is stopped",
-			before: func() Model {
-				mockControl.EXPECT().Stop("id-api").Return(stopping, nil)
+				mockControl.EXPECT().Toggle("id-api").Return(stopping, nil)
 
 				m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, control: mockControl}
 				m.state.serviceIDs = []string{"id-api"}
@@ -71,20 +58,20 @@ func Test_HandleStopKey(t *testing.T) {
 
 				return m
 			},
-			expected: admissionMsg{name: "api", verb: "stopping", admission: stopping},
+			expected: admissionMsg{name: "api", admission: stopping},
 		},
 		{
-			name: "a rejected stop answers with the error",
+			name: "a starting service is toggled and the core rejects it",
 			before: func() Model {
-				mockControl.EXPECT().Stop("id-api").Return(services.Admission{}, busy)
+				mockControl.EXPECT().Toggle("id-api").Return(services.Admission{}, busy)
 
 				m := Model{loader: &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}, control: mockControl}
 				m.state.serviceIDs = []string{"id-api"}
-				m.snapshot = &model.Snapshot{Services: map[string]*model.Service{"id-api": {ID: "id-api", Name: "api", Status: model.StatusRunning}}}
+				m.snapshot = &model.Snapshot{Services: map[string]*model.Service{"id-api": {ID: "id-api", Name: "api", Status: model.StatusStarting}}}
 
 				return m
 			},
-			expected: admissionMsg{name: "api", verb: "stopping", err: busy},
+			expected: admissionMsg{name: "api", err: busy},
 		},
 	}
 
@@ -98,23 +85,6 @@ func Test_HandleStopKey(t *testing.T) {
 			assert.False(t, result.loader.Active)
 		})
 	}
-}
-
-func Test_HandleStopKey_StartingServiceIsNotOffered(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockControl := NewMockControl(ctrl)
-
-	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
-
-	m := Model{loader: loader, control: mockControl}
-	m.state.serviceIDs = []string{"id-api"}
-	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{"id-api": {ID: "id-api", Name: "api", Status: model.StatusStarting}}}
-
-	_, cmd := m.handleStopKey()
-
-	assert.Nil(t, cmd)
 }
 
 func Test_HandleRestartKey(t *testing.T) {
@@ -144,7 +114,7 @@ func Test_HandleRestartKey(t *testing.T) {
 
 				return m
 			},
-			expected: admissionMsg{name: "api", verb: "restarting", seenAt: readyAt, admission: restarting},
+			expected: admissionMsg{name: "api", seenAt: readyAt, admission: restarting},
 		},
 		{
 			name: "a rejected restart answers with the error",
@@ -157,7 +127,7 @@ func Test_HandleRestartKey(t *testing.T) {
 
 				return m
 			},
-			expected: admissionMsg{name: "api", verb: "restarting", err: notAllowed},
+			expected: admissionMsg{name: "api", err: notAllowed},
 		},
 	}
 
@@ -240,7 +210,7 @@ func Test_HandleAdmission(t *testing.T) {
 
 				return m
 			},
-			msg:          admissionMsg{name: "api", verb: "starting", seenAt: pressedAt, admission: starting},
+			msg:          admissionMsg{name: "api", seenAt: pressedAt, admission: starting},
 			expectLoader: "starting api…",
 		},
 		{
@@ -251,7 +221,7 @@ func Test_HandleAdmission(t *testing.T) {
 
 				return m
 			},
-			msg: admissionMsg{name: "api", verb: "starting", seenAt: pressedAt, admission: starting},
+			msg: admissionMsg{name: "api", seenAt: pressedAt, admission: starting},
 		},
 		{
 			name: "an admission after a restarting event leaves the loader the event started",
@@ -262,7 +232,7 @@ func Test_HandleAdmission(t *testing.T) {
 
 				return m
 			},
-			msg:          admissionMsg{name: "api", verb: "restarting", seenAt: pressedAt, admission: restarting},
+			msg:          admissionMsg{name: "api", seenAt: pressedAt, admission: restarting},
 			expectLoader: "restarting api…",
 		},
 		{
@@ -273,7 +243,7 @@ func Test_HandleAdmission(t *testing.T) {
 
 				return m
 			},
-			msg: admissionMsg{name: "api", verb: "stopping", seenAt: pressedAt, err: contracts.ErrServiceBusy},
+			msg: admissionMsg{name: "api", seenAt: pressedAt, err: contracts.ErrServiceBusy},
 		},
 	}
 

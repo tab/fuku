@@ -94,6 +94,48 @@ func Test_Control_Actions(t *testing.T) {
 			expected: Admission{Service: svc, Action: contracts.ActionRestart, Status: model.StatusRestarting},
 		},
 		{
+			name: "toggle publishes the stop command for a service with a live child",
+			before: func() {
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(mockProcess, true).Times(2)
+				mockProcess.EXPECT().Done().Return(alive).Times(2)
+				mockPublisher.EXPECT().Publish(contracts.Message{Type: contracts.CommandStopService, Data: svc}).Return(nil)
+			},
+			act:      control.Toggle,
+			expected: Admission{Service: svc, Action: contracts.ActionStop, Status: model.StatusStopping},
+		},
+		{
+			name: "toggle publishes the start command for a service without a live child",
+			before: func() {
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(nil, false).Times(2)
+				mockPublisher.EXPECT().Publish(contracts.Message{Type: contracts.CommandStartService, Data: svc}).Return(nil)
+			},
+			act:      control.Toggle,
+			expected: Admission{Service: svc, Action: contracts.ActionStart, Status: model.StatusStarting},
+		},
+		{
+			name: "toggle of a busy service publishes nothing",
+			before: func() {
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(mockProcess, true)
+				mockProcess.EXPECT().Done().Return(alive)
+			},
+			act: control.Toggle,
+			err: contracts.ErrServiceBusy,
+		},
+		{
 			name: "a rejected action publishes nothing",
 			before: func() {
 				guard.open()

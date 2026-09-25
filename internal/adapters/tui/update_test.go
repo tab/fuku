@@ -207,7 +207,7 @@ func Test_Update_ActionAnswers(t *testing.T) {
 
 				return Model{loader: NewLoader(), registry: mockRegistry, log: log}
 			},
-			msg:          admissionMsg{name: "api", verb: "starting", admission: starting},
+			msg:          admissionMsg{name: "api", admission: starting},
 			expectLoader: "id-api",
 		},
 		{
@@ -507,7 +507,7 @@ func Test_HandleStopKey_WithFilter(t *testing.T) {
 
 	stopping := services.Admission{Service: model.Service{ID: "id-web", Name: "web"}, Action: contracts.ActionStop, Status: model.StatusStopping}
 
-	mockControl.EXPECT().Stop("id-web").Return(stopping, nil)
+	mockControl.EXPECT().Toggle("id-web").Return(stopping, nil)
 
 	loader := &Loader{Model: spinner.New(), queue: make([]LoaderItem, 0)}
 
@@ -524,7 +524,7 @@ func Test_HandleStopKey_WithFilter(t *testing.T) {
 
 	_, cmd := m.handleStopKey()
 
-	assert.Equal(t, admissionMsg{name: "web", verb: "stopping", admission: stopping}, cmd())
+	assert.Equal(t, admissionMsg{name: "web", admission: stopping}, cmd())
 }
 
 func Test_HandleStopKey_ZeroMatches_IsNoop(t *testing.T) {
@@ -570,7 +570,7 @@ func Test_HandleRestartKey_WithFilter(t *testing.T) {
 
 	_, cmd := m.handleRestartKey()
 
-	assert.Equal(t, admissionMsg{name: "db", verb: "restarting", admission: restarting}, cmd())
+	assert.Equal(t, admissionMsg{name: "db", admission: restarting}, cmd())
 }
 
 func Test_HandleRestartKey_ZeroMatches_IsNoop(t *testing.T) {
@@ -711,8 +711,8 @@ func Test_HandleRestartFailedKey(t *testing.T) {
 				return m
 			},
 			expected: []tea.Msg{
-				admissionMsg{name: "api", verb: "restarting"},
-				admissionMsg{name: "db", verb: "restarting"},
+				admissionMsg{name: "api"},
+				admissionMsg{name: "db"},
 			},
 		},
 		{
@@ -734,8 +734,8 @@ func Test_HandleRestartFailedKey(t *testing.T) {
 				return m
 			},
 			expected: []tea.Msg{
-				admissionMsg{name: "db", verb: "restarting"},
-				admissionMsg{name: "queue", verb: "restarting"},
+				admissionMsg{name: "db"},
+				admissionMsg{name: "queue"},
 			},
 		},
 		{
@@ -758,9 +758,9 @@ func Test_HandleRestartFailedKey(t *testing.T) {
 				return m
 			},
 			expected: []tea.Msg{
-				admissionMsg{name: "api", verb: "restarting"},
-				admissionMsg{name: "web", verb: "restarting"},
-				admissionMsg{name: "db", verb: "restarting"},
+				admissionMsg{name: "api"},
+				admissionMsg{name: "web"},
+				admissionMsg{name: "db"},
 			},
 		},
 	}
@@ -845,7 +845,7 @@ func Test_HandleKeyPress_CtrlRRoutesToRestartFailed(t *testing.T) {
 
 	_, cmd := m.handleKeyPress(msg)
 
-	assert.Equal(t, admissionMsg{name: "api", verb: "restarting"}, cmd())
+	assert.Equal(t, admissionMsg{name: "api"}, cmd())
 }
 
 func Test_HandleKeyPress_ServiceActionKeys(t *testing.T) {
@@ -873,12 +873,12 @@ func Test_HandleKeyPress_ServiceActionKeys(t *testing.T) {
 		expected tea.Msg
 	}{
 		{
-			name: "s stops the selected running service",
+			name: "s toggles the selected service",
 			before: func() {
-				mockControl.EXPECT().Stop("id-api").Return(stopping, nil)
+				mockControl.EXPECT().Toggle("id-api").Return(stopping, nil)
 			},
 			msg:      tea.KeyPressMsg{Code: 's', Text: "s"},
-			expected: admissionMsg{name: "api", verb: "stopping", admission: stopping},
+			expected: admissionMsg{name: "api", admission: stopping},
 		},
 		{
 			name: "r restarts the selected service",
@@ -886,7 +886,7 @@ func Test_HandleKeyPress_ServiceActionKeys(t *testing.T) {
 				mockControl.EXPECT().Restart("id-api").Return(restarting, nil)
 			},
 			msg:      tea.KeyPressMsg{Code: 'r', Text: "r"},
-			expected: admissionMsg{name: "api", verb: "restarting", admission: restarting},
+			expected: admissionMsg{name: "api", admission: restarting},
 		},
 	}
 

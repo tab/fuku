@@ -61,6 +61,9 @@ Every start runs inside the worker bound.
 4. no token is held, or `ErrServiceBusy`
 5. the action fits the live child: start needs none, stop needs one, restart needs nothing more. Otherwise `ActionNotAllowedError`
 
+`Toggle` serves the TUI's `s` key. It picks stop for a service with a live child and start for one without.
+`Guard.admit` then checks that action like any other.
+
 A rejected publish releases the token and returns the bus error.
 
 An admitted stop marks the service as stopped on purpose. An admitted start or restart clears the mark, and so does tier startup.

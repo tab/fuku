@@ -18,8 +18,3 @@ const (
 func (s Status) IsRunning() bool {
 	return s == StatusRunning
 }
-
-// IsStartable returns true if the service can be started
-func (s Status) IsStartable() bool {
-	return s == StatusStopped || s == StatusFailed
-}
