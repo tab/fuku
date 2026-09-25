@@ -20,13 +20,13 @@ A package can be both a consumer and a producer, like `services.Runtime`. It app
 
 ## Start and stop
 
-Start: guard, consumers in order, producers in order, command on its own goroutine.
+Start: guard, telemetry, consumers in order, producers in order, command on its own goroutine.
 A failed stage unwinds the producers started so far and cancels the context.
 
 Stop: `SignalReceived` is published if an OS signal ended the run. Producers stop, newest first.
 Consumers drain in order, twice, because a handler may publish during the first pass. The context is cancelled. The command is joined.
-Telemetry flushes next, so the shutdown metrics and spans leave with it. The bus closes last, through `Closer`.
-A failed start flushes and closes the bus on its way out. The cancelled context has ended every subscription.
+Telemetry stops next. It flushes Sentry, so the shutdown metrics and spans leave with it. The bus closes last, through `Closer`.
+A failed start stops telemetry and closes the bus on its way out. The cancelled context has ended every subscription.
 
 ## Outcome
 
@@ -48,3 +48,5 @@ A command returns its failure and does not log or print it. `ErrInstanceAlreadyR
 
 - a new participant goes into a composition's slices in `bootstrap/modules`, at the position its guarantee needs. Never into an Fx value group
 - a package never registers an Fx hook of its own. The coordinator is the one Fx hook
+- telemetry is not a producer. Producers stop before the consumers drain, but the collector and the tracer record during the drain.
+  So telemetry starts after the guard and stops after the command is joined

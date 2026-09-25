@@ -38,9 +38,10 @@ type Closer interface {
 	Close()
 }
 
-// Telemetry flushes pending telemetry and reports a panic before the process exits
+// Telemetry spans the run: it starts before the first consumer, stops after the last drain and reports a panic
 type Telemetry interface {
-	Flush()
+	Start()
+	Stop()
 	Recover(r any)
 }
 
@@ -98,13 +99,15 @@ func Register(lc fx.Lifecycle, coordinator *Coordinator) {
 	})
 }
 
-// Start runs the guard, subscribes the consumers, starts the producers and runs the command, unwinding on a failure
+// Start runs the guard, telemetry, consumers, producers and command in that order, unwinding on a failure
 func (c *Coordinator) Start(ctx context.Context) error {
 	if err := c.check(ctx); err != nil {
 		c.unwind(ctx)
 
 		return err
 	}
+
+	c.telemetry.Start()
 
 	for _, consumer := range c.participants.Consumers {
 		if err := consumer.Subscribe(c.ctx); err != nil {
@@ -138,7 +141,7 @@ func (c *Coordinator) check(ctx context.Context) error {
 	return c.participants.Guard.Check(ctx)
 }
 
-// Stop announces the signal, stops the producers, drains the consumers, joins the command, flushes and closes the bus
+// Stop announces the signal, stops producers, drains consumers, joins the command, stops telemetry and closes the bus
 func (c *Coordinator) Stop(ctx context.Context) error {
 	c.publishSignal()
 
@@ -169,7 +172,7 @@ func (c *Coordinator) Stop(ctx context.Context) error {
 		errs = append(errs, ctx.Err())
 	}
 
-	c.telemetry.Flush()
+	c.telemetry.Stop()
 	c.closer.Close()
 
 	return errors.Join(errs...)
@@ -189,7 +192,7 @@ func (c *Coordinator) run(ctx context.Context) {
 	c.arbiter.complete(c.participants.Command.Run(ctx))
 }
 
-// unwind stops the producers a failed start already started, newest first, cancels, flushes and closes the bus
+// unwind stops the producers a failed start already started, newest first, cancels, stops telemetry, closes the bus
 func (c *Coordinator) unwind(ctx context.Context) {
 	for _, producer := range slices.Backward(c.started) {
 		if err := producer.Stop(ctx); err != nil {
@@ -199,7 +202,7 @@ func (c *Coordinator) unwind(ctx context.Context) {
 
 	c.started = nil
 	c.cancel()
-	c.telemetry.Flush()
+	c.telemetry.Stop()
 	c.closer.Close()
 }
 

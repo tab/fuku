@@ -5,14 +5,16 @@ No other package calls Sentry.
 
 ## The client
 
-`NewClient` sets up the SDK when telemetry is enabled. Otherwise it does nothing.
+`Start` sets up the SDK when telemetry is enabled. Otherwise it does nothing. `NewClient` only keeps the options.
 
 - enabled when `FUKU_TELEMETRY_DISABLED` is not `1` and a DSN exists: `SENTRY_DSN`, else the DSN built into the release binary
 - the user is an anonymous UUID in `$UserConfigDir/fuku/telemetry.id`
 - `stripPII` clears the server name and every user field but the ID
 - traces are sampled at 10%
 
-The coordinator calls `Flush` after the command returns, and `Recover` on a panic.
+The coordinator calls `Start` after the guard and `Stop` after the command returns. It calls `Recover` on a panic.
+`Stop` unbinds the SDK, flushes it and closes the transport. Before `Start` and after `Stop`, `Recover` sends nothing.
+A flush that timed out leaves the transport to the process exit. Its `Close` would wait out every send on a dead network.
 
 ## The collector
 

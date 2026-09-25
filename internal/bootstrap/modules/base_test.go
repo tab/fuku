@@ -204,7 +204,7 @@ func Test_Projections(t *testing.T) {
 
 	probe := fx.Options(
 		fx.Supply(buildDSN),
-		fx.Replace(slog.New(componentHandler{Handler: slog.DiscardHandler}), &telemetry.Client{}),
+		fx.Replace(slog.New(componentHandler{Handler: slog.DiscardHandler})),
 	)
 	components := func(l loggers) map[string]string {
 		bound := map[string]any{

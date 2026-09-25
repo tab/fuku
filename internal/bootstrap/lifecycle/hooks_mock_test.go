@@ -257,18 +257,6 @@ func (m *MockTelemetry) EXPECT() *MockTelemetryMockRecorder {
 	return m.recorder
 }
 
-// Flush mocks base method.
-func (m *MockTelemetry) Flush() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Flush")
-}
-
-// Flush indicates an expected call of Flush.
-func (mr *MockTelemetryMockRecorder) Flush() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockTelemetry)(nil).Flush))
-}
-
 // Recover mocks base method.
 func (m *MockTelemetry) Recover(r any) {
 	m.ctrl.T.Helper()
@@ -279,6 +267,30 @@ func (m *MockTelemetry) Recover(r any) {
 func (mr *MockTelemetryMockRecorder) Recover(r any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recover", reflect.TypeOf((*MockTelemetry)(nil).Recover), r)
+}
+
+// Start mocks base method.
+func (m *MockTelemetry) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start.
+func (mr *MockTelemetryMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockTelemetry)(nil).Start))
+}
+
+// Stop mocks base method.
+func (m *MockTelemetry) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockTelemetryMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockTelemetry)(nil).Stop))
 }
 
 // MockLogger is a mock of Logger interface.

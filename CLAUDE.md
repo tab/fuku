@@ -92,7 +92,9 @@ Change an adapter only for new IO, input, transport or presentation.
 - one `fx.App` and one bus per invocation.
   `bootstrap.Run` parses the command, loads the config where needed and picks one composition in `bootstrap/modules`
 - a component that runs during the application's lifetime is a lifecycle participant (`internal/bootstrap/lifecycle`, satisfied structurally): a `Consumer` with `Subscribe`/`Drain`, a `Producer` with `Start`/`Stop`, or the one `Command` with `Run`.
-  The coordinator runs guard, consumers, producers, command. It stops in reverse and drains the consumers before the bus closes
+  The coordinator runs guard, telemetry, consumers, producers, command. It stops in reverse and drains the consumers before the bus closes.
+  Telemetry is the one exception: a coordinator stage, not a participant.
+  It starts after the guard and stops after the command is joined, just before the bus closes
 - a composition hands the coordinator explicit ordered slices. Fx value groups are shuffled, so they cannot carry the order.
   A package that is both a consumer and a producer is listed in both slices
 - constructors start no goroutines and register no hooks. `Start` acquires what `Stop` releases.

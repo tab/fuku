@@ -61,7 +61,7 @@ Traffic crosses the rings in three ways:
 
 Ring 4 runs once per invocation. The shell starts `cmd/main.go`, which calls `bootstrap.Run`.
 `bootstrap.Run` parses the command, loads the config when the command needs it and picks one composition.
-The composition builds the container, and `lifecycle.Coordinator` starts the guard, consumers, producers and command, in that order.
+The composition builds the container, and `lifecycle.Coordinator` starts the guard, telemetry, consumers, producers and command, in that order.
 Then ring 4 waits for the command to finish and hands the exit code to `os.Exit`. No request ever passes through it.
 
 ## The tree
@@ -123,8 +123,9 @@ internal/model                 plain values
 | `version`  | `modules/version.go`  | `cli.Version`                              |
 
 A composition gives the coordinator ordered lists of participants. A `Consumer` has `Subscribe` and `Drain`.
-A `Producer` has `Start` and `Stop`. The one `Command` has `Run`. Start order: guard, consumers, producers, command.
-Stop is the reverse. `lifecycle.Arbiter` records the first exit cause and derives the exit code.
+A `Producer` has `Start` and `Stop`. The one `Command` has `Run`. Start order: guard, telemetry, consumers, producers, command.
+Stop is the reverse. Telemetry is a coordinator stage, not a participant. It stops after the command is joined, just before the bus closes.
+`lifecycle.Arbiter` records the first exit cause and derives the exit code.
 The blocks a composition stacks are in [`internal/bootstrap/modules/README.md`](internal/bootstrap/modules/README.md).
 The lifetime is in [`internal/bootstrap/lifecycle/README.md`](internal/bootstrap/lifecycle/README.md).
 

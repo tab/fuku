@@ -17,18 +17,26 @@ const (
 	panicTimeout = 5 * time.Second
 )
 
-// Client owns the Sentry SDK for the lifetime of the process
-type Client struct{}
+// Client owns the Sentry SDK from Start to Stop
+type Client struct {
+	options Options
+	sentry  *sentry.Client
+}
 
-// NewClient initializes the Sentry SDK, or leaves it uninitialized when telemetry is off
+// NewClient creates the Sentry client, which initializes nothing until Start
 func NewClient(options Options) *Client {
-	if !options.Enabled {
-		return &Client{}
+	return &Client{options: options}
+}
+
+// Start initializes the Sentry SDK, or leaves it uninitialized when telemetry is off
+func (c *Client) Start() {
+	if !c.options.Enabled {
+		return
 	}
 
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:                   options.DSN,
-		Environment:           options.Environment,
+	client, err := sentry.NewClient(sentry.ClientOptions{
+		Dsn:                   c.options.DSN,
+		Environment:           c.options.Environment,
 		Release:               fmt.Sprintf("%s@%s", buildinfo.AppName, buildinfo.Version),
 		AttachStacktrace:      true,
 		SampleRate:            1.0,
@@ -36,16 +44,17 @@ func NewClient(options Options) *Client {
 		TracesSampleRate:      0.1,
 		BeforeSend:            stripPII,
 		BeforeSendTransaction: stripPII,
-		Transport:             options.transport,
+		Transport:             c.options.transport,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize Sentry: %v\n", err)
 
-		return &Client{}
+		return
 	}
 
+	sentry.CurrentHub().BindClient(client)
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetTag(TagEnv, options.Environment)
+		scope.SetTag(TagEnv, c.options.Environment)
 		scope.SetTag(TagOS, runtime.GOOS)
 		scope.SetTag(TagArch, runtime.GOARCH)
 		scope.SetTag(TagGoVersion, runtime.Version())
@@ -55,12 +64,21 @@ func NewClient(options Options) *Client {
 		}
 	})
 
-	return &Client{}
+	c.sentry = client
 }
 
-// Flush waits for pending Sentry events to be sent
-func (c *Client) Flush() {
-	sentry.Flush(flushTimeout)
+// Stop unbinds the SDK so a later Recover sends nothing, flushes pending events and closes the transport
+func (c *Client) Stop() {
+	if c.sentry == nil {
+		return
+	}
+
+	sentry.CurrentHub().BindClient(nil)
+
+	// ponytail: a timed-out flush leaves the transport to the process exit; close it too once sentry-go bounds Close
+	if c.sentry.Flush(flushTimeout) {
+		c.sentry.Close()
+	}
 }
 
 // Recover reports a recovered panic value and flushes it before the caller re-panics

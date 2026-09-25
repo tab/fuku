@@ -68,7 +68,7 @@ func Test_Coordinator_Start(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name: "guard, consumers, producers and the command run in that order and the outcome stops the container",
+			name: "guard, telemetry, consumers, producers and the command run in that order and the outcome stops the container",
 			before: func(t *testing.T) *Coordinator {
 				coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, nil, mockTelemetry, participants, log)
 				completed := make(chan struct{})
@@ -80,6 +80,7 @@ func Test_Coordinator_Start(t *testing.T) {
 
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
+					mockTelemetry.EXPECT().Start(),
 					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
 					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(nil),
 					mockLeading.EXPECT().Start(coordinator.ctx).Return(nil),
@@ -107,6 +108,7 @@ func Test_Coordinator_Start(t *testing.T) {
 
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
+					mockTelemetry.EXPECT().Start(),
 					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
 					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(nil),
 					mockLeading.EXPECT().Start(coordinator.ctx).Return(nil),
@@ -132,7 +134,7 @@ func Test_Coordinator_Start(t *testing.T) {
 			before: func(t *testing.T) *Coordinator {
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(refused),
-					mockTelemetry.EXPECT().Flush(),
+					mockTelemetry.EXPECT().Stop(),
 					mockCloser.EXPECT().Close(),
 				)
 
@@ -151,9 +153,10 @@ func Test_Coordinator_Start(t *testing.T) {
 
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
+					mockTelemetry.EXPECT().Start(),
 					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
 					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(subscribeErr),
-					mockTelemetry.EXPECT().Flush(),
+					mockTelemetry.EXPECT().Stop(),
 					mockCloser.EXPECT().Close(),
 				)
 
@@ -170,13 +173,14 @@ func Test_Coordinator_Start(t *testing.T) {
 
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
+					mockTelemetry.EXPECT().Start(),
 					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
 					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(nil),
 					mockLeading.EXPECT().Start(coordinator.ctx).Return(nil),
 					mockTrailing.EXPECT().Start(coordinator.ctx).Return(startErr),
 					mockLeading.EXPECT().Stop(gomock.Any()).Return(stopErr),
 					mockLog.EXPECT().Error("Failed to stop a producer while unwinding the start", "error", stopErr),
-					mockTelemetry.EXPECT().Flush(),
+					mockTelemetry.EXPECT().Stop(),
 					mockCloser.EXPECT().Close(),
 				)
 
@@ -217,6 +221,7 @@ func Test_Coordinator_Start_WithoutGuard(t *testing.T) {
 	}
 
 	gomock.InOrder(
+		mockTelemetry.EXPECT().Start(),
 		mockCommand.EXPECT().Run(coordinator.ctx).Return(0, nil),
 		mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).DoAndReturn(stopped),
 	)
@@ -267,6 +272,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 	}
 
 	started := func(t *testing.T, coordinator *Coordinator) *Coordinator {
+		mockTelemetry.EXPECT().Start()
 		mockFirst.EXPECT().Subscribe(gomock.Any()).Return(nil)
 		mockSecond.EXPECT().Subscribe(gomock.Any()).Return(nil)
 		mockLeading.EXPECT().Start(gomock.Any()).Return(nil)
@@ -284,7 +290,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name: "announces the signal, stops the producers newest first, drains the consumers twice, ends the command and flushes",
+			name: "announces the signal, stops the producers newest first, drains the consumers twice, ends the command and stops telemetry",
 			before: func(t *testing.T) (*Coordinator, context.Context) {
 				arbiter := NewArbiter(mockShutdowner)
 				arbiter.observe(syscall.SIGTERM)
@@ -298,7 +304,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 					mockSecond.EXPECT().Drain(gomock.Any()).Return(nil),
 					mockFirst.EXPECT().Drain(gomock.Any()).Return(nil),
 					mockSecond.EXPECT().Drain(gomock.Any()).Return(nil),
-					mockTelemetry.EXPECT().Flush(),
+					mockTelemetry.EXPECT().Stop(),
 					mockCloser.EXPECT().Close(),
 				)
 
@@ -318,7 +324,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 				mockLeading.EXPECT().Stop(gomock.Any()).Return(nil)
 				mockFirst.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
 				mockSecond.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
-				mockTelemetry.EXPECT().Flush()
+				mockTelemetry.EXPECT().Stop()
 				mockCloser.EXPECT().Close()
 
 				return started(t, NewCoordinator(arbiter, mockPublisher, mockCloser, mockTelemetry, participants, mockLog)), t.Context()
@@ -335,7 +341,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 				mockLeading.EXPECT().Stop(gomock.Any()).Return(nil)
 				mockFirst.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
 				mockSecond.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
-				mockTelemetry.EXPECT().Flush()
+				mockTelemetry.EXPECT().Stop()
 				mockCloser.EXPECT().Close()
 
 				return started(t, NewCoordinator(arbiter, mockPublisher, mockCloser, mockTelemetry, participants, log)), t.Context()
@@ -347,7 +353,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 				mockTrailing.EXPECT().Stop(gomock.Any()).Return(nil)
 				mockLeading.EXPECT().Stop(gomock.Any()).Return(nil)
 				mockFirst.EXPECT().Drain(gomock.Any()).Return(drainErr).Times(2)
-				mockTelemetry.EXPECT().Flush()
+				mockTelemetry.EXPECT().Stop()
 				mockCloser.EXPECT().Close()
 
 				return started(t, NewCoordinator(NewArbiter(mockShutdowner), mockPublisher, mockCloser, mockTelemetry, participants, log)), t.Context()
@@ -364,7 +370,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 				mockLeading.EXPECT().Stop(gomock.Any()).Return(nil)
 				mockFirst.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
 				mockSecond.EXPECT().Drain(gomock.Any()).DoAndReturn(waitForDeadline).Times(2)
-				mockTelemetry.EXPECT().Flush()
+				mockTelemetry.EXPECT().Stop()
 				mockCloser.EXPECT().Close()
 
 				return started(t, NewCoordinator(NewArbiter(mockShutdowner), mockPublisher, mockCloser, mockTelemetry, participants, log)), ctx
@@ -384,7 +390,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 					mockSecond.EXPECT().Drain(gomock.Any()).Return(nil),
 					mockFirst.EXPECT().Drain(gomock.Any()).Return(nil),
 					mockSecond.EXPECT().Drain(gomock.Any()).Return(nil),
-					mockTelemetry.EXPECT().Flush(),
+					mockTelemetry.EXPECT().Stop(),
 					mockCloser.EXPECT().Close(),
 				)
 
@@ -425,8 +431,9 @@ func Test_Coordinator_Stop_WaitsForTheCommand(t *testing.T) {
 		return 0, nil
 	}
 
+	mockTelemetry.EXPECT().Start()
 	mockCommand.EXPECT().Run(coordinator.ctx).DoAndReturn(waitForCancel)
-	mockTelemetry.EXPECT().Flush()
+	mockTelemetry.EXPECT().Stop()
 	mockCloser.EXPECT().Close()
 	mockShutdowner.EXPECT().Shutdown(gomock.Any()).Return(nil)
 
@@ -463,6 +470,7 @@ func Test_Coordinator_Stop_ClosesTheBusLast(t *testing.T) {
 		return 0, nil
 	}
 
+	mockTelemetry.EXPECT().Start()
 	mockConsumer.EXPECT().Subscribe(coordinator.ctx).Return(nil)
 	mockProducer.EXPECT().Start(coordinator.ctx).Return(nil)
 	mockCommand.EXPECT().Run(coordinator.ctx).DoAndReturn(waitForCancel)
@@ -470,7 +478,7 @@ func Test_Coordinator_Stop_ClosesTheBusLast(t *testing.T) {
 		mockProducer.EXPECT().Stop(gomock.Any()).Return(nil),
 		mockConsumer.EXPECT().Drain(gomock.Any()).Return(nil).Times(2),
 		mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).Return(nil),
-		mockTelemetry.EXPECT().Flush(),
+		mockTelemetry.EXPECT().Stop(),
 		mockCloser.EXPECT().Close(),
 	)
 
