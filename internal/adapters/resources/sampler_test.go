@@ -124,10 +124,10 @@ func Test_Sampler_sampleProcess(t *testing.T) {
 		{
 			name: "publishes the usage once the CPU delta is warm",
 			before: func() {
-				mockMonitor.EXPECT().GetStats(gomock.Any(), gomock.Any()).Return(Stats{CPU: 2.5, MEM: 64.0}, nil)
+				mockMonitor.EXPECT().GetStats(gomock.Any(), gomock.Any()).Return(Stats{CPU: 2.5, MEM: 64.0, RawMEM: 64 * 1024 * 1024}, nil)
 				mockPublisher.EXPECT().Publish(contracts.Message{
 					Type: contracts.EventResourceSampled,
-					Data: contracts.ResourceSampled{CPU: 2.5, MEM: 64.0},
+					Data: contracts.ResourceSampled{CPU: 2.5, Memory: 64 * 1024 * 1024},
 				}).Return(nil)
 			},
 		},

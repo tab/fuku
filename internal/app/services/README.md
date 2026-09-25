@@ -84,4 +84,4 @@ Any other service gets `ServiceStopped{Unexpected: true}`.
 
 - admission reads the guard and the tracker only. Never the registry snapshot. A lagging read model must not authorize work
 - the token is released on every path, including a rejected publish and a cancelled attempt
-- a new action is a `contracts.Action`, an `allowed` rule, a predicted status and a command type. The frontends stay unchanged
+- a new action is a `contracts.Action`, an `allowed` rule, a predicted status and a command type in `Action.Command`. The frontends stay unchanged

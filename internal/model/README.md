@@ -11,5 +11,6 @@ The plain values every ring shares. It imports the standard library only.
 
 - one type per object. A runtime fact lives on the object. The process facts sit under `Service.Process`
 - a derived value is a method (`Counts`, `Tally`, `DefaultOnly`), never a stored field
-- a service crosses a package boundary by `ID`. `Project.Service(name)` is the one lookup by name
+- a service crosses a package boundary by `ID`. `Project.Service(name)` is the one lookup by name.
+  `LogLine` carries the name. It labels output and the `fuku logs` filter matches on it
 - `Status` and `Phase` values are in the REST API, so a shipped string is frozen

@@ -8,8 +8,8 @@ func (s *Sampler) publishProcess(stats Stats) {
 	s.publisher.Publish(contracts.Message{
 		Type: contracts.EventResourceSampled,
 		Data: contracts.ResourceSampled{
-			CPU: stats.CPU,
-			MEM: stats.MEM,
+			CPU:    stats.CPU,
+			Memory: stats.RawMEM,
 		},
 	})
 }

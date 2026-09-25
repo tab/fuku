@@ -274,6 +274,9 @@ import (
 - an API that identifies a service (registry lookups, snapshots, command dispatch, `environment.Store.Env(id)`) takes and returns the `ID`
 - the one exception is `model.Project.Service(name)`, keyed by `Name`.
   Translate `ID` → `Name` at the boundary with `model.Service.Name` from the event payload
+- a display-only payload may carry the `Name`: the preflight events (`PreflightStarted.Services`, `PreflightKilled.Service`),
+  the dir map `Preflight.Cleanup` takes, `model.LogLine.Service` and `process.LogSink.Broadcast`.
+  They label output a person reads, and `fuku logs <name>` matches lines on it. No registry lookup or service command takes them
 - the parameter is `id string`
 
 ### Documentation

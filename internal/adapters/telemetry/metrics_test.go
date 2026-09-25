@@ -382,7 +382,7 @@ func Test_Collector_handle(t *testing.T) {
 			},
 			msg: contracts.Message{
 				Type: contracts.EventResourceSampled,
-				Data: contracts.ResourceSampled{CPU: 2.5, MEM: 64.0},
+				Data: contracts.ResourceSampled{CPU: 2.5, Memory: 64 * 1024 * 1024},
 			},
 		},
 		{

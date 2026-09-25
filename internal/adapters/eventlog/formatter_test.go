@@ -144,7 +144,7 @@ func Test_Formatter_Format(t *testing.T) {
 		{
 			name:    "resource sampled",
 			msgType: contracts.EventResourceSampled,
-			data:    contracts.ResourceSampled{CPU: 2.5, MEM: 64.0},
+			data:    contracts.ResourceSampled{CPU: 2.5, Memory: 64 * 1024 * 1024},
 			want:    "resource_sample cpu=2.5% mem=64.0MB",
 		},
 		{

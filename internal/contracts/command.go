@@ -17,3 +17,15 @@ const (
 	ActionStop    Action = "stop"
 	ActionRestart Action = "restart"
 )
+
+// Command returns the service command that carries the action
+func (a Action) Command() MessageType {
+	switch a {
+	case ActionStart:
+		return CommandStartService
+	case ActionStop:
+		return CommandStopService
+	default:
+		return CommandRestartService
+	}
+}

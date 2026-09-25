@@ -194,7 +194,7 @@ func (c *Collector) handleResourceSample(ctx context.Context, msg contracts.Mess
 
 	meter := sentry.NewMeter(ctx)
 	meter.Distribution(MetricFukuCPU, data.CPU, sentry.WithUnit(sentry.UnitPercent))
-	meter.Distribution(MetricFukuMemory, data.MEM, sentry.WithUnit(sentry.UnitMegabyte))
+	meter.Distribution(MetricFukuMemory, float64(data.Memory)/1024/1024, sentry.WithUnit(sentry.UnitMegabyte))
 }
 
 func (c *Collector) handleAPIStarted(ctx context.Context) {

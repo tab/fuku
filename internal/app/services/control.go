@@ -25,17 +25,17 @@ func NewControl(guard *Guard, publisher contracts.Publisher) *Control {
 
 // Start admits a start of a stopped or failed service
 func (c *Control) Start(id string) (Admission, error) {
-	return c.admit(id, contracts.ActionStart, contracts.CommandStartService)
+	return c.admit(id, contracts.ActionStart)
 }
 
 // Stop admits a stop of a running service
 func (c *Control) Stop(id string) (Admission, error) {
-	return c.admit(id, contracts.ActionStop, contracts.CommandStopService)
+	return c.admit(id, contracts.ActionStop)
 }
 
 // Restart admits a restart of a running, stopped or failed service
 func (c *Control) Restart(id string) (Admission, error) {
-	return c.admit(id, contracts.ActionRestart, contracts.CommandRestartService)
+	return c.admit(id, contracts.ActionRestart)
 }
 
 // Toggle admits a stop of a service with a live child and a start of one without
@@ -60,13 +60,13 @@ func (c *Control) StopAll() error {
 }
 
 // admit reserves the service and publishes the command, releasing the reservation when the publish is rejected
-func (c *Control) admit(id string, action contracts.Action, command contracts.MessageType) (Admission, error) {
+func (c *Control) admit(id string, action contracts.Action) (Admission, error) {
 	admission, err := c.guard.admit(id, action)
 	if err != nil {
 		return Admission{}, err
 	}
 
-	if err := c.publisher.Publish(contracts.Message{Type: command, Data: admission.Service}); err != nil {
+	if err := c.publisher.Publish(contracts.Message{Type: action.Command(), Data: admission.Service}); err != nil {
 		c.guard.release(id)
 
 		return Admission{}, err

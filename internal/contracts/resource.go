@@ -8,8 +8,8 @@ const (
 
 // ResourceSampled contains fuku process CPU and memory readings
 type ResourceSampled struct {
-	CPU float64
-	MEM float64
+	CPU    float64
+	Memory uint64
 }
 
 // ServiceResourcesSampled carries one reading per running service process, taken in the same tick

@@ -98,7 +98,7 @@ func (f *Formatter) Format(msgType contracts.MessageType, data any) string {
 	case contracts.WatchStopped:
 		e.Str(FieldID, d.Service.ID).Str(FieldName, d.Service.Name)
 	case contracts.ResourceSampled:
-		e.Str(FieldCPU, fmt.Sprintf("%.1f%%", d.CPU)).Str(FieldMem, fmt.Sprintf("%.1fMB", d.MEM))
+		e.Str(FieldCPU, fmt.Sprintf("%.1f%%", d.CPU)).Str(FieldMem, fmt.Sprintf("%.1fMB", float64(d.Memory)/1024/1024))
 	case contracts.APIStarted:
 		e.Str(FieldListen, d.Listen)
 	case contracts.APIStopped:
