@@ -3,6 +3,7 @@ package modules
 import (
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 
@@ -152,6 +153,7 @@ var runtime = fx.Options(
 		func() github.Options {
 			return github.Options{Endpoint: github.DefaultEndpoint, Timeout: github.DefaultTimeout, CachePath: github.DefaultCachePath()}
 		},
+		func(c *http.Client) github.HTTPDoer { return c },
 		func(c *github.Client) updater.ReleaseSource { return c },
 		func(h *logs.Hub) logsocket.Hub { return h },
 		func(s *registry.Store) logsocket.Registry { return s },
