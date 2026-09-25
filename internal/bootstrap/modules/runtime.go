@@ -109,7 +109,6 @@ var processes = fx.Options(
 		func(log *slog.Logger) process.Logger { return log.With("component", "PROCESS") },
 		func(log *slog.Logger) services.Logger { return log.With("component", "SERVICES") },
 		func(p model.Project) worker.Options { return worker.Options{Workers: p.Concurrency.Workers} },
-		func(a *lifecycle.Arbiter) process.Reporter { return a },
 		func(p *process.Preflight) services.Preflight { return p },
 		func(p *worker.Pool) process.Pool { return p },
 		func(r *profiles.Resolver) services.ProfileResolver { return r },

@@ -44,7 +44,6 @@ type Pool interface {
 // Preflight kills the processes still running in service directories before a launch
 type Preflight struct {
 	publisher contracts.Publisher
-	reporter  Reporter
 	worker    Pool
 	scan      scanFunc
 	kill      killFunc
@@ -52,10 +51,9 @@ type Preflight struct {
 }
 
 // NewPreflight creates the preflight cleaner
-func NewPreflight(publisher contracts.Publisher, reporter Reporter, worker Pool, log Logger) *Preflight {
+func NewPreflight(publisher contracts.Publisher, worker Pool, log Logger) *Preflight {
 	return &Preflight{
 		publisher: publisher,
-		reporter:  reporter,
 		worker:    worker,
 		scan:      scan,
 		kill:      kill,

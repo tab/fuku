@@ -25,16 +25,14 @@ func Test_NewPreflight(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPublisher := NewMockPublisher(ctrl)
-	mockReporter := NewMockReporter(ctrl)
 	mockWorker := NewMockPool(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
 
-	preflight := NewPreflight(mockPublisher, mockReporter, mockWorker, log)
+	preflight := NewPreflight(mockPublisher, mockWorker, log)
 
 	assert.NotNil(t, preflight)
 	assert.Equal(t, mockPublisher, preflight.publisher)
-	assert.Equal(t, mockReporter, preflight.reporter)
 	assert.Equal(t, mockWorker, preflight.worker)
 	assert.NotNil(t, preflight.scan)
 	assert.NotNil(t, preflight.kill)

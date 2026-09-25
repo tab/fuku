@@ -214,11 +214,9 @@ func (c *Coordinator) publishSignal() {
 
 	c.log.Info(fmt.Sprintf("Received signal %s, shutting down services...", sig))
 
-	err := c.publisher.Publish(contracts.Message{
+	//nolint:errcheck // a non-critical publish never fails
+	c.publisher.Publish(contracts.Message{
 		Type: contracts.EventSignalReceived,
 		Data: contracts.SignalReceived{Name: sig.String()},
 	})
-	if err != nil {
-		c.log.Error("Failed to publish the signal", "error", err)
-	}
 }

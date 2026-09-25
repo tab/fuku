@@ -35,7 +35,7 @@ func Test_MessageType_Critical(t *testing.T) {
 			name:     "preflight started",
 			msgType:  EventPreflightStarted,
 			expected: "preflight_started",
-			critical: true,
+			critical: false,
 		},
 		{
 			name:     "preflight killed",
@@ -47,7 +47,7 @@ func Test_MessageType_Critical(t *testing.T) {
 			name:     "preflight complete",
 			msgType:  EventPreflightComplete,
 			expected: "preflight_complete",
-			critical: true,
+			critical: false,
 		},
 		{
 			name:     "tier starting",
@@ -107,7 +107,7 @@ func Test_MessageType_Critical(t *testing.T) {
 			name:     "signal received",
 			msgType:  EventSignalReceived,
 			expected: "signal",
-			critical: true,
+			critical: false,
 		},
 		{
 			name:     "watch triggered",

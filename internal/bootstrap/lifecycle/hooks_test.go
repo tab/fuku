@@ -317,25 +317,6 @@ func Test_Coordinator_Stop(t *testing.T) {
 			},
 		},
 		{
-			name: "a rejected signal announcement is logged and the stop goes on",
-			before: func(t *testing.T) (*Coordinator, context.Context) {
-				arbiter := NewArbiter(mockShutdowner)
-				arbiter.observe(syscall.SIGTERM)
-
-				mockLog.EXPECT().Info("Received signal terminated, shutting down services...")
-				mockPublisher.EXPECT().Publish(signal).Return(contracts.ErrBusClosed)
-				mockLog.EXPECT().Error("Failed to publish the signal", "error", contracts.ErrBusClosed)
-				mockTrailing.EXPECT().Stop(gomock.Any()).Return(nil)
-				mockLeading.EXPECT().Stop(gomock.Any()).Return(nil)
-				mockFirst.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
-				mockSecond.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
-				mockTelemetry.EXPECT().Stop()
-				mockCloser.EXPECT().Close()
-
-				return started(t, NewCoordinator(arbiter, mockPublisher, mockCloser, mockTelemetry, participants, mockLog)), t.Context()
-			},
-		},
-		{
 			name: "a shutdown decided from inside announces no signal",
 			before: func(t *testing.T) (*Coordinator, context.Context) {
 				arbiter := NewArbiter(mockShutdowner)

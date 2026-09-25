@@ -223,15 +223,14 @@ These run next to every feature. They decide nothing about services.
 A critical message needs a free slot in every required subscription. Otherwise the publish fails and the run ends with exit 1.
 A message that is not critical is dropped where a queue is full.
 
-| Message                                                                  | Critical | Subscribers                                                    |
-| ------------------------------------------------------------------------ | -------- | -------------------------------------------------------------- |
-| the four service commands, `WatchTriggered`                              | yes      | `services`                                                     |
-| `ProfileResolved`, `PhaseChanged`, tier and service events               | yes      | `registry`; `watch` (subset); `environment` (optional, subset) |
-| `APIStarted`, `APIStopped`                                               | yes      | `registry`                                                     |
-| `PreflightStarted`, `PreflightComplete`, `SignalReceived`                | yes      | `tui` (optional)                                               |
-| `PreflightKilled`, `UpdateAvailable`, `SnapshotChanged`                  | no       | `tui` (optional)                                               |
-| `WatchStarted`, `WatchStopped`, `ServiceResourcesSampled`                | no       | `registry`                                                     |
-| `CommandStarted`, `ReadinessComplete`, `ResourceSampled`, `APIRequested` | no       | –                                                              |
+| Message                                                                                                            | Critical | Subscribers                                                    |
+| ------------------------------------------------------------------------------------------------------------------ | -------- | -------------------------------------------------------------- |
+| the four service commands, `WatchTriggered`                                                                        | yes      | `services`                                                     |
+| `ProfileResolved`, `PhaseChanged`, tier and service events                                                         | yes      | `registry`; `watch` (subset); `environment` (optional, subset) |
+| `APIStarted`, `APIStopped`                                                                                         | yes      | `registry`                                                     |
+| `PreflightStarted`, `PreflightKilled`, `PreflightComplete`, `SignalReceived`, `UpdateAvailable`, `SnapshotChanged` | no       | `tui` (optional)                                               |
+| `WatchStarted`, `WatchStopped`, `ServiceResourcesSampled`                                                          | no       | `registry`                                                     |
+| `CommandStarted`, `ReadinessComplete`, `ResourceSampled`, `APIRequested`                                           | no       | –                                                              |
 
 A subscriber is required unless marked optional. `eventlog` holds an optional, unfiltered subscription and sees every message.
 `telemetry` holds two more when it is enabled.
