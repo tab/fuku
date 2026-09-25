@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"fuku/internal/platform/buildinfo"
+	"fuku/internal/adapters/instance"
 )
 
 const (
@@ -25,12 +25,12 @@ type cache struct {
 
 // DefaultCachePath returns the cache file in the user's config directory, or empty when that directory is unavailable
 func DefaultCachePath() string {
-	dir, err := os.UserConfigDir()
+	path, err := instance.UserConfigPath(cacheFileName)
 	if err != nil {
 		return ""
 	}
 
-	return filepath.Join(dir, buildinfo.AppName, cacheFileName)
+	return path
 }
 
 // readCache decodes the cached release entry (a zero entry with a nil error is a miss)
@@ -62,7 +62,7 @@ func readCache(path string) (cache, error) {
 
 // writeCache serializes the entry to JSON and writes it to path with restrictive permissions
 func writeCache(path string, entry cache) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create updater cache dir: %w", err)
 	}
 

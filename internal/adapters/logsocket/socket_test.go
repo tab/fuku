@@ -94,12 +94,12 @@ func Test_cleanup_NoSockets(t *testing.T) {
 
 	defer os.RemoveAll(tmpDir)
 
-	err = cleanup(tmpDir)
+	err = cleanup(tmpDir, "own")
 	require.NoError(t, err)
 }
 
 func Test_cleanup_BadPattern(t *testing.T) {
-	err := cleanup("[")
+	err := cleanup("[", "own")
 
 	require.ErrorIs(t, err, filepath.ErrBadPattern)
 }
@@ -117,11 +117,28 @@ func Test_cleanup_RemovesStaleSocket(t *testing.T) {
 	_, err = os.Stat(socketPath)
 	require.NoError(t, err)
 
-	err = cleanup(tmpDir)
+	err = cleanup(tmpDir, "own")
 	require.NoError(t, err)
 
 	_, err = os.Stat(socketPath)
 	assert.True(t, os.IsNotExist(err))
+}
+
+func Test_cleanup_SkipsOwnSocket(t *testing.T) {
+	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
+	tmpDir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
+
+	defer os.RemoveAll(tmpDir)
+
+	socketPath := instance.SocketPath(tmpDir, "own")
+	createStaleSocket(t, socketPath)
+
+	err = cleanup(tmpDir, "own")
+	require.NoError(t, err)
+
+	_, err = os.Stat(socketPath)
+	require.NoError(t, err)
 }
 
 func Test_cleanup_SkipsNonSocket(t *testing.T) {
@@ -135,7 +152,7 @@ func Test_cleanup_SkipsNonSocket(t *testing.T) {
 	err = os.WriteFile(regularFile, []byte("not a socket"), 0600)
 	require.NoError(t, err)
 
-	err = cleanup(tmpDir)
+	err = cleanup(tmpDir, "own")
 	require.NoError(t, err)
 
 	_, err = os.Stat(regularFile)
@@ -155,7 +172,7 @@ func Test_cleanup_PreservesActiveSocket(t *testing.T) {
 
 	defer listener.Close()
 
-	err = cleanup(tmpDir)
+	err = cleanup(tmpDir, "own")
 	require.NoError(t, err)
 
 	_, err = os.Stat(socketPath)
@@ -178,7 +195,7 @@ func Test_cleanup_RemoveFailsReturnsError(t *testing.T) {
 	err = os.Chmod(tmpDir, 0500)
 	require.NoError(t, err)
 
-	err = cleanup(tmpDir)
+	err = cleanup(tmpDir, "own")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to cleanup stale socket")
 }
@@ -203,7 +220,7 @@ func Test_cleanup_MixedSockets(t *testing.T) {
 	err = os.WriteFile(regularPath, []byte("not a socket"), 0600)
 	require.NoError(t, err)
 
-	err = cleanup(tmpDir)
+	err = cleanup(tmpDir, "own")
 	require.NoError(t, err)
 
 	_, err = os.Stat(activePath)

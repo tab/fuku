@@ -17,7 +17,7 @@ The cache is `$UserConfigDir/fuku/version.json` with the keys `tag` and `fetched
 - an entry older than 24 hours, an empty tag or a zero time is a miss
 - a missing file is a miss without an error
 - an unreadable file is logged at debug and treated as a miss
-- the file is written with `0600` in a `0755` directory
+- the file is written with `0600` in a `0700` directory
 - an empty `CachePath` disables the cache
 
 ## Changing it

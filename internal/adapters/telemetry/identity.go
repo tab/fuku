@@ -7,17 +7,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"fuku/internal/platform/buildinfo"
+	"fuku/internal/adapters/instance"
 )
 
-const (
-	configDir       = buildinfo.AppName
-	telemetryIDFile = "telemetry.id"
-)
+const telemetryIDFile = "telemetry.id"
 
 // loadTelemetryID reads a persistent anonymous telemetry ID from disk, or generates and saves a new one
 func loadTelemetryID() string {
-	path, err := telemetryIDPath()
+	path, err := instance.UserConfigPath(telemetryIDFile)
 	if err != nil {
 		return ""
 	}
@@ -43,13 +40,4 @@ func loadTelemetryIDFromPath(path string) string {
 	}
 
 	return id
-}
-
-func telemetryIDPath() (string, error) {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(dir, configDir, telemetryIDFile), nil
 }

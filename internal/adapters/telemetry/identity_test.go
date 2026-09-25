@@ -123,23 +123,15 @@ func Test_loadTelemetryIDFromPath_StableAcrossReads(t *testing.T) {
 
 func Test_loadTelemetryIDFromPath_RecreatesAfterDeletion(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, configDir, telemetryIDFile)
+	path := filepath.Join(dir, "fuku", telemetryIDFile)
 
 	first := loadTelemetryIDFromPath(path)
 	require.NotEmpty(t, first)
 
-	require.NoError(t, os.RemoveAll(filepath.Join(dir, configDir)))
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "fuku")))
 
 	second := loadTelemetryIDFromPath(path)
 
 	assert.NotEmpty(t, second)
 	assert.NotEqual(t, first, second)
-}
-
-func Test_telemetryIDPath(t *testing.T) {
-	path, err := telemetryIDPath()
-
-	require.NoError(t, err)
-	assert.Contains(t, path, configDir)
-	assert.Contains(t, path, telemetryIDFile)
 }

@@ -8,11 +8,9 @@ import (
 	"regexp"
 	"time"
 
+	"fuku/internal/adapters/process"
 	"fuku/internal/contracts"
 )
-
-// maxLineSize bounds a scanned line at 4 MiB; a longer line ends the scan with bufio.ErrTooLong
-const maxLineSize = 4 * 1024 * 1024
 
 // checkLog scans stdout and stderr until a line matches pattern, the timeout elapses, ctx ends or the process exits
 func (c *Checker) checkLog(ctx context.Context, pattern string, stdout, stderr io.Reader, timeout time.Duration, done <-chan struct{}) error {
@@ -29,7 +27,7 @@ func (c *Checker) checkLog(ctx context.Context, pattern string, stdout, stderr i
 
 	scanStream := func(reader io.Reader) {
 		scanner := bufio.NewScanner(reader)
-		scanner.Buffer(nil, maxLineSize)
+		scanner.Buffer(nil, process.MaxLineSize)
 
 		for scanner.Scan() {
 			if c.isDone(ended) {

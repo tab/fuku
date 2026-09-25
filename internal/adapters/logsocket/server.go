@@ -120,7 +120,7 @@ func (s *Server) run(ctx context.Context) {
 		}
 	})
 
-	if err := cleanup(instance.SocketDir); err != nil {
+	if err := cleanup(instance.SocketDir, s.fingerprint); err != nil {
 		s.log.Warn("Socket cleanup failed, continuing startup", "error", err)
 	}
 
@@ -132,10 +132,7 @@ func (s *Server) run(ctx context.Context) {
 func (s *Server) start(ctx context.Context) error {
 	s.socketPath = instance.SocketPath(instance.SocketDir, s.fingerprint)
 
-	conn, err := net.DialTimeout("unix", s.socketPath, instance.SocketDialTimeout)
-	if err == nil {
-		conn.Close()
-
+	if instance.ProbeSocket(s.socketPath) == nil {
 		return fmt.Errorf("socket is already in use: %s", s.socketPath)
 	}
 

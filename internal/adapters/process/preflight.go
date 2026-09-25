@@ -194,7 +194,15 @@ func scan() ([]running, error) {
 }
 
 func kill(pid int32) error {
-	err := sendTERM(pid)
+	proc, _ := os.FindProcess(int(pid))
+	//nolint:errcheck // Release only frees the handle FindProcess opened; nothing acts on its error
+	defer proc.Release()
+
+	err := signalGroup(int(pid), proc, syscall.SIGTERM)
+	if errors.Is(err, os.ErrProcessDone) {
+		return nil
+	}
+
 	if err != nil {
 		return err
 	}
@@ -208,8 +216,8 @@ func kill(pid int32) error {
 		select {
 		case <-deadline:
 			// sync: a pid reused since the last liveness poll, at most 100ms ago, would receive the kill
-			_ = syscall.Kill(-int(pid), syscall.SIGKILL)
-			_ = syscall.Kill(int(pid), syscall.SIGKILL)
+			_ = signalGroup(int(pid), proc, syscall.SIGKILL)
+			_ = proc.Kill()
 
 			return nil
 		case <-ticker.C:
@@ -218,18 +226,4 @@ func kill(pid int32) error {
 			}
 		}
 	}
-}
-
-// sendTERM sends SIGTERM to the process group first, then to the process directly
-func sendTERM(pid int32) error {
-	if err := syscall.Kill(-int(pid), syscall.SIGTERM); err == nil {
-		return nil
-	}
-
-	err := syscall.Kill(int(pid), syscall.SIGTERM)
-	if errors.Is(err, syscall.ESRCH) {
-		return nil
-	}
-
-	return err
 }

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -184,6 +185,44 @@ func Test_SocketPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := SocketPath(tt.dir, tt.fingerprint)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_UserConfigPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		before    func(t *testing.T)
+		expected  string
+		assertErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "the file inside the fuku directory",
+			before: func(t *testing.T) {
+				t.Setenv("XDG_CONFIG_HOME", "/home/dev/.config")
+				t.Setenv("HOME", "/home/dev")
+			},
+			expected:  string(filepath.Separator) + filepath.Join("fuku", "telemetry.id"),
+			assertErr: assert.NoError,
+		},
+		{
+			name: "no config directory",
+			before: func(t *testing.T) {
+				t.Setenv("XDG_CONFIG_HOME", "")
+				t.Setenv("HOME", "")
+			},
+			assertErr: assert.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before(t)
+
+			path, err := UserConfigPath("telemetry.id")
+
+			tt.assertErr(t, err)
+			assert.True(t, strings.HasSuffix(path, tt.expected))
 		})
 	}
 }

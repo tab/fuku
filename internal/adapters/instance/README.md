@@ -10,8 +10,12 @@ Who this fuku is, and the guard that keeps one fuku per project.
 - `Project` is the working directory with symlinks resolved
 - `Fingerprint` is the first 16 hex characters of the SHA-256 of `Project`. It names the project without showing the path
 
-The project socket is `/tmp/fuku-<fingerprint>.sock`. `SocketPath`, `SocketDir` and `SocketDialTimeout` (100ms) are the one definition.
+The project socket is `/tmp/fuku-<fingerprint>.sock`. `SocketPath` and `SocketDir` are the one definition.
+`ProbeSocket` is the one liveness dial. It fails when no process answers within 100ms.
 `logsocket` and `diagnostics` use them.
+
+`UserConfigPath(name)` is the one place for `$UserConfigDir/fuku/<name>`. The update cache and the telemetry ID live there.
+Whoever writes first creates the directory with `0700`.
 
 ## The guard
 

@@ -2,7 +2,6 @@ package logsocket
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -22,8 +21,9 @@ func findSocket(socketDir, fingerprint string) (string, error) {
 	return socketPath, nil
 }
 
-// cleanup removes all stale fuku socket files from the given directory
-func cleanup(socketDir string) error {
+// cleanup removes the stale fuku socket files from the given directory but the project's own, which start replaces
+func cleanup(socketDir, fingerprint string) error {
+	own := instance.SocketPath(socketDir, fingerprint)
 	pattern := instance.SocketPath(socketDir, "*")
 
 	matches, err := filepath.Glob(pattern)
@@ -34,14 +34,16 @@ func cleanup(socketDir string) error {
 	var failed []string
 
 	for _, socketPath := range matches {
+		if socketPath == own {
+			continue
+		}
+
 		info, err := os.Lstat(socketPath)
 		if err != nil || info.Mode()&os.ModeSocket == 0 {
 			continue
 		}
 
-		conn, err := net.DialTimeout("unix", socketPath, instance.SocketDialTimeout)
-		if err == nil {
-			conn.Close()
+		if instance.ProbeSocket(socketPath) == nil {
 			continue
 		}
 

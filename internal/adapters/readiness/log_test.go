@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/adapters/process"
 	"fuku/internal/contracts"
 )
 
@@ -213,7 +214,7 @@ func Test_Checker_checkLog_LineTooLong(t *testing.T) {
 		defer stdout.Close()
 		defer stderrWriter.Close()
 
-		line := []byte(strings.Repeat("x", maxLineSize+1))
+		line := []byte(strings.Repeat("x", process.MaxLineSize+1))
 		writeLine := func() {
 			stdoutWriter.Write(line)
 		}

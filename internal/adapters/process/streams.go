@@ -8,7 +8,8 @@ import (
 	"fuku/internal/model"
 )
 
-const maxLineSize = 4 * 1024 * 1024
+// MaxLineSize bounds one line of child output
+const MaxLineSize = 4 * 1024 * 1024
 
 // Stream names as logs.output lists them
 const (
@@ -78,9 +79,9 @@ func (w *streamWriter) Close() error {
 	return w.dst.Close()
 }
 
-// append adds part of a line to the pending line, truncated at maxLineSize
+// append adds part of a line to the pending line, truncated at MaxLineSize
 func (w *streamWriter) append(part []byte) {
-	room := maxLineSize - len(w.line)
+	room := MaxLineSize - len(w.line)
 	w.line = append(w.line, part[:min(len(part), room)]...)
 }
 

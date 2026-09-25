@@ -2,7 +2,6 @@ package diagnostics
 
 import (
 	"context"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -28,7 +27,8 @@ func (r *Runtime) Socket(fingerprint string) model.Socket {
 	}
 
 	socket.Present = true
-	socket.Reachable, socket.Error = dial(socket.Path)
+	socket.Error = instance.ProbeSocket(socket.Path)
+	socket.Reachable = socket.Error == nil
 
 	return socket
 }
@@ -46,8 +46,8 @@ func (r *Runtime) Sockets() model.SocketScan {
 			continue
 		}
 
-		socket := model.Socket{Path: path, Present: true}
-		socket.Reachable, socket.Error = dial(path)
+		socket := model.Socket{Path: path, Present: true, Error: instance.ProbeSocket(path)}
+		socket.Reachable = socket.Error == nil
 
 		scan.Sockets = append(scan.Sockets, socket)
 	}
@@ -65,16 +65,4 @@ func isSocket(path string) bool {
 	info, err := os.Lstat(path)
 
 	return err == nil && info.Mode()&os.ModeSocket != 0
-}
-
-// dial reports whether a process answers on the unix socket at path
-func dial(path string) (bool, error) {
-	conn, err := net.DialTimeout("unix", path, instance.SocketDialTimeout)
-	if err != nil {
-		return false, err
-	}
-
-	conn.Close()
-
-	return true, nil
 }

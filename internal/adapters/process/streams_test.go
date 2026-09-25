@@ -72,7 +72,7 @@ func Test_streamWriter(t *testing.T) {
 
 	factory := &Factory{sink: mockSink, log: log}
 
-	longLine := strings.Repeat("x", maxLineSize+16)
+	longLine := strings.Repeat("x", MaxLineSize+16)
 
 	stdoutOnly := model.Service{Name: "api", LogOutput: []string{"stdout"}}
 
@@ -130,7 +130,7 @@ func Test_streamWriter(t *testing.T) {
 		{
 			name: "a line longer than the cap is truncated in the broadcast",
 			before: func() {
-				mockSink.EXPECT().Broadcast("api", longLine[:maxLineSize])
+				mockSink.EXPECT().Broadcast("api", longLine[:MaxLineSize])
 			},
 			service: stdoutOnly,
 			stream:  streamStdout,

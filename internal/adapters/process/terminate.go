@@ -25,7 +25,8 @@ func (h *Handle) stop() error {
 
 	h.log.Info(fmt.Sprintf("Stopping service '%s' (PID: %d)", h.svc.Name, h.pid))
 
-	err := h.term()
+	// sync: a pid reused between the child's exit and Done() closing would receive the group signal
+	err := signalGroup(h.pid, h.cmd.Process, syscall.SIGTERM)
 	if errors.Is(err, os.ErrProcessDone) {
 		return nil
 	}
@@ -46,41 +47,28 @@ func (h *Handle) stop() error {
 	}
 }
 
-// term sends SIGTERM to the process group, or to the process itself when the group cannot be signalled
-func (h *Handle) term() error {
-	// sync: a pid reused between the child's exit and Done() closing would receive the group signal
-	groupErr := syscall.Kill(-h.pid, syscall.SIGTERM)
-	if groupErr == nil {
-		return nil
-	}
-
-	h.log.Warn("Failed to send SIGTERM to process group, trying direct signal", "error", groupErr)
-
-	return h.cmd.Process.Signal(syscall.SIGTERM)
-}
-
 // forceKill sends SIGKILL to the process group and waits for the exit (a child reaped before the kill needs nothing)
 func (h *Handle) forceKill() error {
-	// sync: the same pid-reuse window as term
-	groupErr := syscall.Kill(-h.pid, syscall.SIGKILL)
-	if groupErr != nil {
-		h.log.Warn("Failed to SIGKILL process group, trying direct kill", "error", groupErr)
-	}
-
-	var killErr error
-	if groupErr != nil {
-		killErr = h.cmd.Process.Kill()
-	}
-
-	if errors.Is(killErr, os.ErrProcessDone) {
+	// sync: the same pid-reuse window as the SIGTERM in stop
+	err := signalGroup(h.pid, h.cmd.Process, syscall.SIGKILL)
+	if errors.Is(err, os.ErrProcessDone) {
 		return nil
 	}
 
-	if killErr != nil {
-		return fmt.Errorf("failed to terminate process: %w", killErr)
+	if err != nil {
+		return fmt.Errorf("failed to terminate process: %w", err)
 	}
 
 	<-h.done
 
 	return nil
+}
+
+// signalGroup sends sig to the process group of pid, or to proc itself when the group cannot be signalled
+func signalGroup(pid int, proc *os.Process, sig syscall.Signal) error {
+	if err := syscall.Kill(-pid, sig); err == nil {
+		return nil
+	}
+
+	return proc.Signal(sig)
 }

@@ -24,8 +24,9 @@ It is listed before the services runtime, so it stops after the runtime's final 
 
 1. waits on `registry.WaitResolved`
 2. reads one snapshot for the profile and the service names
-3. removes the stale sockets in the directory. Each is dialled. The ones that refuse are removed
-4. binds the project socket at `instance.SocketPath(instance.SocketDir, fingerprint)`
+3. removes the stale sockets of other projects in the directory. Each is dialled. The ones that refuse are removed
+4. binds the project socket at `instance.SocketPath(instance.SocketDir, fingerprint)`. A file already there is dialled once.
+   It is removed unless it answers
 
 A socket that answers means another instance owns the project. A bind failure is logged.
 The run continues without the server.
@@ -37,7 +38,7 @@ A closed connection unsubscribes.
 `Stop` cancels the accept loop, closes the listener and every connection, waits for them and removes the socket file.
 It does this even when its context ends before `run` returns. It then returns the context error.
 A bind still in flight at that moment lands after the stop. It stays open until the process exits.
-The next run's cleanup removes its socket file.
+The next run removes its socket file.
 
 ## The client
 

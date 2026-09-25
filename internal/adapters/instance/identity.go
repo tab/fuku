@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"fuku/internal/model"
+	"fuku/internal/platform/buildinfo"
 )
 
 // FingerprintLength bounds the project fingerprint exposed to unauthenticated callers
@@ -19,7 +21,7 @@ const FingerprintLength = 16
 // Socket location and the dial timeout of a liveness probe against it
 const (
 	SocketDir         = "/tmp"
-	SocketDialTimeout = 100 * time.Millisecond
+	socketDialTimeout = 100 * time.Millisecond
 
 	socketPrefix = "fuku-"
 	socketSuffix = ".sock"
@@ -55,6 +57,28 @@ func Fingerprint(project string) string {
 // SocketPath returns the relay socket of the project with the given fingerprint inside socketDir
 func SocketPath(socketDir, fingerprint string) string {
 	return filepath.Join(socketDir, socketPrefix+fingerprint+socketSuffix)
+}
+
+// UserConfigPath returns the named file in fuku's directory inside the user's config directory
+func UserConfigPath(name string) (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, buildinfo.AppName, name), nil
+}
+
+// ProbeSocket dials the unix socket at path and returns the error when no process answers within the dial timeout
+func ProbeSocket(path string) error {
+	conn, err := net.DialTimeout("unix", path, socketDialTimeout)
+	if err != nil {
+		return err
+	}
+
+	conn.Close()
+
+	return nil
 }
 
 // lockPath returns the lock file of the project with the given fingerprint

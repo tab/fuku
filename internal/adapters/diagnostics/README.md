@@ -7,7 +7,7 @@ The observers `doctor` reads the machine through. Each one reports a fact. Findi
 
 - `Environment` reads a variable, the running binary and the `fuku` a `PATH` lookup finds
 - `Filesystem` reads the working directory and whether a path is a file or a directory
-- a socket is present when `Lstat` shows a unix socket. It is reachable when a dial answers within `instance.SocketDialTimeout`
+- a socket is present when `Lstat` shows a unix socket. It is reachable when `instance.ProbeSocket` answers
 - `Sockets` globs the socket pattern in `instance.SocketDir` and tests each match the same way
 - `ProbePort` is `readiness.ProbePort`. The 100ms probe timeout and the default ports (`http` 80, `https` 443) live there
 

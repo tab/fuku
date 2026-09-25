@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"syscall"
 
@@ -64,12 +63,9 @@ func (g *Guard) Check(context.Context) error {
 func (g *Guard) owner(path string) string {
 	socketPath := SocketPath(SocketDir, g.identity.Fingerprint)
 
-	conn, err := net.DialTimeout("unix", socketPath, SocketDialTimeout)
-	if err != nil {
+	if ProbeSocket(socketPath) != nil {
 		return "lock " + path
 	}
-
-	conn.Close()
 
 	return "socket " + socketPath
 }

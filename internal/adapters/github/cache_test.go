@@ -142,6 +142,10 @@ func Test_writeCache(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 
+			dirInfo, err := os.Stat(filepath.Dir(path))
+			require.NoError(t, err)
+			assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm())
+
 			raw, err := os.ReadFile(path)
 			require.NoError(t, err)
 
