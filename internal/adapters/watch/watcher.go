@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -328,7 +329,7 @@ func (w *Watcher) register(path string, serviceIDs []string) {
 
 	for _, serviceID := range serviceIDs {
 		t, exists := w.targets[serviceID]
-		if !exists {
+		if !exists || slices.Contains(w.registry[path], serviceID) {
 			continue
 		}
 
@@ -339,7 +340,7 @@ func (w *Watcher) register(path string, serviceIDs []string) {
 
 // relativeToBase returns a relative path from the first matching base (root or shared)
 func relativeToBase(t *target, path string) (string, bool) {
-	if relPath, err := filepath.Rel(t.root, path); err == nil && !strings.HasPrefix(relPath, "..") {
+	if relPath, err := filepath.Rel(t.root, path); err == nil && relPath != ".." && !strings.HasPrefix(relPath, "../") {
 		return relPath, true
 	}
 
@@ -349,7 +350,7 @@ func relativeToBase(t *target, path string) (string, bool) {
 			continue
 		}
 
-		if !strings.HasPrefix(relPath, "..") {
+		if relPath != ".." && !strings.HasPrefix(relPath, "../") {
 			return relPath, true
 		}
 	}

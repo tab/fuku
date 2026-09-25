@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -1029,23 +1028,35 @@ func Test_Watcher_register(t *testing.T) {
 		before           func()
 		path             string
 		expectedRegistry []string
-		expectedListed   bool
+		expectedList     []string
 	}{
 		{
 			name:             "adds the directory for every known service",
 			before:           func() {},
 			path:             newDir,
 			expectedRegistry: []string{api.ID},
-			expectedListed:   true,
+			expectedList:     []string{newDir},
 		},
 		{
 			name: "missing directory logs and registers nothing",
 			before: func() {
+				w.targets[api.ID].list = nil
+
 				mockLog.EXPECT().Warn("Failed to watch new directory: "+missingDir, "error", gomock.Any())
 			},
 			path:             missingDir,
 			expectedRegistry: nil,
-			expectedListed:   false,
+			expectedList:     nil,
+		},
+		{
+			name: "a recreated directory is registered once",
+			before: func() {
+				w.registry[newDir] = []string{api.ID}
+				w.targets[api.ID].list = []string{newDir}
+			},
+			path:             newDir,
+			expectedRegistry: []string{api.ID},
+			expectedList:     []string{newDir},
 		},
 	}
 
@@ -1056,7 +1067,7 @@ func Test_Watcher_register(t *testing.T) {
 			w.register(tt.path, serviceIDs)
 
 			assert.Equal(t, tt.expectedRegistry, w.registry[tt.path])
-			assert.Equal(t, tt.expectedListed, slices.Contains(w.targets[api.ID].list, tt.path))
+			assert.Equal(t, tt.expectedList, w.targets[api.ID].list)
 		})
 	}
 }
@@ -1137,6 +1148,24 @@ func Test_relativeToBase(t *testing.T) {
 		{
 			name:       "path outside every base",
 			path:       "/srv/web/main.go",
+			expected:   "",
+			expectedOk: false,
+		},
+		{
+			name:       "path under a root directory whose name starts with two dots",
+			path:       "/srv/api/..foo/main.go",
+			expected:   filepath.Join("..foo", "main.go"),
+			expectedOk: true,
+		},
+		{
+			name:       "path under a shared directory whose name starts with two dots",
+			path:       "/srv/common/..foo/util.go",
+			expected:   filepath.Join("..foo", "util.go"),
+			expectedOk: true,
+		},
+		{
+			name:       "parent of every base",
+			path:       "/srv",
 			expected:   "",
 			expectedOk: false,
 		},
