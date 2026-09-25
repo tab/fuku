@@ -15,7 +15,7 @@ A line written while the writer is off is dropped, not buffered.
 ## Using it
 
 `bootstrap/modules/runtime.go` creates the writer with `terminal.Log` as its `Formatter` and builds the logger on it.
-`run.go` enables it for `--no-ui` only. `tui.Program` enables it when the view returns.
+`run.go` turns it off under the TUI. `tui.Program` enables it when the view returns.
 
 ## Changing it
 

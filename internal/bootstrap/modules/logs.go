@@ -21,26 +21,18 @@ func Logs(cmd *cli.Options, project model.Project) fx.Option {
 		base,
 		configured(cmd, project),
 		fx.Provide(
-			fx.Annotate(newWriter, fx.ParamTags(``, ``, `name:"stdout"`)),
 			fx.Annotate(newLogsView, fx.ParamTags(``, ``, ``, `name:"stdout"`)),
 			func(cmd *cli.Options) logs.Request {
 				return logs.Request{Profile: cmd.Profile, Services: cmd.Services, ReplayOptions: cmd.ReplayOptions}
 			},
 			func(c *logsocket.Client) logs.Client { return c },
 			func(s *logs.Session) cli.Session { return s },
-			newLogsParticipants,
+			func(c *cli.Logs) lifecycle.Command { return c },
+			observerParams.participants,
 		),
 		instance.Module,
 		logsocket.Module,
 	)
-}
-
-// newLogsParticipants runs the logs command over the observers
-func newLogsParticipants(observers observerParams, command *cli.Logs) lifecycle.Participants {
-	participants := observers.participants()
-	participants.Command = command
-
-	return participants
 }
 
 // newLogsView selects the view of the logs command: bare lines without a UI, the banner and styled lines otherwise

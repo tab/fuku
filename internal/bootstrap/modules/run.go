@@ -1,7 +1,6 @@
 package modules
 
 import (
-	"io"
 	"log/slog"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"fuku/internal/adapters/process"
 	"fuku/internal/adapters/resources"
 	"fuku/internal/adapters/rest"
-	"fuku/internal/adapters/terminal"
 	"fuku/internal/adapters/tui"
 	"fuku/internal/adapters/watch"
 	"fuku/internal/app/environment"
@@ -44,7 +42,6 @@ func Run(cmd *cli.Options, project model.Project) fx.Option {
 		configured(cmd, project),
 		runtime,
 		server,
-		fx.Provide(fx.Annotate(newRunWriter, fx.ParamTags(``, ``, ``, `name:"stdout"`))),
 		command,
 	)
 }
@@ -71,7 +68,8 @@ var api = fx.Options(
 var headless = fx.Options(
 	fx.Provide(
 		func(r *services.Runtime) cli.Runtime { return r },
-		newHeadlessParticipants,
+		func(r *cli.Run) lifecycle.Command { return r },
+		runParams.participants,
 	),
 )
 
@@ -86,8 +84,10 @@ var view = fx.Options(
 		func(s *environment.Store) tui.Environment { return s },
 		func(s *registry.Store) tui.Registry { return s },
 		func(c *services.Control) tui.Control { return c },
+		func(p *tui.Program) lifecycle.Command { return p },
 		newViewParticipants,
 	),
+	fx.Decorate(disableWriter),
 	envfiles.Module,
 	environment.Module,
 	tui.Module,
@@ -121,27 +121,17 @@ func (p runParams) participants(observers observerParams) lifecycle.Participants
 	return participants
 }
 
-// newHeadlessParticipants runs the profile with the headless command
-func newHeadlessParticipants(observers observerParams, p runParams, run *cli.Run) lifecycle.Participants {
-	participants := p.participants(observers)
-	participants.Command = run
-
-	return participants
-}
-
 // newViewParticipants runs the profile with the services view, whose store and bridge subscribe before any publish
-func newViewParticipants(observers observerParams, p runParams, store *environment.Store, bridge *tui.Bridge, program *tui.Program) lifecycle.Participants {
+func newViewParticipants(observers observerParams, p runParams, store *environment.Store, bridge *tui.Bridge) lifecycle.Participants {
 	participants := p.participants(observers)
 	participants.Consumers = append(participants.Consumers, store, bridge)
-	participants.Command = program
 
 	return participants
 }
 
-// newRunWriter creates the application log writer, enabled up front only when no TUI takes over the terminal
-func newRunWriter(options output.Options, log *terminal.Log, cmd *cli.Options, stdout io.Writer) *output.Writer {
-	writer := output.NewWriter(options, log, stdout)
-	writer.SetEnabled(cmd.NoUI)
+// disableWriter keeps the log writer off until the TUI hands the terminal back
+func disableWriter(writer *output.Writer) *output.Writer {
+	writer.SetEnabled(false)
 
 	return writer
 }

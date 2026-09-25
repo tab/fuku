@@ -19,11 +19,23 @@ import (
 	"fuku/internal/platform/logging"
 )
 
+func Test_telemetryParams_participants(t *testing.T) {
+	p := telemetryParams{Announcer: &cli.Announcer{}, Command: &cli.Help{}}
+
+	participants := p.participants()
+
+	assert.Nil(t, participants.Guard)
+	assert.Empty(t, participants.Consumers)
+	assert.Equal(t, []lifecycle.Producer{p.Announcer}, participants.Producers)
+	assert.Equal(t, p.Command, participants.Command)
+}
+
 func Test_observerParams_participants(t *testing.T) {
 	recorder := &eventlog.Recorder{}
 	collector := &telemetry.Collector{}
 	tracer := &telemetry.Tracer{}
 	announcer := &cli.Announcer{}
+	command := &cli.Stop{}
 
 	tests := []struct {
 		name      string
@@ -44,14 +56,17 @@ func Test_observerParams_participants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := observerParams{Telemetry: tt.telemetry, Recorder: recorder, Collector: collector, Tracer: tracer, Announcer: announcer}
+			p := observerParams{
+				Base:     telemetryParams{Telemetry: tt.telemetry, Collector: collector, Tracer: tracer, Announcer: announcer, Command: command},
+				Recorder: recorder,
+			}
 
 			participants := p.participants()
 
 			assert.Nil(t, participants.Guard)
 			assert.Equal(t, tt.consumers, participants.Consumers)
 			assert.Equal(t, []lifecycle.Producer{announcer}, participants.Producers)
-			assert.Nil(t, participants.Command)
+			assert.Equal(t, command, participants.Command)
 		})
 	}
 }

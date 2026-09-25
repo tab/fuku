@@ -4,11 +4,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
 	"fuku/internal/adapters/telemetry"
+	"fuku/internal/adapters/terminal"
 	"fuku/internal/bootstrap/lifecycle"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
@@ -18,11 +20,12 @@ import (
 // SentryDSN is the build-time DSN used when the environment supplies none
 type SentryDSN string
 
-// base is what every composition carries: the bus, the coordinator and its arbiter, telemetry, the process streams
+// base is in every composition: the bus, the coordinator and its arbiter, telemetry, the theme, the process streams
 var base = fx.Options(
 	fx.Supply(bus.Options{QueueDepth: bus.QueueDepthDefault}),
 	fx.Provide(
 		newTelemetryOptions,
+		newTheme,
 		lifecycle.NewArbiter,
 		lifecycle.NewCoordinator,
 		fx.Annotate(newStdout, fx.ResultTags(`name:"stdout"`)),
@@ -45,17 +48,16 @@ func standalone(cmd *cli.Options, telemetry model.Telemetry) fx.Option {
 	return fx.Options(
 		fx.NopLogger,
 		fx.Supply(cmd, telemetry),
-		fx.Provide(newDiscardLogger, newStandaloneParticipants),
+		fx.Provide(newDiscardLogger, telemetryParams.participants),
 		cli.Module,
 	)
 }
 
-// newStandaloneParticipants runs the command over the telemetry participants
-func newStandaloneParticipants(observers telemetryParams, command lifecycle.Command) lifecycle.Participants {
-	participants := observers.participants()
-	participants.Command = command
-
-	return participants
+// newTheme returns the theme for the terminal's background, detected once on the first call
+func newTheme() func() terminal.Theme {
+	return sync.OnceValue(func() terminal.Theme {
+		return terminal.NewTheme(terminal.AppearanceSystem.Resolve(os.Stdin, os.Stdout))
+	})
 }
 
 // newDiscardLogger creates the logger of a composition that has no log output

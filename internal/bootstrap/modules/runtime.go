@@ -4,8 +4,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"sync"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -41,7 +39,7 @@ func configured(cmd *cli.Options, project model.Project) fx.Option {
 		fx.Supply(cmd, project),
 		fx.Provide(
 			newLogger,
-			newTheme,
+			fx.Annotate(newWriter, fx.ParamTags(``, ``, `name:"stdout"`)),
 			func(p model.Project) model.Telemetry { return p.Telemetry },
 			func(log *slog.Logger) eventlog.Logger { return log.With("component", "BUS") },
 			func(log *slog.Logger) logs.Logger { return log.With("component", "LOGS") },
@@ -59,7 +57,7 @@ func configured(cmd *cli.Options, project model.Project) fx.Option {
 	)
 }
 
-// telemetryParams are the participants of every command: the announcer and, with telemetry, the collector and tracer
+// telemetryParams are what every command runs: the command, the announcer and, with telemetry, the collector and tracer
 type telemetryParams struct {
 	fx.In
 
@@ -67,12 +65,14 @@ type telemetryParams struct {
 	Collector *telemetry.Collector
 	Tracer    *telemetry.Tracer
 	Announcer *cli.Announcer
+	Command   lifecycle.Command
 }
 
 // participants seeds the participants of a command
 func (p telemetryParams) participants() lifecycle.Participants {
 	participants := lifecycle.Participants{
 		Producers: []lifecycle.Producer{p.Announcer},
+		Command:   p.Command,
 	}
 
 	if p.Telemetry.Enabled {
@@ -86,17 +86,13 @@ func (p telemetryParams) participants() lifecycle.Participants {
 type observerParams struct {
 	fx.In
 
-	Telemetry telemetry.Options
-	Recorder  *eventlog.Recorder
-	Collector *telemetry.Collector
-	Tracer    *telemetry.Tracer
-	Announcer *cli.Announcer
+	Base     telemetryParams
+	Recorder *eventlog.Recorder
 }
 
 // participants seeds the participants of a configured command
 func (p observerParams) participants() lifecycle.Participants {
-	observed := telemetryParams{Telemetry: p.Telemetry, Collector: p.Collector, Tracer: p.Tracer, Announcer: p.Announcer}
-	participants := observed.participants()
+	participants := p.Base.participants()
 	participants.Consumers = append([]lifecycle.Consumer{p.Recorder}, participants.Consumers...)
 
 	return participants
@@ -175,14 +171,7 @@ func newLogger(project model.Project, writer *output.Writer) *slog.Logger {
 	return slog.New(logging.NewHandler(logging.Options{Level: project.Logging.Level, Version: buildinfo.Version}, writer))
 }
 
-// newTheme returns the theme for the terminal's background, detected once on the first call
-func newTheme() func() terminal.Theme {
-	return sync.OnceValue(func() terminal.Theme {
-		return terminal.NewTheme(terminal.AppearanceSystem.Resolve(os.Stdin, os.Stdout))
-	})
-}
-
-// newWriter creates the application log writer of a command that never takes over the terminal, enabled up front
+// newWriter creates the application log writer, enabled up front
 func newWriter(options output.Options, log *terminal.Log, stdout io.Writer) *output.Writer {
 	writer := output.NewWriter(options, log, stdout)
 	writer.SetEnabled(true)

@@ -22,7 +22,6 @@ func Doctor(cmd *cli.Options, loaded model.Config) fx.Option {
 		standalone(cmd, loaded.Project.Telemetry),
 		fx.Supply(loaded),
 		fx.Provide(
-			newTheme,
 			func(theme func() terminal.Theme) cli.Renderer { return newDoctorRenderer(cmd.DoctorFormat, theme) },
 			func(c model.Config) model.Project { return c.Project },
 			func(identity model.Instance) doctor.Options {

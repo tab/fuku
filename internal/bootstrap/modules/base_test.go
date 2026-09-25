@@ -337,15 +337,3 @@ func Test_Projections(t *testing.T) {
 		})
 	}
 }
-
-func Test_newStandaloneParticipants(t *testing.T) {
-	observers := telemetryParams{Announcer: &cli.Announcer{}}
-	command := &cli.Help{}
-
-	participants := newStandaloneParticipants(observers, command)
-
-	assert.Nil(t, participants.Guard)
-	assert.Empty(t, participants.Consumers)
-	assert.Equal(t, []lifecycle.Producer{observers.Announcer}, participants.Producers)
-	assert.Equal(t, command, participants.Command)
-}

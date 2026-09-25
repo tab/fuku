@@ -16,17 +16,9 @@ func Stop(cmd *cli.Options, project model.Project) fx.Option {
 		configured(cmd, project),
 		processes,
 		fx.Provide(
-			fx.Annotate(newWriter, fx.ParamTags(``, ``, `name:"stdout"`)),
 			func(c *services.Cleaner) cli.Cleaner { return c },
-			newStopParticipants,
+			func(c *cli.Stop) lifecycle.Command { return c },
+			observerParams.participants,
 		),
 	)
-}
-
-// newStopParticipants runs the stop command over the observers
-func newStopParticipants(observers observerParams, stop *cli.Stop) lifecycle.Participants {
-	participants := observers.participants()
-	participants.Command = stop
-
-	return participants
 }

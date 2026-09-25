@@ -2,6 +2,7 @@ package modules
 
 import (
 	"bytes"
+	"io"
 	"testing"
 	"time"
 
@@ -32,10 +33,13 @@ import (
 
 func Test_runParams_participants(t *testing.T) {
 	observers := observerParams{
-		Recorder:  &eventlog.Recorder{},
-		Collector: &telemetry.Collector{},
-		Tracer:    &telemetry.Tracer{},
-		Announcer: &cli.Announcer{},
+		Base: telemetryParams{
+			Collector: &telemetry.Collector{},
+			Tracer:    &telemetry.Tracer{},
+			Announcer: &cli.Announcer{},
+			Command:   &cli.Run{},
+		},
+		Recorder: &eventlog.Recorder{},
 	}
 	params := runParams{
 		Guard:    &instance.Guard{},
@@ -49,11 +53,9 @@ func Test_runParams_participants(t *testing.T) {
 	server := &rest.Server{}
 	store := &environment.Store{}
 	bridge := &tui.Bridge{}
-	program := &tui.Program{}
-	run := &cli.Run{}
 
 	consumers := []lifecycle.Consumer{params.Runtime, params.Registry, params.Watcher, observers.Recorder}
-	producers := []lifecycle.Producer{observers.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler, params.Checker}
+	producers := []lifecycle.Producer{observers.Base.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler, params.Checker}
 
 	tests := []struct {
 		name      string
@@ -61,27 +63,24 @@ func Test_runParams_participants(t *testing.T) {
 		build     func(observers observerParams, p runParams) lifecycle.Participants
 		consumers []lifecycle.Consumer
 		producers []lifecycle.Producer
-		command   lifecycle.Command
 	}{
 		{
 			name:   "the view with the API: the environment store and the bridge subscribe last, the API server starts last",
 			server: server,
 			build: func(observers observerParams, p runParams) lifecycle.Participants {
-				return newViewParticipants(observers, p, store, bridge, program)
+				return newViewParticipants(observers, p, store, bridge)
 			},
 			consumers: []lifecycle.Consumer{params.Runtime, params.Registry, params.Watcher, observers.Recorder, store, bridge},
-			producers: []lifecycle.Producer{observers.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler, params.Checker, server},
-			command:   program,
+			producers: []lifecycle.Producer{observers.Base.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler, params.Checker, server},
 		},
 		{
 			name:   "headless without the API: no environment store, the run command waits on the runtime, the update check still runs",
 			server: nil,
 			build: func(observers observerParams, p runParams) lifecycle.Participants {
-				return newHeadlessParticipants(observers, p, run)
+				return p.participants(observers)
 			},
 			consumers: consumers,
 			producers: producers,
-			command:   run,
 		},
 	}
 
@@ -95,7 +94,7 @@ func Test_runParams_participants(t *testing.T) {
 			assert.Equal(t, params.Guard, participants.Guard)
 			assert.Equal(t, tt.consumers, participants.Consumers)
 			assert.Equal(t, tt.producers, participants.Producers)
-			assert.Equal(t, tt.command, participants.Command)
+			assert.Equal(t, observers.Base.Command, participants.Command)
 		})
 	}
 }
@@ -127,37 +126,69 @@ func Test_stopTimeout(t *testing.T) {
 	}
 }
 
-func Test_newRunWriter(t *testing.T) {
+func Test_disableWriter(t *testing.T) {
 	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 	log := terminal.NewLog(terminal.Options{Format: logging.FormatConsole}, theme)
 
+	var stdout bytes.Buffer
+
+	enabled := newWriter(output.Options{Format: logging.FormatConsole}, log, &stdout)
+
+	writer := disableWriter(enabled)
+	_, err := writer.Write([]byte(`{"message":"hello from the writer"}` + "\n"))
+
+	require.NoError(t, err)
+	assert.Same(t, enabled, writer)
+	assert.Empty(t, stdout.String())
+}
+
+func Test_Run_Writer(t *testing.T) {
+	project := model.Project{
+		Logging:     model.Logging{Level: logging.LevelInfo, Format: logging.FormatJSON},
+		Concurrency: model.Concurrency{Workers: 5},
+	}
+
+	var stdout bytes.Buffer
+
+	write := func(writer *output.Writer) error {
+		_, err := writer.Write([]byte(`{"message":"hello from the writer"}` + "\n"))
+
+		return err
+	}
+	probe := fx.Options(
+		fx.Supply(SentryDSN("")),
+		fx.Replace(fx.Annotate(&stdout, fx.As(new(io.Writer)), fx.ResultTags(`name:"stdout"`))),
+		fx.Invoke(write),
+	)
+
 	tests := []struct {
 		name    string
+		before  func()
 		cmd     *cli.Options
-		enabled bool
+		written bool
 	}{
 		{
-			name:    "with the TUI the writer stays disabled until the view returns the terminal",
-			cmd:     &cli.Options{Type: cli.CommandRun},
-			enabled: false,
+			name:    "with the TUI the writer drops the line until the view returns the terminal",
+			before:  stdout.Reset,
+			cmd:     &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault},
+			written: false,
 		},
 		{
-			name:    "without a UI the writer is enabled",
-			cmd:     &cli.Options{Type: cli.CommandRun, NoUI: true},
-			enabled: true,
+			name:    "without a UI the writer prints the line",
+			before:  stdout.Reset,
+			cmd:     &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true},
+			written: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var stdout bytes.Buffer
+			tt.before()
 
-			writer := newRunWriter(output.Options{Format: logging.FormatConsole}, log, tt.cmd, &stdout)
+			app := fx.New(Run(tt.cmd, project), probe)
 
-			_, err := writer.Write([]byte(`{"message":"hello from the writer"}` + "\n"))
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.enabled, bytes.Contains(stdout.Bytes(), []byte("hello from the writer")))
+			require.NoError(t, app.Err())
+			assert.Equal(t, tt.written, bytes.Contains(stdout.Bytes(), []byte("hello from the writer")))
 		})
 	}
 }

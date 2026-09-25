@@ -17,22 +17,22 @@ The blocks are `var`s and functions in `base.go`, `runtime.go` and `run.go`. Eac
 
 | Block          | Adds                                                                                                                            |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `base`         | the bus, the coordinator, the arbiter, telemetry, stdout and stderr. Every composition carries it                               |
+| `base`         | the bus, the coordinator, the arbiter, telemetry, the theme, stdout and stderr. Every composition carries it                    |
 | `standalone`   | the command, env telemetry, the announcer, a discard logger, a silent Fx. For the commands that load no project                 |
-| `configured`   | the project, the command, the logger, the theme, the log hub, the event log                                                     |
+| `configured`   | the project, the command, the log writer, the logger, the log hub, the event log                                                |
 | `processes`    | the process adapter, the worker pool, the profile resolver, the services package (`Cleaner` complete)                           |
 | `profile`      | `processes` plus readiness and the services options, so `Runtime`, `Guard` and `Control` resolve                                |
 | `runtime`      | `profile` plus the instance, the registry, the watcher, the sampler, the socket server, the update check                        |
 | `api`          | the REST server. Only when `server.listen` is set                                                                               |
 | `headless`     | `cli.Run` as the command                                                                                                        |
-| `view`         | `tui.Program` as the command, the environment store and `tui.Bridge` as consumers                                               |
+| `view`         | `tui.Program` as the command, the environment store and `tui.Bridge` as consumers. The log writer stays off until the TUI exits |
 
 | Composition                        | Blocks                                                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `run.go`                           | `base`, `configured`, `runtime`; `api` with a listen address; `view`, or `headless` with `--no-ui`       |
 | `stop.go`                          | `base`, `configured`, `processes`                                                                        |
 | `logs.go`                          | `base`, `configured`, `instance`, `logsocket`; the inline view, or bare lines with `--no-ui`             |
-| `doctor.go`                        | `base`, `standalone`, the theme, `instance`, `diagnostics`, `profiles`, `doctor`                         |
+| `doctor.go`                        | `base`, `standalone`, `instance`, `diagnostics`, `profiles`, `doctor`                                    |
 | `init.go`, `help.go`, `version.go` | `base`, `standalone`                                                                                     |
 
 The participants of a command, in order:
@@ -66,3 +66,4 @@ The wiring rules are in [`CLAUDE.md`](../../../CLAUDE.md#dependency-injection-wi
   No package checks the command type or a listen address
 - the order in a participant slice is a guarantee. Fx value groups are shuffled and cannot carry it
 - building the graph queries no terminal and loads no `.env` file. The theme is a function that detects the terminal on its first call, not at construction
+- `view` turns the log writer off with `fx.Decorate`. A decorator reaches only its own `fx.Module`. The blocks are `fx.Options`, so it reaches the logger too. `Test_Run_Writer` proves it
