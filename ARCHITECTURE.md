@@ -233,6 +233,6 @@ A message that is not critical is dropped where a queue is full.
 | `CommandStarted`, `ReadinessComplete`, `ResourceSampled`, `APIRequested`                                           | no       | –                                                              |
 
 A subscriber is required unless marked optional. `eventlog` holds an optional, unfiltered subscription and sees every message.
-`telemetry` holds two more when it is enabled.
+`telemetry` holds two optional, filtered ones when it is enabled.
 `contracts.MessageType.Critical()` is the exact table. The message rules are in [`internal/contracts/README.md`](internal/contracts/README.md).
 Details are in [`internal/platform/bus/README.md`](internal/platform/bus/README.md).

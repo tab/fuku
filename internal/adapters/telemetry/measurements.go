@@ -45,7 +45,6 @@ const (
 const (
 	TagArch         = "arch"
 	TagCommand      = "command"
-	TagEnv          = "env"
 	TagGoVersion    = "go_version"
 	TagOS           = "os"
 	TagProfile      = "profile"

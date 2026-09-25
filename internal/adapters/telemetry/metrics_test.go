@@ -59,13 +59,13 @@ func Test_Collector_Subscribe(t *testing.T) {
 
 				close(messages)
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics"}).Return(messages, nil)
+				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics", Types: metricsTypes}).Return(messages, nil)
 			},
 		},
 		{
 			name: "returns the subscribe error",
 			before: func() {
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics"}).Return(nil, contracts.ErrBusClosed)
+				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics", Types: metricsTypes}).Return(nil, contracts.ErrBusClosed)
 			},
 			expected: contracts.ErrBusClosed,
 		},
@@ -95,7 +95,7 @@ func Test_Collector_Drain(t *testing.T) {
 
 	collector := NewCollector(mockSubscriber)
 
-	mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics"}).Return(messages, nil)
+	mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics", Types: metricsTypes}).Return(messages, nil)
 
 	require.NoError(t, collector.Subscribe(t.Context()))
 
@@ -134,6 +134,20 @@ func Test_Collector_handle(t *testing.T) {
 		}
 
 		return gomock.Cond(sameNames)
+	}
+
+	tagged := func(key, value string) gomock.Matcher {
+		everyCarries := func(event *sentry.Event) bool {
+			for _, metric := range event.Metrics {
+				if metric.Attributes[key].AsString() != value {
+					return false
+				}
+			}
+
+			return len(event.Metrics) > 0
+		}
+
+		return gomock.Cond(everyCarries)
 	}
 
 	tests := []struct {
@@ -392,11 +406,11 @@ func Test_Collector_handle(t *testing.T) {
 		{
 			name: "API request",
 			before: func() {
-				mockTransport.EXPECT().SendEvent(emitted(MetricAPIRequests, MetricAPIRequestDuration))
+				mockTransport.EXPECT().SendEvent(gomock.All(emitted(MetricAPIRequests, MetricAPIRequestDuration), tagged(TagPath, "/api/v1/services/{id}")))
 			},
 			msg: contracts.Message{
 				Type: contracts.EventAPIRequested,
-				Data: contracts.APIRequested{Method: "GET", Path: "/api/v1/services/test-id-api", Status: 200, Duration: 5 * time.Millisecond},
+				Data: contracts.APIRequested{Method: "GET", Path: "/api/v1/services/test-id-api", Route: "/api/v1/services/{id}", Status: 200, Duration: 5 * time.Millisecond},
 			},
 		},
 		{
@@ -433,58 +447,6 @@ func Test_Collector_handle(t *testing.T) {
 
 			collector.handle(ctx, tt.msg)
 			hub.Flush(flushTimeout)
-		})
-	}
-}
-
-func Test_normalizePath(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "no UUID",
-			input:    "/api/v1/status",
-			expected: "/api/v1/status",
-		},
-		{
-			name:     "service by ID",
-			input:    "/api/v1/services/550e8400-e29b-41d4-a716-446655440000",
-			expected: "/api/v1/services/:id",
-		},
-		{
-			name:     "service action",
-			input:    "/api/v1/services/550e8400-e29b-41d4-a716-446655440000/start",
-			expected: "/api/v1/services/:id/start",
-		},
-		{
-			name:     "services list",
-			input:    "/api/v1/services",
-			expected: "/api/v1/services",
-		},
-		{
-			name:     "non-UUID ID",
-			input:    "/api/v1/services/not-a-uuid",
-			expected: "/api/v1/services/:id",
-		},
-		{
-			name:     "uppercase UUID",
-			input:    "/api/v1/services/550E8400-E29B-41D4-A716-446655440000/restart",
-			expected: "/api/v1/services/:id/restart",
-		},
-		{
-			name:     "other path untouched",
-			input:    "/api/v1/live",
-			expected: "/api/v1/live",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := normalizePath(tt.input)
-
-			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

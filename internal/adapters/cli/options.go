@@ -14,7 +14,7 @@ type CommandType string
 
 // Command type values
 const (
-	CommandRun     CommandType = "run"
+	CommandRun     CommandType = CommandType(contracts.CommandNameRun)
 	CommandStop    CommandType = "stop"
 	CommandInit    CommandType = "init"
 	CommandLogs    CommandType = "logs"

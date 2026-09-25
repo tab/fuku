@@ -35,7 +35,7 @@ An optional subscription named `metrics`. It is a consumer only when telemetry i
 | `APIStarted`, `APIStopped`                             | `api_enabled` 1 or 0                                        |
 | `APIRequested`                                         | `api_requests`, `api_request_duration`, `api_auth_failures` |
 
-The API path is normalized. The service ID becomes `:id`. So the tag set stays small.
+The `path` tag is the matched REST route, not the raw path. The service ID never appears in it, so the tag set stays small.
 
 ## The tracer
 
@@ -51,3 +51,4 @@ An optional subscription named `tracer`. It is a consumer only when telemetry is
 - a new measurement is a new event on the bus first. The collector reads it. No `sentry.NewMeter` call anywhere else
 - a metric name is a constant in `measurements.go`. A span op is a constant in `spans.go`
 - keep the attributes bounded. No service names, no raw paths, no IDs
+- a new `case` in `handle` also goes into `metricsTypes` or `tracerTypes`. The bus filters on them and drops a missing type silently

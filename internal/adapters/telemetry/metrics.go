@@ -2,7 +2,7 @@ package telemetry
 
 import (
 	"context"
-	"strings"
+	"net/http"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/getsentry/sentry-go/attribute"
@@ -10,24 +10,6 @@ import (
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
-
-// normalizePath replaces the service ID segment in API paths to bound metric cardinality
-func normalizePath(path string) string {
-	const prefix = "/api/v1/services/"
-
-	_, rest, found := strings.Cut(path, prefix)
-	if !found {
-		return path
-	}
-
-	slash := strings.IndexByte(rest, '/')
-	switch slash {
-	case -1:
-		return prefix + ":id"
-	default:
-		return prefix + ":id" + rest[slash:]
-	}
-}
 
 // Collector emits a Sentry metric for every bus event that measures something
 type Collector struct {
@@ -213,7 +195,7 @@ func (c *Collector) handleAPIRequest(ctx context.Context, msg contracts.Message)
 
 	attrs := sentry.WithAttributes(
 		attribute.String(TagMethod, data.Method),
-		attribute.String(TagPath, normalizePath(data.Path)),
+		attribute.String(TagPath, data.Route),
 		attribute.Int(TagStatus, data.Status),
 	)
 
@@ -223,7 +205,7 @@ func (c *Collector) handleAPIRequest(ctx context.Context, msg contracts.Message)
 		sentry.WithUnit(sentry.UnitMillisecond), attrs,
 	)
 
-	if data.Status == 401 {
+	if data.Status == http.StatusUnauthorized {
 		meter.Count(MetricAPIAuthFailures, 1)
 	}
 }

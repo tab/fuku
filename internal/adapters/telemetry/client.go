@@ -54,7 +54,6 @@ func (c *Client) Start() {
 
 	sentry.CurrentHub().BindClient(client)
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetTag(TagEnv, c.options.Environment)
 		scope.SetTag(TagOS, runtime.GOOS)
 		scope.SetTag(TagArch, runtime.GOARCH)
 		scope.SetTag(TagGoVersion, runtime.Version())

@@ -152,6 +152,24 @@ func Test_TelemetryMiddleware(t *testing.T) {
 			},
 			status: http.StatusNotFound,
 		},
+		{
+			name: "captures the matched route without the method",
+			before: func() (*http.Request, *httptest.ResponseRecorder) {
+				status = http.StatusOK
+
+				mockPublisher.EXPECT().Publish(gomock.Any()).Do(func(msg contracts.Message) {
+					data, ok := msg.Data.(contracts.APIRequested)
+					require.True(t, ok)
+					assert.Equal(t, "/api/v1/services/{id}", data.Route)
+				})
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/services/test-id", nil)
+				req.Pattern = "GET /api/v1/services/{id}"
+
+				return req, httptest.NewRecorder()
+			},
+			status: http.StatusOK,
+		},
 	}
 
 	for _, tt := range tests {
@@ -161,6 +179,38 @@ func Test_TelemetryMiddleware(t *testing.T) {
 			handler.ServeHTTP(w, req)
 
 			assert.Equal(t, tt.status, w.Code)
+		})
+	}
+}
+
+func Test_route(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  string
+		expected string
+	}{
+		{
+			name:     "strips the method from a matched pattern",
+			pattern:  "GET /api/v1/services/{id}",
+			expected: "/api/v1/services/{id}",
+		},
+		{
+			name:     "a pattern registered without a method is returned as-is",
+			pattern:  "/api/v1/",
+			expected: "/api/v1/",
+		},
+		{
+			name:     "an unmatched request has no pattern",
+			pattern:  "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := route(tt.pattern)
+
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

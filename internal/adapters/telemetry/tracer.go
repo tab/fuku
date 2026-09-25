@@ -12,9 +12,6 @@ import (
 	"fuku/internal/platform/buildinfo"
 )
 
-// commandRun is the command whose lifetime the tracer records as one transaction
-const commandRun = "run"
-
 // Tracer turns the run lifecycle it sees on the bus into one Sentry transaction with child spans
 type Tracer struct {
 	subscriber contracts.Subscriber
@@ -63,7 +60,7 @@ func (t *Tracer) handleCommandStarted(ctx context.Context, msg contracts.Message
 		return
 	}
 
-	if data.Command != commandRun {
+	if data.Command != contracts.CommandNameRun {
 		return
 	}
 

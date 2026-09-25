@@ -21,6 +21,7 @@ type APIStopped struct{}
 type APIRequested struct {
 	Method   string
 	Path     string
+	Route    string // the matched mux pattern, bounded for metric tags
 	Status   int
 	Duration time.Duration
 }

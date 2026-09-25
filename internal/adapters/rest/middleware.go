@@ -25,11 +25,22 @@ func telemetryMiddleware(publisher contracts.Publisher, next http.Handler) http.
 			Data: contracts.APIRequested{
 				Method:   r.Method,
 				Path:     r.URL.Path,
+				Route:    route(r.Pattern),
 				Status:   rw.status,
 				Duration: time.Since(start),
 			},
 		})
 	})
+}
+
+// route strips the method from a ServeMux pattern, leaving the templated path
+func route(pattern string) string {
+	_, path, found := strings.Cut(pattern, " ")
+	if !found {
+		return pattern
+	}
+
+	return path
 }
 
 // responseWriter wraps http.ResponseWriter to capture the status code

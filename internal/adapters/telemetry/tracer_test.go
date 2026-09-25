@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -61,13 +62,13 @@ func Test_Tracer_Subscribe(t *testing.T) {
 
 				close(messages)
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer"}).Return(messages, nil)
+				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer", Types: tracerTypes}).Return(messages, nil)
 			},
 		},
 		{
 			name: "returns the subscribe error",
 			before: func() {
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer"}).Return(nil, contracts.ErrBusClosed)
+				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer", Types: tracerTypes}).Return(nil, contracts.ErrBusClosed)
 			},
 			expected: contracts.ErrBusClosed,
 		},
@@ -112,7 +113,7 @@ func Test_Tracer_Drain(t *testing.T) {
 				tracer := NewTracer(mockSubscriber)
 				tracer.handle(t.Context(), started)
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer"}).Return(make(queue), nil)
+				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer", Types: tracerTypes}).Return(make(queue), nil)
 				require.NoError(t, tracer.Subscribe(t.Context()))
 
 				return tracer, tracer.trace
@@ -127,7 +128,7 @@ func Test_Tracer_Drain(t *testing.T) {
 				trace := tracer.trace
 				tracer.handle(t.Context(), stopped)
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer"}).Return(make(queue), nil)
+				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "tracer", Types: tracerTypes}).Return(make(queue), nil)
 				require.NoError(t, tracer.Subscribe(t.Context()))
 
 				return tracer, trace
@@ -573,6 +574,319 @@ func Test_Tracer_tierPosition(t *testing.T) {
 
 			assert.Equal(t, tt.index, index)
 			assert.Equal(t, tt.total, total)
+		})
+	}
+}
+
+func Test_Tracer_TransactionSpan(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransport := NewMockTransport(ctrl)
+	mockTransport.EXPECT().Configure(gomock.Any())
+
+	client, err := sentry.NewClient(sentry.ClientOptions{Transport: mockTransport, EnableTracing: true, TracesSampleRate: 1.0})
+	require.NoError(t, err)
+
+	hub := sentry.NewHub(client, sentry.NewScope())
+	ctx := sentry.SetHubOnContext(t.Context(), hub)
+
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	started := contracts.Message{
+		Type:      contracts.EventCommandStarted,
+		Timestamp: base,
+		Data:      contracts.CommandStarted{Command: "run"},
+	}
+	stopped := contracts.Message{
+		Type:      contracts.EventPhaseChanged,
+		Timestamp: base.Add(9 * time.Minute),
+		Data:      contracts.PhaseChanged{Phase: model.PhaseStopped},
+	}
+
+	var captured *sentry.Event
+
+	capture := func(event *sentry.Event) { captured = event }
+
+	mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+	tracer := NewTracer(nil)
+	tracer.handle(ctx, started)
+
+	tracer.handle(ctx, stopped)
+
+	trace := captured.Contexts["trace"]
+	status, hasStatus := trace["status"].(sentry.SpanStatus)
+	_, hasOp := trace["op"]
+	_, hasDescription := trace["description"]
+
+	assert.Equal(t, "fuku run", captured.Transaction)
+	assert.True(t, base.Equal(captured.StartTime))
+	assert.True(t, hasStatus)
+	assert.Equal(t, sentry.SpanStatusOK, status)
+	assert.False(t, hasOp)
+	assert.False(t, hasDescription)
+}
+
+func Test_Tracer_TimedSpans(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransport := NewMockTransport(ctrl)
+	mockTransport.EXPECT().Configure(gomock.Any())
+
+	client, err := sentry.NewClient(sentry.ClientOptions{Transport: mockTransport, EnableTracing: true, TracesSampleRate: 1.0})
+	require.NoError(t, err)
+
+	hub := sentry.NewHub(client, sentry.NewScope())
+	ctx := sentry.SetHubOnContext(t.Context(), hub)
+
+	api := model.Service{ID: "test-id-api", Name: "api"}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	started := contracts.Message{
+		Type:      contracts.EventCommandStarted,
+		Timestamp: base,
+		Data:      contracts.CommandStarted{Command: "run"},
+	}
+	resolved := contracts.Message{
+		Type:      contracts.EventProfileResolved,
+		Timestamp: base.Add(time.Minute),
+		Data: contracts.ProfileResolved{
+			Tiers:    []model.Tier{{Name: "app", Services: []*model.Service{&api}}},
+			Duration: 5 * time.Second,
+		},
+	}
+	preflightComplete := contracts.Message{
+		Type:      contracts.EventPreflightComplete,
+		Timestamp: base.Add(2 * time.Minute),
+		Data:      contracts.PreflightComplete{Killed: 1, Duration: 4 * time.Second},
+	}
+	tierReady := contracts.Message{
+		Type:      contracts.EventTierReady,
+		Timestamp: base.Add(3 * time.Minute),
+		Data:      contracts.TierReady{Name: "app", Duration: 10 * time.Second, ServiceCount: 1},
+	}
+	stoppedNoDuration := contracts.Message{
+		Type:      contracts.EventPhaseChanged,
+		Timestamp: base.Add(9 * time.Minute),
+		Data:      contracts.PhaseChanged{Phase: model.PhaseStopped},
+	}
+	stoppedWithDuration := contracts.Message{
+		Type:      contracts.EventPhaseChanged,
+		Timestamp: base.Add(10 * time.Minute),
+		Data:      contracts.PhaseChanged{Phase: model.PhaseStopped, Duration: 30 * time.Second},
+	}
+
+	var captured *sentry.Event
+
+	capture := func(event *sentry.Event) { captured = event }
+	withOp := func(op string) func(*sentry.Span) bool {
+		return func(span *sentry.Span) bool { return span.Op == op }
+	}
+
+	tests := []struct {
+		name        string
+		before      func() *Tracer
+		msg         contracts.Message
+		op          string
+		description string
+		startTime   time.Time
+	}{
+		{
+			name: "discovery span",
+			before: func() *Tracer {
+				mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+				tracer := NewTracer(nil)
+				tracer.handle(ctx, started)
+				tracer.handle(ctx, resolved)
+
+				return tracer
+			},
+			msg:         stoppedNoDuration,
+			op:          OpDiscovery,
+			description: "",
+			startTime:   resolved.Timestamp.Add(-5 * time.Second),
+		},
+		{
+			name: "preflight span",
+			before: func() *Tracer {
+				mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+				tracer := NewTracer(nil)
+				tracer.handle(ctx, started)
+				tracer.handle(ctx, preflightComplete)
+
+				return tracer
+			},
+			msg:         stoppedNoDuration,
+			op:          OpPreflight,
+			description: "",
+			startTime:   preflightComplete.Timestamp.Add(-4 * time.Second),
+		},
+		{
+			name: "tier_startup span",
+			before: func() *Tracer {
+				mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+				tracer := NewTracer(nil)
+				tracer.handle(ctx, started)
+				tracer.handle(ctx, resolved)
+				tracer.handle(ctx, tierReady)
+
+				return tracer
+			},
+			msg:         stoppedNoDuration,
+			op:          OpTierStartup,
+			description: "tier 1/1 (1 services)",
+			startTime:   tierReady.Timestamp.Add(-10 * time.Second),
+		},
+		{
+			name: "shutdown span",
+			before: func() *Tracer {
+				mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+				tracer := NewTracer(nil)
+				tracer.handle(ctx, started)
+
+				return tracer
+			},
+			msg:         stoppedWithDuration,
+			op:          OpShutdown,
+			description: "",
+			startTime:   stoppedWithDuration.Timestamp.Add(-30 * time.Second),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracer := tt.before()
+
+			tracer.handle(ctx, tt.msg)
+
+			idx := slices.IndexFunc(captured.Spans, withOp(tt.op))
+			require.GreaterOrEqual(t, idx, 0)
+
+			span := captured.Spans[idx]
+
+			assert.Equal(t, tt.description, span.Description)
+			assert.Equal(t, sentry.SpanStatusUndefined, span.Status)
+			assert.True(t, tt.startTime.Equal(span.StartTime))
+		})
+	}
+}
+
+func Test_Tracer_MarkSpans(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransport := NewMockTransport(ctrl)
+	mockTransport.EXPECT().Configure(gomock.Any())
+
+	client, err := sentry.NewClient(sentry.ClientOptions{Transport: mockTransport, EnableTracing: true, TracesSampleRate: 1.0})
+	require.NoError(t, err)
+
+	hub := sentry.NewHub(client, sentry.NewScope())
+	ctx := sentry.SetHubOnContext(t.Context(), hub)
+
+	api := model.Service{ID: "test-id-api", Name: "api"}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	started := contracts.Message{
+		Type:      contracts.EventCommandStarted,
+		Timestamp: base,
+		Data:      contracts.CommandStarted{Command: "run"},
+	}
+	watchTriggered := contracts.Message{
+		Type: contracts.EventWatchTriggered,
+		Data: contracts.WatchTriggered{Service: api},
+	}
+	stopService := contracts.Message{
+		Type: contracts.CommandStopService,
+		Data: api,
+	}
+	restartService := contracts.Message{
+		Type: contracts.CommandRestartService,
+		Data: api,
+	}
+	stoppedNoDuration := contracts.Message{
+		Type:      contracts.EventPhaseChanged,
+		Timestamp: base.Add(9 * time.Minute),
+		Data:      contracts.PhaseChanged{Phase: model.PhaseStopped},
+	}
+
+	var captured *sentry.Event
+
+	capture := func(event *sentry.Event) { captured = event }
+	withOp := func(op string) func(*sentry.Span) bool {
+		return func(span *sentry.Span) bool { return span.Op == op }
+	}
+
+	tests := []struct {
+		name        string
+		before      func() *Tracer
+		msg         contracts.Message
+		op          string
+		description string
+	}{
+		{
+			name: "watch_restart mark",
+			before: func() *Tracer {
+				mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+				tracer := NewTracer(nil)
+				tracer.handle(ctx, started)
+				tracer.handle(ctx, watchTriggered)
+
+				return tracer
+			},
+			msg: stoppedNoDuration,
+			op:  OpWatchRestart,
+		},
+		{
+			name: "service_stop mark",
+			before: func() *Tracer {
+				mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+				tracer := NewTracer(nil)
+				tracer.handle(ctx, started)
+				tracer.handle(ctx, stopService)
+
+				return tracer
+			},
+			msg: stoppedNoDuration,
+			op:  OpServiceStop,
+		},
+		{
+			name: "service_restart mark",
+			before: func() *Tracer {
+				mockTransport.EXPECT().SendEvent(gomock.Any()).Do(capture)
+
+				tracer := NewTracer(nil)
+				tracer.handle(ctx, started)
+				tracer.handle(ctx, restartService)
+
+				return tracer
+			},
+			msg: stoppedNoDuration,
+			op:  OpServiceRestart,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracer := tt.before()
+
+			tracer.handle(ctx, tt.msg)
+
+			idx := slices.IndexFunc(captured.Spans, withOp(tt.op))
+			require.GreaterOrEqual(t, idx, 0)
+
+			span := captured.Spans[idx]
+
+			assert.Equal(t, tt.description, span.Description)
+			assert.Equal(t, sentry.SpanStatusUndefined, span.Status)
 		})
 	}
 }
