@@ -1588,25 +1588,123 @@ func Test_HandleKeyPress_AsideFocusedScrollsAsideViewport(t *testing.T) {
 }
 
 func Test_HandleKeyPress_ScrollKeysWhenAsideClosedRouteToServicesViewport(t *testing.T) {
-	m := Model{}
-	m.ui.servicesKeys = defaultKeyMap()
-	m.ui.servicesViewport = viewport.New()
-	m.ui.servicesViewport.SetWidth(40)
-	m.ui.servicesViewport.SetHeight(5)
-	m.ui.servicesViewport.SetContent(strings.Repeat("line\n", 50))
-	m.ui.asideViewport = viewport.New()
+	api := &model.Service{ID: "id-api", Name: "api"}
+	web := &model.Service{ID: "id-web", Name: "web"}
+	db := &model.Service{ID: "id-db", Name: "db"}
+	snapshot := &model.Snapshot{
+		Tiers:    []*model.Tier{{Name: "tier1", Services: []*model.Service{api, web, db}}},
+		Services: map[string]*model.Service{"id-api": api, "id-web": web, "id-db": db},
+	}
 
-	m.state.asideOpen = false
-	m.state.serviceIDs = []string{"id-api"}
-	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{"id-api": {ID: "id-api", Name: "api"}}}
-	m.snapshot.Tiers = []*model.Tier{{Name: "tier1", Services: []*model.Service{m.snapshot.Services["id-api"]}}}
+	tests := []struct {
+		name       string
+		before     func() Model
+		msg        tea.KeyPressMsg
+		wantOffset int
+	}{
+		{
+			name: "end jumps to bottom of services viewport",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.ui.servicesKeys = defaultKeyMap()
+				m.ui.servicesViewport = viewport.New()
+				m.ui.servicesViewport.SetWidth(40)
+				m.ui.servicesViewport.SetHeight(5)
+				m.ui.servicesViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.asideViewport = viewport.New()
+				m.ui.asideViewport.SetWidth(40)
+				m.ui.asideViewport.SetHeight(5)
+				m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.asideViewport.SetYOffset(10)
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.selected = 1
 
-	msg := tea.KeyPressMsg{Code: tea.KeyPgDown}
+				return m
+			},
+			msg:        tea.KeyPressMsg{Code: tea.KeyEnd},
+			wantOffset: 46,
+		},
+		{
+			name: "home jumps to top of services viewport",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.ui.servicesKeys = defaultKeyMap()
+				m.ui.servicesViewport = viewport.New()
+				m.ui.servicesViewport.SetWidth(40)
+				m.ui.servicesViewport.SetHeight(5)
+				m.ui.servicesViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.servicesViewport.SetYOffset(46)
+				m.ui.asideViewport = viewport.New()
+				m.ui.asideViewport.SetWidth(40)
+				m.ui.asideViewport.SetHeight(5)
+				m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.asideViewport.SetYOffset(10)
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.selected = 1
 
-	result, _ := m.handleKeyPress(msg)
+				return m
+			},
+			msg:        tea.KeyPressMsg{Code: tea.KeyHome},
+			wantOffset: 0,
+		},
+		{
+			name: "pgdown scrolls services viewport down",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.ui.servicesKeys = defaultKeyMap()
+				m.ui.servicesViewport = viewport.New()
+				m.ui.servicesViewport.SetWidth(40)
+				m.ui.servicesViewport.SetHeight(5)
+				m.ui.servicesViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.asideViewport = viewport.New()
+				m.ui.asideViewport.SetWidth(40)
+				m.ui.asideViewport.SetHeight(5)
+				m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.asideViewport.SetYOffset(10)
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.selected = 1
 
-	assert.Positive(t, result.ui.servicesViewport.YOffset(), "services viewport must scroll when aside is closed")
-	assert.Equal(t, 0, result.ui.asideViewport.YOffset(), "aside viewport must stay put when aside is closed")
+				return m
+			},
+			msg:        tea.KeyPressMsg{Code: tea.KeyPgDown},
+			wantOffset: 5,
+		},
+		{
+			name: "pgup scrolls services viewport up",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.ui.servicesKeys = defaultKeyMap()
+				m.ui.servicesViewport = viewport.New()
+				m.ui.servicesViewport.SetWidth(40)
+				m.ui.servicesViewport.SetHeight(5)
+				m.ui.servicesViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.servicesViewport.SetYOffset(46)
+				m.ui.asideViewport = viewport.New()
+				m.ui.asideViewport.SetWidth(40)
+				m.ui.asideViewport.SetHeight(5)
+				m.ui.asideViewport.SetContent(strings.Repeat("line\n", 50))
+				m.ui.asideViewport.SetYOffset(10)
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.selected = 1
+
+				return m
+			},
+			msg:        tea.KeyPressMsg{Code: tea.KeyPgUp},
+			wantOffset: 41,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.before()
+
+			result, _ := m.handleKeyPress(tt.msg)
+
+			assert.Equal(t, tt.wantOffset, result.ui.servicesViewport.YOffset())
+			assert.Equal(t, 1, result.state.selected, "service selection must not move on a scroll key")
+			assert.Equal(t, 10, result.ui.asideViewport.YOffset(), "aside viewport must stay put when aside is closed")
+		})
+	}
 }
 
 func Test_SetAsideOpen_SetsFocusAndResetsAsideScroll(t *testing.T) {

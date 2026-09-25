@@ -225,7 +225,16 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if key.Matches(msg, m.ui.servicesKeys.PageUp, m.ui.servicesKeys.PageDown, m.ui.servicesKeys.Home, m.ui.servicesKeys.End) {
+	switch {
+	case key.Matches(msg, m.ui.servicesKeys.Home):
+		m.ui.servicesViewport.GotoTop()
+
+		return m, nil
+	case key.Matches(msg, m.ui.servicesKeys.End):
+		m.ui.servicesViewport.GotoBottom()
+
+		return m, nil
+	case key.Matches(msg, m.ui.servicesKeys.PageUp, m.ui.servicesKeys.PageDown):
 		var cmd tea.Cmd
 
 		m.ui.servicesViewport, cmd = m.ui.servicesViewport.Update(msg)
