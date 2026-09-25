@@ -74,6 +74,17 @@ func Test_LoadPath(t *testing.T) {
 			expectedPath: "nonexistent.yaml",
 		},
 		{
+			name: "explicit path with an override that cannot be checked carries the error",
+			before: func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				require.NoError(t, os.WriteFile("custom.yaml", []byte("version: 1"), 0600))
+				require.NoError(t, os.Symlink("fuku.override.yaml", "fuku.override.yaml"))
+			},
+			path:         "custom.yaml",
+			expectErr:    contracts.ErrFailedToReadConfig,
+			expectedPath: "custom.yaml",
+		},
+		{
 			name: "invalid config carries the validation error",
 			before: func(t *testing.T) {
 				t.Chdir(t.TempDir())

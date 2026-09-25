@@ -69,11 +69,7 @@ func parseTierOrder(data []byte) (*model.Topology, error) {
 				continue
 			}
 
-			tier := tierOf(serviceNode)
-
-			if tier == "" {
-				tier = defaultTier
-			}
+			tier := serviceTier(tierOf(serviceNode), defaultTier)
 
 			if tier == "" {
 				tier = model.TierDefault
@@ -100,13 +96,13 @@ func parseTierOrder(data []byte) (*model.Topology, error) {
 	return topology, nil
 }
 
-// tierOf returns the normalized tier a mapping node declares, merge keys included (empty when it declares none)
+// tierOf returns the tier a mapping node declares, merge keys included (empty when it declares none)
 func tierOf(node *yaml.Node) string {
 	flat := flattenMergeKeys(node)
 
 	for i := 0; i < len(flat.Content); i += 2 {
 		if flat.Content[i].Value == keyTier {
-			return normalizeTier(resolveNode(flat.Content[i+1]).Value)
+			return resolveNode(flat.Content[i+1]).Value
 		}
 	}
 

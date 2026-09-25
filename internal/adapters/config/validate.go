@@ -7,10 +7,15 @@ import (
 	"strings"
 
 	"fuku/internal/model"
+	"fuku/internal/platform/logging"
 )
 
 // validate validates the configuration
 func (c *Config) validate() error {
+	if err := c.validateLogging(); err != nil {
+		return err
+	}
+
 	if err := c.validateConcurrency(); err != nil {
 		return err
 	}
@@ -101,6 +106,16 @@ func (c *Config) checkProfileService(profile, name string) error {
 	}
 
 	return fmt.Errorf("%w: profile '%s' references undefined service '%s'", ErrProfileReferenceUndefined, profile, name)
+}
+
+// validateLogging validates the logging level
+func (c *Config) validateLogging() error {
+	switch c.Logging.Level {
+	case logging.LevelDebug, logging.LevelInfo, logging.LevelWarn, logging.LevelError:
+		return nil
+	default:
+		return fmt.Errorf("%w: '%s'", ErrInvalidLogLevel, c.Logging.Level)
+	}
 }
 
 // validateConcurrency validates concurrency settings

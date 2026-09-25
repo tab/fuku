@@ -227,6 +227,10 @@ fuku version`} />
   </ol>
 
   <p>
+    <code>GO_ENV</code> must be set before fuku starts. Fuku reads it before any file, so a <code>GO_ENV</code> in <code>.env</code> does not select <code>.env.&lt;GO_ENV&gt;</code>.
+  </p>
+
+  <p>
     These files configure the fuku process itself. Each service inherits fuku's environment but does <strong>not</strong> receive any per-service variables injected by fuku &mdash; child processes run in their service <code>dir</code> and are responsible for loading their own <code>.env</code> files.
   </p>
 

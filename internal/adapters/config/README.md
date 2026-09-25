@@ -18,6 +18,8 @@ An explicit `--config` path is read as is. Without one, `fuku.yaml` then `fuku.y
 
 `loadEnv` reads `.env.<GO_ENV>.local`, `.env.<GO_ENV>` and `.env` in that order. The first file to set a variable wins.
 `Telemetry` calls it first, so the commands that load no project read the env files too.
+`GO_ENV` must come from the process environment. `loadEnv` reads it before any file, so a `GO_ENV` in `.env` does not select `.env.<GO_ENV>`.
+The variables stay in fuku's own environment. Every child process inherits them.
 
 The merge works node by node:
 
@@ -28,9 +30,9 @@ The merge works node by node:
 
 The merged document is parsed like a plain file. The run sees its declaration order.
 
-Defaults fill the service directory (the service name), `defaults.tier`, `defaults.profiles` and the readiness timeout (30s) and interval (500ms).
+Defaults fill the service directory (the service name), `defaults.tier` and the readiness timeout (30s) and interval (500ms).
 Normalizing trims and lowercases tier names and deduplicates the exclude list.
-Validation covers concurrency, retry, logs, server, profile references and every service's command, readiness, logs and watch.
+Validation covers the logging level, concurrency, retry, logs, server, profile references and every service's command, readiness, logs and watch.
 It runs before the defaults. A service with no body (`api:` alone) fails it. Viper would drop that service silently.
 
 A validation failure is `contracts.ErrInvalidConfig`. A read failure is `contracts.ErrFailedToReadConfig`.
@@ -62,3 +64,5 @@ Technical constants (socket paths, probe timeouts, port retries) live in the pac
 - a new setting is a YAML field, a default or validation rule here and a field on `model.Project`.
   The package that reads it projects the field into its `options.go`. It never sees the YAML
 - a default belongs here. A model value is complete when a package receives it
+- the topology and the defaults resolve a service's tier through `serviceTier`. Change the rule there.
+  Two rules would put a service in one tier and the tier order in another

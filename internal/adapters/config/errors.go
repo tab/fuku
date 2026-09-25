@@ -5,6 +5,7 @@ import "errors"
 // Sentinels local to the config adapter
 var (
 	ErrFailedToParseConfig       = errors.New("failed to parse config file")
+	ErrInvalidLogLevel           = errors.New("invalid logging level (must be 'debug', 'info', 'warn' or 'error')")
 	ErrInvalidConcurrencyWorkers = errors.New("concurrency workers must be greater than 0")
 	ErrInvalidRetryAttempts      = errors.New("retry attempts must be greater than 0")
 	ErrInvalidRetryBackoff       = errors.New("retry backoff must not be negative")
@@ -21,7 +22,7 @@ var (
 	ErrInvalidCommand            = errors.New("command must not be whitespace-only when provided")
 	ErrWatchIncludeRequired      = errors.New("watch configuration requires include field")
 	ErrInvalidLogsOutput         = errors.New("invalid service logs output value (must be 'stdout' or 'stderr')")
-	ErrAPIInvalidListen          = errors.New("api listen must be a valid host:port address")
-	ErrAPINotLoopback            = errors.New("api listen must bind to a loopback address")
+	ErrAPIInvalidListen          = errors.New("server.listen must be a valid host:port address")
+	ErrAPINotLoopback            = errors.New("server.listen must bind to a loopback address")
 	ErrAPITokenRequired          = errors.New("server.auth.token is required when server.listen is set")
 )

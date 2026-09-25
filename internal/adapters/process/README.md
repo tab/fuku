@@ -10,6 +10,9 @@ When to launch, whether to retry and what an exit means belong to `app/services`
 `Factory.Start` runs the shell command in its own process group. It records the handle under the tracker lock in the same step.
 So no window exists in which a live child is untracked.
 
+The child inherits fuku's environment as is. That includes the variables `adapters/config` loaded from the `.env` files in fuku's working directory.
+Nothing is added per service. A service's `env.files` feed the TUI only.
+
 Each stream goes to a stream writer that exec copies the child's output into:
 
 - the writer passes every chunk to the handle's reader. Readiness reads it

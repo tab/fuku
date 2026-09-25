@@ -49,6 +49,11 @@ func defaultConfig() *Config {
 
 // applyDefaults applies default configuration to services
 func (c *Config) applyDefaults() {
+	defaultTier := ""
+	if c.Defaults != nil {
+		defaultTier = c.Defaults.Tier
+	}
+
 	for name, service := range c.Services {
 		if service.Dir == "" {
 			service.Dir = name
@@ -56,18 +61,7 @@ func (c *Config) applyDefaults() {
 
 		service.applyReadinessDefaults()
 
-		if c.Defaults == nil {
-			continue
-		}
-
-		if len(service.Profiles) == 0 && len(c.Defaults.Profiles) > 0 {
-			service.Profiles = make([]string, len(c.Defaults.Profiles))
-			copy(service.Profiles, c.Defaults.Profiles)
-		}
-
-		if service.Tier == "" && c.Defaults.Tier != "" {
-			service.Tier = c.Defaults.Tier
-		}
+		service.Tier = serviceTier(service.Tier, defaultTier)
 	}
 }
 
@@ -86,21 +80,13 @@ func (s *Service) applyReadinessDefaults() {
 	}
 }
 
-// normalize runs all post-parse normalization steps on the config
-func (c *Config) normalize() {
-	c.normalizeTiers()
-	c.normalizeExclude()
-}
-
-// normalizeTiers normalizes tier names in services to match parsed values
-func (c *Config) normalizeTiers() {
-	for _, service := range c.Services {
-		service.Tier = normalizeTier(service.Tier)
+// serviceTier returns the normalized tier of a service, else the normalized defaults tier (empty when both are unset)
+func serviceTier(tier, defaultTier string) string {
+	if normalized := normalizeTier(tier); normalized != "" {
+		return normalized
 	}
 
-	if c.Defaults != nil {
-		c.Defaults.Tier = normalizeTier(c.Defaults.Tier)
-	}
+	return normalizeTier(defaultTier)
 }
 
 // normalizeTier trims whitespace and lowercases a tier name
@@ -140,7 +126,6 @@ func (c *Config) normalizeExclude() {
 type Service struct {
 	Dir       string     `yaml:"dir"`
 	Command   string     `yaml:"command"`
-	Profiles  []string   `yaml:"profiles"`
 	Tier      string     `yaml:"tier"`
 	Readiness *Readiness `yaml:"readiness"`
 	Logs      *Logs      `yaml:"logs"`
@@ -178,8 +163,7 @@ type Watch struct {
 
 // ServiceDefaults represents default configuration for services
 type ServiceDefaults struct {
-	Profiles []string `yaml:"profiles"`
-	Tier     string   `yaml:"tier"`
+	Tier string `yaml:"tier"`
 }
 
 // Logging represents logging configuration

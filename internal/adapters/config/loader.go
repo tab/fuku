@@ -58,7 +58,11 @@ func loadDefault() (*Config, *model.Topology, files, error) {
 func loadFromFile(path string) (*Config, *model.Topology, files, error) {
 	cfg := initConfig()
 
-	override, _ := resolveOverrideFile(path)
+	override, err := resolveOverrideFile(path)
+	if err != nil {
+		return nil, nil, files{path: path}, err
+	}
+
 	source := files{path: path, override: override}
 
 	filePath, err := resolveExplicitConfig(path)
@@ -228,7 +232,7 @@ func parseConfig(cfg *Config, data []byte) (*Config, *model.Topology, error) {
 	}
 
 	cfg.applyDefaults()
-	cfg.normalize()
+	cfg.normalizeExclude()
 
 	return cfg, topology, nil
 }

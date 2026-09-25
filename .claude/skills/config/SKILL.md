@@ -19,7 +19,6 @@ services:
     dir: path/to/service            # default: the service name
     command: go run cmd/main.go     # default: make run
     tier: foundation                # default: defaults.tier, else "default"
-    profiles: [backend]             # parsed, read by nothing
     readiness:
       type: http                    # http | tcp | log
       url: http://localhost:8080/health   # http: required
@@ -39,7 +38,6 @@ services:
 
 defaults:
   tier: default                     # tier of a service that sets none
-  profiles: [default]               # parsed, read by nothing
 
 profiles:
   default: "*"                      # default: "*"
@@ -74,8 +72,8 @@ server:
 - `command` runs through `sh -c`. Defaults to `make run`. A command of only whitespace is invalid.
 - `tier` is the startup bucket. Names are trimmed and lowercased. Tier order is the first appearance in the file.
   A service without a tier runs last, in `default`. An unknown tier falls back to `default`.
-- `profiles` is parsed and filled from `defaults.profiles`. Nothing reads it.
-- the child inherits fuku's environment. Fuku exports nothing per service.
+- the child inherits fuku's environment. That includes what fuku loaded from its own env files. See [Environment files](#environment-files).
+- fuku exports nothing per service.
 
 ### `readiness`
 
@@ -102,7 +100,6 @@ server:
 ## `defaults`
 
 - `tier` fills a service without one. Normalized like a service tier.
-- `profiles` fills a service without its own. Nothing reads either.
 
 ## `profiles`
 
@@ -116,7 +113,8 @@ server:
 
 ## `logging`
 
-- `format` is `console` or `json`. `level` is `debug`, `info`, `warn` or `error`. Not validated.
+- `level` must be `debug`, `info`, `warn` or `error`, in lowercase. Any other value is invalid.
+- `format` is `console` or `json`. Not validated.
 
 ## `concurrency`
 
@@ -139,6 +137,14 @@ server:
 
 - `FUKU_UPDATER_DISABLED=1` turns the update check off.
 - `FUKU_TELEMETRY_DISABLED=1` turns telemetry off.
+
+## Environment files
+
+Fuku loads `.env.<GO_ENV>.local`, `.env.<GO_ENV>` and `.env` from its working directory into its own environment.
+
+- the first file to set a variable wins. A variable set before fuku starts wins over every file.
+- `GO_ENV` must be set before fuku starts. Fuku reads it before any file, so a `GO_ENV` in `.env` does not select `.env.<GO_ENV>`.
+- every child inherits these variables. A service's `env.files` are separate. They never reach the child.
 
 ## Override
 

@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"fuku/internal/model"
+	"fuku/internal/platform/logging"
 )
 
 func Test_validate(t *testing.T) {
@@ -19,6 +20,65 @@ func Test_validate(t *testing.T) {
 		{
 			name:   "valid configuration with default workers",
 			config: defaultConfig(),
+		},
+		{
+			name: "valid logging level debug",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Logging.Level = logging.LevelDebug
+
+				return cfg
+			}(),
+		},
+		{
+			name: "logging level trace is invalid",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Logging.Level = logging.LevelTrace
+
+				return cfg
+			}(),
+			expectedErr: ErrInvalidLogLevel,
+		},
+		{
+			name: "logging level fatal is invalid",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Logging.Level = logging.LevelFatal
+
+				return cfg
+			}(),
+			expectedErr: ErrInvalidLogLevel,
+		},
+		{
+			name: "logging level panic is invalid",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Logging.Level = logging.LevelPanic
+
+				return cfg
+			}(),
+			expectedErr: ErrInvalidLogLevel,
+		},
+		{
+			name: "logging level in capitals is invalid",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Logging.Level = "INFO"
+
+				return cfg
+			}(),
+			expectedErr: ErrInvalidLogLevel,
+		},
+		{
+			name: "empty logging level is invalid",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Logging.Level = ""
+
+				return cfg
+			}(),
+			expectedErr: ErrInvalidLogLevel,
 		},
 		{
 			name: "valid configuration with custom workers",

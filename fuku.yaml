@@ -72,9 +72,6 @@ services:
       url: http://localhost:8081/health
     logs: *logs
 
-defaults:
-  profiles: [default]
-
 profiles:
   default: "*"
   core: [api, frontend-api, storage]

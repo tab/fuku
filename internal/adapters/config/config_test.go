@@ -50,16 +50,67 @@ func Test_applyDefaults(t *testing.T) {
 					"test": {},
 				},
 				Defaults: &ServiceDefaults{
-					Profiles: []string{"default"},
+					Tier: " Platform ",
 				},
 			},
 			expected: &Config{
 				Services: map[string]*Service{
-					"api":  {Dir: "api", Profiles: []string{"default"}},
-					"test": {Dir: "test", Profiles: []string{"default"}},
+					"api":  {Dir: "api", Tier: "platform"},
+					"test": {Dir: "test", Tier: "platform"},
 				},
 				Defaults: &ServiceDefaults{
-					Profiles: []string{"default"},
+					Tier: " Platform ",
+				},
+			},
+		},
+		{
+			name: "service tier is normalized and wins over the defaults tier",
+			config: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Tier: " Foundation "},
+				},
+				Defaults: &ServiceDefaults{
+					Tier: "platform",
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Tier: "foundation"},
+				},
+				Defaults: &ServiceDefaults{
+					Tier: "platform",
+				},
+			},
+		},
+		{
+			name: "whitespace-only service tier takes the defaults tier",
+			config: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Tier: "   "},
+				},
+				Defaults: &ServiceDefaults{
+					Tier: "platform",
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Tier: "platform"},
+				},
+				Defaults: &ServiceDefaults{
+					Tier: "platform",
+				},
+			},
+		},
+		{
+			name: "service tier is normalized without defaults",
+			config: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Tier: "PLATFORM"},
+				},
+			},
+			expected: &Config{
+				Services: map[string]*Service{
+					"api": {Dir: "api", Tier: "platform"},
 				},
 			},
 		},
@@ -219,54 +270,6 @@ func Test_NormalizeExclude(t *testing.T) {
 
 			cfg.normalizeExclude()
 			assert.Equal(t, tt.expected, cfg.Exclude)
-		})
-	}
-}
-
-func Test_normalize(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *Config
-		expected *Config
-	}{
-		{
-			name: "normalizes tiers and exclude together",
-			cfg: &Config{
-				Services: map[string]*Service{
-					"api":    {Tier: "  Foundation "},
-					"worker": {Tier: "PLATFORM"},
-				},
-				Defaults: &ServiceDefaults{Tier: " Foundation "},
-				Exclude:  []string{"api", "  api  ", "", "worker"},
-			},
-			expected: &Config{
-				Services: map[string]*Service{
-					"api":    {Tier: "foundation"},
-					"worker": {Tier: "platform"},
-				},
-				Defaults: &ServiceDefaults{Tier: "foundation"},
-				Exclude:  []string{"api", "worker"},
-			},
-		},
-		{
-			name: "no defaults and no exclude",
-			cfg: &Config{
-				Services: map[string]*Service{
-					"api": {Tier: "FOUNDATION"},
-				},
-			},
-			expected: &Config{
-				Services: map[string]*Service{
-					"api": {Tier: "foundation"},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.cfg.normalize()
-			assert.Equal(t, tt.expected, tt.cfg)
 		})
 	}
 }

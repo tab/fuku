@@ -120,17 +120,14 @@ const nav = getDocsNav(base);
 
   <p>Profiles group services for batch operations:</p>
 
-  <CodeEditor title="fuku.yaml" lang="yaml" code={`defaults:
-  profiles: [default]           # Profiles used when no profile is specified
-
-profiles:
+  <CodeEditor title="fuku.yaml" lang="yaml" code={`profiles:
   default: "*"                  # All services
   backend: [auth, backend]      # Named list of services`} />
 
   <ul>
     <li><code>"*"</code> – selects all defined services</li>
     <li>A list of service names – selects only those services</li>
-    <li>The <code>defaults.profiles</code> array controls which profiles run when you just type <code>fuku</code></li>
+    <li>The <code>default</code> profile runs when you just type <code>fuku</code></li>
   </ul>
 
   <hr />
@@ -346,9 +343,6 @@ services:
     readiness:
       <<: *readiness-http
       url: http://localhost:3000/health
-
-defaults:
-  profiles: [default]
 
 profiles:
   default: "*"

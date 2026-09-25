@@ -11,7 +11,6 @@ import (
 // Project translates adapter-owned configuration into an ordered plain model with every default applied
 func Project(cfg *Config, topology *model.Topology) model.Project {
 	project := model.Project{
-		Services: []model.Service{},
 		Profiles: map[string]model.Profile{},
 	}
 
@@ -72,10 +71,6 @@ func projectService(name string, service *Service, tierIndex map[string]int) mod
 	}
 
 	tier := service.Tier
-	if tier == "" {
-		tier = model.TierDefault
-	}
-
 	if _, exists := tierIndex[tier]; !exists {
 		tier = model.TierDefault
 	}

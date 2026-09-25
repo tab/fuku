@@ -34,7 +34,6 @@ func Test_loadDefault(t *testing.T) {
 services:
   test-service:
     dir: ./test
-    profiles: [test]
 profiles:
   test:
     - test-service
