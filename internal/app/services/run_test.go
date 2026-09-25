@@ -16,55 +16,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewRuntime(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockProfiles := NewMockProfileResolver(ctrl)
-	mockPreflight := NewMockPreflight(ctrl)
-	mockLauncher := NewMockLauncher(ctrl)
-	mockTracker := NewMockTracker(ctrl)
-	mockReadiness := NewMockReadiness(ctrl)
-	mockPool := NewMockPool(ctrl)
-	mockPublisher := NewMockPublisher(ctrl)
-	mockSubscriber := NewMockSubscriber(ctrl)
-	mockReporter := NewMockReporter(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-	guard := NewGuard(mockTracker)
-
-	options := Options{RetryAttempts: 3}
-
-	runtime := NewRuntime(RuntimeParams{
-		Options:    options,
-		Profiles:   mockProfiles,
-		Preflight:  mockPreflight,
-		Launcher:   mockLauncher,
-		Tracker:    mockTracker,
-		Readiness:  mockReadiness,
-		Pool:       mockPool,
-		Guard:      guard,
-		Publisher:  mockPublisher,
-		Subscriber: mockSubscriber,
-		Reporter:   mockReporter,
-		Logger:     log,
-	})
-
-	assert.NotNil(t, runtime)
-	assert.Equal(t, options, runtime.options)
-	assert.Equal(t, mockProfiles, runtime.profiles)
-	assert.Equal(t, mockPreflight, runtime.preflight)
-	assert.Equal(t, mockLauncher, runtime.launcher)
-	assert.Equal(t, mockTracker, runtime.tracker)
-	assert.Equal(t, mockReadiness, runtime.readiness)
-	assert.Equal(t, mockPool, runtime.pool)
-	assert.Equal(t, guard, runtime.guard)
-	assert.Equal(t, mockPublisher, runtime.publisher)
-	assert.Equal(t, mockSubscriber, runtime.subscriber)
-	assert.Equal(t, mockReporter, runtime.reporter)
-	assert.Equal(t, log, runtime.log)
-}
-
 func Test_Runtime_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

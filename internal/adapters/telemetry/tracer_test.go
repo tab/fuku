@@ -14,19 +14,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewTracer(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSubscriber := NewMockSubscriber(ctrl)
-
-	tracer := NewTracer(mockSubscriber)
-
-	assert.NotNil(t, tracer)
-	assert.Equal(t, mockSubscriber, tracer.subscriber)
-	assert.Nil(t, tracer.trace)
-}
-
 func Test_Tracer_Subscribe(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

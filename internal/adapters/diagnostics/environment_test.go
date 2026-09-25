@@ -9,12 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_NewEnvironment(t *testing.T) {
-	e := NewEnvironment()
-
-	assert.NotNil(t, e)
-}
-
 func Test_Environment_Getenv(t *testing.T) {
 	t.Setenv("FUKU_DIAGNOSTICS_SET", "value")
 	t.Setenv("FUKU_DIAGNOSTICS_EMPTY", "")

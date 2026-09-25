@@ -19,13 +19,13 @@ func Test_Run(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		option         func(arbiter **Arbiter) fx.Option
+		option         func() fx.Option
 		expectedCode   int
 		expectedStderr string
 	}{
 		{
 			name: "returns the code the command completed with",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(a *Arbiter) {
 					go a.decide(3, nil)
 				})
@@ -34,7 +34,7 @@ func Test_Run(t *testing.T) {
 		},
 		{
 			name: "a command that completed with an error prints the cause once",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(a *Arbiter) {
 					go a.decide(1, commandErr)
 				})
@@ -44,7 +44,7 @@ func Test_Run(t *testing.T) {
 		},
 		{
 			name: "a runtime failure exits 1 and prints the cause after the stop",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(a *Arbiter) {
 					go a.Fail(failure)
 				})
@@ -54,7 +54,7 @@ func Test_Run(t *testing.T) {
 		},
 		{
 			name: "a start error exits 1 with the error",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(lc fx.Lifecycle) {
 					lc.Append(fx.Hook{OnStart: func(context.Context) error { return contracts.ErrNoServicesDefined }})
 				})
@@ -64,7 +64,7 @@ func Test_Run(t *testing.T) {
 		},
 		{
 			name: "a constructor error exits 1 with its root cause",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(int) {})
 			},
 			expectedCode:   1,
@@ -72,7 +72,7 @@ func Test_Run(t *testing.T) {
 		},
 		{
 			name: "a duplicate instance exits 1 silently",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(lc fx.Lifecycle) {
 					lc.Append(fx.Hook{OnStart: func(context.Context) error { return contracts.ErrInstanceAlreadyRunning }})
 				})
@@ -81,7 +81,7 @@ func Test_Run(t *testing.T) {
 		},
 		{
 			name: "a stop error exits 1 with the error",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(lc fx.Lifecycle, a *Arbiter) {
 					lc.Append(fx.Hook{OnStop: func(context.Context) error { return contracts.ErrNoServicesDefined }})
 
@@ -93,7 +93,7 @@ func Test_Run(t *testing.T) {
 		},
 		{
 			name: "a stop error prints the recorded cause before it",
-			option: func(arbiter **Arbiter) fx.Option {
+			option: func() fx.Option {
 				return fx.Invoke(func(lc fx.Lifecycle, a *Arbiter) {
 					lc.Append(fx.Hook{OnStop: func(context.Context) error { return context.DeadlineExceeded }})
 
@@ -110,7 +110,7 @@ func Test_Run(t *testing.T) {
 			var arbiter *Arbiter
 
 			stderr := &bytes.Buffer{}
-			application := fx.New(fx.NopLogger, fx.Provide(NewArbiter), fx.Populate(&arbiter), tt.option(&arbiter))
+			application := fx.New(fx.NopLogger, fx.Provide(NewArbiter), fx.Populate(&arbiter), tt.option())
 			require.NotNil(t, arbiter)
 
 			code := Run(application, arbiter, stderr)

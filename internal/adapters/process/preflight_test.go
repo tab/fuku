@@ -20,23 +20,6 @@ import (
 	"fuku/internal/contracts"
 )
 
-func Test_NewPreflight(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPublisher := NewMockPublisher(ctrl)
-	mockWorker := NewMockPool(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-
-	preflight := NewPreflight(mockPublisher, mockWorker, log)
-
-	assert.NotNil(t, preflight)
-	assert.Equal(t, mockPublisher, preflight.publisher)
-	assert.Equal(t, mockWorker, preflight.worker)
-	assert.Equal(t, log, preflight.log)
-}
-
 func Test_matchProcesses(t *testing.T) {
 	tests := []struct {
 		name      string

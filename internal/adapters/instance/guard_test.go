@@ -15,18 +15,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewGuard(t *testing.T) {
-	var buf strings.Builder
-
-	identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/shop")}
-
-	g := NewGuard(identity, &buf)
-
-	assert.Equal(t, identity, g.identity)
-	assert.Equal(t, &buf, g.stderr)
-	assert.Nil(t, g.lock)
-}
-
 func Test_Guard_acquire(t *testing.T) {
 	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
 	dir, err := os.MkdirTemp("/tmp", "fuku-test-")

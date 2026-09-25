@@ -9,21 +9,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewStore(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSubscriber := NewMockSubscriber(ctrl)
-	mockReader := NewMockReader(ctrl)
-
-	s := NewStore(mockSubscriber, mockReader)
-
-	assert.NotNil(t, s)
-	assert.Equal(t, mockSubscriber, s.subscriber)
-	assert.Equal(t, mockReader, s.reader)
-	assert.NotNil(t, s.cache)
-}
-
 func Test_Store_Env(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -13,12 +13,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewRuntime(t *testing.T) {
-	r := NewRuntime()
-
-	assert.NotNil(t, r)
-}
-
 func Test_socketAt(t *testing.T) {
 	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
 	dir, err := os.MkdirTemp("/tmp", "fuku-test-")

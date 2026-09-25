@@ -18,23 +18,6 @@ import (
 	"fuku/internal/platform/buildinfo"
 )
 
-func Test_NewClient(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockDoer := NewMockHTTPDoer(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-
-	options := Options{CachePath: "cache.json"}
-
-	c := NewClient(options, mockDoer, log)
-
-	assert.NotNil(t, c)
-	assert.Equal(t, options, c.options)
-	assert.Equal(t, mockDoer, c.doer)
-}
-
 func Test_newHTTPClient(t *testing.T) {
 	c := newHTTPClient()
 

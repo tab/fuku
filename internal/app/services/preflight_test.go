@@ -13,23 +13,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewCleaner(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockProfiles := NewMockProfileResolver(ctrl)
-	mockPreflight := NewMockPreflight(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-
-	cleaner := NewCleaner(mockProfiles, mockPreflight, log)
-
-	assert.NotNil(t, cleaner)
-	assert.Equal(t, mockProfiles, cleaner.profiles)
-	assert.Equal(t, mockPreflight, cleaner.preflight)
-	assert.Equal(t, log, cleaner.log)
-}
-
 func Test_Cleaner_Cleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

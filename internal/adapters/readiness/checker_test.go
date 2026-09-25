@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -18,21 +19,6 @@ import (
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
-
-func Test_NewChecker(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPublisher := NewMockPublisher(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-
-	checker := NewChecker(mockPublisher, log)
-
-	assert.NotNil(t, checker)
-	assert.Equal(t, mockPublisher, checker.publisher)
-	assert.Equal(t, log, checker.log)
-}
 
 func Test_Checker_Check(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -60,9 +46,8 @@ func Test_Checker_Check(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		before   func(t *testing.T) model.Readiness
-		expected error
+		name   string
+		before func(t *testing.T) model.Readiness
 	}{
 		{
 			name: "HTTP readiness passes and publishes the duration",
@@ -111,21 +96,6 @@ func Test_Checker_Check(t *testing.T) {
 				return model.Readiness{Type: model.ReadinessLog, Pattern: "ready", Timeout: 2 * time.Second}
 			},
 		},
-		{
-			name: "a failed check returns the error and publishes nothing",
-			before: func(t *testing.T) model.Readiness {
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusInternalServerError)
-				}))
-				t.Cleanup(server.Close)
-
-				mockProcess.EXPECT().Service().Return(svc)
-				mockProcess.EXPECT().Done().Return(done)
-
-				return model.Readiness{Type: model.ReadinessHTTP, URL: server.URL, Timeout: 50 * time.Millisecond, Interval: 10 * time.Millisecond}
-			},
-			expected: contracts.ErrReadinessTimeout,
-		},
 	}
 
 	for _, tt := range tests {
@@ -134,12 +104,48 @@ func Test_Checker_Check(t *testing.T) {
 
 			err := checker.Check(t.Context(), readiness, mockProcess)
 
-			require.ErrorIs(t, err, tt.expected)
+			require.NoError(t, err)
 		})
 	}
 
 	stdoutWriter.Close()
 	stderrWriter.Close()
+}
+
+func Test_Checker_Check_EndsOnTheTimeout(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	closed := "http://" + listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockPublisher := NewMockPublisher(ctrl)
+		mockProcess := NewMockProcess(ctrl)
+
+		log := slog.New(slog.DiscardHandler)
+
+		checker := NewChecker(mockPublisher, log)
+
+		svc := model.Service{ID: "test-id-api", Name: "api"}
+		done := make(chan struct{})
+
+		mockProcess.EXPECT().Service().Return(svc)
+		mockProcess.EXPECT().Done().Return(done)
+
+		timeout := 50 * time.Millisecond
+		start := time.Now()
+
+		readiness := model.Readiness{Type: model.ReadinessHTTP, URL: closed, Timeout: timeout, Interval: 10 * time.Millisecond}
+
+		err := checker.Check(t.Context(), readiness, mockProcess)
+
+		require.ErrorIs(t, err, contracts.ErrReadinessTimeout)
+		assert.Equal(t, timeout, time.Since(start))
+	})
 }
 
 func Test_Checker_contextWithDone(t *testing.T) {

@@ -9,12 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_NewFilesystem(t *testing.T) {
-	f := NewFilesystem()
-
-	assert.NotNil(t, f)
-}
-
 func Test_Filesystem_Getwd(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

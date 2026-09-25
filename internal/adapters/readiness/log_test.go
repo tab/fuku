@@ -90,25 +90,6 @@ func Test_Checker_checkLog(t *testing.T) {
 			timeout: 2 * time.Second,
 		},
 		{
-			name: "no matching line times out",
-			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
-				stdout, stdoutWriter := io.Pipe()
-				stderr, stderrWriter := io.Pipe()
-
-				go func() {
-					defer stdoutWriter.Close()
-					defer stderrWriter.Close()
-
-					stdoutWriter.Write([]byte("Server is starting...\n"))
-				}()
-
-				return t.Context(), stdout, stderr, make(chan struct{})
-			},
-			pattern:  "ready",
-			timeout:  50 * time.Millisecond,
-			expected: contracts.ErrReadinessTimeout,
-		},
-		{
 			name: "a negative timeout has already elapsed",
 			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
 				stdout, stdoutWriter := io.Pipe()
@@ -167,6 +148,33 @@ func Test_Checker_checkLog(t *testing.T) {
 			require.ErrorIs(t, err, tt.expected)
 		})
 	}
+}
+
+func Test_Checker_checkLog_EndsOnTheTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockPublisher := NewMockPublisher(ctrl)
+
+		log := slog.New(slog.DiscardHandler)
+
+		checker := NewChecker(mockPublisher, log)
+
+		stdout, stdoutWriter := io.Pipe()
+		stderr, stderrWriter := io.Pipe()
+
+		go func() {
+			defer stdoutWriter.Close()
+			defer stderrWriter.Close()
+
+			stdoutWriter.Write([]byte("Server is starting...\n"))
+		}()
+
+		err := checker.checkLog(t.Context(), "ready", stdout, stderr, 50*time.Millisecond, make(chan struct{}))
+
+		require.ErrorIs(t, err, contracts.ErrReadinessTimeout)
+	})
 }
 
 func Test_Checker_checkLog_InvalidPattern(t *testing.T) {

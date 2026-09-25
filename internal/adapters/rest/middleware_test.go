@@ -121,7 +121,7 @@ func Test_TelemetryMiddleware(t *testing.T) {
 			before: func() (*http.Request, *httptest.ResponseRecorder) {
 				status = http.StatusOK
 
-				mockPublisher.EXPECT().Publish(gomock.Any()).Do(func(msg contracts.Message) {
+				assertRequestPublished := func(msg contracts.Message) {
 					assert.Equal(t, contracts.EventAPIRequested, msg.Type)
 
 					data, ok := msg.Data.(contracts.APIRequested)
@@ -130,7 +130,9 @@ func Test_TelemetryMiddleware(t *testing.T) {
 					assert.Equal(t, "/api/v1/status", data.Path)
 					assert.Equal(t, http.StatusOK, data.Status)
 					assert.Greater(t, data.Duration, time.Duration(0))
-				})
+				}
+
+				mockPublisher.EXPECT().Publish(gomock.Any()).Do(assertRequestPublished)
 
 				return httptest.NewRequest(http.MethodGet, "/api/v1/status", nil), httptest.NewRecorder()
 			},
@@ -141,12 +143,14 @@ func Test_TelemetryMiddleware(t *testing.T) {
 			before: func() (*http.Request, *httptest.ResponseRecorder) {
 				status = http.StatusNotFound
 
-				mockPublisher.EXPECT().Publish(gomock.Any()).Do(func(msg contracts.Message) {
+				assertNotFoundPublished := func(msg contracts.Message) {
 					data, ok := msg.Data.(contracts.APIRequested)
 					require.True(t, ok)
 					assert.Equal(t, "/api/v1/services/unknown", data.Path)
 					assert.Equal(t, http.StatusNotFound, data.Status)
-				})
+				}
+
+				mockPublisher.EXPECT().Publish(gomock.Any()).Do(assertNotFoundPublished)
 
 				return httptest.NewRequest(http.MethodGet, "/api/v1/services/unknown", nil), httptest.NewRecorder()
 			},
@@ -157,11 +161,13 @@ func Test_TelemetryMiddleware(t *testing.T) {
 			before: func() (*http.Request, *httptest.ResponseRecorder) {
 				status = http.StatusOK
 
-				mockPublisher.EXPECT().Publish(gomock.Any()).Do(func(msg contracts.Message) {
+				assertRoutePublished := func(msg contracts.Message) {
 					data, ok := msg.Data.(contracts.APIRequested)
 					require.True(t, ok)
 					assert.Equal(t, "/api/v1/services/{id}", data.Route)
-				})
+				}
+
+				mockPublisher.EXPECT().Publish(gomock.Any()).Do(assertRoutePublished)
 
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/services/test-id", nil)
 				req.Pattern = "GET /api/v1/services/{id}"

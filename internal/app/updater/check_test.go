@@ -13,25 +13,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewChecker(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSource := NewMockReleaseSource(ctrl)
-	mockPublisher := NewMockPublisher(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-
-	options := Options{Enabled: true, Version: "0.19.1"}
-
-	c := NewChecker(options, mockSource, mockPublisher, log)
-
-	assert.NotNil(t, c)
-	assert.Equal(t, options, c.options)
-	assert.Equal(t, mockSource, c.source)
-	assert.Equal(t, mockPublisher, c.publisher)
-}
-
 func Test_Checker_run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

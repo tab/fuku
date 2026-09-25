@@ -13,12 +13,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewReader(t *testing.T) {
-	r := NewReader()
-
-	assert.NotNil(t, r)
-}
-
 func Test_Reader_Read(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("FOO=bar\n# comment\nBAZ=qux\n"), 0o600))

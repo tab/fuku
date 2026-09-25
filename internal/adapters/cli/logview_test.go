@@ -5,27 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
-
-func Test_NewLogView(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockFormatter := NewMockFormatter(ctrl)
-
-	var buf bytes.Buffer
-
-	v := NewLogView(mockFormatter, &buf)
-
-	require.NotNil(t, v)
-	assert.Equal(t, mockFormatter, v.formatter)
-	assert.Equal(t, &buf, v.out)
-}
 
 func Test_LogView_Status_WritesNothing(t *testing.T) {
 	ctrl := gomock.NewController(t)

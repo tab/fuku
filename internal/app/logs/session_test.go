@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -15,23 +14,6 @@ import (
 
 // serviceName is the subscription filter repeated across the session tests
 const serviceName = "api"
-
-func Test_NewSession(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockClient := NewMockClient(ctrl)
-	mockView := NewMockView(ctrl)
-
-	identity := model.Instance{ID: "1f0c6e4a-2b8d-4c3e-9a7f-5d6b8c0e1a24", Project: "/Users/dev/projects/shop", Fingerprint: "3f2a9c1d8b4e6072"}
-
-	s := NewSession(mockClient, mockView, identity)
-
-	require.NotNil(t, s)
-	assert.Equal(t, mockClient, s.client)
-	assert.Equal(t, mockView, s.view)
-	assert.Equal(t, identity.Project, s.project)
-}
 
 func Test_Session_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)

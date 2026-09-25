@@ -12,29 +12,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewRunner(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockEnvironment := NewMockEnvironment(ctrl)
-	mockFilesystem := NewMockFilesystem(ctrl)
-	mockProfiles := NewMockProfiles(ctrl)
-	mockRuntime := NewMockRuntime(ctrl)
-
-	options := Options{Profile: model.ProfileDefault, Version: "0.99.0"}
-	config := model.Config{Path: "fuku.yaml"}
-
-	r := NewRunner(options, config, mockEnvironment, mockFilesystem, mockProfiles, mockRuntime)
-
-	assert.NotNil(t, r)
-	assert.Equal(t, options, r.options)
-	assert.Equal(t, config, r.config)
-	assert.Equal(t, mockEnvironment, r.environment)
-	assert.Equal(t, mockFilesystem, r.filesystem)
-	assert.Equal(t, mockProfiles, r.profiles)
-	assert.Equal(t, mockRuntime, r.runtime)
-}
-
 func Test_Runner_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

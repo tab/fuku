@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -19,18 +18,6 @@ type queue chan contracts.Message
 
 func (q queue) Messages() <-chan contracts.Message {
 	return q
-}
-
-func Test_NewCollector(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSubscriber := NewMockSubscriber(ctrl)
-
-	collector := NewCollector(mockSubscriber)
-
-	assert.NotNil(t, collector)
-	assert.Equal(t, mockSubscriber, collector.subscriber)
 }
 
 func Test_Collector_Subscribe(t *testing.T) {

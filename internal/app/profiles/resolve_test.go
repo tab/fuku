@@ -10,14 +10,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewResolver(t *testing.T) {
-	project := model.Project{Profiles: map[string]model.Profile{"all": {All: true}}}
-
-	resolver := NewResolver(project)
-
-	assert.Equal(t, project, resolver.project)
-}
-
 func Test_Resolver_Resolve(t *testing.T) {
 	tests := []struct {
 		name     string

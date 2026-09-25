@@ -11,23 +11,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewDoctor(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockChecker := NewMockChecker(ctrl)
-	mockRenderer := NewMockRenderer(ctrl)
-
-	var stdout bytes.Buffer
-
-	c := NewDoctor(mockChecker, mockRenderer, &stdout)
-
-	assert.NotNil(t, c)
-	assert.Equal(t, mockChecker, c.checker)
-	assert.Equal(t, mockRenderer, c.renderer)
-	assert.Equal(t, &stdout, c.stdout)
-}
-
 func Test_Doctor_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

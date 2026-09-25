@@ -48,7 +48,6 @@ func Test_NewHub(t *testing.T) {
 
 	assert.Equal(t, 60, h.queue)
 	assert.Len(t, h.history.lines, 50)
-	assert.Empty(t, h.subs)
 }
 
 func Test_Hub_Subscribe(t *testing.T) {

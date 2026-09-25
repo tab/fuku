@@ -143,47 +143,72 @@ func Test_Bus_Publish_RequiredQueueFull(t *testing.T) {
 	mockReporter := NewMockFailureReporter(ctrl)
 	mockLog := NewMockLogger(ctrl)
 
-	b := NewBus(Options{QueueDepth: 1}, mockReporter, mockLog)
-	defer b.Close()
-
-	store, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "store", Required: true, Types: []contracts.MessageType{contracts.EventPhaseChanged}})
-	require.NoError(t, err)
-
-	runner, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "runner", Required: true, Types: []contracts.MessageType{contracts.CommandStopAll}})
-	require.NoError(t, err)
-
-	require.NoError(t, b.Publish(contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseStartup}}))
-
 	overloaded := func(err error) {
 		assert.ErrorContains(t, err, "bus overloaded: required subscription 'store' cannot accept phase_changed")
 	}
 
 	tests := []struct {
 		name          string
-		before        func()
+		before        func(t *testing.T) (*Bus, contracts.Subscription, contracts.Subscription)
 		msg           contracts.Message
 		expectedQueue int
 		expected      error
 	}{
 		{
 			name: "critical message is rejected without delivery",
-			before: func() {
+			before: func(t *testing.T) (*Bus, contracts.Subscription, contracts.Subscription) {
+				b := NewBus(Options{QueueDepth: 1}, mockReporter, mockLog)
+
+				store, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "store", Required: true, Types: []contracts.MessageType{contracts.EventPhaseChanged}})
+				require.NoError(t, err)
+
+				runner, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "runner", Required: true, Types: []contracts.MessageType{contracts.CommandStopAll}})
+				require.NoError(t, err)
+
+				require.NoError(t, b.Publish(contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseStartup}}))
+
 				mockLog.EXPECT().Error("Bus rejected a critical message", "error", gomock.Any(), "type", "phase_changed")
 				mockReporter.EXPECT().Fail(gomock.Any()).Do(overloaded)
+
+				return b, store, runner
 			},
 			msg:           contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseRunning}},
 			expectedQueue: 0,
 			expected:      contracts.ErrBusOverloaded,
 		},
 		{
-			name:          "non-critical message is dropped",
-			before:        func() {},
+			name: "non-critical message is dropped",
+			before: func(t *testing.T) (*Bus, contracts.Subscription, contracts.Subscription) {
+				b := NewBus(Options{QueueDepth: 1}, mockReporter, mockLog)
+
+				store, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "store", Required: true, Types: []contracts.MessageType{contracts.EventPhaseChanged}})
+				require.NoError(t, err)
+
+				runner, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "runner", Required: true, Types: []contracts.MessageType{contracts.CommandStopAll}})
+				require.NoError(t, err)
+
+				require.NoError(t, b.Publish(contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseStartup}}))
+
+				return b, store, runner
+			},
 			msg:           contracts.Message{Type: contracts.EventResourceSampled, Data: contracts.ResourceSampled{CPU: 1}},
 			expectedQueue: 0,
 		},
 		{
-			name:          "critical message the full queue does not match is delivered",
-			before:        func() {},
+			name: "critical message the full queue does not match is delivered",
+			before: func(t *testing.T) (*Bus, contracts.Subscription, contracts.Subscription) {
+				b := NewBus(Options{QueueDepth: 1}, mockReporter, mockLog)
+
+				store, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "store", Required: true, Types: []contracts.MessageType{contracts.EventPhaseChanged}})
+				require.NoError(t, err)
+
+				runner, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "runner", Required: true, Types: []contracts.MessageType{contracts.CommandStopAll}})
+				require.NoError(t, err)
+
+				require.NoError(t, b.Publish(contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseStartup}}))
+
+				return b, store, runner
+			},
 			msg:           contracts.Message{Type: contracts.CommandStopAll},
 			expectedQueue: 1,
 		},
@@ -191,7 +216,8 @@ func Test_Bus_Publish_RequiredQueueFull(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.before()
+			b, store, runner := tt.before(t)
+			defer b.Close()
 
 			err := b.Publish(tt.msg)
 

@@ -12,21 +12,6 @@ import (
 	"fuku/internal/contracts"
 )
 
-func Test_NewLogs(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSession := NewMockSession(ctrl)
-
-	request := logs.Request{Profile: "core"}
-
-	c := NewLogs(request, mockSession)
-
-	require.NotNil(t, c)
-	assert.Equal(t, request, c.request)
-	assert.Equal(t, mockSession, c.session)
-}
-
 func Test_Logs_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

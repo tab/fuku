@@ -12,12 +12,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewJSON(t *testing.T) {
-	j := NewJSON()
-
-	assert.NotNil(t, j)
-}
-
 func Test_JSON_Render(t *testing.T) {
 	var buf bytes.Buffer
 

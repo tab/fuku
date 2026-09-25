@@ -42,10 +42,7 @@ logging:
   format: json
 `
 
-				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, os.WriteFile("fuku.yaml", []byte(content), 0644))
 
 				return func() { os.Remove("fuku.yaml") }
 			},
@@ -63,10 +60,7 @@ concurrency:
   workers: 10
 `
 
-				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, os.WriteFile("fuku.yaml", []byte(content), 0644))
 
 				return func() { os.Remove("fuku.yaml") }
 			},
@@ -84,10 +78,7 @@ concurrency:
   workers: 0
 `
 
-				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, os.WriteFile("fuku.yaml", []byte(content), 0644))
 
 				return func() { os.Remove("fuku.yaml") }
 			},
@@ -100,10 +91,7 @@ concurrency:
 services: "this should be a map not a string"
 `
 
-				err := os.WriteFile("fuku.yaml", []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, os.WriteFile("fuku.yaml", []byte(content), 0644))
 
 				return func() { os.Remove("fuku.yaml") }
 			},
@@ -112,15 +100,8 @@ services: "this should be a map not a string"
 		{
 			name: "permission denied error",
 			setupFunc: func() func() {
-				err := os.WriteFile("fuku.yaml", []byte("test"), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				err = os.Chmod("fuku.yaml", 0000)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, os.WriteFile("fuku.yaml", []byte("test"), 0644))
+				require.NoError(t, os.Chmod("fuku.yaml", 0000))
 
 				return func() {
 					_ = os.Chmod("fuku.yaml", 0644)
@@ -368,10 +349,7 @@ concurrency:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
-			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644))
 
 			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
@@ -417,10 +395,7 @@ retry:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
-			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644))
 
 			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)
@@ -474,10 +449,7 @@ logs:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
-			err := os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, os.WriteFile("fuku.yaml", []byte(tt.yaml), 0644))
 
 			cfg, _, _, err := loadDefault()
 			require.NoError(t, err)

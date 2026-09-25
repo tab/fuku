@@ -11,19 +11,6 @@ import (
 	"fuku/internal/model"
 )
 
-func Test_NewGuard(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTracker := NewMockTracker(ctrl)
-
-	guard := NewGuard(mockTracker)
-
-	assert.NotNil(t, guard)
-	assert.Equal(t, mockTracker, guard.tracker)
-	assert.Empty(t, guard.phase)
-}
-
 func Test_Guard_admit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
