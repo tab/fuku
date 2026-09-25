@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,6 +68,7 @@ func NewServer(hub Hub, registry Registry, identity model.Instance, log Logger) 
 		instanceID:  identity.ID,
 		fingerprint: identity.Fingerprint,
 		done:        make(chan struct{}),
+		socketPath:  instance.SocketPath(instance.SocketDir, identity.Fingerprint),
 		log:         log,
 	}
 }
@@ -120,7 +122,7 @@ func (s *Server) run(ctx context.Context) {
 		}
 	})
 
-	if err := cleanup(instance.SocketDir, s.fingerprint); err != nil {
+	if err := cleanup(filepath.Dir(s.socketPath), s.fingerprint); err != nil {
 		s.log.Warn("Socket cleanup failed, continuing startup", "error", err)
 	}
 
@@ -130,8 +132,6 @@ func (s *Server) run(ctx context.Context) {
 }
 
 func (s *Server) start(ctx context.Context) error {
-	s.socketPath = instance.SocketPath(instance.SocketDir, s.fingerprint)
-
 	if instance.ProbeSocket(s.socketPath) == nil {
 		return fmt.Errorf("socket is already in use: %s", s.socketPath)
 	}

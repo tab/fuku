@@ -18,7 +18,7 @@ func (c *Checker) checkHTTP(ctx context.Context, url string, timeout, interval t
 	defer cancel()
 
 	for {
-		if time.Now().After(deadline) {
+		if time.Until(deadline) <= 0 {
 			return fmt.Errorf("%w: HTTP check after %v", contracts.ErrReadinessTimeout, timeout)
 		}
 

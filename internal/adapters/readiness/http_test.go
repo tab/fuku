@@ -3,11 +3,14 @@ package readiness
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -115,6 +118,33 @@ func Test_Checker_checkHTTP(t *testing.T) {
 			require.ErrorIs(t, err, tt.expected)
 		})
 	}
+}
+
+func Test_Checker_checkHTTP_EndsOnTheTimeout(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	closed := "http://" + listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockPublisher := NewMockPublisher(ctrl)
+
+		log := slog.New(slog.DiscardHandler)
+
+		checker := NewChecker(mockPublisher, log)
+
+		timeout := 50 * time.Millisecond
+		start := time.Now()
+
+		err := checker.checkHTTP(t.Context(), closed, timeout, time.Second, make(chan struct{}))
+
+		require.ErrorIs(t, err, contracts.ErrReadinessTimeout)
+		assert.Equal(t, timeout, time.Since(start))
+	})
 }
 
 func Test_Checker_checkHTTP_InvalidURL(t *testing.T) {

@@ -20,7 +20,12 @@ func NewRuntime() *Runtime {
 
 // Socket reports whether the socket file of the fingerprinted project exists and whether an instance answers on it
 func (r *Runtime) Socket(fingerprint string) model.Socket {
-	socket := model.Socket{Path: instance.SocketPath(instance.SocketDir, fingerprint)}
+	return socketAt(instance.SocketPath(instance.SocketDir, fingerprint))
+}
+
+// socketAt reports whether the socket file at path exists and whether an instance answers on it
+func socketAt(path string) model.Socket {
+	socket := model.Socket{Path: path}
 
 	if !isSocket(socket.Path) {
 		return socket
@@ -35,7 +40,12 @@ func (r *Runtime) Socket(fingerprint string) model.Socket {
 
 // Sockets lists every fuku socket file in the socket directory with whether an instance answers on it
 func (r *Runtime) Sockets() model.SocketScan {
-	scan := model.SocketScan{Dir: instance.SocketDir, Pattern: instance.SocketPath(instance.SocketDir, "*")}
+	return scanSockets(instance.SocketDir)
+}
+
+// scanSockets lists every fuku socket file in dir with whether an instance answers on it
+func scanSockets(dir string) model.SocketScan {
+	scan := model.SocketScan{Dir: dir, Pattern: instance.SocketPath(dir, "*")}
 
 	matches, _ := filepath.Glob(scan.Pattern)
 

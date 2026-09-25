@@ -11,35 +11,37 @@ import (
 )
 
 func Test_debouncer_trigger(t *testing.T) {
-	var (
-		mu            sync.Mutex
-		receivedFiles []string
-	)
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			mu            sync.Mutex
+			receivedFiles []string
+		)
 
-	done := make(chan struct{})
+		done := make(chan struct{})
 
-	d := newDebouncer(10*time.Millisecond, func(files []string) {
-		mu.Lock()
+		d := newDebouncer(10*time.Millisecond, func(files []string) {
+			mu.Lock()
 
-		receivedFiles = files
+			receivedFiles = files
 
-		mu.Unlock()
-		close(done)
+			mu.Unlock()
+			close(done)
+		})
+		defer d.stop()
+
+		d.trigger("file1.go")
+		d.trigger("file2.go")
+		d.trigger("file3.go")
+
+		select {
+		case <-done:
+			mu.Lock()
+			assert.Len(t, receivedFiles, 3)
+			mu.Unlock()
+		case <-time.After(time.Second):
+			t.Fatal("debouncer callback was not called")
+		}
 	})
-	defer d.stop()
-
-	d.trigger("file1.go")
-	d.trigger("file2.go")
-	d.trigger("file3.go")
-
-	select {
-	case <-done:
-		mu.Lock()
-		assert.Len(t, receivedFiles, 3)
-		mu.Unlock()
-	case <-time.After(time.Second):
-		t.Fatal("debouncer callback was not called")
-	}
 }
 
 func Test_debouncer_CoalescesRapidEvents(t *testing.T) {
@@ -117,76 +119,80 @@ func Test_debouncer_stopPreventsNewTriggers(t *testing.T) {
 }
 
 func Test_debouncer_MultipleCallbacks(t *testing.T) {
-	var (
-		mu        sync.Mutex
-		callCount int
-	)
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			mu        sync.Mutex
+			callCount int
+		)
 
-	done := make(chan struct{}, 10)
+		done := make(chan struct{}, 10)
 
-	d := newDebouncer(10*time.Millisecond, func(files []string) {
+		d := newDebouncer(10*time.Millisecond, func(files []string) {
+			mu.Lock()
+
+			callCount++
+
+			mu.Unlock()
+
+			done <- struct{}{}
+		})
+		defer d.stop()
+
+		d.trigger("file1.go")
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("first callback was not called")
+		}
+
+		d.trigger("file2.go")
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("second callback was not called")
+		}
+
 		mu.Lock()
-
-		callCount++
-
+		assert.Equal(t, 2, callCount)
 		mu.Unlock()
-
-		done <- struct{}{}
 	})
-	defer d.stop()
-
-	d.trigger("file1.go")
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("first callback was not called")
-	}
-
-	d.trigger("file2.go")
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("second callback was not called")
-	}
-
-	mu.Lock()
-	assert.Equal(t, 2, callCount)
-	mu.Unlock()
 }
 
 func Test_debouncer_UniqueFiles(t *testing.T) {
-	var (
-		mu            sync.Mutex
-		receivedFiles []string
-	)
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			mu            sync.Mutex
+			receivedFiles []string
+		)
 
-	done := make(chan struct{})
+		done := make(chan struct{})
 
-	d := newDebouncer(10*time.Millisecond, func(files []string) {
-		mu.Lock()
+		d := newDebouncer(10*time.Millisecond, func(files []string) {
+			mu.Lock()
 
-		receivedFiles = files
+			receivedFiles = files
 
-		mu.Unlock()
-		close(done)
+			mu.Unlock()
+			close(done)
+		})
+		defer d.stop()
+
+		d.trigger("file.go")
+		d.trigger("file.go")
+		d.trigger("file.go")
+
+		select {
+		case <-done:
+			mu.Lock()
+			require.Len(t, receivedFiles, 1)
+			assert.Equal(t, "file.go", receivedFiles[0])
+			mu.Unlock()
+		case <-time.After(time.Second):
+			t.Fatal("debouncer callback was not called")
+		}
 	})
-	defer d.stop()
-
-	d.trigger("file.go")
-	d.trigger("file.go")
-	d.trigger("file.go")
-
-	select {
-	case <-done:
-		mu.Lock()
-		require.Len(t, receivedFiles, 1)
-		assert.Equal(t, "file.go", receivedFiles[0])
-		mu.Unlock()
-	case <-time.After(time.Second):
-		t.Fatal("debouncer callback was not called")
-	}
 }
 
 func Test_debouncer_fire(t *testing.T) {

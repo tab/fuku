@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -28,57 +28,50 @@ func Test_NewClient(t *testing.T) {
 	assert.Nil(t, c.conn)
 }
 
-func Test_Client_Connect(t *testing.T) {
-	running := startScriptedServer(t)
+func Test_Client_connect(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/running")
+	dir := testSocketDir(t)
 
-	c := NewClient(model.Instance{Fingerprint: running})
+	listener, err := net.Listen("unix", instance.SocketPath(dir, fingerprint))
+	require.NoError(t, err)
 
-	err := c.Connect()
+	defer listener.Close()
+
+	c := NewClient(model.Instance{Fingerprint: fingerprint})
+
+	err = c.connect(dir)
 
 	require.NoError(t, err)
 	require.NoError(t, c.Close())
 }
 
-func Test_Client_Connect_NoInstance(t *testing.T) {
+func Test_Client_connect_NoInstance(t *testing.T) {
 	fingerprint := instance.Fingerprint("/Users/dev/projects/not-running")
 
 	c := NewClient(model.Instance{Fingerprint: fingerprint})
 
-	err := c.Connect()
+	err := c.connect(t.TempDir())
 
 	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
 }
 
-func Test_Client_Connect_DeadSocket(t *testing.T) {
+func Test_Client_connect_DeadSocket(t *testing.T) {
 	fingerprint := instance.Fingerprint("/Users/dev/projects/dead-socket")
-	socketPath := instance.SocketPath(instance.SocketDir, fingerprint)
-
-	listener, err := net.Listen("unix", socketPath)
-	require.NoError(t, err)
-
-	listener.Close()
+	dir := testSocketDir(t)
+	socketPath := instance.SocketPath(dir, fingerprint)
 
 	createStaleSocket(t, socketPath)
 
-	defer os.Remove(socketPath)
-
 	c := NewClient(model.Instance{Fingerprint: fingerprint})
 
-	err = c.Connect()
+	err := c.connect(dir)
 
 	require.ErrorContains(t, err, "failed to connect to socket")
 }
 
 func Test_Client_Subscribe(t *testing.T) {
-	fingerprint := startScriptedServer(t)
-
 	connected := func(t *testing.T) *Client {
-		c := NewClient(model.Instance{Fingerprint: fingerprint})
-		require.NoError(t, c.Connect())
-
-		t.Cleanup(func() { c.Close() })
-
-		return c
+		return &Client{conn: startScriptedServer(t)}
 	}
 
 	tests := []struct {
@@ -106,7 +99,7 @@ func Test_Client_Subscribe(t *testing.T) {
 				return c
 			},
 			services: []string{"api"},
-			expect:   net.ErrClosed,
+			expect:   io.ErrClosedPipe,
 		},
 	}
 
@@ -129,10 +122,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 
 	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}})
 	line := marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
-	fingerprint := startScriptedServer(t, status, line)
-
-	c := NewClient(model.Instance{Fingerprint: fingerprint})
-	require.NoError(t, c.Connect())
+	c := &Client{conn: startScriptedServer(t, status, line)}
 
 	defer c.Close()
 
@@ -390,10 +380,7 @@ func Test_Client_Stream_BoundedReadAcknowledgement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			fingerprint := startScriptedServer(t, tt.lines(t)...)
-
-			c := NewClient(model.Instance{Fingerprint: fingerprint})
-			require.NoError(t, c.Connect())
+			c := &Client{conn: startScriptedServer(t, tt.lines(t)...)}
 
 			defer c.Close()
 
@@ -448,10 +435,7 @@ func Test_Client_Stream_StatusError(t *testing.T) {
 			tt.before()
 
 			logLine := marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
-			fingerprint := startScriptedServer(t, marshalLine(t, tt.status), logLine)
-
-			c := NewClient(model.Instance{Fingerprint: fingerprint})
-			require.NoError(t, c.Connect())
+			c := &Client{conn: startScriptedServer(t, marshalLine(t, tt.status), logLine)}
 
 			defer c.Close()
 
@@ -464,26 +448,17 @@ func Test_Client_Stream_StatusError(t *testing.T) {
 	}
 }
 
-// startScriptedServer answers one subscription on its own project socket with the lines and returns the fingerprint
-func startScriptedServer(t *testing.T, lines ...string) string {
+// startScriptedServer answers one subscription over an in-memory pipe with the lines and returns the client's end
+func startScriptedServer(t *testing.T, lines ...string) net.Conn {
 	t.Helper()
 
-	identity := testIdentity(t)
-	socketPath := instance.SocketPath(instance.SocketDir, identity.Fingerprint)
-
-	listener, err := net.Listen("unix", socketPath)
-	require.NoError(t, err)
+	client, conn := net.Pipe()
 
 	t.Cleanup(func() {
-		listener.Close()
+		client.Close()
 	})
 
 	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			return
-		}
-
 		defer conn.Close()
 
 		if _, err := bufio.NewReader(conn).ReadBytes('\n'); err != nil {
@@ -495,7 +470,7 @@ func startScriptedServer(t *testing.T, lines ...string) string {
 		}
 	}()
 
-	return identity.Fingerprint
+	return client
 }
 
 // marshalLine renders a protocol message as one wire line

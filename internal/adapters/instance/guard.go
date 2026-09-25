@@ -32,7 +32,12 @@ func NewGuard(identity model.Instance, stderr io.Writer) *Guard {
 
 // Check takes the project lock for the process lifetime, or returns ErrInstanceAlreadyRunning if another run holds it
 func (g *Guard) Check(context.Context) error {
-	path := lockPath(g.identity.Fingerprint)
+	return g.acquire(SocketDir)
+}
+
+// acquire takes the project lock inside socketDir, or refuses and names the owner when another run holds it
+func (g *Guard) acquire(socketDir string) error {
+	path := lockPath(socketDir, g.identity.Fingerprint)
 
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
@@ -42,7 +47,7 @@ func (g *Guard) Check(context.Context) error {
 	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if errors.Is(err, syscall.EWOULDBLOCK) {
 		file.Close()
-		fmt.Fprintf(g.stderr, refusalFormat, contracts.ErrInstanceAlreadyRunning, g.owner(path))
+		fmt.Fprintf(g.stderr, refusalFormat, contracts.ErrInstanceAlreadyRunning, g.owner(socketDir, path))
 
 		return contracts.ErrInstanceAlreadyRunning
 	}
@@ -60,8 +65,8 @@ func (g *Guard) Check(context.Context) error {
 }
 
 // owner names where the other instance answers: its socket, or the lock file while its socket is not up yet
-func (g *Guard) owner(path string) string {
-	socketPath := SocketPath(SocketDir, g.identity.Fingerprint)
+func (g *Guard) owner(socketDir, path string) string {
+	socketPath := SocketPath(socketDir, g.identity.Fingerprint)
 
 	if ProbeSocket(socketPath) != nil {
 		return "lock " + path

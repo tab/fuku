@@ -1,14 +1,12 @@
 package instance
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"os"
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +27,13 @@ func Test_NewGuard(t *testing.T) {
 	assert.Nil(t, g.lock)
 }
 
-func Test_Guard_Check(t *testing.T) {
+func Test_Guard_acquire(t *testing.T) {
+	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
+	dir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
+
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
 	tests := []struct {
 		name         string
 		before       func(t *testing.T) (model.Instance, string)
@@ -39,8 +43,7 @@ func Test_Guard_Check(t *testing.T) {
 		{
 			name: "takes the free lock of the project",
 			before: func(t *testing.T) (model.Instance, string) {
-				identity := model.Instance{Fingerprint: Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))}
-				t.Cleanup(func() { os.Remove(lockPath(identity.Fingerprint)) })
+				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
 
 				return identity, ""
 			},
@@ -49,14 +52,13 @@ func Test_Guard_Check(t *testing.T) {
 		{
 			name: "refuses while another run holds the lock and names its socket",
 			before: func(t *testing.T) (model.Instance, string) {
-				identity := model.Instance{Fingerprint: Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))}
-				t.Cleanup(func() { os.Remove(lockPath(identity.Fingerprint)) })
+				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
 
 				holder := NewGuard(identity, io.Discard)
-				require.NoError(t, holder.Check(t.Context()))
+				require.NoError(t, holder.acquire(dir))
 				t.Cleanup(func() { holder.lock.Close() })
 
-				socketPath := SocketPath(SocketDir, identity.Fingerprint)
+				socketPath := SocketPath(dir, identity.Fingerprint)
 				listener, err := net.Listen("unix", socketPath)
 				require.NoError(t, err)
 				t.Cleanup(func() { listener.Close() })
@@ -68,25 +70,23 @@ func Test_Guard_Check(t *testing.T) {
 		{
 			name: "names the lock file while the other run's socket is not up yet",
 			before: func(t *testing.T) (model.Instance, string) {
-				identity := model.Instance{Fingerprint: Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))}
-				t.Cleanup(func() { os.Remove(lockPath(identity.Fingerprint)) })
+				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
 
 				holder := NewGuard(identity, io.Discard)
-				require.NoError(t, holder.Check(t.Context()))
+				require.NoError(t, holder.acquire(dir))
 				t.Cleanup(func() { holder.lock.Close() })
 
-				return identity, "Error: fuku is already running for this project (lock " + lockPath(identity.Fingerprint) + ")\nRun 'fuku logs' to follow it or stop that instance before starting another.\n"
+				return identity, "Error: fuku is already running for this project (lock " + lockPath(dir, identity.Fingerprint) + ")\nRun 'fuku logs' to follow it or stop that instance before starting another.\n"
 			},
 			expected: contracts.ErrInstanceAlreadyRunning,
 		},
 		{
 			name: "takes the lock a finished run released",
 			before: func(t *testing.T) (model.Instance, string) {
-				identity := model.Instance{Fingerprint: Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))}
-				t.Cleanup(func() { os.Remove(lockPath(identity.Fingerprint)) })
+				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
 
 				holder := NewGuard(identity, io.Discard)
-				require.NoError(t, holder.Check(t.Context()))
+				require.NoError(t, holder.acquire(dir))
 				require.NoError(t, holder.lock.Close())
 
 				return identity, ""
@@ -96,15 +96,13 @@ func Test_Guard_Check(t *testing.T) {
 		{
 			name: "takes the lock beside a stale socket nobody answers on",
 			before: func(t *testing.T) (model.Instance, string) {
-				identity := model.Instance{Fingerprint: Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))}
-				t.Cleanup(func() { os.Remove(lockPath(identity.Fingerprint)) })
+				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
 
-				socketPath := SocketPath(SocketDir, identity.Fingerprint)
+				socketPath := SocketPath(dir, identity.Fingerprint)
 				fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 				require.NoError(t, err)
 				require.NoError(t, syscall.Bind(fd, &syscall.SockaddrUnix{Name: socketPath}))
 				require.NoError(t, syscall.Close(fd))
-				t.Cleanup(func() { os.Remove(socketPath) })
 
 				return identity, ""
 			},
@@ -113,10 +111,9 @@ func Test_Guard_Check(t *testing.T) {
 		{
 			name: "fails when the lock file cannot be opened",
 			before: func(t *testing.T) (model.Instance, string) {
-				identity := model.Instance{Fingerprint: Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))}
-				path := lockPath(identity.Fingerprint)
+				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
+				path := lockPath(dir, identity.Fingerprint)
 				require.NoError(t, os.Mkdir(path, 0o700))
-				t.Cleanup(func() { os.Remove(path) })
 
 				return identity, ""
 			},
@@ -133,7 +130,7 @@ func Test_Guard_Check(t *testing.T) {
 
 			t.Cleanup(func() { guard.lock.Close() })
 
-			err := guard.Check(t.Context())
+			err := guard.acquire(dir)
 
 			require.ErrorIs(t, err, tt.expected)
 			assert.Equal(t, tt.expectLocked, guard.lock != nil)

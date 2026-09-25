@@ -26,6 +26,12 @@ func Test_Checker_checkTCP(t *testing.T) {
 
 	checker := NewChecker(mockPublisher, log)
 
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	closed := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
 	tests := []struct {
 		name     string
 		before   func(t *testing.T) (context.Context, string, <-chan struct{})
@@ -44,20 +50,12 @@ func Test_Checker_checkTCP(t *testing.T) {
 			timeout: 5 * time.Second,
 		},
 		{
-			name: "a closed port times out",
-			before: func(t *testing.T) (context.Context, string, <-chan struct{}) {
-				return t.Context(), "127.0.0.1:59999", make(chan struct{})
-			},
-			timeout:  50 * time.Millisecond,
-			expected: contracts.ErrReadinessTimeout,
-		},
-		{
 			name: "a cancelled context stops the check",
 			before: func(t *testing.T) (context.Context, string, <-chan struct{}) {
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
 
-				return ctx, "127.0.0.1:59999", make(chan struct{})
+				return ctx, closed, make(chan struct{})
 			},
 			timeout:  5 * time.Second,
 			expected: context.Canceled,
@@ -68,7 +66,7 @@ func Test_Checker_checkTCP(t *testing.T) {
 				done := make(chan struct{})
 				close(done)
 
-				return t.Context(), "127.0.0.1:59999", done
+				return t.Context(), closed, done
 			},
 			timeout:  5 * time.Second,
 			expected: contracts.ErrProcessExited,
@@ -87,6 +85,12 @@ func Test_Checker_checkTCP(t *testing.T) {
 }
 
 func Test_Checker_checkTCP_EndsOnTheTimeout(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	closed := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
 	synctest.Test(t, func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -100,7 +104,7 @@ func Test_Checker_checkTCP_EndsOnTheTimeout(t *testing.T) {
 		timeout := 50 * time.Millisecond
 		start := time.Now()
 
-		err := checker.checkTCP(t.Context(), "127.0.0.1:59999", timeout, time.Second, make(chan struct{}))
+		err := checker.checkTCP(t.Context(), closed, timeout, time.Second, make(chan struct{}))
 
 		require.ErrorIs(t, err, contracts.ErrReadinessTimeout)
 		assert.Equal(t, timeout, time.Since(start))
@@ -116,6 +120,12 @@ func Test_Checker_ProbePort(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 
 	checker := NewChecker(mockPublisher, log)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	closed := listener.Addr().String()
+	require.NoError(t, listener.Close())
 
 	tests := []struct {
 		name   string
@@ -148,7 +158,7 @@ func Test_Checker_ProbePort(t *testing.T) {
 		{
 			name: "a free address is reported with nothing listening",
 			before: func(_ *testing.T) (model.Readiness, model.Port) {
-				return model.Readiness{Type: model.ReadinessTCP, Address: "127.0.0.1:59999"}, model.Port{Address: "127.0.0.1:59999"}
+				return model.Readiness{Type: model.ReadinessTCP, Address: closed}, model.Port{Address: closed}
 			},
 		},
 		{

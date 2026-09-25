@@ -29,7 +29,12 @@ func NewClient(identity model.Instance) *Client {
 
 // Connect finds the socket of the running instance and dials it (ErrNoInstanceRunning when there is none)
 func (c *Client) Connect() error {
-	socketPath, err := findSocket(instance.SocketDir, c.fingerprint)
+	return c.connect(instance.SocketDir)
+}
+
+// connect finds the project socket inside socketDir and dials it
+func (c *Client) connect(socketDir string) error {
+	socketPath, err := findSocket(socketDir, c.fingerprint)
 	if err != nil {
 		return err
 	}

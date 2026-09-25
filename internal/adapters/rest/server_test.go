@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -183,9 +184,24 @@ func Test_Server_Start_PortBusy(t *testing.T) {
 
 	log := slog.New(slog.DiscardHandler)
 
-	s := NewServer(Options{Listen: "127.0.0.1:1"}, mockRegistry, nil, mockPublisher, model.Instance{}, log)
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
-	s.Start(context.Background())
+	defer occupied.Close()
+
+	base := occupied.Addr().(*net.TCPAddr).Port
+
+	for port := base + 1; port < base+PortRetries; port++ {
+		listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+		if err == nil {
+			t.Cleanup(func() { listener.Close() })
+		}
+	}
+
+	s := NewServer(Options{Listen: occupied.Addr().String()}, mockRegistry, nil, mockPublisher, model.Instance{}, log)
+
+	s.Start(t.Context())
+	defer s.Stop(t.Context())
 
 	assert.Nil(t, s.httpServer)
 }

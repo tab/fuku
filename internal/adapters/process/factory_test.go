@@ -259,7 +259,7 @@ func Test_Factory_Start_StdoutCopy(t *testing.T) {
 	}
 }
 
-func Test_Factory_Start_DescendantHoldingTheStreams(t *testing.T) {
+func Test_Factory_wait_DescendantHoldingTheStreams(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -272,21 +272,35 @@ func Test_Factory_Start_DescendantHoldingTheStreams(t *testing.T) {
 
 	svc := model.Service{ID: "test-id-api", Name: "api", Command: "sleep 30 & exit 0", Directory: t.TempDir()}
 
-	mockLog.EXPECT().Info(gomock.Any())
+	stdoutReader, stdoutPipe := io.Pipe()
+	require.NoError(t, stdoutReader.Close())
 
-	proc, err := factory.Start(svc)
+	stderrReader, stderrPipe := io.Pipe()
+	require.NoError(t, stderrReader.Close())
 
+	stdout := factory.newStreamWriter(stdoutPipe, svc, streamStdout)
+	stderr := factory.newStreamWriter(stderrPipe, svc, streamStderr)
+
+	prepared, err := prepare(svc.Command, svc.Directory, stdout, stderr)
 	require.NoError(t, err)
 
+	prepared.cmd.WaitDelay = 10 * time.Millisecond
+
+	require.NoError(t, prepared.cmd.Start())
+
+	handle := newHandle(svc, prepared.cmd, stdoutReader, stderrReader, mockLog)
+
 	killGroup := func() {
-		syscall.Kill(-proc.PID(), syscall.SIGKILL)
+		syscall.Kill(-handle.PID(), syscall.SIGKILL)
 	}
 
 	defer killGroup()
 
+	go factory.wait(handle, stdout, stderr)
+
 	select {
-	case <-proc.Done():
-	case <-time.After(ShutdownTimeout + time.Second):
+	case <-handle.Done():
+	case <-time.After(ShutdownTimeout):
 		t.Fatal("a descendant holding the streams kept done open")
 	}
 }

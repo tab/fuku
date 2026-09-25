@@ -468,7 +468,13 @@ func Test_Watcher_PublishesEventOnFileChange(t *testing.T) {
 	require.NoError(t, os.WriteFile(ignoredFile, []byte("package main\n// modified"), 0644))
 	require.NoError(t, os.WriteFile(testFile, []byte("package main\n// modified"), 0644))
 
-	change := <-triggered
+	var change contracts.WatchTriggered
+
+	select {
+	case change = <-triggered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the change was not published")
+	}
 
 	assert.Equal(t, api, change.Service)
 	assert.Equal(t, []string{"main.go"}, change.ChangedFiles, "the ignored test file is not part of the change")
@@ -579,7 +585,13 @@ func Test_Watcher_WatchesSharedDirs(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(sharedFile, []byte("package shared\n// modified"), 0644))
 
-	change := <-triggered
+	var change contracts.WatchTriggered
+
+	select {
+	case change = <-triggered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the change was not published")
+	}
 
 	assert.Equal(t, api, change.Service)
 	assert.Equal(t, []string{"shared.go"}, change.ChangedFiles)
@@ -639,7 +651,13 @@ func Test_Watcher_WatchesNewDirCreatedAtRuntime(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(newDir, "new.go"), []byte("package newpkg"), 0644))
 
-	change := <-triggered
+	var change contracts.WatchTriggered
+
+	select {
+	case change = <-triggered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the change was not published")
+	}
 
 	assert.Equal(t, api, change.Service)
 	assert.Equal(t, []string{filepath.Join("newpkg", "new.go")}, change.ChangedFiles)

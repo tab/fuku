@@ -1,12 +1,10 @@
 package diagnostics
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,11 +19,14 @@ func Test_NewRuntime(t *testing.T) {
 	assert.NotNil(t, r)
 }
 
-func Test_Runtime_Socket(t *testing.T) {
-	subject := NewRuntime()
+func Test_socketAt(t *testing.T) {
+	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
+	dir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
 
-	fingerprint := instance.Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))
-	socketPath := instance.SocketPath(instance.SocketDir, fingerprint)
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	socketPath := instance.SocketPath(dir, "0123456789abcdef")
 
 	tests := []struct {
 		name        string
@@ -71,7 +72,7 @@ func Test_Runtime_Socket(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before(t)
 
-			got := subject.Socket(fingerprint)
+			got := socketAt(socketPath)
 
 			require.ErrorIs(t, got.Error, tt.expectedErr)
 			assert.Equal(t, socketPath, got.Path)
@@ -81,12 +82,15 @@ func Test_Runtime_Socket(t *testing.T) {
 	}
 }
 
-func Test_Runtime_Sockets(t *testing.T) {
-	subject := NewRuntime()
+func Test_scanSockets(t *testing.T) {
+	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
+	dir, err := os.MkdirTemp("/tmp", "fuku-test-")
+	require.NoError(t, err)
 
-	fingerprint := instance.Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))
-	socketPath := instance.SocketPath(instance.SocketDir, fingerprint)
-	regularPath := instance.SocketPath(instance.SocketDir, fingerprint+"-regular")
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	socketPath := instance.SocketPath(dir, "0123456789abcdef")
+	regularPath := instance.SocketPath(dir, "0123456789abcdef-regular")
 
 	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	require.NoError(t, err)
@@ -94,16 +98,11 @@ func Test_Runtime_Sockets(t *testing.T) {
 	require.NoError(t, syscall.Close(fd))
 	require.NoError(t, os.WriteFile(regularPath, []byte("not a socket"), 0o600))
 
-	t.Cleanup(func() {
-		os.Remove(socketPath)
-		os.Remove(regularPath)
-	})
+	scan := scanSockets(dir)
 
-	scan := subject.Sockets()
-
-	assert.Equal(t, instance.SocketDir, scan.Dir)
-	assert.Equal(t, instance.SocketPath(instance.SocketDir, "*"), scan.Pattern)
-	assert.GreaterOrEqual(t, scan.Files, len(scan.Sockets))
+	assert.Equal(t, dir, scan.Dir)
+	assert.Equal(t, instance.SocketPath(dir, "*"), scan.Pattern)
+	assert.Equal(t, 2, scan.Files)
 
 	found := make(map[string]model.Socket, len(scan.Sockets))
 	for _, socket := range scan.Sockets {

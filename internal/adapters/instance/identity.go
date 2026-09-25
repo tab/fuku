@@ -81,7 +81,7 @@ func ProbeSocket(path string) error {
 	return nil
 }
 
-// lockPath returns the lock file of the project with the given fingerprint
-func lockPath(fingerprint string) string {
-	return filepath.Join(SocketDir, socketPrefix+fingerprint+lockSuffix)
+// lockPath returns the lock file of the project with the given fingerprint inside socketDir
+func lockPath(socketDir, fingerprint string) string {
+	return filepath.Join(socketDir, socketPrefix+fingerprint+lockSuffix)
 }
