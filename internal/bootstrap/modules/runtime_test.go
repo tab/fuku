@@ -57,7 +57,8 @@ func Test_observerParams_participants(t *testing.T) {
 }
 
 func Test_newWriter(t *testing.T) {
-	log := terminal.NewLog(terminal.Options{Format: logging.FormatConsole}, terminal.NewTheme(terminal.AppearanceLight))
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
+	log := terminal.NewLog(terminal.Options{Format: logging.FormatConsole}, theme)
 
 	var stdout bytes.Buffer
 

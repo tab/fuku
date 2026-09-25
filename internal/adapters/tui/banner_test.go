@@ -13,11 +13,11 @@ import (
 )
 
 func Test_LogView_banner(t *testing.T) {
-	theme := terminal.NewTheme(terminal.AppearanceLight)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 
 	var buf bytes.Buffer
 
-	view := NewLogView(theme, nil, &buf, 80)
+	view := NewLogView(theme, nil, &buf)
 
 	tests := []struct {
 		name       string

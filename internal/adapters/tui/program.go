@@ -27,7 +27,7 @@ type ProgramParams struct {
 	Registry    Registry
 	Monitor     Monitor
 	Environment Environment
-	Theme       terminal.Theme
+	Theme       func() terminal.Theme
 	Writer      Output
 	Logger      Logger
 }
@@ -52,7 +52,7 @@ func (p *Program) Run(ctx context.Context) (int, error) {
 		Registry:    p.params.Registry,
 		Monitor:     p.params.Monitor,
 		Environment: p.params.Environment,
-		Theme:       p.params.Theme,
+		Theme:       p.params.Theme(),
 		Logger:      p.params.Logger,
 	})
 

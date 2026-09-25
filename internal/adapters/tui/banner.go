@@ -28,10 +28,11 @@ func (v *LogView) banner(status contracts.LogStatus, subscribed []string) {
 		showing = strings.Join(subscribed[:maxShown], ", ") + fmt.Sprintf(" and %d more", len(subscribed)-maxShown)
 	}
 
-	innerWidth := v.width - terminal.PanelInnerPadding
+	theme := v.theme()
+	innerWidth := TerminalWidth() - terminal.PanelInnerPadding
 	border := func(s string) string { return terminal.PanelBorderStyle.Render(s) }
 
-	muted := v.theme.PanelMutedStyle.Render
+	muted := theme.PanelMutedStyle.Render
 	bold := terminal.BoldStyle.Render
 
 	field := func(label, value string) string {
@@ -50,11 +51,11 @@ func (v *LogView) banner(status contracts.LogStatus, subscribed []string) {
 	lines := []string{topBorder}
 	lines = terminal.AppendContentLines(lines, contentLines, innerWidth, border)
 
-	versionText := v.theme.PanelMutedStyle.Render("v" + status.Version)
+	versionText := theme.PanelMutedStyle.Render("v" + status.Version)
 	bottomBorder := terminal.BuildBottomBorder(border, "", versionText, innerWidth)
 	lines = append(lines, bottomBorder)
 
-	footer := " " + v.theme.HelpKeyStyle.Render("ctrl+c") + " " + v.theme.HelpDescStyle.Render("exit")
+	footer := " " + theme.HelpKeyStyle.Render("ctrl+c") + " " + theme.HelpDescStyle.Render("exit")
 	lines = append(lines, footer, "")
 
 	for _, line := range lines {

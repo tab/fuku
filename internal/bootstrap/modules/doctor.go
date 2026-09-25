@@ -19,11 +19,11 @@ import (
 func Doctor(cmd *cli.Options, loaded model.Config) fx.Option {
 	return fx.Options(
 		base,
-		standalone(cmd),
+		standalone(cmd, loaded.Project.Telemetry),
 		fx.Supply(loaded),
 		fx.Provide(
 			newTheme,
-			func(theme terminal.Theme) cli.Renderer { return newDoctorRenderer(cmd.DoctorFormat, theme) },
+			func(theme func() terminal.Theme) cli.Renderer { return newDoctorRenderer(cmd.DoctorFormat, theme) },
 			func(c model.Config) model.Project { return c.Project },
 			func(identity model.Instance) doctor.Options {
 				return doctor.Options{
@@ -48,7 +48,7 @@ func Doctor(cmd *cli.Options, loaded model.Config) fx.Option {
 }
 
 // newDoctorRenderer selects the view of the report: the styled report or summary in the theme, or JSON
-func newDoctorRenderer(format cli.Format, theme terminal.Theme) cli.Renderer {
+func newDoctorRenderer(format cli.Format, theme func() terminal.Theme) cli.Renderer {
 	switch format {
 	case cli.FormatJSON:
 		return cli.NewJSON()

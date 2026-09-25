@@ -71,6 +71,7 @@ func Test_Coordinator_Start(t *testing.T) {
 			name: "guard, telemetry, consumers, producers and the command run in that order and the outcome stops the container",
 			before: func(t *testing.T) *Coordinator {
 				coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, nil, mockTelemetry, participants, log)
+				runContext := func(ctx context.Context) bool { return ctx == coordinator.ctx }
 				completed := make(chan struct{})
 				stopped := func(...any) error {
 					close(completed)
@@ -81,11 +82,11 @@ func Test_Coordinator_Start(t *testing.T) {
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
 					mockTelemetry.EXPECT().Start(),
-					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
-					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(nil),
-					mockLeading.EXPECT().Start(coordinator.ctx).Return(nil),
-					mockTrailing.EXPECT().Start(coordinator.ctx).Return(nil),
-					mockCommand.EXPECT().Run(coordinator.ctx).Return(2, nil),
+					mockFirst.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil),
+					mockSecond.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil),
+					mockLeading.EXPECT().Start(gomock.Cond(runContext)).Return(nil),
+					mockTrailing.EXPECT().Start(gomock.Cond(runContext)).Return(nil),
+					mockCommand.EXPECT().Run(gomock.Cond(runContext)).Return(2, nil),
 					mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).DoAndReturn(stopped),
 				)
 
@@ -99,6 +100,7 @@ func Test_Coordinator_Start(t *testing.T) {
 			before: func(t *testing.T) *Coordinator {
 				arbiter := NewArbiter(mockShutdowner)
 				coordinator := NewCoordinator(arbiter, nil, nil, mockTelemetry, participants, log)
+				runContext := func(ctx context.Context) bool { return ctx == coordinator.ctx }
 				completed := make(chan struct{})
 				stopped := func(...any) error {
 					close(completed)
@@ -109,11 +111,11 @@ func Test_Coordinator_Start(t *testing.T) {
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
 					mockTelemetry.EXPECT().Start(),
-					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
-					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(nil),
-					mockLeading.EXPECT().Start(coordinator.ctx).Return(nil),
-					mockTrailing.EXPECT().Start(coordinator.ctx).Return(nil),
-					mockCommand.EXPECT().Run(coordinator.ctx).Return(1, commandErr),
+					mockFirst.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil),
+					mockSecond.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil),
+					mockLeading.EXPECT().Start(gomock.Cond(runContext)).Return(nil),
+					mockTrailing.EXPECT().Start(gomock.Cond(runContext)).Return(nil),
+					mockCommand.EXPECT().Run(gomock.Cond(runContext)).Return(1, commandErr),
 					mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).DoAndReturn(stopped),
 				)
 
@@ -150,12 +152,13 @@ func Test_Coordinator_Start(t *testing.T) {
 			name: "a consumer that cannot subscribe keeps every producer down, cancels the context and closes the bus",
 			before: func(t *testing.T) *Coordinator {
 				coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, mockCloser, mockTelemetry, participants, log)
+				runContext := func(ctx context.Context) bool { return ctx == coordinator.ctx }
 
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
 					mockTelemetry.EXPECT().Start(),
-					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
-					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(subscribeErr),
+					mockFirst.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil),
+					mockSecond.EXPECT().Subscribe(gomock.Cond(runContext)).Return(subscribeErr),
 					mockTelemetry.EXPECT().Stop(),
 					mockCloser.EXPECT().Close(),
 				)
@@ -170,14 +173,15 @@ func Test_Coordinator_Start(t *testing.T) {
 			name: "a producer that cannot start unwinds the producers started before it and closes the bus",
 			before: func(t *testing.T) *Coordinator {
 				coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, mockCloser, mockTelemetry, participants, mockLog)
+				runContext := func(ctx context.Context) bool { return ctx == coordinator.ctx }
 
 				gomock.InOrder(
 					mockGuard.EXPECT().Check(gomock.Any()).Return(nil),
 					mockTelemetry.EXPECT().Start(),
-					mockFirst.EXPECT().Subscribe(coordinator.ctx).Return(nil),
-					mockSecond.EXPECT().Subscribe(coordinator.ctx).Return(nil),
-					mockLeading.EXPECT().Start(coordinator.ctx).Return(nil),
-					mockTrailing.EXPECT().Start(coordinator.ctx).Return(startErr),
+					mockFirst.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil),
+					mockSecond.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil),
+					mockLeading.EXPECT().Start(gomock.Cond(runContext)).Return(nil),
+					mockTrailing.EXPECT().Start(gomock.Cond(runContext)).Return(startErr),
 					mockLeading.EXPECT().Stop(gomock.Any()).Return(stopErr),
 					mockLog.EXPECT().Error("Failed to stop a producer while unwinding the start", "error", stopErr),
 					mockTelemetry.EXPECT().Stop(),
@@ -214,6 +218,7 @@ func Test_Coordinator_Start_WithoutGuard(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	completed := make(chan struct{})
 	coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, nil, mockTelemetry, Participants{Command: mockCommand}, log)
+	runContext := func(ctx context.Context) bool { return ctx == coordinator.ctx }
 	stopped := func(...any) error {
 		close(completed)
 
@@ -222,7 +227,7 @@ func Test_Coordinator_Start_WithoutGuard(t *testing.T) {
 
 	gomock.InOrder(
 		mockTelemetry.EXPECT().Start(),
-		mockCommand.EXPECT().Run(coordinator.ctx).Return(0, nil),
+		mockCommand.EXPECT().Run(gomock.Cond(runContext)).Return(0, nil),
 		mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).DoAndReturn(stopped),
 	)
 
@@ -423,6 +428,7 @@ func Test_Coordinator_Stop_WaitsForTheCommand(t *testing.T) {
 
 	log := slog.New(slog.DiscardHandler)
 	coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, mockCloser, mockTelemetry, Participants{Command: mockCommand}, log)
+	runContext := func(ctx context.Context) bool { return ctx == coordinator.ctx }
 	finished := make(chan struct{})
 	waitForCancel := func(ctx context.Context) (int, error) {
 		<-ctx.Done()
@@ -432,7 +438,7 @@ func Test_Coordinator_Stop_WaitsForTheCommand(t *testing.T) {
 	}
 
 	mockTelemetry.EXPECT().Start()
-	mockCommand.EXPECT().Run(coordinator.ctx).DoAndReturn(waitForCancel)
+	mockCommand.EXPECT().Run(gomock.Cond(runContext)).DoAndReturn(waitForCancel)
 	mockTelemetry.EXPECT().Stop()
 	mockCloser.EXPECT().Close()
 	mockShutdowner.EXPECT().Shutdown(gomock.Any()).Return(nil)
@@ -464,6 +470,7 @@ func Test_Coordinator_Stop_ClosesTheBusLast(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	participants := Participants{Consumers: []Consumer{mockConsumer}, Producers: []Producer{mockProducer}, Command: mockCommand}
 	coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, mockCloser, mockTelemetry, participants, log)
+	runContext := func(ctx context.Context) bool { return ctx == coordinator.ctx }
 	waitForCancel := func(ctx context.Context) (int, error) {
 		<-ctx.Done()
 
@@ -471,9 +478,9 @@ func Test_Coordinator_Stop_ClosesTheBusLast(t *testing.T) {
 	}
 
 	mockTelemetry.EXPECT().Start()
-	mockConsumer.EXPECT().Subscribe(coordinator.ctx).Return(nil)
-	mockProducer.EXPECT().Start(coordinator.ctx).Return(nil)
-	mockCommand.EXPECT().Run(coordinator.ctx).DoAndReturn(waitForCancel)
+	mockConsumer.EXPECT().Subscribe(gomock.Cond(runContext)).Return(nil)
+	mockProducer.EXPECT().Start(gomock.Cond(runContext)).Return(nil)
+	mockCommand.EXPECT().Run(gomock.Cond(runContext)).DoAndReturn(waitForCancel)
 	gomock.InOrder(
 		mockProducer.EXPECT().Stop(gomock.Any()).Return(nil),
 		mockConsumer.EXPECT().Drain(gomock.Any()).Return(nil).Times(2),

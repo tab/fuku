@@ -61,17 +61,17 @@ func Test_Compositions(t *testing.T) {
 	}{
 		{
 			name:   "help loads no project",
-			option: Help(&cli.Options{Type: cli.CommandHelp}),
+			option: Help(&cli.Options{Type: cli.CommandHelp}, model.Telemetry{}),
 			absent: noProject,
 		},
 		{
 			name:   "version loads no project",
-			option: Version(&cli.Options{Type: cli.CommandVersion}),
+			option: Version(&cli.Options{Type: cli.CommandVersion}, model.Telemetry{}),
 			absent: noProject,
 		},
 		{
 			name:   "init loads no project",
-			option: Init(&cli.Options{Type: cli.CommandInit}),
+			option: Init(&cli.Options{Type: cli.CommandInit}, model.Telemetry{}),
 			absent: noProject,
 		},
 		{
@@ -139,10 +139,6 @@ func (h componentHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 func Test_Projections(t *testing.T) {
-	t.Setenv("GO_ENV", "test")
-	t.Setenv("SENTRY_DSN", "")
-	t.Setenv("FUKU_TELEMETRY_DISABLED", "")
-
 	type options struct {
 		fx.In
 
@@ -302,25 +298,25 @@ func Test_Projections(t *testing.T) {
 		},
 		{
 			name:       "doctor",
-			option:     Doctor(&cli.Options{Type: cli.CommandDoctor, Profile: profile, ConfigFile: "fuku.yaml"}, model.Config{Project: project}),
+			option:     Doctor(&cli.Options{Type: cli.CommandDoctor, Profile: profile, ConfigFile: "fuku.yaml"}, model.Config{Project: buildProject}),
 			options:    diagnosed,
 			components: minimal,
 		},
 		{
 			name:       "help",
-			option:     Help(&cli.Options{Type: cli.CommandHelp}),
+			option:     Help(&cli.Options{Type: cli.CommandHelp}, buildProject.Telemetry),
 			options:    bare,
 			components: minimal,
 		},
 		{
 			name:       "version",
-			option:     Version(&cli.Options{Type: cli.CommandVersion}),
+			option:     Version(&cli.Options{Type: cli.CommandVersion}, buildProject.Telemetry),
 			options:    bare,
 			components: minimal,
 		},
 		{
 			name:       "init",
-			option:     Init(&cli.Options{Type: cli.CommandInit}),
+			option:     Init(&cli.Options{Type: cli.CommandInit}, buildProject.Telemetry),
 			options:    bare,
 			components: minimal,
 		},

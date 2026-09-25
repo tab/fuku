@@ -128,7 +128,8 @@ func Test_stopTimeout(t *testing.T) {
 }
 
 func Test_newRunWriter(t *testing.T) {
-	log := terminal.NewLog(terminal.Options{Format: logging.FormatConsole}, terminal.NewTheme(terminal.AppearanceLight))
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
+	log := terminal.NewLog(terminal.Options{Format: logging.FormatConsole}, theme)
 
 	tests := []struct {
 		name    string

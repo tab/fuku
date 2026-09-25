@@ -5,13 +5,14 @@ import (
 
 	"fuku/internal/adapters/cli"
 	"fuku/internal/bootstrap/lifecycle"
+	"fuku/internal/model"
 )
 
 // Version composes the version line
-func Version(cmd *cli.Options) fx.Option {
+func Version(cmd *cli.Options, telemetry model.Telemetry) fx.Option {
 	return fx.Options(
 		base,
-		standalone(cmd),
+		standalone(cmd, telemetry),
 		fx.Provide(func(v *cli.Version) lifecycle.Command { return v }),
 	)
 }

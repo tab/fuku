@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -174,9 +175,11 @@ func newLogger(project model.Project, writer *output.Writer) *slog.Logger {
 	return slog.New(logging.NewHandler(logging.Options{Level: project.Logging.Level, Version: buildinfo.Version}, writer))
 }
 
-// newTheme creates the theme for the terminal's background
-func newTheme() terminal.Theme {
-	return terminal.NewTheme(terminal.AppearanceSystem.Resolve(os.Stdin, os.Stdout))
+// newTheme returns the theme for the terminal's background, detected once on the first call
+func newTheme() func() terminal.Theme {
+	return sync.OnceValue(func() terminal.Theme {
+		return terminal.NewTheme(terminal.AppearanceSystem.Resolve(os.Stdin, os.Stdout))
+	})
 }
 
 // newWriter creates the application log writer of a command that never takes over the terminal, enabled up front

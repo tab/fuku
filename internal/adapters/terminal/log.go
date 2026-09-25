@@ -15,12 +15,12 @@ type Log struct {
 	mu            sync.Mutex
 	format        string
 	maxServiceLen int
-	theme         Theme
+	theme         func() Theme
 	serviceStyles map[string]lipgloss.Style
 }
 
 // NewLog creates the log line formatter
-func NewLog(options Options, theme Theme) *Log {
+func NewLog(options Options, theme func() Theme) *Log {
 	return &Log{
 		format:        options.Format,
 		maxServiceLen: LogStreamMaxServiceNameLen,
@@ -44,7 +44,7 @@ func (l *Log) FormatServiceLine(service, message string) string {
 	paddedName := service + strings.Repeat(" ", padding)
 
 	return style.Render(paddedName) + " " +
-		l.theme.LogsSeparatorStyle.Render("|") + " " +
+		l.theme().LogsSeparatorStyle.Render("|") + " " +
 		message + "\n"
 }
 
@@ -63,9 +63,10 @@ func (l *Log) getServiceStyle(service string) lipgloss.Style {
 		return style
 	}
 
-	colorIndex := hashString(service) % len(l.theme.ServiceColorPalette)
-	c := l.theme.ServiceColorPalette[colorIndex]
-	style := l.theme.newLogsServiceNameStyle(c)
+	theme := l.theme()
+	colorIndex := hashString(service) % len(theme.ServiceColorPalette)
+	c := theme.ServiceColorPalette[colorIndex]
+	style := theme.newLogsServiceNameStyle(c)
 	l.serviceStyles[service] = style
 
 	return style

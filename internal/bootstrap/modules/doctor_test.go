@@ -11,7 +11,7 @@ import (
 )
 
 func Test_newDoctorRenderer(t *testing.T) {
-	theme := terminal.NewTheme(terminal.AppearanceLight)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 
 	tests := []struct {
 		name     string
@@ -21,23 +21,23 @@ func Test_newDoctorRenderer(t *testing.T) {
 		{
 			name:     "text selects the styled report",
 			format:   cli.FormatText,
-			expected: tui.NewReport(theme),
+			expected: &tui.Report{},
 		},
 		{
 			name:     "summary selects the styled summary",
 			format:   cli.FormatSummary,
-			expected: tui.NewSummary(theme),
+			expected: &tui.Summary{},
 		},
 		{
 			name:     "json selects the JSON renderer",
 			format:   cli.FormatJSON,
-			expected: cli.NewJSON(),
+			expected: &cli.JSON{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, newDoctorRenderer(tt.format, theme))
+			assert.IsType(t, tt.expected, newDoctorRenderer(tt.format, theme))
 		})
 	}
 }

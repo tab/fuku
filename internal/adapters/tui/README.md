@@ -6,7 +6,8 @@ The view owns interaction, animation and history. Every shared fact comes from t
 Every action goes through `Control`. The view never decides what a service may do.
 
 Every style comes from `adapters/terminal`. No `lipgloss.NewStyle()` is called here.
-`Program` hands the injected `terminal.Theme` to the model. The model rebuilds it when the terminal reports its background color.
+`Program` resolves the injected theme in `Run` and hands it to the model. The model rebuilds it when the terminal reports its background color.
+The inline doctor report and log view resolve the theme when they write. The log banner reads the terminal width then too.
 
 ## How messages reach the view
 

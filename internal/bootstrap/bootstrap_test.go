@@ -8,6 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	"fuku/internal/adapters/cli"
+	"fuku/internal/bootstrap/modules"
+	"fuku/internal/model"
 )
 
 func Test_Run(t *testing.T) {
@@ -147,4 +152,26 @@ func Test_Run(t *testing.T) {
 			assert.Contains(t, buf.String(), tt.outputContains)
 		})
 	}
+}
+
+func Test_compose_DoctorWithABrokenConfig(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("FUKU_TELEMETRY_DISABLED", "")
+	t.Setenv("SENTRY_DSN", "https://env@sentry.io/1")
+	t.Setenv("GO_ENV", "test")
+	require.NoError(t, os.WriteFile("fuku.yaml", []byte("services: ["), 0o600))
+
+	cmd := &cli.Options{Type: cli.CommandDoctor}
+	buildDSN := fx.Supply(modules.SentryDSN(""))
+	expected := model.Telemetry{Enabled: true, DSN: "https://env@sentry.io/1", Environment: "test"}
+
+	var telemetry model.Telemetry
+
+	option, err := compose(cmd)
+	require.NoError(t, err)
+
+	app := fx.New(option, buildDSN, fx.Populate(&telemetry))
+
+	require.NoError(t, app.Err())
+	assert.Equal(t, expected, telemetry)
 }

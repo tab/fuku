@@ -8,6 +8,7 @@ The theme, every style, the layout helpers and the service log line formatter. T
 
 `Theme` holds every style that differs between a light and a dark terminal. `NewTheme` builds it for light or dark and never detects.
 `bootstrap/modules` builds it from the detected background with `AppearanceSystem.Resolve`. A terminal that does not answer gets dark.
+It detects once, the first time a line or a view is styled. `Log` and the views take the theme as a function for that reason.
 It hands the theme to the TUI, the inline log view and the doctor report. The CLI log view takes no theme.
 The TUI rebuilds the theme when the terminal reports its background colour.
 The service name palette is part of it. A service name hashes to one colour, so it keeps it for the run.

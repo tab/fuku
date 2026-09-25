@@ -27,7 +27,7 @@ func Test_newLogsParticipants(t *testing.T) {
 }
 
 func Test_newLogsView(t *testing.T) {
-	theme := terminal.NewTheme(terminal.AppearanceLight)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 	log := terminal.NewLog(terminal.Options{Format: logging.FormatConsole}, theme)
 
 	tests := []struct {

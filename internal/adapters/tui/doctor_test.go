@@ -14,6 +14,7 @@ import (
 
 func Test_Report_Render(t *testing.T) {
 	theme := terminal.NewTheme(terminal.AppearanceDark)
+	resolveTheme := func() terminal.Theme { return theme }
 
 	report := &model.Report{
 		SchemaVersion: 1,
@@ -67,7 +68,7 @@ func Test_Report_Render(t *testing.T) {
 		},
 	}
 
-	renderer := NewReport(theme)
+	renderer := NewReport(resolveTheme)
 
 	var buf bytes.Buffer
 
@@ -125,7 +126,7 @@ func Test_Report_Render(t *testing.T) {
 }
 
 func Test_Report_Render_NoNotes(t *testing.T) {
-	theme := terminal.NewTheme(terminal.AppearanceDark)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceDark) }
 
 	report := &model.Report{
 		Version:  "1.0.0",
@@ -151,6 +152,7 @@ func Test_Report_Render_NoNotes(t *testing.T) {
 
 func Test_Summary_Render(t *testing.T) {
 	theme := terminal.NewTheme(terminal.AppearanceDark)
+	resolveTheme := func() terminal.Theme { return theme }
 
 	report := &model.Report{
 		SchemaVersion: 1,
@@ -204,7 +206,7 @@ func Test_Summary_Render(t *testing.T) {
 		},
 	}
 
-	summary := NewSummary(theme)
+	summary := NewSummary(resolveTheme)
 
 	var buf bytes.Buffer
 

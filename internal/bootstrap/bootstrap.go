@@ -41,13 +41,18 @@ func Run(args []string, sentryDSN string) int {
 func compose(cmd *cli.Options) (fx.Option, error) {
 	switch cmd.Type {
 	case cli.CommandHelp:
-		return modules.Help(cmd), nil
+		return modules.Help(cmd, config.Telemetry()), nil
 	case cli.CommandVersion:
-		return modules.Version(cmd), nil
+		return modules.Version(cmd, config.Telemetry()), nil
 	case cli.CommandInit:
-		return modules.Init(cmd), nil
+		return modules.Init(cmd, config.Telemetry()), nil
 	case cli.CommandDoctor:
-		return modules.Doctor(cmd, config.LoadPath(cmd.ConfigFile)), nil
+		loaded := config.LoadPath(cmd.ConfigFile)
+		if loaded.Error != nil {
+			loaded.Project.Telemetry = config.Telemetry()
+		}
+
+		return modules.Doctor(cmd, loaded), nil
 	case cli.CommandStop:
 		return load(cmd, modules.Stop)
 	case cli.CommandLogs:

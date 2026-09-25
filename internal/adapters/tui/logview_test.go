@@ -19,24 +19,23 @@ func Test_NewLogView(t *testing.T) {
 
 	mockFormatter := NewMockFormatter(ctrl)
 
-	theme := terminal.NewTheme(terminal.AppearanceLight)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 
 	var buf bytes.Buffer
 
-	v := NewLogView(theme, mockFormatter, &buf, 80)
+	v := NewLogView(theme, mockFormatter, &buf)
 
 	require.NotNil(t, v)
 	assert.Equal(t, mockFormatter, v.formatter)
 	assert.Equal(t, &buf, v.out)
-	assert.Equal(t, 80, v.width)
 }
 
 func Test_LogView_Status_WritesTheBanner(t *testing.T) {
-	theme := terminal.NewTheme(terminal.AppearanceLight)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 
 	var buf bytes.Buffer
 
-	view := NewLogView(theme, nil, &buf, 80)
+	view := NewLogView(theme, nil, &buf)
 
 	status := contracts.LogStatus{Profile: "default", Version: "1.0.0", Services: []string{"api", "web"}}
 	subscribed := []string{"api"}
@@ -57,11 +56,11 @@ func Test_LogView_Line(t *testing.T) {
 	mockFormatter := NewMockFormatter(ctrl)
 	mockFormatter.EXPECT().FormatMessage("api", "request processed").Return("api | request processed\n")
 
-	theme := terminal.NewTheme(terminal.AppearanceLight)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 
 	var buf bytes.Buffer
 
-	view := NewLogView(theme, mockFormatter, &buf, 80)
+	view := NewLogView(theme, mockFormatter, &buf)
 
 	line := model.LogLine{Service: "api", Message: "request processed"}
 

@@ -21,6 +21,7 @@ A package can be both a consumer and a producer, like `services.Runtime`. It app
 ## Start and stop
 
 Start: guard, telemetry, consumers in order, producers in order, command on its own goroutine.
+`Start` creates the run context before the guard. The constructor creates nothing to cancel.
 A failed stage unwinds the producers started so far and cancels the context.
 
 Stop: `SignalReceived` is published if an OS signal ended the run. Producers stop, newest first.

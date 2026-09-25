@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"fuku/internal/adapters/terminal"
 	"fuku/internal/contracts"
 )
 
@@ -29,6 +30,7 @@ func Test_Program_Run(t *testing.T) {
 	mockWriter := NewMockOutput(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
+	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceDark) }
 
 	errInput := errors.New("input failed")
 	dropAll := func(tea.Model, tea.Msg) tea.Msg { return nil }
@@ -51,6 +53,7 @@ func Test_Program_Run(t *testing.T) {
 				program := NewProgram(ProgramParams{
 					Options: Options{Profile: "default"},
 					Bridge:  NewBridge(nil),
+					Theme:   theme,
 					Writer:  mockWriter,
 					Logger:  log,
 				})
@@ -69,6 +72,7 @@ func Test_Program_Run(t *testing.T) {
 				program := NewProgram(ProgramParams{
 					Options: Options{Profile: "default"},
 					Bridge:  NewBridge(nil),
+					Theme:   theme,
 					Writer:  mockWriter,
 					Logger:  log,
 				})

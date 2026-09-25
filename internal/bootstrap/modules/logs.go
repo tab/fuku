@@ -46,10 +46,10 @@ func newLogsParticipants(observers observerParams, command *cli.Logs) lifecycle.
 }
 
 // newLogsView selects the view of the logs command: bare lines without a UI, the banner and styled lines otherwise
-func newLogsView(cmd *cli.Options, theme terminal.Theme, log *terminal.Log, stdout io.Writer) logs.View {
+func newLogsView(cmd *cli.Options, theme func() terminal.Theme, log *terminal.Log, stdout io.Writer) logs.View {
 	if cmd.NoUI {
 		return cli.NewLogView(log, stdout)
 	}
 
-	return tui.NewLogView(theme, log, stdout, tui.TerminalWidth())
+	return tui.NewLogView(theme, log, stdout)
 }

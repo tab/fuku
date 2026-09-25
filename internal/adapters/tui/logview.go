@@ -15,19 +15,17 @@ type Formatter interface {
 
 // LogView writes the connection banner and the styled lines of a stream
 type LogView struct {
-	theme     terminal.Theme
+	theme     func() terminal.Theme
 	formatter Formatter
 	out       io.Writer
-	width     int
 }
 
-// NewLogView creates the inline log view for a terminal of the given width
-func NewLogView(theme terminal.Theme, formatter Formatter, out io.Writer, width int) *LogView {
+// NewLogView creates the inline log view
+func NewLogView(theme func() terminal.Theme, formatter Formatter, out io.Writer) *LogView {
 	return &LogView{
 		theme:     theme,
 		formatter: formatter,
 		out:       out,
-		width:     width,
 	}
 }
 

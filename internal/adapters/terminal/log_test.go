@@ -13,7 +13,11 @@ import (
 )
 
 func Test_NewLog(t *testing.T) {
-	theme := NewTheme(AppearanceLight)
+	theme := func() Theme {
+		t.Error("NewLog detected the theme at construction")
+
+		return NewTheme(AppearanceLight)
+	}
 
 	log := NewLog(Options{Format: logging.FormatConsole}, theme)
 
@@ -24,7 +28,7 @@ func Test_NewLog(t *testing.T) {
 }
 
 func Test_Log_FormatServiceLine(t *testing.T) {
-	theme := NewTheme(AppearanceLight)
+	theme := func() Theme { return NewTheme(AppearanceLight) }
 
 	log := NewLog(Options{Format: logging.FormatConsole}, theme)
 
@@ -37,7 +41,7 @@ func Test_Log_FormatServiceLine(t *testing.T) {
 }
 
 func Test_Log_FormatServiceLine_AlignsToTheLongestName(t *testing.T) {
-	theme := NewTheme(AppearanceLight)
+	theme := func() Theme { return NewTheme(AppearanceLight) }
 
 	log := NewLog(Options{Format: logging.FormatConsole}, theme)
 
@@ -47,7 +51,7 @@ func Test_Log_FormatServiceLine_AlignsToTheLongestName(t *testing.T) {
 }
 
 func Test_Log_FormatMessage(t *testing.T) {
-	theme := NewTheme(AppearanceLight)
+	theme := func() Theme { return NewTheme(AppearanceLight) }
 
 	tests := []struct {
 		name     string
@@ -130,7 +134,7 @@ func Test_hashString_NegativeOverflow(t *testing.T) {
 }
 
 func Test_Log_getServiceStyle(t *testing.T) {
-	theme := NewTheme(AppearanceLight)
+	theme := func() Theme { return NewTheme(AppearanceLight) }
 
 	log := NewLog(Options{Format: logging.FormatConsole}, theme)
 

@@ -8,6 +8,8 @@ No rule lives here. A block that makes a decision belongs in the package that ow
 `bootstrap.Run` supplies the build-time `SentryDSN` once to Fx.
 `base` provides `telemetry.Options` from that fallback and the environment or project telemetry settings.
 An environment DSN takes precedence, and the telemetry opt-out still applies.
+`bootstrap.Run` reads the environment once, before any container exists. Help, version and init get it from `config.Telemetry`.
+Doctor and the configured commands take it from the loaded project. A doctor whose config failed to load reads it again through `config.Telemetry`.
 
 ## How it works
 
@@ -63,3 +65,4 @@ The wiring rules are in [`CLAUDE.md`](../../../CLAUDE.md#dependency-injection-wi
 - a block is unconditional. `Run` picks `view` or `headless` and `api`; `newLogsView` and `newDoctorRenderer` pick a view.
   No package checks the command type or a listen address
 - the order in a participant slice is a guarantee. Fx value groups are shuffled and cannot carry it
+- building the graph queries no terminal and loads no `.env` file. The theme is a function that detects the terminal on its first call, not at construction

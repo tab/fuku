@@ -76,17 +76,12 @@ type Coordinator struct {
 
 // NewCoordinator creates the coordinator of one composition
 func NewCoordinator(arbiter *Arbiter, publisher contracts.Publisher, closer Closer, telemetry Telemetry, participants Participants, log Logger) *Coordinator {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &Coordinator{
-		ctx:          ctx,
-		cancel:       cancel,
 		arbiter:      arbiter,
 		publisher:    publisher,
 		closer:       closer,
 		telemetry:    telemetry,
 		participants: participants,
-		done:         make(chan struct{}),
 		log:          log,
 	}
 }
@@ -101,6 +96,8 @@ func Register(lc fx.Lifecycle, coordinator *Coordinator) {
 
 // Start runs the guard, telemetry, consumers, producers and command in that order, unwinding on a failure
 func (c *Coordinator) Start(ctx context.Context) error {
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+
 	if err := c.check(ctx); err != nil {
 		c.unwind(ctx)
 
@@ -126,6 +123,8 @@ func (c *Coordinator) Start(ctx context.Context) error {
 
 		c.started = append(c.started, producer)
 	}
+
+	c.done = make(chan struct{})
 
 	go c.run(c.ctx)
 

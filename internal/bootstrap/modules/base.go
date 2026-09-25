@@ -8,10 +8,10 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
-	"fuku/internal/adapters/config"
 	"fuku/internal/adapters/telemetry"
 	"fuku/internal/bootstrap/lifecycle"
 	"fuku/internal/contracts"
+	"fuku/internal/model"
 	"fuku/internal/platform/bus"
 )
 
@@ -41,10 +41,10 @@ var base = fx.Options(
 )
 
 // standalone serves the commands that load no project: the command, telemetry from the environment, no log, a quiet Fx
-func standalone(cmd *cli.Options) fx.Option {
+func standalone(cmd *cli.Options, telemetry model.Telemetry) fx.Option {
 	return fx.Options(
 		fx.NopLogger,
-		fx.Supply(cmd, config.Telemetry()),
+		fx.Supply(cmd, telemetry),
 		fx.Provide(newDiscardLogger, newStandaloneParticipants),
 		cli.Module,
 	)

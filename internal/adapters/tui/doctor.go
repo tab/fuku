@@ -18,21 +18,23 @@ const (
 
 // Report renders the styled default report inline: the notes, every section with its details and the tally
 type Report struct {
-	theme terminal.Theme
+	theme func() terminal.Theme
 }
 
 // NewReport creates the styled report renderer for the terminal's theme
-func NewReport(theme terminal.Theme) *Report {
+func NewReport(theme func() terminal.Theme) *Report {
 	return &Report{theme: theme}
 }
 
 // Render writes the verbose grouped report to w
 func (r *Report) Render(w io.Writer, report *model.Report) error {
+	theme := r.theme()
+
 	writeHeader(w, report)
-	writeNotes(w, r.theme, report)
+	writeNotes(w, theme, report)
 
 	for _, section := range report.Sections {
-		writeSection(w, r.theme, section, true)
+		writeSection(w, theme, section, true)
 	}
 
 	writeFooter(w, report)
@@ -42,20 +44,22 @@ func (r *Report) Render(w io.Writer, report *model.Report) error {
 
 // Summary renders the styled compact report inline: one line per check and the tally
 type Summary struct {
-	theme terminal.Theme
+	theme func() terminal.Theme
 }
 
 // NewSummary creates the styled summary renderer for the terminal's theme
-func NewSummary(theme terminal.Theme) *Summary {
+func NewSummary(theme func() terminal.Theme) *Summary {
 	return &Summary{theme: theme}
 }
 
 // Render writes the header, one row per check and the tally to w
 func (s *Summary) Render(w io.Writer, report *model.Report) error {
+	theme := s.theme()
+
 	writeHeader(w, report)
 
 	for _, section := range report.Sections {
-		writeSection(w, s.theme, section, false)
+		writeSection(w, theme, section, false)
 	}
 
 	writeFooter(w, report)
