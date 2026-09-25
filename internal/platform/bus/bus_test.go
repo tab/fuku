@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,17 @@ import (
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
+
+// endless is a foreign context that never ends, so context.AfterFunc watches it on a goroutine of its own
+type endless struct {
+	//nolint:containedctx // the stub is a context that only replaces Done
+	context.Context
+	done chan struct{}
+}
+
+func (e endless) Done() <-chan struct{} {
+	return e.done
+}
 
 func Test_Bus_Subscribe(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -36,14 +48,6 @@ func Test_Bus_Subscribe(t *testing.T) {
 			},
 			opts:       contracts.SubscribeOptions{Name: "store", Required: true},
 			subscribed: true,
-		},
-		{
-			name: "unnamed subscription",
-			before: func() *Bus {
-				return NewBus(Options{QueueDepth: 1}, mockReporter, log)
-			},
-			opts:     contracts.SubscribeOptions{},
-			expected: ErrUnnamedSubscription,
 		},
 		{
 			name: "after close",
@@ -164,7 +168,7 @@ func Test_Bus_Publish_RequiredQueueFull(t *testing.T) {
 		{
 			name: "critical message is rejected without delivery",
 			before: func() {
-				mockLog.EXPECT().Error("Bus rejected a critical message", "error", gomock.Any(), "type", "phase_changed", "subscription", "store")
+				mockLog.EXPECT().Error("Bus rejected a critical message", "error", gomock.Any(), "type", "phase_changed")
 				mockReporter.EXPECT().Fail(gomock.Any()).Do(overloaded)
 			},
 			msg:           contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseRunning}},
@@ -211,7 +215,7 @@ func Test_Bus_Publish_RejectedMessageIsNeverDelivered(t *testing.T) {
 	store, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "store", Required: true})
 	require.NoError(t, err)
 
-	mockLog.EXPECT().Error("Bus rejected a critical message", "error", gomock.Any(), "type", "phase_changed", "subscription", "store")
+	mockLog.EXPECT().Error("Bus rejected a critical message", "error", gomock.Any(), "type", "phase_changed")
 	mockReporter.EXPECT().Fail(gomock.Any())
 
 	require.NoError(t, b.Publish(contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseStartup}}))
@@ -349,6 +353,61 @@ func Test_Bus_Unsubscribe_OnContextCancel(t *testing.T) {
 	require.NoError(t, second)
 }
 
+func Test_Bus_Close_LeavesNoGoroutine(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReporter := NewMockFailureReporter(ctrl)
+
+		log := slog.New(slog.DiscardHandler)
+
+		b := NewBus(Options{QueueDepth: 1}, mockReporter, log)
+
+		ctx := endless{Context: context.Background(), done: make(chan struct{})}
+
+		_, err := b.Subscribe(ctx, contracts.SubscribeOptions{Name: "store", Required: true})
+		require.NoError(t, err)
+
+		b.Close()
+	})
+}
+
+func Test_Bus_Close_EndsEachSubscriptionOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReporter := NewMockFailureReporter(ctrl)
+		mockLog := NewMockLogger(ctrl)
+
+		b := NewBus(Options{QueueDepth: 1}, mockReporter, mockLog)
+
+		ctx, cancel := context.WithCancel(t.Context())
+
+		tui, err := b.Subscribe(ctx, contracts.SubscribeOptions{Name: "tui"})
+		require.NoError(t, err)
+
+		sub := tui.(*subscriber)
+
+		mockLog.EXPECT().Warn("Subscription 'tui' dropped 1 resource_sample messages", "subscription", "tui", "type", "resource_sample", "dropped", uint64(1))
+
+		require.NoError(t, b.Publish(contracts.Message{Type: contracts.EventResourceSampled}))
+		require.NoError(t, b.Publish(contracts.Message{Type: contracts.EventResourceSampled}))
+
+		b.Close()
+		cancel()
+		synctest.Wait()
+		b.unsubscribe(sub)
+
+		delivered := <-tui.Messages()
+		_, open := <-tui.Messages()
+
+		assert.Equal(t, contracts.EventResourceSampled, delivered.Type)
+		assert.False(t, open)
+	})
+}
+
 func Test_Bus_Publish_ReentrantFromRequiredHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -397,7 +456,7 @@ func Test_Bus_Publish_FullOwnInbox(t *testing.T) {
 	store, err := b.Subscribe(t.Context(), contracts.SubscribeOptions{Name: "store", Required: true})
 	require.NoError(t, err)
 
-	mockLog.EXPECT().Error("Bus rejected a critical message", "error", gomock.Any(), "type", "service_stopped", "subscription", "store")
+	mockLog.EXPECT().Error("Bus rejected a critical message", "error", gomock.Any(), "type", "service_stopped")
 	mockReporter.EXPECT().Fail(gomock.Any())
 
 	entered := make(chan struct{})

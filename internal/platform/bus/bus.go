@@ -2,7 +2,9 @@ package bus
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -24,10 +26,9 @@ type Logger interface {
 type Bus struct {
 	options     Options
 	reporter    FailureReporter
-	mu          sync.RWMutex
+	mu          sync.Mutex
 	subscribers []*subscriber
 	closed      bool
-	publishMu   sync.Mutex
 	log         Logger
 }
 
@@ -42,10 +43,6 @@ func NewBus(options Options, reporter FailureReporter, log Logger) *Bus {
 
 // Subscribe registers a named subscription and removes it when ctx is cancelled
 func (b *Bus) Subscribe(ctx context.Context, opts contracts.SubscribeOptions) (contracts.Subscription, error) {
-	if opts.Name == "" {
-		return nil, ErrUnnamedSubscription
-	}
-
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -54,47 +51,65 @@ func (b *Bus) Subscribe(ctx context.Context, opts contracts.SubscribeOptions) (c
 	}
 
 	sub := newSubscriber(opts, b.options.QueueDepth)
+	sub.stop = context.AfterFunc(ctx, func() { b.unsubscribe(sub) })
 	b.subscribers = append(b.subscribers, sub)
-
-	go func() {
-		<-ctx.Done()
-		b.unsubscribe(sub)
-	}()
 
 	return sub, nil
 }
 
+// unsubscribe removes a subscription whose context ended
+func (b *Bus) unsubscribe(sub *subscriber) {
+	b.mu.Lock()
+
+	index := slices.Index(b.subscribers, sub)
+	if index < 0 {
+		b.mu.Unlock()
+
+		return
+	}
+
+	b.subscribers = slices.Delete(b.subscribers, index, index+1)
+
+	b.mu.Unlock()
+
+	b.report(sub, sub.close())
+}
+
+// report logs the drop counters of an ended subscription
+func (b *Bus) report(sub *subscriber, drops map[contracts.MessageType]uint64) {
+	for msgType, count := range drops {
+		b.log.Warn(fmt.Sprintf("Subscription '%s' dropped %d %s messages", sub.name, count, msgType), "subscription", sub.name, "type", string(msgType), "dropped", count)
+	}
+}
+
 // Publish delivers a message to every matching subscription or rejects a critical one it cannot deliver
 func (b *Bus) Publish(msg contracts.Message) error {
-	blocked, err := b.admit(msg)
-	if blocked == "" {
+	err := b.admit(msg)
+	if !errors.Is(err, contracts.ErrBusOverloaded) {
 		return err
 	}
 
-	b.log.Error("Bus rejected a critical message", "error", err, "type", string(msg.Type), "subscription", blocked)
+	b.log.Error("Bus rejected a critical message", "error", err, "type", string(msg.Type))
 	b.reporter.Fail(err)
 
 	return err
 }
 
-// admit delivers the message under the publish lock and names the subscription that blocked it
-func (b *Bus) admit(msg contracts.Message) (string, error) {
-	b.publishMu.Lock()
-	defer b.publishMu.Unlock()
-
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+// admit delivers the message under the lock or rejects it with the subscription that blocked it
+func (b *Bus) admit(msg contracts.Message) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	if b.closed && msg.Type.Critical() {
-		return "", contracts.ErrBusClosed
+		return contracts.ErrBusClosed
 	}
 
 	if b.closed {
-		return "", nil
+		return nil
 	}
 
-	if blocked := b.reserve(msg.Type); blocked != "" {
-		return blocked, fmt.Errorf("%w: required subscription '%s' cannot accept %s", contracts.ErrBusOverloaded, blocked, msg.Type)
+	if blocked := b.reserve(msg.Type); blocked != nil {
+		return fmt.Errorf("%w: required subscription '%s' cannot accept %s", contracts.ErrBusOverloaded, blocked.name, msg.Type)
 	}
 
 	msg.Timestamp = time.Now()
@@ -105,21 +120,21 @@ func (b *Bus) admit(msg contracts.Message) (string, error) {
 		}
 	}
 
-	return "", nil
+	return nil
 }
 
-// reserve names the first required subscription that cannot accept a critical type
-func (b *Bus) reserve(msgType contracts.MessageType) string {
+// reserve returns the first required subscription that cannot accept a critical type
+func (b *Bus) reserve(msgType contracts.MessageType) *subscriber {
 	if !msgType.Critical() {
-		return ""
+		return nil
 	}
 
 	// sync: only the publisher fills a queue, so a free slot stays free until the send
 	for _, sub := range b.subscribers {
 		if sub.required && sub.matches(msgType) && sub.full() {
-			return sub.name
+			return sub
 		}
 	}
 
-	return ""
+	return nil
 }

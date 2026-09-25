@@ -95,29 +95,28 @@ func Test_Runtime_Publish(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPublisher := NewMockPublisher(ctrl)
+	mockLog := NewMockLogger(ctrl)
 	mockReporter := NewMockReporter(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
 
 	msg := contracts.Message{Type: contracts.EventPhaseChanged, Data: contracts.PhaseChanged{Phase: model.PhaseRunning}}
 
-	runtime := NewRuntime(RuntimeParams{Publisher: mockPublisher, Reporter: mockReporter, Logger: log})
+	runtime := NewRuntime(RuntimeParams{Publisher: mockPublisher, Reporter: mockReporter, Logger: mockLog})
 
 	tests := []struct {
 		name   string
 		before func()
 	}{
 		{
-			name: "an accepted publish reports nothing",
+			name: "an accepted publish logs and reports nothing",
 			before: func() {
 				mockPublisher.EXPECT().Publish(msg).Return(nil)
 			},
 		},
 		{
-			name: "a rejected publish is a runtime failure",
+			name: "a rejected publish is logged and left to the bus to report",
 			before: func() {
 				mockPublisher.EXPECT().Publish(msg).Return(contracts.ErrBusOverloaded)
-				mockReporter.EXPECT().Fail(contracts.ErrBusOverloaded)
+				mockLog.EXPECT().Error("Failed to publish phase_changed", "error", contracts.ErrBusOverloaded)
 			},
 		},
 	}

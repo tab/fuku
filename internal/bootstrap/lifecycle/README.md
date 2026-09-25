@@ -25,7 +25,8 @@ Start: guard, telemetry, consumers in order, producers in order, command on its 
 A failed stage unwinds the producers started so far and cancels the context.
 
 Stop: `SignalReceived` is published if an OS signal ended the run. Producers stop, newest first.
-Consumers drain in order, twice, because a handler may publish during the first pass. The context is cancelled. The command is joined.
+Consumers drain in order, twice, because a handler may publish during the first pass. The first failed drain ends both passes.
+The context is cancelled. The command is joined.
 Telemetry stops next. It flushes Sentry, so the shutdown metrics and spans leave with it. The bus closes last, through `Closer`.
 A failed start stops telemetry and closes the bus on its way out. The cancelled context has ended every subscription.
 

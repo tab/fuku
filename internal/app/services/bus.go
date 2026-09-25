@@ -39,10 +39,10 @@ func (r *Runtime) Drain(ctx context.Context) error {
 	return r.loop.Drain(ctx)
 }
 
-// publish sends a lifecycle event and reports a rejected publish as a runtime failure
+// publish sends a lifecycle event and logs a rejected publish (the bus reports an overload itself)
 func (r *Runtime) publish(msg contracts.Message) {
 	if err := r.publisher.Publish(msg); err != nil {
-		r.reporter.Fail(err)
+		r.log.Error(fmt.Sprintf("Failed to publish %s", msg.Type), "error", err)
 	}
 }
 

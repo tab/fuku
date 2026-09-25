@@ -36,7 +36,8 @@ Drive it with `contracts.Run`. Its `Loop.Drain` is the shutdown barrier.
 
 A critical publish can fail in two ways:
 
-- `ErrBusOverloaded`: a required consumer is `QueueDepth` (1024) messages behind. The bus has already reported it to the arbiter
+- `ErrBusOverloaded`: a required consumer is `QueueDepth` (1024) messages behind. The bus has already reported it to the arbiter.
+  A publisher never reports it again
 - `ErrBusClosed`: the container is stopping
 
 A non-critical publish never fails.

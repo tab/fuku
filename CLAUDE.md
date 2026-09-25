@@ -173,7 +173,7 @@ Change an adapter only for new IO, input, transport or presentation.
   Its `Loop.Drain` is the shutdown barrier
 - criticality is a property of the message type (`contracts.MessageType.Critical()`, a fixed table with an exhaustive test). Never a per-call flag
 - a critical `Publish` fails with `contracts.ErrBusOverloaded` (a required queue is full; the bus logs it and calls its `FailureReporter`) or `contracts.ErrBusClosed`.
-  A core publisher routes the error to its `Reporter` (the `lifecycle.Arbiter`).
+  The bus is the one reporter of an overload. A core publisher only logs the error.
   A frontend maps it (REST → `500`/`409`, TUI → a log line).
   A non-critical publish never fails, so those sites carry `//nolint:errcheck // a non-critical publish never fails`
 - raw child output stays off the bus. Process streams write to `process.LogSink`, bound to `logs.Hub`

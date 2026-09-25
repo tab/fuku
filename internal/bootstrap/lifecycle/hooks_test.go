@@ -334,13 +334,15 @@ func Test_Coordinator_Stop(t *testing.T) {
 			},
 		},
 		{
-			name: "a failed drain is reported and the context still ends",
+			name: "a failed drain ends both passes, is reported, and the context, telemetry and bus still end",
 			before: func(t *testing.T) (*Coordinator, context.Context) {
-				mockTrailing.EXPECT().Stop(gomock.Any()).Return(nil)
-				mockLeading.EXPECT().Stop(gomock.Any()).Return(nil)
-				mockFirst.EXPECT().Drain(gomock.Any()).Return(drainErr).Times(2)
-				mockTelemetry.EXPECT().Stop()
-				mockCloser.EXPECT().Close()
+				gomock.InOrder(
+					mockTrailing.EXPECT().Stop(gomock.Any()).Return(nil),
+					mockLeading.EXPECT().Stop(gomock.Any()).Return(nil),
+					mockFirst.EXPECT().Drain(gomock.Any()).Return(drainErr),
+					mockTelemetry.EXPECT().Stop(),
+					mockCloser.EXPECT().Close(),
+				)
 
 				return started(t, NewCoordinator(NewArbiter(mockShutdowner), mockPublisher, mockCloser, mockTelemetry, participants, log)), t.Context()
 			},
@@ -354,8 +356,8 @@ func Test_Coordinator_Stop(t *testing.T) {
 
 				mockTrailing.EXPECT().Stop(gomock.Any()).Return(nil)
 				mockLeading.EXPECT().Stop(gomock.Any()).Return(nil)
-				mockFirst.EXPECT().Drain(gomock.Any()).Return(nil).Times(2)
-				mockSecond.EXPECT().Drain(gomock.Any()).DoAndReturn(waitForDeadline).Times(2)
+				mockFirst.EXPECT().Drain(gomock.Any()).Return(nil)
+				mockSecond.EXPECT().Drain(gomock.Any()).DoAndReturn(waitForDeadline)
 				mockTelemetry.EXPECT().Stop()
 				mockCloser.EXPECT().Close()
 

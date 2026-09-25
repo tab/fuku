@@ -152,15 +152,8 @@ func (c *Coordinator) Stop(ctx context.Context) error {
 		}
 	}
 
-	// ponytail: two drain passes miss a publish back to an earlier consumer; loop until idle if one ever does
-	for range 2 {
-		for _, consumer := range c.participants.Consumers {
-			if err := consumer.Drain(ctx); err != nil {
-				errs = append(errs, err)
-
-				break
-			}
-		}
+	if err := c.drain(ctx); err != nil {
+		errs = append(errs, err)
 	}
 
 	c.cancel()
@@ -175,6 +168,20 @@ func (c *Coordinator) Stop(ctx context.Context) error {
 	c.closer.Close()
 
 	return errors.Join(errs...)
+}
+
+// drain empties the consumers in order, twice, and stops at the first error
+func (c *Coordinator) drain(ctx context.Context) error {
+	// ponytail: two drain passes miss a publish back to an earlier consumer; loop until idle if one ever does
+	for range 2 {
+		for _, consumer := range c.participants.Consumers {
+			if err := consumer.Drain(ctx); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // run executes the command and records the outcome

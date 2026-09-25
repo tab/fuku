@@ -26,6 +26,7 @@ The run:
 `fuku stop` runs step 3 alone, through `Cleaner`. No run opens.
 
 A run cancelled during startup returns `errStartupInterrupted`. A `StopAll` during startup is the same clean end. Any other failure reaches `Reporter.Fail`, which exits 1.
+A rejected lifecycle publish is only logged. The bus reports an overload itself.
 
 A start or restart cut short by the end of the run publishes `ServiceStopped`. Never `ServiceFailed`, and never nothing.
 It applies while the service waits for a worker, runs its readiness check or waits out a retry backoff.

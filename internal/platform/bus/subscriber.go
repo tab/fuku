@@ -9,6 +9,7 @@ type subscriber struct {
 	types    map[contracts.MessageType]struct{}
 	ch       chan contracts.Message
 	drops    map[contracts.MessageType]uint64
+	stop     func() bool
 }
 
 func newSubscriber(opts contracts.SubscribeOptions, queueDepth int) *subscriber {
