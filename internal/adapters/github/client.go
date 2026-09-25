@@ -38,8 +38,8 @@ func NewClient(options Options, doer HTTPDoer, log Logger) *Client {
 }
 
 // newHTTPClient creates the HTTP client the release lookup sends through
-func newHTTPClient(options Options) *http.Client {
-	return &http.Client{Timeout: options.Timeout}
+func newHTTPClient() *http.Client {
+	return &http.Client{Timeout: DefaultTimeout}
 }
 
 // Latest returns the cached release while it is fresh, otherwise fetches it from GitHub and caches the tag
@@ -96,7 +96,7 @@ type releaseResponse struct {
 
 // fetch requests the latest release from the endpoint and returns its tag
 func (c *Client) fetch(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.options.Endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, DefaultEndpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("build GitHub release request: %w", err)
 	}

@@ -250,7 +250,7 @@ func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
 				m.ui.width = 72
 				m.ui.layout = terminal.ComputeTableLayout(72-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(72 - terminal.PanelInnerPadding)
-				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -273,7 +273,7 @@ func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
 				m.ui.width = 104
 				m.ui.layout = terminal.ComputeTableLayout(104-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(104 - terminal.PanelInnerPadding)
-				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -296,7 +296,7 @@ func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
 				m.ui.width = 120
 				m.ui.layout = terminal.ComputeTableLayout(120-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(120 - terminal.PanelInnerPadding)
-				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -319,7 +319,7 @@ func Test_RenderNoWrapAtBreakpoints(t *testing.T) {
 				m.ui.width = 200
 				m.ui.layout = terminal.ComputeTableLayout(200-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(200 - terminal.PanelInnerPadding)
-				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 
 				return m
 			},

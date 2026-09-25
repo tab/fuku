@@ -26,7 +26,7 @@ func Test_NewClient(t *testing.T) {
 
 	log := slog.New(slog.DiscardHandler)
 
-	options := Options{Endpoint: DefaultEndpoint, Timeout: DefaultTimeout, CachePath: "cache.json"}
+	options := Options{CachePath: "cache.json"}
 
 	c := NewClient(options, mockDoer, log)
 
@@ -36,7 +36,7 @@ func Test_NewClient(t *testing.T) {
 }
 
 func Test_newHTTPClient(t *testing.T) {
-	c := newHTTPClient(Options{Timeout: DefaultTimeout})
+	c := newHTTPClient()
 
 	assert.Equal(t, DefaultTimeout, c.Timeout)
 }
@@ -53,7 +53,7 @@ func Test_Client_Latest(t *testing.T) {
 
 	checkRequest := func(req *http.Request) {
 		assert.Equal(t, http.MethodGet, req.Method)
-		assert.Equal(t, "https://releases.test/latest", req.URL.String())
+		assert.Equal(t, DefaultEndpoint, req.URL.String())
 		assert.Equal(t, "application/vnd.github+json", req.Header.Get("Accept"))
 		assert.Equal(t, "fuku/"+buildinfo.Version, req.Header.Get("User-Agent"))
 	}
@@ -71,7 +71,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				require.NoError(t, writeCache(cachePath, cache{Tag: "v0.99.0", FetchedAt: time.Now().Add(-time.Hour)}))
 			},
-			options:          Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:          Options{CachePath: cachePath},
 			expected:         model.Release{Tag: "v0.99.0"},
 			expectedCacheTag: "v0.99.0",
 		},
@@ -81,7 +81,7 @@ func Test_Client_Latest(t *testing.T) {
 				require.NoError(t, writeCache(cachePath, cache{Tag: "v0.05.0", FetchedAt: time.Now().Add(-48 * time.Hour)}))
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"tag_name":"v0.23.0"}`))}, nil)
 			},
-			options:          Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:          Options{CachePath: cachePath},
 			expected:         model.Release{Tag: "v0.23.0"},
 			expectedCacheTag: "v0.23.0",
 		},
@@ -91,7 +91,7 @@ func Test_Client_Latest(t *testing.T) {
 				require.NoError(t, os.WriteFile(cachePath, []byte("{not json"), 0o600))
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"tag_name":"v0.24.0"}`))}, nil)
 			},
-			options:          Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:          Options{CachePath: cachePath},
 			expected:         model.Release{Tag: "v0.24.0"},
 			expectedCacheTag: "v0.24.0",
 		},
@@ -100,7 +100,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"tag_name":"v0.22.0"}`))}, nil)
 			},
-			options:          Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:          Options{CachePath: cachePath},
 			expected:         model.Release{Tag: "v0.22.0"},
 			expectedCacheTag: "v0.22.0",
 		},
@@ -109,7 +109,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"tag_name":"0.30.0"}`))}, nil)
 			},
-			options:          Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:          Options{CachePath: cachePath},
 			expected:         model.Release{Tag: "0.30.0"},
 			expectedCacheTag: "0.30.0",
 		},
@@ -118,7 +118,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"tag_name":"v0.40.0"}`))}, nil)
 			},
-			options:  Options{Endpoint: DefaultEndpoint},
+			options:  Options{},
 			expected: model.Release{Tag: "v0.40.0"},
 		},
 		{
@@ -126,7 +126,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Do(checkRequest).Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"tag_name":"v0.20.0"}`))}, nil)
 			},
-			options:  Options{Endpoint: "https://releases.test/latest"},
+			options:  Options{},
 			expected: model.Release{Tag: "v0.20.0"},
 		},
 		{
@@ -134,7 +134,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Return(nil, assert.AnError)
 			},
-			options:     Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:     Options{CachePath: cachePath},
 			expectedErr: assert.AnError,
 		},
 		{
@@ -142,7 +142,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader(`{}`))}, nil)
 			},
-			options:     Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:     Options{CachePath: cachePath},
 			expectedErr: ErrUnexpectedReleaseStatus,
 		},
 		{
@@ -150,7 +150,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader(`{}`))}, nil)
 			},
-			options:     Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:     Options{CachePath: cachePath},
 			expectedErr: ErrUnexpectedReleaseStatus,
 		},
 		{
@@ -158,7 +158,7 @@ func Test_Client_Latest(t *testing.T) {
 			before: func() {
 				mockDoer.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"tag_name":""}`))}, nil)
 			},
-			options:     Options{Endpoint: DefaultEndpoint, CachePath: cachePath},
+			options:     Options{CachePath: cachePath},
 			expectedErr: ErrEmptyReleaseTag,
 		},
 	}
@@ -191,7 +191,7 @@ func Test_Client_Latest_InvalidJSON(t *testing.T) {
 
 	cachePath := filepath.Join(t.TempDir(), "version.json")
 
-	got, err := NewClient(Options{Endpoint: DefaultEndpoint, CachePath: cachePath}, mockDoer, log).Latest(t.Context())
+	got, err := NewClient(Options{CachePath: cachePath}, mockDoer, log).Latest(t.Context())
 
 	require.Error(t, err)
 	assert.Equal(t, model.Release{}, got)
@@ -213,28 +213,11 @@ func Test_Client_Latest_UnwritableCache(t *testing.T) {
 
 	cachePath := filepath.Join(dir, "version.json")
 
-	subject := NewClient(Options{Endpoint: DefaultEndpoint, CachePath: cachePath}, mockDoer, mockLogger)
+	subject := NewClient(Options{CachePath: cachePath}, mockDoer, mockLogger)
 
 	got, err := subject.Latest(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, model.Release{Tag: "v0.50.0"}, got)
-	assert.NoFileExists(t, cachePath)
-}
-
-func Test_Client_Latest_MalformedEndpoint(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockDoer := NewMockHTTPDoer(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-
-	cachePath := filepath.Join(t.TempDir(), "version.json")
-
-	got, err := NewClient(Options{Endpoint: "://malformed", CachePath: cachePath}, mockDoer, log).Latest(t.Context())
-
-	require.Error(t, err)
-	assert.Equal(t, model.Release{}, got)
 	assert.NoFileExists(t, cachePath)
 }

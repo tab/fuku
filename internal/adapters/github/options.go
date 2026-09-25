@@ -8,9 +8,7 @@ const (
 	DefaultTimeout  = 3 * time.Second
 )
 
-// Options locates the release metadata and the cache of the last fetched tag (an empty CachePath disables the cache)
+// Options locates the cache of the last fetched tag (an empty CachePath disables the cache)
 type Options struct {
-	Endpoint  string
-	Timeout   time.Duration
 	CachePath string
 }

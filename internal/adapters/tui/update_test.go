@@ -619,7 +619,7 @@ func Test_CalculateScrollOffset_WithFilter(t *testing.T) {
 func Test_SampleTimelines(t *testing.T) {
 	started := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	stopped := newTimeline(terminal.TimelineDefaultSlots)
+	stopped := newTimeline()
 	stopped.Append(TimelineSlotRunning)
 
 	m := Model{}
@@ -632,12 +632,12 @@ func Test_SampleTimelines(t *testing.T) {
 		"id-preflight-fail": {ID: "id-preflight-fail", Name: "preflight-fail", Status: model.StatusFailed},
 	}}
 	m.state.views = map[string]*serviceView{
-		"id-api":            {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-		"id-db":             {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-		"id-web":            {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-		"id-queued":         {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+		"id-api":            {Timeline: newTimeline()},
+		"id-db":             {Timeline: newTimeline()},
+		"id-web":            {Timeline: newTimeline()},
+		"id-queued":         {Timeline: newTimeline()},
 		"id-stopped":        {Timeline: stopped},
-		"id-preflight-fail": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+		"id-preflight-fail": {Timeline: newTimeline()},
 	}
 
 	m.sampleTimelines()
@@ -668,7 +668,7 @@ func Test_SampleTimelines_MultipleSamples(t *testing.T) {
 		"id-api": {ID: "id-api", Name: "api", Status: model.StatusStarting, Process: model.Process{StartedAt: started}},
 	}}
 	m.state.views = map[string]*serviceView{
-		"id-api": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+		"id-api": {Timeline: newTimeline()},
 	}
 
 	m.sampleTimelines()

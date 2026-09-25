@@ -234,7 +234,7 @@ func Test_Projections(t *testing.T) {
 	headless := processed
 	headless.Services = services.Options{Profile: profile, RetryAttempts: 3, RetryBackoff: 2 * time.Second}
 	headless.Updater = updater.Options{Enabled: true, Version: buildinfo.Version}
-	headless.GitHub = github.Options{Endpoint: github.DefaultEndpoint, Timeout: github.DefaultTimeout, CachePath: github.DefaultCachePath()}
+	headless.GitHub = github.Options{CachePath: github.DefaultCachePath()}
 	headless.REST = rest.Options{Listen: "127.0.0.1:9876", Token: "secret"}
 	buildHeadless := headless
 	buildHeadless.Telemetry = buildTelemetry

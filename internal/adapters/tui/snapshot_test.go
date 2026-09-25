@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"fuku/internal/adapters/terminal"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
@@ -282,7 +281,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:       &serviceView{Status: model.StatusPending, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:       &serviceView{Status: model.StatusPending, Timeline: newTimeline()},
 			service:    &model.Service{ID: "id-api", Name: "api", Status: model.StatusStarting, Process: model.Process{PID: 42, StartedAt: t0}, AttemptedAt: t0},
 			wantStatus: model.StatusStarting,
 			wantLoader: "starting api…",
@@ -295,7 +294,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:       &serviceView{Status: model.StatusStopped, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:       &serviceView{Status: model.StatusStopped, Timeline: newTimeline()},
 			service:    &model.Service{ID: "id-api", Name: "api", Status: model.StatusStarting, AttemptedAt: t0},
 			wantStatus: model.StatusStarting,
 			wantLoader: "restarting api…",
@@ -308,7 +307,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:       &serviceView{Status: model.StatusStarting, StartupActive: true, AttemptedAt: t0, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:       &serviceView{Status: model.StatusStarting, StartupActive: true, AttemptedAt: t0, Timeline: newTimeline()},
 			service:    &model.Service{ID: "id-api", Name: "api", Status: model.StatusRunning, Process: model.Process{PID: 42, StartedAt: t0}, AttemptedAt: t0, LifecycleAt: t0.Add(3 * time.Second)},
 			wantStatus: model.StatusRunning,
 			wantAmber:  3,
@@ -321,7 +320,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:       &serviceView{Status: model.StatusPending, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:       &serviceView{Status: model.StatusPending, Timeline: newTimeline()},
 			service:    &model.Service{ID: "id-api", Name: "api", Status: model.StatusRunning, Process: model.Process{PID: 42, StartedAt: t0}, AttemptedAt: t0, LifecycleAt: t0.Add(2 * time.Second)},
 			wantStatus: model.StatusRunning,
 			wantAmber:  2,
@@ -334,7 +333,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:       &serviceView{Status: model.StatusStarting, StartupActive: true, AttemptedAt: t0, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:       &serviceView{Status: model.StatusStarting, StartupActive: true, AttemptedAt: t0, Timeline: newTimeline()},
 			service:    &model.Service{ID: "id-api", Name: "api", Status: model.StatusFailed, Error: "readiness timeout", AttemptedAt: t0, LifecycleAt: t0.Add(time.Second)},
 			wantStatus: model.StatusFailed,
 			wantAmber:  1,
@@ -347,7 +346,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:           &serviceView{Status: model.StatusRunning, AttemptedAt: t0, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:           &serviceView{Status: model.StatusRunning, AttemptedAt: t0, Timeline: newTimeline()},
 			service:        &model.Service{ID: "id-api", Name: "api", Status: model.StatusRestarting, AttemptedAt: t0},
 			wantStatus:     model.StatusRestarting,
 			wantLoader:     "restarting api…",
@@ -361,7 +360,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:           &serviceView{Status: model.StatusRestarting, AttemptedAt: t0, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:           &serviceView{Status: model.StatusRestarting, AttemptedAt: t0, Timeline: newTimeline()},
 			service:        &model.Service{ID: "id-api", Name: "api", Status: model.StatusStopped, AttemptedAt: t0},
 			wantStatus:     model.StatusStopped,
 			wantLoader:     "restarting api…",
@@ -375,7 +374,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:       &serviceView{Status: model.StatusStopping, AttemptedAt: t0, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:       &serviceView{Status: model.StatusStopping, AttemptedAt: t0, Timeline: newTimeline()},
 			service:    &model.Service{ID: "id-api", Name: "api", Status: model.StatusStopped, AttemptedAt: t0},
 			wantStatus: model.StatusStopped,
 		},
@@ -387,7 +386,7 @@ func Test_ApplyService(t *testing.T) {
 
 				return m
 			},
-			view:       &serviceView{Status: model.StatusRunning, AttemptedAt: t0, Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+			view:       &serviceView{Status: model.StatusRunning, AttemptedAt: t0, Timeline: newTimeline()},
 			service:    &model.Service{ID: "id-api", Name: "api", Status: model.StatusRunning, Process: model.Process{PID: 42, CPU: 12.5, Memory: 256 * 1024 * 1024}, AttemptedAt: t0},
 			wantStatus: model.StatusRunning,
 			wantLoader: "stopping api…",

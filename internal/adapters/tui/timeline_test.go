@@ -1,87 +1,72 @@
 package tui
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"fuku/internal/adapters/terminal"
 	"fuku/internal/model"
 )
 
 func Test_newTimeline(t *testing.T) {
-	tests := []struct {
-		name         string
-		capacity     int
-		wantCapacity int
-	}{
-		{
-			name:         "normal capacity",
-			capacity:     20,
-			wantCapacity: 20,
-		},
-	}
+	tl := newTimeline()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tl := newTimeline(tt.capacity)
-
-			assert.Equal(t, tt.wantCapacity, tl.capacity)
-			assert.Equal(t, 0, tl.count)
-			assert.Equal(t, 0, tl.index)
-			assert.Len(t, tl.ring, tt.wantCapacity)
-		})
-	}
+	assert.Equal(t, terminal.TimelineDefaultSlots, tl.capacity)
+	assert.Equal(t, 0, tl.count)
+	assert.Equal(t, 0, tl.index)
+	assert.Len(t, tl.ring, terminal.TimelineDefaultSlots)
 }
 
 func Test_Timeline_Append(t *testing.T) {
 	tests := []struct {
-		name     string
-		capacity int
-		appends  []TimelineSlot
-		want     []TimelineSlot
+		name    string
+		appends []TimelineSlot
+		want    []TimelineSlot
 	}{
 		{
-			name:     "empty timeline returns all TimelineSlotEmpty",
-			capacity: 5,
-			appends:  nil,
-			want:     []TimelineSlot{TimelineSlotEmpty, TimelineSlotEmpty, TimelineSlotEmpty, TimelineSlotEmpty, TimelineSlotEmpty},
+			name:    "empty timeline returns all TimelineSlotEmpty",
+			appends: nil,
+			want:    make([]TimelineSlot, terminal.TimelineDefaultSlots),
 		},
 		{
-			name:     "single append pads right with TimelineSlotEmpty",
-			capacity: 5,
-			appends:  []TimelineSlot{TimelineSlotRunning},
-			want:     []TimelineSlot{TimelineSlotRunning, TimelineSlotEmpty, TimelineSlotEmpty, TimelineSlotEmpty, TimelineSlotEmpty},
+			name:    "single append pads right with TimelineSlotEmpty",
+			appends: []TimelineSlot{TimelineSlotRunning},
+			want:    append([]TimelineSlot{TimelineSlotRunning}, make([]TimelineSlot, terminal.TimelineDefaultSlots-1)...),
 		},
 		{
-			name:     "partial fill",
-			capacity: 5,
-			appends:  []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning},
-			want:     []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotEmpty, TimelineSlotEmpty},
+			name:    "partial fill",
+			appends: []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning},
+			want:    append([]TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning}, make([]TimelineSlot, terminal.TimelineDefaultSlots-3)...),
 		},
 		{
-			name:     "full capacity",
-			capacity: 5,
-			appends:  []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotFailed},
-			want:     []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotFailed},
+			name:    "full capacity",
+			appends: append(slices.Repeat([]TimelineSlot{TimelineSlotRunning}, terminal.TimelineDefaultSlots-1), TimelineSlotFailed),
+			want:    append(slices.Repeat([]TimelineSlot{TimelineSlotRunning}, terminal.TimelineDefaultSlots-1), TimelineSlotFailed),
 		},
 		{
-			name:     "ring wraps and drops oldest",
-			capacity: 5,
-			appends:  []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotFailed, TimelineSlotStopped},
-			want:     []TimelineSlot{TimelineSlotRunning, TimelineSlotRunning, TimelineSlotRunning, TimelineSlotFailed, TimelineSlotStopped},
+			name:    "ring wraps and drops oldest",
+			appends: append(slices.Repeat([]TimelineSlot{TimelineSlotRunning}, terminal.TimelineDefaultSlots), TimelineSlotFailed),
+			want:    append(slices.Repeat([]TimelineSlot{TimelineSlotRunning}, terminal.TimelineDefaultSlots-1), TimelineSlotFailed),
 		},
 		{
-			name:     "multiple wraps maintain order",
-			capacity: 3,
-			appends:  []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotFailed, TimelineSlotStopped, TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning},
-			want:     []TimelineSlot{TimelineSlotStarting, TimelineSlotRunning, TimelineSlotRunning},
+			name: "multiple wraps maintain order",
+			appends: append(
+				slices.Repeat([]TimelineSlot{TimelineSlotRunning}, 2*terminal.TimelineDefaultSlots),
+				TimelineSlotStarting, TimelineSlotFailed, TimelineSlotStopped,
+			),
+			want: append(
+				slices.Repeat([]TimelineSlot{TimelineSlotRunning}, terminal.TimelineDefaultSlots-3),
+				TimelineSlotStarting, TimelineSlotFailed, TimelineSlotStopped,
+			),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tl := newTimeline(tt.capacity)
+			tl := newTimeline()
 
 			for _, s := range tt.appends {
 				tl.Append(s)
@@ -94,40 +79,35 @@ func Test_Timeline_Append(t *testing.T) {
 
 func Test_Timeline_Count(t *testing.T) {
 	tests := []struct {
-		name     string
-		capacity int
-		appends  int
-		want     int
+		name    string
+		appends int
+		want    int
 	}{
 		{
-			name:     "empty timeline",
-			capacity: 5,
-			appends:  0,
-			want:     0,
+			name:    "empty timeline",
+			appends: 0,
+			want:    0,
 		},
 		{
-			name:     "partial fill",
-			capacity: 5,
-			appends:  3,
-			want:     3,
+			name:    "partial fill",
+			appends: 3,
+			want:    3,
 		},
 		{
-			name:     "full capacity",
-			capacity: 5,
-			appends:  5,
-			want:     5,
+			name:    "full capacity",
+			appends: terminal.TimelineDefaultSlots,
+			want:    terminal.TimelineDefaultSlots,
 		},
 		{
-			name:     "past capacity caps at capacity",
-			capacity: 5,
-			appends:  8,
-			want:     5,
+			name:    "past capacity caps at capacity",
+			appends: terminal.TimelineDefaultSlots + 3,
+			want:    terminal.TimelineDefaultSlots,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tl := newTimeline(tt.capacity)
+			tl := newTimeline()
 
 			for range tt.appends {
 				tl.Append(TimelineSlotRunning)
@@ -195,34 +175,30 @@ func Test_statusToSlot(t *testing.T) {
 
 func Test_Timeline_backfill(t *testing.T) {
 	tests := []struct {
-		name     string
-		capacity int
-		n        int
-		wantLen  int
+		name    string
+		n       int
+		wantLen int
 	}{
 		{
-			name:     "backfill within capacity",
-			capacity: 20,
-			n:        5,
-			wantLen:  5,
+			name:    "backfill within capacity",
+			n:       5,
+			wantLen: 5,
 		},
 		{
-			name:     "backfill capped at capacity",
-			capacity: 3,
-			n:        10,
-			wantLen:  3,
+			name:    "backfill capped at capacity",
+			n:       terminal.TimelineDefaultSlots + 4,
+			wantLen: terminal.TimelineDefaultSlots,
 		},
 		{
-			name:     "backfill zero samples",
-			capacity: 20,
-			n:        0,
-			wantLen:  0,
+			name:    "backfill zero samples",
+			n:       0,
+			wantLen: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tl := newTimeline(tt.capacity)
+			tl := newTimeline()
 			tl.backfill(tt.n)
 
 			assert.Equal(t, tt.wantLen, tl.Count())
@@ -236,28 +212,29 @@ func Test_Timeline_backfill(t *testing.T) {
 }
 
 func Test_Timeline_backfill_EvictsOldSamplesOnFullStrip(t *testing.T) {
-	tl := newTimeline(5)
-	for range 5 {
+	tl := newTimeline()
+	for range terminal.TimelineDefaultSlots {
 		tl.Append(TimelineSlotRunning)
 	}
 
 	tl.backfill(2)
 
-	assert.Equal(t, 5, tl.Count())
+	assert.Equal(t, terminal.TimelineDefaultSlots, tl.Count())
 
 	slots := tl.slots()
-	assert.Equal(t, TimelineSlotRunning, slots[0])
-	assert.Equal(t, TimelineSlotRunning, slots[1])
-	assert.Equal(t, TimelineSlotRunning, slots[2])
-	assert.Equal(t, TimelineSlotStarting, slots[3])
-	assert.Equal(t, TimelineSlotStarting, slots[4])
+	for i := range terminal.TimelineDefaultSlots - 2 {
+		assert.Equal(t, TimelineSlotRunning, slots[i])
+	}
+
+	assert.Equal(t, TimelineSlotStarting, slots[terminal.TimelineDefaultSlots-2])
+	assert.Equal(t, TimelineSlotStarting, slots[terminal.TimelineDefaultSlots-1])
 }
 
 func Test_BackfillStartupHistory_FullStrip(t *testing.T) {
 	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	tl := newTimeline(5)
-	for range 5 {
+	tl := newTimeline()
+	for range terminal.TimelineDefaultSlots {
 		tl.Append(TimelineSlotRunning)
 	}
 
@@ -267,14 +244,16 @@ func Test_BackfillStartupHistory_FullStrip(t *testing.T) {
 
 	backfillStartupHistory(view, t0, t0.Add(3*time.Second))
 
-	assert.Equal(t, 5, tl.Count())
+	assert.Equal(t, terminal.TimelineDefaultSlots, tl.Count())
 
 	slots := tl.slots()
-	assert.Equal(t, TimelineSlotRunning, slots[0])
-	assert.Equal(t, TimelineSlotRunning, slots[1])
-	assert.Equal(t, TimelineSlotStarting, slots[2])
-	assert.Equal(t, TimelineSlotStarting, slots[3])
-	assert.Equal(t, TimelineSlotStarting, slots[4])
+	for i := range terminal.TimelineDefaultSlots - 3 {
+		assert.Equal(t, TimelineSlotRunning, slots[i])
+	}
+
+	assert.Equal(t, TimelineSlotStarting, slots[terminal.TimelineDefaultSlots-3])
+	assert.Equal(t, TimelineSlotStarting, slots[terminal.TimelineDefaultSlots-2])
+	assert.Equal(t, TimelineSlotStarting, slots[terminal.TimelineDefaultSlots-1])
 }
 
 func Test_BackfillStartupHistory(t *testing.T) {
@@ -326,7 +305,7 @@ func Test_BackfillStartupHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tl := newTimeline(20)
+			tl := newTimeline()
 			view := &serviceView{
 				Timeline:       tl,
 				StartupSampled: tt.startupSampled,
@@ -340,7 +319,7 @@ func Test_BackfillStartupHistory(t *testing.T) {
 }
 
 func Test_SampleTimelines_RestartingWithZeroStartedAt(t *testing.T) {
-	tl := newTimeline(20)
+	tl := newTimeline()
 	m := &Model{snapshot: &model.Snapshot{Services: map[string]*model.Service{"svc": {Status: model.StatusRestarting}}}}
 	m.state.views = map[string]*serviceView{
 		"svc": {
@@ -355,7 +334,7 @@ func Test_SampleTimelines_RestartingWithZeroStartedAt(t *testing.T) {
 }
 
 func Test_SampleTimelines_StartingWithZeroStartedAtSkipped(t *testing.T) {
-	tl := newTimeline(20)
+	tl := newTimeline()
 	m := &Model{snapshot: &model.Snapshot{Services: map[string]*model.Service{"svc": {Status: model.StatusStarting}}}}
 	m.state.views = map[string]*serviceView{
 		"svc": {

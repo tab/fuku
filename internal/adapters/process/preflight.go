@@ -32,9 +32,6 @@ type match struct {
 	entry   running
 }
 
-type scanFunc func() ([]running, error)
-type killFunc func(pid int32) error
-
 // Pool bounds how many orphans are killed at once
 type Pool interface {
 	Acquire(ctx context.Context) error
@@ -45,8 +42,6 @@ type Pool interface {
 type Preflight struct {
 	publisher contracts.Publisher
 	worker    Pool
-	scan      scanFunc
-	kill      killFunc
 	log       Logger
 }
 
@@ -55,8 +50,6 @@ func NewPreflight(publisher contracts.Publisher, worker Pool, log Logger) *Prefl
 	return &Preflight{
 		publisher: publisher,
 		worker:    worker,
-		scan:      scan,
-		kill:      kill,
 		log:       log,
 	}
 }
@@ -76,27 +69,22 @@ func (p *Preflight) Cleanup(ctx context.Context, dirs map[string]string) error {
 
 	p.publishStarted(sortedKeys(dirs))
 
-	matches, err := p.matchProcesses(resolved)
+	processes, err := scan()
 	if err != nil {
 		p.publishComplete(0, time.Since(startTime))
 
 		return fmt.Errorf("failed to scan processes: %w", err)
 	}
 
-	killed := p.killMatches(ctx, matches)
+	killed := p.killMatches(ctx, matchProcesses(processes, resolved))
 
 	p.publishComplete(killed, time.Since(startTime))
 
 	return nil
 }
 
-// matchProcesses scans running processes and returns those matching service directories
-func (p *Preflight) matchProcesses(dirs map[string]string) ([]match, error) {
-	processes, err := p.scan()
-	if err != nil {
-		return nil, err
-	}
-
+// matchProcesses returns the running processes matching a service directory
+func matchProcesses(processes []running, dirs map[string]string) []match {
 	ownPID := int32(os.Getpid()) // #nosec G115 -- PID fits in int32
 	matches := make([]match, 0, len(processes))
 
@@ -116,7 +104,7 @@ func (p *Preflight) matchProcesses(dirs map[string]string) ([]match, error) {
 		}
 	}
 
-	return matches, nil
+	return matches
 }
 
 // killMatches kills matched processes concurrently using the worker pool and returns how many it went after
@@ -148,7 +136,7 @@ func (p *Preflight) killMatches(ctx context.Context, matches []match) int {
 
 			p.publishKilled(m.service, m.entry.name, int(m.entry.pid))
 
-			if err := p.kill(m.entry.pid); err != nil {
+			if err := kill(m.entry.pid); err != nil {
 				p.log.Warn(fmt.Sprintf("Failed to kill process %d", m.entry.pid), "error", err)
 			}
 

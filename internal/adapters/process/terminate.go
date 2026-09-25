@@ -39,7 +39,7 @@ func (h *Handle) stop() error {
 	select {
 	case <-h.done:
 		return nil
-	case <-time.After(h.timeout):
+	case <-time.After(ShutdownTimeout):
 		h.log.Warn(fmt.Sprintf("Service '%s' did not stop gracefully, forcing kill", h.svc.Name))
 
 		return h.forceKill()

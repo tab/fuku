@@ -6,8 +6,10 @@ import (
 	"os/exec"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"fuku/internal/model"
@@ -58,32 +60,6 @@ func Test_Handle_Terminate(t *testing.T) {
 			},
 		},
 		{
-			name: "a child that ignores SIGTERM is killed after the timeout",
-			before: func(t *testing.T) *Handle {
-				cmd := exec.Command("sh", "-c", "trap '' TERM INT; echo ready; sleep 60")
-				cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-				stdout, err := cmd.StdoutPipe()
-				require.NoError(t, err)
-				require.NoError(t, cmd.Start())
-
-				ready := make([]byte, 6)
-				_, err = io.ReadFull(stdout, ready)
-				require.NoError(t, err)
-
-				handle := newHandle(svc, cmd, nil, nil, log)
-				handle.timeout = 100 * time.Millisecond
-
-				go func() {
-					defer close(handle.done)
-
-					cmd.Wait()
-				}()
-
-				return handle
-			},
-		},
-		{
 			name: "a child that already exited needs nothing",
 			before: func(t *testing.T) *Handle {
 				cmd := exec.Command("true")
@@ -113,6 +89,54 @@ func Test_Handle_Terminate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_Handle_Terminate_KilledAfterTimeout(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+
+	cmd := exec.Command("sh", "-c", "trap '' TERM INT; echo ready; sleep 60")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	stdout, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+
+	ready := make([]byte, 6)
+	_, err = io.ReadFull(stdout, ready)
+	require.NoError(t, err)
+
+	defer stdout.Close()
+
+	pid := cmd.Process.Pid
+
+	synctest.Test(t, func(t *testing.T) {
+		handle := newHandle(svc, cmd, nil, nil, log)
+
+		// sync: polls with WNOHANG because a blocking Wait4 would freeze virtual time until the child exits on its own
+		go func() {
+			ticker := time.NewTicker(10 * time.Millisecond)
+			defer ticker.Stop()
+
+			var status syscall.WaitStatus
+
+			for range ticker.C {
+				if wpid, err := syscall.Wait4(pid, &status, syscall.WNOHANG, nil); err == nil && wpid == pid {
+					close(handle.done)
+
+					return
+				}
+			}
+		}()
+
+		start := time.Now()
+
+		err := handle.Terminate()
+
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, time.Since(start), ShutdownTimeout)
+	})
 }
 
 func Test_Handle_Terminate_ReapedBeforeSignal(t *testing.T) {

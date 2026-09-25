@@ -149,7 +149,7 @@ var runtime = fx.Options(
 		},
 		func(t telemetry.Options) resources.Options { return resources.Options{Enabled: t.Enabled} },
 		func() github.Options {
-			return github.Options{Endpoint: github.DefaultEndpoint, Timeout: github.DefaultTimeout, CachePath: github.DefaultCachePath()}
+			return github.Options{CachePath: github.DefaultCachePath()}
 		},
 		func(c *http.Client) github.HTTPDoer { return c },
 		func(c *github.Client) updater.ReleaseSource { return c },

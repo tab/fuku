@@ -35,7 +35,6 @@ func Test_newHandle(t *testing.T) {
 	assert.Equal(t, cmd.Process.Pid, handle.PID())
 	assert.Equal(t, stdout, handle.Stdout())
 	assert.Equal(t, stderr, handle.Stderr())
-	assert.Equal(t, ShutdownTimeout, handle.timeout)
 	assert.Equal(t, log, handle.log)
 	assert.False(t, handle.exited())
 

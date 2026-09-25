@@ -114,7 +114,7 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 				m.ui.width = 108
 				m.ui.layout = terminal.ComputeTableLayout(100-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(100)
-				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -128,7 +128,7 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 				m.ui.width = 86
 				m.ui.layout = terminal.ComputeTableLayout(78-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(78)
-				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -142,7 +142,7 @@ func Test_RenderServiceRow_Truncation(t *testing.T) {
 				m.ui.width = 108
 				m.ui.layout = terminal.ComputeTableLayout(100-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(100)
-				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -193,7 +193,7 @@ func Test_RenderServiceRow_LongUptimeDoesNotWrap(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(72-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(72 - terminal.PanelInnerPadding)
 				m.state.now = now
-				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -209,7 +209,7 @@ func Test_RenderServiceRow_LongUptimeDoesNotWrap(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(104-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(104 - terminal.PanelInnerPadding)
 				m.state.now = now
-				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -225,7 +225,7 @@ func Test_RenderServiceRow_LongUptimeDoesNotWrap(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(120-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(120 - terminal.PanelInnerPadding)
 				m.state.now = now
-				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -241,7 +241,7 @@ func Test_RenderServiceRow_LongUptimeDoesNotWrap(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(200-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(200 - terminal.PanelInnerPadding)
 				m.state.now = now
-				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline(terminal.TimelineDefaultSlots)}}
+				m.state.views = map[string]*serviceView{"id-api": {Timeline: newTimeline()}}
 
 				return m
 			},
@@ -280,8 +280,8 @@ func Test_RenderServiceRow_LongSharedPrefixNamesDistinguishableOnWideTerminal(t 
 		"id-b": {ID: "id-b", Name: nameB, Status: model.StatusRunning},
 	}}
 	m.state.views = map[string]*serviceView{
-		"id-a": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-		"id-b": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+		"id-a": {Timeline: newTimeline()},
+		"id-b": {Timeline: newTimeline()},
 	}
 
 	m = m.recomputeLayout()
@@ -304,7 +304,7 @@ func Test_RenderServiceRow_UnicodeNameTimelineSurvivesNarrow(t *testing.T) {
 	m.theme = terminal.NewTheme(terminal.AppearanceDark)
 	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{"id-svc": service}}
 	m.state.views = map[string]*serviceView{
-		"id-svc": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+		"id-svc": {Timeline: newTimeline()},
 	}
 	m = m.recomputeLayout()
 	require.Positive(t, m.ui.layout.TimelineWidth, "10-cell Cyrillic name should pick short bucket and keep timeline visible")
@@ -342,8 +342,8 @@ func Test_RenderServiceRow_SharedPrefixNamesDistinguishable(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(72-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(72 - terminal.PanelInnerPadding)
 				m.state.views = map[string]*serviceView{
-					"id-a": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-					"id-b": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+					"id-a": {Timeline: newTimeline()},
+					"id-b": {Timeline: newTimeline()},
 				}
 
 				return m
@@ -358,8 +358,8 @@ func Test_RenderServiceRow_SharedPrefixNamesDistinguishable(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(84-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(84 - terminal.PanelInnerPadding)
 				m.state.views = map[string]*serviceView{
-					"id-a": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-					"id-b": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+					"id-a": {Timeline: newTimeline()},
+					"id-b": {Timeline: newTimeline()},
 				}
 
 				return m
@@ -374,8 +374,8 @@ func Test_RenderServiceRow_SharedPrefixNamesDistinguishable(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(90-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(90 - terminal.PanelInnerPadding)
 				m.state.views = map[string]*serviceView{
-					"id-a": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-					"id-b": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+					"id-a": {Timeline: newTimeline()},
+					"id-b": {Timeline: newTimeline()},
 				}
 
 				return m
@@ -390,8 +390,8 @@ func Test_RenderServiceRow_SharedPrefixNamesDistinguishable(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(104-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(104 - terminal.PanelInnerPadding)
 				m.state.views = map[string]*serviceView{
-					"id-a": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-					"id-b": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+					"id-a": {Timeline: newTimeline()},
+					"id-b": {Timeline: newTimeline()},
 				}
 
 				return m
@@ -406,8 +406,8 @@ func Test_RenderServiceRow_SharedPrefixNamesDistinguishable(t *testing.T) {
 				m.ui.layout = terminal.ComputeTableLayout(120-terminal.PanelInnerPadding-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 				m.ui.servicesViewport.SetWidth(120 - terminal.PanelInnerPadding)
 				m.state.views = map[string]*serviceView{
-					"id-a": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
-					"id-b": {Timeline: newTimeline(terminal.TimelineDefaultSlots)},
+					"id-a": {Timeline: newTimeline()},
+					"id-b": {Timeline: newTimeline()},
 				}
 
 				return m
@@ -468,7 +468,7 @@ func Test_RenderServiceRow_SelectedBackgroundCoversFullWidth(t *testing.T) {
 	m.ui.layout = terminal.ComputeTableLayout(112-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 	m.ui.servicesViewport.SetWidth(112)
 
-	tl := newTimeline(terminal.TimelineDefaultSlots)
+	tl := newTimeline()
 	for range 10 {
 		tl.Append(TimelineSlotRunning)
 	}
@@ -841,7 +841,7 @@ func Test_RenderTimeline_AllSlotTypes(t *testing.T) {
 	m := Model{theme: theme}
 	m.ui.layout = terminal.TableLayout{TimelineWidth: 5}
 
-	tl := newTimeline(5)
+	tl := newTimeline()
 	tl.Append(TimelineSlotRunning)
 	tl.Append(TimelineSlotStarting)
 	tl.Append(TimelineSlotFailed)
@@ -864,7 +864,7 @@ func Test_RenderTimeline_ZeroWidthReturnsEmpty(t *testing.T) {
 	m := Model{}
 	m.ui.layout = terminal.TableLayout{TimelineWidth: 0}
 
-	m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline(20)}}
+	m.state.views = map[string]*serviceView{"id-svc": {Timeline: newTimeline()}}
 	service := &model.Service{ID: "id-svc"}
 
 	result := m.renderTimeline(service, false)
@@ -889,7 +889,7 @@ func Test_RenderTimeline_ReducedWidthShowsRecentSlots(t *testing.T) {
 	m := Model{theme: theme}
 	m.ui.layout = terminal.TableLayout{TimelineWidth: 5}
 
-	tl := newTimeline(10)
+	tl := newTimeline()
 	for range 10 {
 		tl.Append(TimelineSlotRunning)
 	}
@@ -910,7 +910,7 @@ func Test_RenderTimeline_ReducedWidthPartiallyFilled(t *testing.T) {
 	m := Model{theme: theme}
 	m.ui.layout = terminal.TableLayout{TimelineWidth: 5}
 
-	tl := newTimeline(20)
+	tl := newTimeline()
 	tl.Append(TimelineSlotRunning)
 	tl.Append(TimelineSlotFailed)
 
@@ -929,7 +929,7 @@ func Test_RenderTimeline_SelectedUsesSelectionAwareStyles(t *testing.T) {
 	m := Model{theme: theme}
 	m.ui.layout = terminal.TableLayout{TimelineWidth: 5}
 
-	tl := newTimeline(5)
+	tl := newTimeline()
 	tl.Append(TimelineSlotRunning)
 	tl.Append(TimelineSlotFailed)
 
@@ -953,7 +953,7 @@ func Test_RenderServiceRow_WithTimeline(t *testing.T) {
 	m.ui.layout = terminal.ComputeTableLayout(112-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 	m.ui.servicesViewport.SetWidth(112)
 
-	tl := newTimeline(terminal.TimelineDefaultSlots)
+	tl := newTimeline()
 	tl.Append(TimelineSlotRunning)
 
 	m.state.views = map[string]*serviceView{"id-api": {Timeline: tl}}
@@ -973,7 +973,7 @@ func Test_RenderServiceRow_ErrorRowStillShowsTimeline(t *testing.T) {
 	m.ui.layout = terminal.ComputeTableLayout(112-terminal.RowHorizontalPadding, terminal.ServiceNameWidthLong, terminal.MetricFullColumnCount)
 	m.ui.servicesViewport.SetWidth(112)
 
-	tl := newTimeline(terminal.TimelineDefaultSlots)
+	tl := newTimeline()
 	tl.Append(TimelineSlotFailed)
 
 	m.state.views = map[string]*serviceView{"id-api": {Timeline: tl}}

@@ -20,7 +20,6 @@ type Handle struct {
 	stdout     *io.PipeReader
 	stderr     *io.PipeReader
 	done       chan struct{}
-	timeout    time.Duration
 	terminate  sync.Once
 	terminated error
 	log        Logger
@@ -29,14 +28,13 @@ type Handle struct {
 // newHandle wraps a started command (its readers carry the streams the stream writers feed)
 func newHandle(svc model.Service, cmd *exec.Cmd, stdout, stderr *io.PipeReader, log Logger) *Handle {
 	return &Handle{
-		svc:     svc,
-		cmd:     cmd,
-		pid:     cmd.Process.Pid,
-		stdout:  stdout,
-		stderr:  stderr,
-		done:    make(chan struct{}),
-		timeout: ShutdownTimeout,
-		log:     log,
+		svc:    svc,
+		cmd:    cmd,
+		pid:    cmd.Process.Pid,
+		stdout: stdout,
+		stderr: stderr,
+		done:   make(chan struct{}),
+		log:    log,
 	}
 }
 

@@ -73,7 +73,7 @@ func (m *Model) resolve() {
 			m.state.views[svc.ID] = &serviceView{
 				Status:   model.StatusPending,
 				Blink:    terminal.NewBlink(),
-				Timeline: newTimeline(terminal.TimelineDefaultSlots),
+				Timeline: newTimeline(),
 			}
 		}
 	}

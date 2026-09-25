@@ -3,6 +3,7 @@ package tui
 import (
 	"time"
 
+	"fuku/internal/adapters/terminal"
 	"fuku/internal/model"
 )
 
@@ -26,11 +27,11 @@ type Timeline struct {
 	count    int
 }
 
-// newTimeline creates a new Timeline with the given capacity
-func newTimeline(capacity int) *Timeline {
+// newTimeline creates a new Timeline at the default capacity
+func newTimeline() *Timeline {
 	return &Timeline{
-		capacity: capacity,
-		ring:     make([]TimelineSlot, capacity),
+		capacity: terminal.TimelineDefaultSlots,
+		ring:     make([]TimelineSlot, terminal.TimelineDefaultSlots),
 	}
 }
 
