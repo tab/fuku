@@ -10,7 +10,7 @@ import (
 )
 
 // startWithRetry runs start attempts with a constant backoff until one is ready, none are left or the run ends
-func (r *Runtime) startWithRetry(ctx context.Context, tier string, svc model.Service) error {
+func (r *Runtime) startWithRetry(ctx context.Context, svc model.Service) error {
 	var lastErr error
 
 	for number := 1; number <= r.options.RetryAttempts; number++ {
@@ -20,13 +20,13 @@ func (r *Runtime) startWithRetry(ctx context.Context, tier string, svc model.Ser
 			select {
 			case <-time.After(r.options.RetryBackoff):
 			case <-ctx.Done():
-				r.publishStopped(svc, tier)
+				r.publishStopped(svc)
 
 				return ctx.Err()
 			}
 		}
 
-		proc, err := r.attempt(ctx, tier, svc, number)
+		proc, err := r.attempt(ctx, svc, number)
 		if err == nil {
 			r.watchForExit(proc)
 
@@ -34,7 +34,7 @@ func (r *Runtime) startWithRetry(ctx context.Context, tier string, svc model.Ser
 		}
 
 		if ctx.Err() != nil {
-			r.publishStopped(svc, tier)
+			r.publishStopped(svc)
 
 			return ctx.Err()
 		}
@@ -47,7 +47,7 @@ func (r *Runtime) startWithRetry(ctx context.Context, tier string, svc model.Ser
 	r.publish(contracts.Message{
 		Type: contracts.EventServiceFailed,
 		Data: contracts.ServiceFailed{
-			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: tier},
+			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: svc.Tier},
 			Error:        err,
 		},
 	})

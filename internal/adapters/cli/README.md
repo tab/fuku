@@ -8,9 +8,9 @@ It imports no `tui`. The composition selects the view.
 
 ## The commands
 
-Each command is the `Command` participant of its composition. Its `Run` returns the exit code and the error the arbiter records.
+Each command is the `Command` participant of its composition. Its `Run` returns an exit code and an error to the arbiter.
 
-- `Run` waits for the services runtime of `run --no-ui`. A failed run exits 1. A cancelled run exits 0
+- `Run` waits for the services runtime of `run --no-ui` and always returns 0. A failed run exits 1, because `Reporter.Fail` reaches the arbiter before `Run` returns
 - `Stop` asks the cleaner to kill the processes of the profile
 - `Logs` runs the log session of `fuku logs` until the stream ends
 - `Doctor` runs the checks and writes the report through the selected renderer. A failed check exits 2. A report that cannot be written exits 3. A warning still exits 0

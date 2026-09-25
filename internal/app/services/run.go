@@ -56,9 +56,6 @@ type Logger interface {
 	Error(msg string, args ...any)
 }
 
-// errStopAll is the cancellation cause of a StopAll command (a clean end of the run, like a cancelled context)
-var errStopAll = errors.New("StopAll command")
-
 // RuntimeParams contains the dependencies of the runtime
 type RuntimeParams struct {
 	fx.In
@@ -98,7 +95,6 @@ type Runtime struct {
 	wg     sync.WaitGroup
 	halt   context.CancelFunc
 	done   chan struct{}
-	err    error
 	log    Logger
 }
 
@@ -129,12 +125,11 @@ func (r *Runtime) Start(ctx context.Context) error {
 	go func() {
 		defer close(r.done)
 
-		err := r.run(work, r.options.Profile)
+		err := r.run(work)
 		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, errStopAll) {
 			return
 		}
 
-		r.err = err
 		r.reporter.Fail(fmt.Errorf("failed to run profile '%s': %w", r.options.Profile, err))
 	}()
 
@@ -164,13 +159,9 @@ func (r *Runtime) Done() <-chan struct{} {
 	return r.done
 }
 
-// Err returns the failure of the finished run (nil for a clean or cancelled run)
-func (r *Runtime) Err() error {
-	return r.err
-}
-
 // run starts the profile tier by tier, serves commands until the run is cancelled and stops every service
-func (r *Runtime) run(ctx context.Context, profile string) error {
+func (r *Runtime) run(ctx context.Context) error {
+	profile := r.options.Profile
 	startupStart := time.Now()
 
 	r.publishPhase(contracts.PhaseChanged{Phase: model.PhaseStartup})
@@ -215,7 +206,7 @@ func (r *Runtime) run(ctx context.Context, profile string) error {
 	if ctx.Err() != nil {
 		r.finish()
 
-		return fmt.Errorf("%w: %w", contracts.ErrStartupInterrupted, context.Cause(ctx))
+		return fmt.Errorf("%w: %w", errStartupInterrupted, context.Cause(ctx))
 	}
 
 	r.log.Info("Startup phase complete, waiting for signals...")
@@ -276,7 +267,7 @@ func (r *Runtime) startAllTiers(ctx context.Context, tiers []model.Tier) {
 		})
 
 		tierStart := time.Now()
-		failed := r.startTier(ctx, tier.Name, tier.Services)
+		failed := r.startTier(ctx, tier.Services)
 
 		if len(failed) > 0 {
 			r.log.Warn(fmt.Sprintf("Tier '%s' partially failed: %d/%d services failed: %v", tier.Name, len(failed), len(tier.Services), failed))
@@ -297,7 +288,7 @@ func (r *Runtime) startAllTiers(ctx context.Context, tiers []model.Tier) {
 }
 
 // startTier starts every service of a tier concurrently within the worker bound and returns the names that failed
-func (r *Runtime) startTier(ctx context.Context, tier string, services []*model.Service) []string {
+func (r *Runtime) startTier(ctx context.Context, services []*model.Service) []string {
 	failedChan := make(chan string, len(services))
 
 	var wg sync.WaitGroup
@@ -310,7 +301,7 @@ func (r *Runtime) startTier(ctx context.Context, tier string, services []*model.
 
 			err := r.pool.Acquire(ctx)
 			if err != nil && ctx.Err() != nil {
-				r.publishStopped(*svc, tier)
+				r.publishStopped(*svc)
 
 				failedChan <- svc.Name
 
@@ -322,7 +313,7 @@ func (r *Runtime) startTier(ctx context.Context, tier string, services []*model.
 				r.publish(contracts.Message{
 					Type: contracts.EventServiceFailed,
 					Data: contracts.ServiceFailed{
-						ServiceEvent: contracts.ServiceEvent{Service: *svc, Tier: tier},
+						ServiceEvent: contracts.ServiceEvent{Service: *svc, Tier: svc.Tier},
 						Error:        fmt.Errorf("%w: %w", contracts.ErrFailedToAcquireWorker, err),
 					},
 				})
@@ -334,7 +325,7 @@ func (r *Runtime) startTier(ctx context.Context, tier string, services []*model.
 
 			defer r.pool.Release()
 
-			if err := r.startWithRetry(ctx, tier, *svc); err != nil {
+			if err := r.startWithRetry(ctx, *svc); err != nil {
 				failedChan <- svc.Name
 			}
 		})

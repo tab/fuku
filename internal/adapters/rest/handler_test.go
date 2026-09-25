@@ -324,7 +324,7 @@ func Test_HandleAction(t *testing.T) {
 		{
 			name: "start not allowed",
 			before: func() {
-				mockControl.EXPECT().Start("id-api").Return(services.Admission{}, contracts.ActionNotAllowedError{Action: contracts.ActionStart})
+				mockControl.EXPECT().Start("id-api").Return(services.Admission{}, fmt.Errorf("%w: %s", contracts.ErrActionNotAllowed, contracts.ActionStart))
 			},
 			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", nil),
 			recorder:     httptest.NewRecorder(),
@@ -334,7 +334,7 @@ func Test_HandleAction(t *testing.T) {
 		{
 			name: "stop not allowed",
 			before: func() {
-				mockControl.EXPECT().Stop("id-api").Return(services.Admission{}, contracts.ActionNotAllowedError{Action: contracts.ActionStop})
+				mockControl.EXPECT().Stop("id-api").Return(services.Admission{}, fmt.Errorf("%w: %s", contracts.ErrActionNotAllowed, contracts.ActionStop))
 			},
 			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/stop", nil),
 			recorder:     httptest.NewRecorder(),
@@ -344,7 +344,7 @@ func Test_HandleAction(t *testing.T) {
 		{
 			name: "restart not allowed",
 			before: func() {
-				mockControl.EXPECT().Restart("id-api").Return(services.Admission{}, contracts.ActionNotAllowedError{Action: contracts.ActionRestart})
+				mockControl.EXPECT().Restart("id-api").Return(services.Admission{}, fmt.Errorf("%w: %s", contracts.ErrActionNotAllowed, contracts.ActionRestart))
 			},
 			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/restart", nil),
 			recorder:     httptest.NewRecorder(),

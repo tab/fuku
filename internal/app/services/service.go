@@ -17,7 +17,7 @@ func (r *Runtime) start(ctx context.Context, svc model.Service) {
 	}
 
 	//nolint:errcheck // the failure is published by startWithRetry
-	r.startWithRetry(ctx, svc.Tier, svc)
+	r.startWithRetry(ctx, svc)
 }
 
 // restart stops the service's child when it has one and launches the service once
@@ -37,9 +37,9 @@ func (r *Runtime) restart(ctx context.Context, svc model.Service) {
 		r.terminate(proc)
 	}
 
-	proc, err := r.attempt(ctx, tier, svc, 1)
+	proc, err := r.attempt(ctx, svc, 1)
 	if err != nil && ctx.Err() != nil {
-		r.publishStopped(svc, tier)
+		r.publishStopped(svc)
 
 		return
 	}
@@ -90,17 +90,17 @@ func (r *Runtime) stop(id string) {
 }
 
 // publishStopped ends a service whose start or restart the end of the run cut short
-func (r *Runtime) publishStopped(svc model.Service, tier string) {
+func (r *Runtime) publishStopped(svc model.Service) {
 	r.publish(contracts.Message{
 		Type: contracts.EventServiceStopped,
 		Data: contracts.ServiceStopped{
-			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: tier},
+			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: svc.Tier},
 		},
 	})
 }
 
 // attempt runs one start attempt (port pre-check, launch, readiness) and terminates a child that never became ready
-func (r *Runtime) attempt(ctx context.Context, tier string, svc model.Service, number int) (contracts.Process, error) {
+func (r *Runtime) attempt(ctx context.Context, svc model.Service, number int) (contracts.Process, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (r *Runtime) attempt(ctx context.Context, tier string, svc model.Service, n
 	r.publish(contracts.Message{
 		Type: contracts.EventServiceStarting,
 		Data: contracts.ServiceStarting{
-			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: tier},
+			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: svc.Tier},
 			PID:          proc.PID(),
 			Attempt:      number,
 			StartedAt:    startedAt,
@@ -136,7 +136,7 @@ func (r *Runtime) attempt(ctx context.Context, tier string, svc model.Service, n
 	r.publish(contracts.Message{
 		Type: contracts.EventServiceReady,
 		Data: contracts.ServiceReady{
-			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: tier},
+			ServiceEvent: contracts.ServiceEvent{Service: svc, Tier: svc.Tier},
 			PID:          proc.PID(),
 			StartedAt:    startedAt,
 			Duration:     time.Since(startedAt),

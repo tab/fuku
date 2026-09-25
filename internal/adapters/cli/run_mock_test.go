@@ -52,17 +52,3 @@ func (mr *MockRuntimeMockRecorder) Done() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockRuntime)(nil).Done))
 }
-
-// Err mocks base method.
-func (m *MockRuntime) Err() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Err")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Err indicates an expected call of Err.
-func (mr *MockRuntimeMockRecorder) Err() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockRuntime)(nil).Err))
-}

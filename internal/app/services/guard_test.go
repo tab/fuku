@@ -107,7 +107,7 @@ func Test_Guard_admit(t *testing.T) {
 			},
 			id:     svc.ID,
 			action: contracts.ActionRestart,
-			err:    contracts.ActionNotAllowedError{Action: contracts.ActionRestart},
+			err:    contracts.ErrActionNotAllowed,
 		},
 		{
 			name: "rejects an action while a token is held",
@@ -139,7 +139,7 @@ func Test_Guard_admit(t *testing.T) {
 			},
 			id:     svc.ID,
 			action: contracts.ActionStart,
-			err:    contracts.ActionNotAllowedError{Action: contracts.ActionStart},
+			err:    contracts.ErrActionNotAllowed,
 		},
 		{
 			name: "admits a start of a service without a child",
@@ -191,7 +191,7 @@ func Test_Guard_admit(t *testing.T) {
 			},
 			id:     svc.ID,
 			action: contracts.ActionStop,
-			err:    contracts.ActionNotAllowedError{Action: contracts.ActionStop},
+			err:    contracts.ErrActionNotAllowed,
 		},
 		{
 			name: "admits a stop of a live service during running",

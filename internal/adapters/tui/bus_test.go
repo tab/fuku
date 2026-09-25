@@ -82,7 +82,7 @@ func Test_Bridge_Forward_StopsWhenTheContextEndsBeforeAttach(t *testing.T) {
 
 	cancel()
 
-	<-bridge.loop.Done()
+	require.NoError(t, bridge.loop.Drain(t.Context()))
 
 	assert.Nil(t, bridge.view)
 }

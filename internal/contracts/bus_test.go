@@ -38,7 +38,7 @@ func Test_Run_HandlesInOrder(t *testing.T) {
 	assert.Equal(t, EventServiceReady, <-handled)
 }
 
-func Test_Loop_Done(t *testing.T) {
+func Test_Loop_run_ClosesDone(t *testing.T) {
 	var handled atomic.Int32
 
 	handle := func(Message) {
@@ -79,7 +79,7 @@ func Test_Loop_Done(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			loop := tt.before(t)
 
-			<-loop.Done()
+			<-loop.done
 
 			assert.Equal(t, int32(0), handled.Load())
 		})

@@ -185,7 +185,7 @@ func Test_Runtime_Attempt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := tt.before()
 
-			proc, err := runtime.attempt(ctx, "platform", tt.service, tt.attempt)
+			proc, err := runtime.attempt(ctx, tt.service, tt.attempt)
 
 			require.ErrorIs(t, err, tt.err)
 			assert.Equal(t, tt.expected, proc)

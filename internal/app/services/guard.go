@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"sync"
 
 	"fuku/internal/contracts"
@@ -129,7 +130,7 @@ func (g *Guard) admit(id string, action contracts.Action) (Admission, error) {
 	}
 
 	if !entry.dispatched {
-		return Admission{}, contracts.ActionNotAllowedError{Action: action}
+		return Admission{}, fmt.Errorf("%w: %s", contracts.ErrActionNotAllowed, action)
 	}
 
 	if entry.reserved {
@@ -137,7 +138,7 @@ func (g *Guard) admit(id string, action contracts.Action) (Admission, error) {
 	}
 
 	if !allowed(action, g.live(id)) {
-		return Admission{}, contracts.ActionNotAllowedError{Action: action}
+		return Admission{}, fmt.Errorf("%w: %s", contracts.ErrActionNotAllowed, action)
 	}
 
 	entry.reserved = true

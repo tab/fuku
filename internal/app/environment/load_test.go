@@ -18,39 +18,13 @@ func Test_Store_reload(t *testing.T) {
 
 	subject := NewStore(mockSubscriber, mockReader)
 
-	service := &model.Service{Directory: "svc/api", Environment: &model.EnvFiles{Files: []string{".env"}}}
+	service := &model.Service{ID: "uuid-123", Directory: "svc/api", Environment: &model.EnvFiles{Files: []string{".env"}}}
 
-	tests := []struct {
-		name     string
-		before   func()
-		service  *model.Service
-		expected []model.Env
-	}{
-		{
-			name: "populates the cache keyed by id",
-			before: func() {
-				mockReader.EXPECT().Read("svc/api", ".env").Return([]model.Env{{Key: "APP_NAME", Value: "hub-api"}}, nil)
-			},
-			service:  service,
-			expected: []model.Env{{Key: "APP_NAME", Value: "hub-api"}},
-		},
-		{
-			name:     "nil service clears the cache",
-			before:   func() {},
-			service:  nil,
-			expected: nil,
-		},
-	}
+	mockReader.EXPECT().Read("svc/api", ".env").Return([]model.Env{{Key: "APP_NAME", Value: "hub-api"}}, nil)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.before()
+	subject.reload(service)
 
-			subject.reload("uuid-123", tt.service)
-
-			assert.Equal(t, tt.expected, subject.Env("uuid-123"))
-		})
-	}
+	assert.Equal(t, []model.Env{{Key: "APP_NAME", Value: "hub-api"}}, subject.Env("uuid-123"))
 }
 
 func Test_Store_load(t *testing.T) {
@@ -68,12 +42,6 @@ func Test_Store_load(t *testing.T) {
 		service  *model.Service
 		expected []model.Env
 	}{
-		{
-			name:     "nil service reads nothing",
-			before:   func() {},
-			service:  nil,
-			expected: nil,
-		},
 		{
 			name:     "empty directory reads nothing",
 			before:   func() {},

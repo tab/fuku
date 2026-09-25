@@ -1,9 +1,6 @@
 package contracts
 
-import (
-	"errors"
-	"fmt"
-)
+import "errors"
 
 // Outcomes that cross a layer; adapter-local sentinels live beside their adapter
 var (
@@ -24,7 +21,6 @@ var (
 	ErrProcessExited         = errors.New("process exited before readiness")
 	ErrUnexpectedExit        = errors.New("process exited")
 	ErrMaxRetriesExceeded    = errors.New("max retry attempts exceeded")
-	ErrStartupInterrupted    = errors.New("startup interrupted")
 	ErrFailedToAcquireWorker = errors.New("failed to acquire worker")
 	ErrFailedToStartCommand  = errors.New("failed to start command")
 
@@ -35,18 +31,3 @@ var (
 	ErrBusOverloaded = errors.New("bus overloaded")
 	ErrBusClosed     = errors.New("bus closed")
 )
-
-// ActionNotAllowedError carries the rejected action (errors.Is sees ErrActionNotAllowed, errors.As yields the action)
-type ActionNotAllowedError struct {
-	Action Action
-}
-
-// Error describes the rejected action
-func (e ActionNotAllowedError) Error() string {
-	return fmt.Sprintf("%s: %s", ErrActionNotAllowed, e.Action)
-}
-
-// Unwrap exposes ErrActionNotAllowed to errors.Is
-func (e ActionNotAllowedError) Unwrap() error {
-	return ErrActionNotAllowed
-}

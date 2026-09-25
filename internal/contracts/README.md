@@ -28,7 +28,7 @@ A package takes `Publisher` and `Subscriber`, never the bus. `Subscribe` returns
 `SubscribeOptions` names it, marks it `Required` when a critical message must not be lost, and filters it with `Types`.
 
 `Run` drives a subscription on its own goroutine and calls the handler for every message.
-It returns a `Loop`. `Drain` waits until the queue is empty and no handler is in flight. `Done` closes once the goroutine has exited.
+It returns a `Loop`. `Drain` waits until the queue is empty and no handler is in flight.
 
 The loop is the only receiver of the channel. That is what makes an empty channel mean idle.
 
@@ -41,7 +41,6 @@ It lives here so the core can hold a child without importing its maker.
 
 The sentinels here are the outcomes that cross a layer: a config that did not load, a readiness timeout, a rejected action, an overloaded bus.
 A frontend maps them: REST to a status code, the TUI to a log line, the CLI to an exit code.
-`ActionNotAllowedError` carries the rejected `Action`; `errors.Is` sees `ErrActionNotAllowed` and `errors.As` yields the action.
 
 A sentinel only one adapter raises and handles lives in an `errors.go` beside that adapter.
 

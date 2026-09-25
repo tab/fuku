@@ -25,7 +25,7 @@ The run:
 
 `fuku stop` runs step 3 alone, through `Cleaner`. No run opens.
 
-A run cancelled during startup returns `ErrStartupInterrupted`. A `StopAll` during startup is the same clean end. Any other failure reaches `Reporter.Fail`, which exits 1.
+A run cancelled during startup returns `errStartupInterrupted`. A `StopAll` during startup is the same clean end. Any other failure reaches `Reporter.Fail`, which exits 1.
 
 A start or restart cut short by the end of the run publishes `ServiceStopped`. Never `ServiceFailed`, and never nothing.
 It applies while the service waits for a worker, runs its readiness check or waits out a retry backoff.
@@ -57,9 +57,9 @@ Every start runs inside the worker bound.
 
 1. the run is in startup or running and the profile is resolved, or `ErrNotAccepting`
 2. the ID belongs to the profile, or `ErrServiceNotFound`
-3. tier startup has dispatched the service at least once, or `ActionNotAllowedError`
+3. tier startup has dispatched the service at least once, or `ErrActionNotAllowed`
 4. no token is held, or `ErrServiceBusy`
-5. the action fits the live child: start needs none, stop needs one, restart needs nothing more. Otherwise `ActionNotAllowedError`
+5. the action fits the live child: start needs none, stop needs one, restart needs nothing more. Otherwise `ErrActionNotAllowed`
 
 `Toggle` serves the TUI's `s` key. It picks stop for a service with a live child and start for one without.
 `Guard.admit` then checks that action like any other.

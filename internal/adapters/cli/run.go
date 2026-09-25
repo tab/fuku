@@ -1,14 +1,10 @@
 package cli
 
-import (
-	"context"
-	"errors"
-)
+import "context"
 
 // Runtime is the running profile the headless command waits on
 type Runtime interface {
 	Done() <-chan struct{}
-	Err() error
 }
 
 // Run is the headless run command: it waits until the services runtime has finished the profile
@@ -21,16 +17,11 @@ func NewRun(runtime Runtime) *Run {
 	return &Run{runtime: runtime}
 }
 
-// Run waits for the runtime and returns 1 when the run failed (a cancelled run is a clean exit)
+// Run waits for the runtime or the context to end and returns 0 (a failure reaches the arbiter via Reporter.Fail)
 func (r *Run) Run(ctx context.Context) (int, error) {
 	select {
 	case <-r.runtime.Done():
 	case <-ctx.Done():
-		return 0, nil
-	}
-
-	if err := r.runtime.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		return 1, err
 	}
 
 	return 0, nil

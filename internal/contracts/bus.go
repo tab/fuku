@@ -42,11 +42,6 @@ func Run(ctx context.Context, sub Subscription, handle func(Message)) *Loop {
 	return l
 }
 
-// Done returns a channel that closes once the loop has exited and no handler is in flight
-func (l *Loop) Done() <-chan struct{} {
-	return l.done
-}
-
 // Drain waits until the queue is empty and no handler is in flight
 func (l *Loop) Drain(ctx context.Context) error {
 	idle := make(chan struct{})

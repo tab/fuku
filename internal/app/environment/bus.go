@@ -49,7 +49,7 @@ func (s *Store) handleProfileResolved(msg contracts.Message) {
 
 	for _, tier := range data.Tiers {
 		for _, svc := range tier.Services {
-			s.reload(svc.ID, svc)
+			s.reload(svc)
 		}
 	}
 }
@@ -60,5 +60,5 @@ func (s *Store) handleServiceStarting(msg contracts.Message) {
 		return
 	}
 
-	s.reload(data.Service.ID, &data.Service)
+	s.reload(&data.Service)
 }

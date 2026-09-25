@@ -133,7 +133,7 @@ func Test_Runtime_Run(t *testing.T) {
 	}
 
 	runtime := NewRuntime(RuntimeParams{
-		Options:   Options{RetryAttempts: 1},
+		Options:   Options{RetryAttempts: 1, Profile: "missing"},
 		Profiles:  mockProfiles,
 		Preflight: mockPreflight,
 		Launcher:  mockLauncher,
@@ -282,7 +282,7 @@ func Test_Runtime_Run(t *testing.T) {
 				contracts.EventPhaseChanged,
 			},
 			phases:   []model.Phase{model.PhaseStartup, model.PhaseStopping, model.PhaseStopped},
-			expected: contracts.ErrStartupInterrupted,
+			expected: errStartupInterrupted,
 		},
 		{
 			name: "a cancellation during startup interrupts the startup with the context error",
@@ -324,7 +324,7 @@ func Test_Runtime_Run(t *testing.T) {
 			recorded = nil
 			ctx := tt.before()
 
-			err := runtime.run(runtime.begin(ctx), "missing")
+			err := runtime.run(runtime.begin(ctx))
 
 			require.ErrorIs(t, err, tt.expected)
 			assert.Equal(t, tt.types, types())
@@ -350,6 +350,7 @@ func Test_Runtime_Run_StopAllInterruption(t *testing.T) {
 	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
 
 	runtime := NewRuntime(RuntimeParams{
+		Options:   Options{Profile: "default"},
 		Profiles:  mockProfiles,
 		Preflight: mockPreflight,
 		Tracker:   mockTracker,
@@ -371,7 +372,7 @@ func Test_Runtime_Run_StopAllInterruption(t *testing.T) {
 	mockPool.EXPECT().Acquire(gomock.Any()).DoAndReturn(stopping)
 	mockTracker.EXPECT().Reverse().Return(nil)
 
-	err := runtime.run(runtime.begin(t.Context()), "default")
+	err := runtime.run(runtime.begin(t.Context()))
 
 	require.EqualError(t, err, "startup interrupted: StopAll command")
 	assert.Equal(t, model.PhaseStopped, runtime.guard.phase)
@@ -513,7 +514,7 @@ func Test_Runtime_StartTier(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := tt.before()
 
-			failed := runtime.startTier(ctx, "platform", tt.services)
+			failed := runtime.startTier(ctx, tt.services)
 
 			assert.ElementsMatch(t, tt.expected, failed)
 			assert.True(t, ctrl.Satisfied())
@@ -641,12 +642,11 @@ func Test_Runtime_Start_Producer(t *testing.T) {
 	mockPublisher.EXPECT().Publish(isType(contracts.EventPhaseChanged)).Return(nil).AnyTimes()
 
 	tests := []struct {
-		name        string
-		before      func() *Runtime
-		expectedErr error
+		name   string
+		before func() *Runtime
 	}{
 		{
-			name: "a failed run is reported and kept for the command",
+			name: "a failed run is reported to the arbiter",
 			before: func() *Runtime {
 				runtime := NewRuntime(RuntimeParams{Options: options, Profiles: mockProfiles, Tracker: mockTracker, Guard: NewGuard(mockTracker), Publisher: mockPublisher, Reporter: mockReporter, Logger: log})
 				reported := make(chan error, 1)
@@ -663,7 +663,6 @@ func Test_Runtime_Start_Producer(t *testing.T) {
 
 				return runtime
 			},
-			expectedErr: resolveErr,
 		},
 		{
 			name: "a profile without services finishes cleanly",
@@ -689,7 +688,6 @@ func Test_Runtime_Start_Producer(t *testing.T) {
 
 			<-runtime.Done()
 
-			require.ErrorIs(t, runtime.Err(), tt.expectedErr)
 			require.NoError(t, runtime.Stop(t.Context()))
 		})
 	}
@@ -818,7 +816,6 @@ func Test_Runtime_Start_AcceptsStopAllWhileTheProfileResolves(t *testing.T) {
 	<-runtime.Done()
 
 	require.NoError(t, err)
-	require.NoError(t, runtime.Err())
 	assert.Equal(t, model.PhaseStopped, runtime.guard.phase)
 	require.NoError(t, runtime.Stop(t.Context()))
 }
@@ -884,7 +881,6 @@ func Test_Runtime_Stop_CancelsUnderTheLaunchLock(t *testing.T) {
 	err := runtime.Stop(t.Context())
 
 	require.NoError(t, err)
-	require.NoError(t, runtime.Err())
 	assert.True(t, underLock)
 	assert.True(t, ctrl.Satisfied())
 }

@@ -153,7 +153,7 @@ func Test_Runtime_StartWithRetry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := tt.before()
 
-			err := runtime.startWithRetry(ctx, "platform", svc)
+			err := runtime.startWithRetry(ctx, svc)
 
 			require.ErrorIs(t, err, tt.expected)
 			assert.True(t, ctrl.Satisfied())
@@ -194,7 +194,7 @@ func Test_Runtime_StartWithRetry_CancelledDuringBackoff(t *testing.T) {
 		mockPublisher.EXPECT().Publish(stopped).Return(nil),
 	)
 
-	err := runtime.startWithRetry(ctx, "platform", svc)
+	err := runtime.startWithRetry(ctx, svc)
 
 	require.ErrorIs(t, err, context.Canceled)
 }

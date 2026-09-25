@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"testing"
@@ -95,7 +96,7 @@ func Test_HandleRestartKey(t *testing.T) {
 
 	api := model.Service{ID: "id-api", Name: "api"}
 	restarting := services.Admission{Service: api, Action: contracts.ActionRestart, Status: model.StatusRestarting}
-	notAllowed := contracts.ActionNotAllowedError{Action: contracts.ActionRestart}
+	notAllowed := fmt.Errorf("%w: %s", contracts.ErrActionNotAllowed, contracts.ActionRestart)
 	readyAt := time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC)
 
 	tests := []struct {
