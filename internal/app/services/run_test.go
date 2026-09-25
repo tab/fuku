@@ -766,7 +766,7 @@ func Test_Runtime_Start_AcceptsStopAllWhileTheProfileResolves(t *testing.T) {
 	runtime := NewRuntime(RuntimeParams{Options: Options{Profile: "backend"}, Profiles: mockProfiles, Preflight: mockPreflight, Tracker: mockTracker, Guard: NewGuard(mockTracker), Publisher: mockPublisher, Reporter: mockReporter, Logger: log})
 	control := NewControl(runtime.guard, mockPublisher)
 
-	resolve := func(string) ([]model.Tier, error) {
+	resolve := func(string) (model.Tiers, error) {
 		<-release
 
 		return tiers, nil

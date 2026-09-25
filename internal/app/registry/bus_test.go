@@ -234,3 +234,31 @@ func Test_Store_Handle(t *testing.T) {
 		})
 	}
 }
+
+func Test_Store_Handle_AnnouncesOnceTheLockIsReleased(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSubscriber := NewMockSubscriber(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+
+	s := NewStore(mockSubscriber, mockPublisher)
+
+	var readable string
+
+	resolved := contracts.Message{Type: contracts.EventProfileResolved, Data: contracts.ProfileResolved{Profile: "default"}}
+	readProfile := func(snapshot *model.Snapshot) {
+		readable = snapshot.Profile
+	}
+	capture := func(contracts.Message) error {
+		s.Read(readProfile)
+
+		return nil
+	}
+
+	mockPublisher.EXPECT().Publish(gomock.Any()).DoAndReturn(capture)
+
+	s.handle(resolved)
+
+	assert.Equal(t, "default", readable, "the notification must not go out before its change is readable")
+}

@@ -72,9 +72,7 @@ func checkProfileResolves(st *state) model.Result {
 		}
 	}
 
-	names := st.services
-
-	if len(names) == 0 {
+	if len(st.services) == 0 {
 		return model.Result{
 			ID:       model.CheckTopologyProfile,
 			Category: model.CategoryTopology,
@@ -87,6 +85,6 @@ func checkProfileResolves(st *state) model.Result {
 		ID:       model.CheckTopologyProfile,
 		Category: model.CategoryTopology,
 		Severity: model.SeverityOK,
-		Summary:  fmt.Sprintf("profile '%s' resolves to %d services", st.Profile, len(names)),
+		Summary:  fmt.Sprintf("profile '%s' resolves to %d services", st.Profile, len(st.services)),
 	}
 }

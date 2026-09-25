@@ -39,16 +39,14 @@ func (g *Guard) open() {
 }
 
 // resolve records the resolved profile, which opens individual actions on its services
-func (g *Guard) resolve(tiers []model.Tier) {
+func (g *Guard) resolve(tiers model.Tiers) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	g.services = make(map[string]*coordination)
 
-	for _, tier := range tiers {
-		for _, svc := range tier.Services {
-			g.services[svc.ID] = &coordination{service: *svc}
-		}
+	for _, svc := range tiers.Services() {
+		g.services[svc.ID] = &coordination{service: *svc}
 	}
 }
 

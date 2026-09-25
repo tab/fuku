@@ -115,8 +115,7 @@ func (r *Runner) checkPorts(ctx context.Context, st *state) model.Result {
 		busy   []model.Detail
 	)
 
-	for _, name := range st.services {
-		svc, _ := st.Project.Service(name)
+	for _, svc := range st.services {
 		if svc.Readiness == nil {
 			continue
 		}
@@ -129,7 +128,7 @@ func (r *Runner) checkPorts(ctx context.Context, st *state) model.Result {
 		probed++
 
 		if port.InUse {
-			busy = append(busy, model.Detail{Key: name, Value: port.Address + " already LISTENING"})
+			busy = append(busy, model.Detail{Key: svc.Name, Value: port.Address + " already LISTENING"})
 		}
 	}
 

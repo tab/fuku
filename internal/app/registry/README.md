@@ -14,13 +14,13 @@ The TUI, the REST API, the log socket server and the resource sampler read it. N
 
 ```mermaid
 flowchart LR
-    E[lifecycle event] --> U[update: apply under the write lock] --> A{visible state<br>changed?}
+    E[lifecycle event] --> U[handle: apply under the write lock] --> A{visible state<br>changed?}
     A -- no --> N[nothing published]
     A -- yes --> P[SnapshotChanged after the unlock]
 ```
 
 - the subscription is required and filtered to the types in `projected`
-- `handle` runs each message through `update`. An `apply<Event>` handler in `store.go` changes the snapshot in place
+- `handle` runs each message through `apply` under the write lock. An `apply<Event>` handler in `store.go` changes the snapshot in place
 - `SnapshotChanged` carries nothing. It is not critical. A slow reader loses a notification, never a fact
 
 The rules worth knowing:
@@ -44,9 +44,9 @@ Each consumer reads what it needs inside `Read` and does the slow part outside:
 
 ## Changing it
 
-- the bus projection is `update`'s only caller. A new caller publishes the event and lets the projection apply it
-- a callback never calls `Read` or `update`. The lock is not reentrant
-- nothing outside `update` changes the snapshot
+- the bus loop is `handle`'s only caller. A new caller publishes the event and lets the projection apply it
+- a callback never calls `Read` or `handle`. The lock is not reentrant
+- nothing outside `handle` changes the snapshot
 - a stored service is a shallow copy. It shares the `Readiness`, `Watch` and `Environment` pointers and the `LogOutput` slice
   with the project and the payload. Nothing writes through them
 - a callback reads through the snapshot only while it runs. It does no IO

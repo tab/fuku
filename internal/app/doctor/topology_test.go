@@ -24,7 +24,7 @@ func Test_topologySection(t *testing.T) {
 		},
 		{
 			name:        "loaded config runs both checks",
-			state:       &state{Config: model.Config{Topology: model.Topology{Order: []string{model.TierDefault}}}, services: []string{"api"}},
+			state:       &state{Config: model.Config{Topology: model.Topology{Order: []string{model.TierDefault}}}, services: []*model.Service{{Name: "api"}}},
 			expectedIDs: []model.CheckID{model.CheckTopologyTiers, model.CheckTopologyProfile},
 		},
 	}
@@ -82,7 +82,7 @@ func Test_checkProfileResolves(t *testing.T) {
 	}{
 		{
 			name:     "profile resolves to services",
-			state:    &state{Options: Options{Profile: model.ProfileDefault}, services: []string{"api"}},
+			state:    &state{Options: Options{Profile: model.ProfileDefault}, services: []*model.Service{{Name: "api"}}},
 			expected: model.SeverityOK,
 		},
 		{

@@ -23,7 +23,7 @@ func Test_Resolver_Resolve(t *testing.T) {
 		name     string
 		before   func() *Resolver
 		profile  string
-		expected []model.Tier
+		expected model.Tiers
 	}{
 		{
 			name: "wildcard keeps project order",

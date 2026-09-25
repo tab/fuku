@@ -29,27 +29,6 @@ func NewStore(subscriber contracts.Subscriber, publisher contracts.Publisher) *S
 	}
 }
 
-// update runs fn under the write lock and announces the change once the lock is released when fn reports one
-func (s *Store) update(fn func(*model.Snapshot) bool) {
-	if !s.commit(fn) {
-		return
-	}
-
-	//nolint:errcheck // a non-critical publish never fails
-	s.publisher.Publish(contracts.Message{
-		Type: contracts.EventSnapshotChanged,
-		Data: contracts.SnapshotChanged{},
-	})
-}
-
-// commit runs fn under the write lock and returns whether it changed the snapshot
-func (s *Store) commit(fn func(*model.Snapshot) bool) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return fn(s.snapshot)
-}
-
 // apply projects one message onto the snapshot and reports whether the visible state changed
 func (s *Store) apply(snapshot *model.Snapshot, msg contracts.Message) bool {
 	//nolint:exhaustive // only handling the events the read model projects

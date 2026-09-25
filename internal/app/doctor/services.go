@@ -38,36 +38,35 @@ func (r *Runner) servicesSection(st *state) model.Section {
 		return section
 	}
 
-	names := st.services
+	services := st.services
 
-	section.Note = fmt.Sprintf("active profile: %s · %d services", st.Profile, len(names))
+	section.Note = fmt.Sprintf("active profile: %s · %d services", st.Profile, len(services))
 	section.Results = []model.Result{
-		timed(func() model.Result { return r.checkServiceDirectories(st, names) }),
-		timed(func() model.Result { return r.checkServiceDotenv(st, names) }),
-		timed(func() model.Result { return checkServiceReadiness(st, names) }),
+		timed(func() model.Result { return r.checkServiceDirectories(services) }),
+		timed(func() model.Result { return r.checkServiceDotenv(services) }),
+		timed(func() model.Result { return checkServiceReadiness(services) }),
 	}
 
 	return section
 }
 
 // checkServiceDirectories verifies that each service.Dir exists on disk
-func (r *Runner) checkServiceDirectories(st *state, names []string) model.Result {
+func (r *Runner) checkServiceDirectories(services []*model.Service) model.Result {
 	var missing []string
 
-	details := make([]model.Detail, 0, len(names))
+	details := make([]model.Detail, 0, len(services))
 
-	for _, name := range names {
-		svc, _ := st.Project.Service(name)
-		dir := r.serviceDirAbs(svc)
+	for _, svc := range services {
+		dir := r.serviceDirAbs(*svc)
 
 		if r.filesystem.DirExists(dir) {
-			details = append(details, model.Detail{Key: name, Value: dir})
+			details = append(details, model.Detail{Key: svc.Name, Value: dir})
 
 			continue
 		}
 
-		missing = append(missing, name)
-		details = append(details, model.Detail{Key: name, Value: dir + " (MISSING)"})
+		missing = append(missing, svc.Name)
+		details = append(details, model.Detail{Key: svc.Name, Value: dir + " (MISSING)"})
 	}
 
 	if len(missing) == 0 {
@@ -75,7 +74,7 @@ func (r *Runner) checkServiceDirectories(st *state, names []string) model.Result
 			ID:       model.CheckServicesDirectories,
 			Category: model.CategoryServices,
 			Severity: model.SeverityOK,
-			Summary:  fmt.Sprintf("%d of %d directories present", len(names), len(names)),
+			Summary:  fmt.Sprintf("%d of %d directories present", len(services), len(services)),
 			Details:  details,
 		}
 	}
@@ -84,26 +83,25 @@ func (r *Runner) checkServiceDirectories(st *state, names []string) model.Result
 		ID:          model.CheckServicesDirectories,
 		Category:    model.CategoryServices,
 		Severity:    model.SeverityWarn,
-		Summary:     fmt.Sprintf("%d of %d directories missing", len(missing), len(names)),
+		Summary:     fmt.Sprintf("%d of %d directories missing", len(missing), len(services)),
 		Details:     details,
 		Remediation: "create the missing directories or fix `dir:` paths in fuku.yaml",
 	}
 }
 
 // checkServiceDotenv verifies that each referenced .env file exists and is readable
-func (r *Runner) checkServiceDotenv(st *state, names []string) model.Result {
+func (r *Runner) checkServiceDotenv(services []*model.Service) model.Result {
 	var missing []string
 
 	total := 0
 	details := []model.Detail{}
 
-	for _, name := range names {
-		svc, _ := st.Project.Service(name)
+	for _, svc := range services {
 		if svc.Environment.Defaulted || len(svc.Environment.Files) == 0 {
 			continue
 		}
 
-		dir := r.serviceDirAbs(svc)
+		dir := r.serviceDirAbs(*svc)
 
 		for _, file := range svc.Environment.Files {
 			total++
@@ -113,7 +111,7 @@ func (r *Runner) checkServiceDotenv(st *state, names []string) model.Result {
 				continue
 			}
 
-			label := fmt.Sprintf("%s/%s", name, file)
+			label := fmt.Sprintf("%s/%s", svc.Name, file)
 			missing = append(missing, label)
 			details = append(details, model.Detail{Key: label, Value: "MISSING"})
 		}
@@ -148,14 +146,13 @@ func (r *Runner) checkServiceDotenv(st *state, names []string) model.Result {
 }
 
 // checkServiceReadiness verifies probe fields parse as URL, regex, or host:port
-func checkServiceReadiness(st *state, names []string) model.Result {
+func checkServiceReadiness(services []*model.Service) model.Result {
 	var (
 		http, tcp, log int
 		issues         []model.Detail
 	)
 
-	for _, name := range names {
-		svc, _ := st.Project.Service(name)
+	for _, svc := range services {
 		if svc.Readiness == nil {
 			continue
 		}
@@ -167,19 +164,19 @@ func checkServiceReadiness(st *state, names []string) model.Result {
 			http++
 
 			if err := validateHTTPURL(probe.URL); err != nil {
-				issues = append(issues, model.Detail{Key: name + " url", Value: err.Error()})
+				issues = append(issues, model.Detail{Key: svc.Name + " url", Value: err.Error()})
 			}
 		case model.ReadinessTCP:
 			tcp++
 
 			if _, _, err := net.SplitHostPort(probe.Address); err != nil {
-				issues = append(issues, model.Detail{Key: name + " address", Value: err.Error()})
+				issues = append(issues, model.Detail{Key: svc.Name + " address", Value: err.Error()})
 			}
 		case model.ReadinessLog:
 			log++
 
 			if _, err := regexp.Compile(probe.Pattern); err != nil {
-				issues = append(issues, model.Detail{Key: name + " pattern", Value: err.Error()})
+				issues = append(issues, model.Detail{Key: svc.Name + " pattern", Value: err.Error()})
 			}
 		}
 	}

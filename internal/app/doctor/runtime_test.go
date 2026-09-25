@@ -173,14 +173,10 @@ func Test_Runner_checkPorts(t *testing.T) {
 	tcp := model.Readiness{Type: model.ReadinessTCP, Address: "localhost:5432"}
 	log := model.Readiness{Type: model.ReadinessLog, Pattern: "ready"}
 
-	project := model.Project{
-		Services: []model.Service{
-			{Name: "api", Directory: "api"},
-			{Name: "http", Readiness: &http},
-			{Name: "tcp", Readiness: &tcp},
-			{Name: "log", Readiness: &log},
-		},
-	}
+	api := &model.Service{Name: "api", Directory: "api"}
+	httpProbed := &model.Service{Name: "http", Readiness: &http}
+	tcpProbed := &model.Service{Name: "tcp", Readiness: &tcp}
+	logProbed := &model.Service{Name: "log", Readiness: &log}
 
 	tests := []struct {
 		name             string
@@ -207,7 +203,7 @@ func Test_Runner_checkPorts(t *testing.T) {
 		{
 			name:             "no readiness probes",
 			before:           func() {},
-			state:            &state{Config: model.Config{Project: project}, services: []string{"api"}},
+			state:            &state{services: []*model.Service{api}},
 			expectedSeverity: model.SeverityIdle,
 			expectedSummary:  "no probed readiness ports",
 		},
@@ -216,7 +212,7 @@ func Test_Runner_checkPorts(t *testing.T) {
 			before: func() {
 				mockRuntime.EXPECT().ProbePort(gomock.Any(), log).Return(model.Port{})
 			},
-			state:            &state{Config: model.Config{Project: project}, services: []string{"log"}},
+			state:            &state{services: []*model.Service{logProbed}},
 			expectedSeverity: model.SeverityIdle,
 			expectedSummary:  "no probed readiness ports",
 		},
@@ -226,7 +222,7 @@ func Test_Runner_checkPorts(t *testing.T) {
 				mockRuntime.EXPECT().ProbePort(gomock.Any(), http).Return(model.Port{Address: "localhost:8080"})
 				mockRuntime.EXPECT().ProbePort(gomock.Any(), tcp).Return(model.Port{Address: "localhost:5432"})
 			},
-			state:            &state{Config: model.Config{Project: project}, services: []string{"http", "tcp"}},
+			state:            &state{services: []*model.Service{httpProbed, tcpProbed}},
 			expectedSeverity: model.SeverityOK,
 			expectedSummary:  "2 readiness port(s) available",
 		},
@@ -236,7 +232,7 @@ func Test_Runner_checkPorts(t *testing.T) {
 				mockRuntime.EXPECT().ProbePort(gomock.Any(), http).Return(model.Port{Address: "localhost:8080", InUse: true})
 				mockRuntime.EXPECT().ProbePort(gomock.Any(), tcp).Return(model.Port{Address: "localhost:5432"})
 			},
-			state:            &state{Config: model.Config{Project: project}, services: []string{"http", "tcp"}},
+			state:            &state{services: []*model.Service{httpProbed, tcpProbed}},
 			expectedSeverity: model.SeverityWarn,
 			expectedSummary:  "1 readiness port(s) already bound",
 			expectedDetails:  []model.Detail{{Key: "http", Value: "localhost:8080 already LISTENING"}},

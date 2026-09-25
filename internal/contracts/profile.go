@@ -12,6 +12,6 @@ const EventProfileResolved MessageType = "profile_resolved"
 // ProfileResolved contains the resolved profile with its tier structure
 type ProfileResolved struct {
 	Profile  string
-	Tiers    []model.Tier
+	Tiers    model.Tiers
 	Duration time.Duration
 }

@@ -20,7 +20,7 @@ func NewResolver(project model.Project) *Resolver {
 }
 
 // Resolve returns the profile's services grouped by tier
-func (r *Resolver) Resolve(profile string) ([]model.Tier, error) {
+func (r *Resolver) Resolve(profile string) (model.Tiers, error) {
 	configured, exists := r.project.Profiles[profile]
 	if !exists {
 		return nil, fmt.Errorf("%w: %s", contracts.ErrProfileNotFound, profile)
@@ -53,7 +53,7 @@ func (r *Resolver) Resolve(profile string) ([]model.Tier, error) {
 		selected[name] = true
 	}
 
-	tiers := make([]model.Tier, 0)
+	tiers := make(model.Tiers, 0)
 
 	for _, service := range r.project.Services {
 		if !selected[service.Name] {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"fuku/internal/contracts"
-	"fuku/internal/model"
 )
 
 // projected lists the message types the read model is built from
@@ -39,14 +38,24 @@ func (s *Store) Subscribe(ctx context.Context) error {
 	return nil
 }
 
-// Drain returns once the queue is empty and no commit is in flight
+// Drain returns once the queue is empty and no projection is in flight
 func (s *Store) Drain(ctx context.Context) error {
 	return s.loop.Drain(ctx)
 }
 
-// handle applies one message through update
+// handle applies one message under the write lock and announces a change once the lock is released
 func (s *Store) handle(msg contracts.Message) {
-	s.update(func(snapshot *model.Snapshot) bool {
-		return s.apply(snapshot, msg)
+	s.mu.Lock()
+	changed := s.apply(s.snapshot, msg)
+	s.mu.Unlock()
+
+	if !changed {
+		return
+	}
+
+	//nolint:errcheck // a non-critical publish never fails
+	s.publisher.Publish(contracts.Message{
+		Type: contracts.EventSnapshotChanged,
+		Data: contracts.SnapshotChanged{},
 	})
 }

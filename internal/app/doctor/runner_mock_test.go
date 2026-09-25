@@ -177,10 +177,10 @@ func (m *MockProfiles) EXPECT() *MockProfilesMockRecorder {
 }
 
 // Resolve mocks base method.
-func (m *MockProfiles) Resolve(profile string) ([]model.Tier, error) {
+func (m *MockProfiles) Resolve(profile string) (model.Tiers, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resolve", profile)
-	ret0, _ := ret[0].([]model.Tier)
+	ret0, _ := ret[0].(model.Tiers)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

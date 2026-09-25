@@ -7,3 +7,17 @@ type Tier struct {
 	Ready    bool
 	Services []*Service
 }
+
+// Tiers is a resolved profile: its tiers in startup order
+type Tiers []Tier
+
+// Services lists the services of every tier in startup order
+func (t Tiers) Services() []*Service {
+	var services []*Service
+
+	for _, tier := range t {
+		services = append(services, tier.Services...)
+	}
+
+	return services
+}

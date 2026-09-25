@@ -26,7 +26,7 @@ func (c *Cleaner) Cleanup(ctx context.Context, profile string) error {
 		return fmt.Errorf("failed to resolve profile: %w", err)
 	}
 
-	services := profileServices(tiers)
+	services := tiers.Services()
 	if len(services) == 0 {
 		c.log.Warn(fmt.Sprintf("No services found for profile '%s'", profile))
 

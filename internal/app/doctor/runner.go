@@ -17,7 +17,7 @@ type Options struct {
 
 // Profiles resolves a profile of the loaded project into its tiers
 type Profiles interface {
-	Resolve(profile string) ([]model.Tier, error)
+	Resolve(profile string) (model.Tiers, error)
 }
 
 // Runner executes the doctor checks over the loaded config and the observers that see the machine
@@ -62,7 +62,7 @@ func (r *Runner) Run(ctx context.Context) *model.Report {
 type state struct {
 	Options
 	model.Config
-	services   []string
+	services   []*model.Service
 	profileErr error
 }
 
@@ -82,22 +82,17 @@ func (r *Runner) load() *state {
 	return st
 }
 
-// resolveProfileServices returns the sorted list of services in the active profile
-func resolveProfileServices(profiles Profiles, profile string) ([]string, error) {
+// resolveProfileServices returns the services in the active profile sorted by name
+func resolveProfileServices(profiles Profiles, profile string) ([]*model.Service, error) {
 	tiers, err := profiles.Resolve(profile)
 	if err != nil {
 		return nil, err
 	}
 
-	var names []string
+	services := tiers.Services()
+	sort.Slice(services, func(i, j int) bool {
+		return services[i].Name < services[j].Name
+	})
 
-	for _, tier := range tiers {
-		for _, svc := range tier.Services {
-			names = append(names, svc.Name)
-		}
-	}
-
-	sort.Strings(names)
-
-	return names, nil
+	return services, nil
 }

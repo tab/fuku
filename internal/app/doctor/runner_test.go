@@ -44,8 +44,10 @@ func Test_Runner_Run(t *testing.T) {
 	mockProfiles := NewMockProfiles(ctrl)
 	mockRuntime := NewMockRuntime(ctrl)
 
+	api := model.Service{Name: "api", Command: "make run", Directory: "api", Tier: model.TierDefault, Environment: &model.EnvFiles{}}
+
 	project := model.Project{
-		Services:    []model.Service{{Name: "api", Command: "make run", Directory: "api", Tier: model.TierDefault, Environment: &model.EnvFiles{}}},
+		Services:    []model.Service{api},
 		Profiles:    map[string]model.Profile{model.ProfileDefault: {All: true}},
 		Logging:     model.Logging{Level: "info", Format: "console"},
 		Concurrency: model.Concurrency{Workers: 5},
@@ -58,7 +60,7 @@ func Test_Runner_Run(t *testing.T) {
 		TierServices: map[string][]string{model.TierDefault: {"api"}},
 	}
 
-	tiers := []model.Tier{{Name: model.TierDefault, Services: []*model.Service{{Name: "api"}}}}
+	tiers := []model.Tier{{Name: model.TierDefault, Services: []*model.Service{&api}}}
 
 	options := Options{Profile: model.ProfileDefault, Fingerprint: "0123456789abcdef", Version: "0.99.0"}
 
@@ -173,7 +175,9 @@ func Test_Runner_load(t *testing.T) {
 		Profiles: map[string]model.Profile{model.ProfileDefault: {All: true}},
 	}
 
-	tiers := []model.Tier{{Name: model.TierDefault, Services: []*model.Service{{Name: "web"}, {Name: "api"}}}}
+	web := &model.Service{Name: "web"}
+	api := &model.Service{Name: "api"}
+	tiers := []model.Tier{{Name: model.TierDefault, Services: []*model.Service{web, api}}}
 
 	options := Options{Profile: model.ProfileDefault, ExplicitConfig: true, Fingerprint: "0123456789abcdef"}
 
@@ -181,7 +185,7 @@ func Test_Runner_load(t *testing.T) {
 		name               string
 		before             func()
 		config             model.Config
-		expectedServices   []string
+		expectedServices   []*model.Service
 		expectedProfileErr error
 	}{
 		{
@@ -190,7 +194,7 @@ func Test_Runner_load(t *testing.T) {
 				mockProfiles.EXPECT().Resolve(model.ProfileDefault).Return(tiers, nil)
 			},
 			config:           model.Config{Path: "fuku.yaml", OverridePath: "fuku.override.yaml", Project: project},
-			expectedServices: []string{"api", "web"},
+			expectedServices: []*model.Service{api, web},
 		},
 		{
 			name: "unknown profile keeps the resolve error",

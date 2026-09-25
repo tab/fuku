@@ -43,10 +43,8 @@ func (s *Store) handleProfileResolved(msg contracts.Message) {
 		return
 	}
 
-	for _, tier := range data.Tiers {
-		for _, svc := range tier.Services {
-			s.reload(svc)
-		}
+	for _, svc := range data.Tiers.Services() {
+		s.reload(svc)
 	}
 }
 

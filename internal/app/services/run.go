@@ -15,7 +15,7 @@ import (
 
 // ProfileResolver expands a profile into ordered service tiers
 type ProfileResolver interface {
-	Resolve(profile string) ([]model.Tier, error)
+	Resolve(profile string) (model.Tiers, error)
 }
 
 // Preflight kills the processes still running in the service directories before a launch
@@ -181,7 +181,7 @@ func (r *Runtime) run(ctx context.Context) error {
 		},
 	})
 
-	services := profileServices(tiers)
+	services := tiers.Services()
 	names := serviceNames(services)
 
 	if len(names) == 0 {
@@ -336,17 +336,6 @@ func (r *Runtime) startTier(ctx context.Context, services []*model.Service) []st
 	}
 
 	return failed
-}
-
-// profileServices lists the services of every tier in startup order
-func profileServices(tiers []model.Tier) []*model.Service {
-	var services []*model.Service
-
-	for _, tier := range tiers {
-		services = append(services, tier.Services...)
-	}
-
-	return services
 }
 
 // serviceNames lists the names of the services

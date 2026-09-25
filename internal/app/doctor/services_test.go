@@ -18,9 +18,7 @@ func Test_Runner_servicesSection(t *testing.T) {
 
 	subject := NewRunner(Options{}, model.Config{}, nil, mockFilesystem, nil, nil)
 
-	project := model.Project{
-		Services: []model.Service{{Name: "api", Directory: "/srv/api", Environment: &model.EnvFiles{}}},
-	}
+	api := &model.Service{Name: "api", Directory: "/srv/api", Environment: &model.EnvFiles{}}
 
 	tests := []struct {
 		name               string
@@ -48,7 +46,7 @@ func Test_Runner_servicesSection(t *testing.T) {
 			before: func() {
 				mockFilesystem.EXPECT().DirExists("/srv/api").Return(true)
 			},
-			state:              &state{Options: Options{Profile: model.ProfileDefault}, Config: model.Config{Project: project}, services: []string{"api"}},
+			state:              &state{Options: Options{Profile: model.ProfileDefault}, services: []*model.Service{api}},
 			expectedNote:       "active profile: default · 1 services",
 			expectedSeverities: []model.Severity{model.SeverityOK, model.SeverityIdle, model.SeverityIdle},
 		},
@@ -79,17 +77,13 @@ func Test_Runner_checkServiceDirectories(t *testing.T) {
 
 	subject := NewRunner(Options{}, model.Config{}, nil, mockFilesystem, nil, nil)
 
-	st := &state{Config: model.Config{Project: model.Project{
-		Services: []model.Service{
-			{Name: "api", Directory: "api"},
-			{Name: "missing", Directory: "missing"},
-		},
-	}}}
+	api := &model.Service{Name: "api", Directory: "api"}
+	missing := &model.Service{Name: "missing", Directory: "missing"}
 
 	tests := []struct {
 		name            string
 		before          func()
-		names           []string
+		services        []*model.Service
 		expected        model.Severity
 		expectedDetails []model.Detail
 	}{
@@ -99,7 +93,7 @@ func Test_Runner_checkServiceDirectories(t *testing.T) {
 				mockFilesystem.EXPECT().Getwd().Return("/home/dev/project", nil)
 				mockFilesystem.EXPECT().DirExists("/home/dev/project/api").Return(true)
 			},
-			names:    []string{"api"},
+			services: []*model.Service{api},
 			expected: model.SeverityOK,
 			expectedDetails: []model.Detail{
 				{Key: "api", Value: "/home/dev/project/api"},
@@ -112,7 +106,7 @@ func Test_Runner_checkServiceDirectories(t *testing.T) {
 				mockFilesystem.EXPECT().DirExists("/home/dev/project/api").Return(true)
 				mockFilesystem.EXPECT().DirExists("/home/dev/project/missing").Return(false)
 			},
-			names:    []string{"api", "missing"},
+			services: []*model.Service{api, missing},
 			expected: model.SeverityWarn,
 			expectedDetails: []model.Detail{
 				{Key: "api", Value: "/home/dev/project/api"},
@@ -125,7 +119,7 @@ func Test_Runner_checkServiceDirectories(t *testing.T) {
 				mockFilesystem.EXPECT().Getwd().Return("", assert.AnError)
 				mockFilesystem.EXPECT().DirExists("api").Return(true)
 			},
-			names:    []string{"api"},
+			services: []*model.Service{api},
 			expected: model.SeverityOK,
 			expectedDetails: []model.Detail{
 				{Key: "api", Value: "api"},
@@ -137,7 +131,7 @@ func Test_Runner_checkServiceDirectories(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			r := subject.checkServiceDirectories(st, tt.names)
+			r := subject.checkServiceDirectories(tt.services)
 
 			assert.Equal(t, model.CheckServicesDirectories, r.ID)
 			assert.Equal(t, tt.expected, r.Severity)
@@ -154,31 +148,27 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 
 	subject := NewRunner(Options{}, model.Config{}, nil, mockFilesystem, nil, nil)
 
-	st := &state{Config: model.Config{Project: model.Project{
-		Services: []model.Service{
-			{Name: "api", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}}},
-			{Name: "missing", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env.local"}}},
-			{Name: "noenv", Directory: "/srv/api", Environment: &model.EnvFiles{}},
-			{Name: "defaulted", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}, Defaulted: true}},
-		},
-	}}}
+	api := &model.Service{Name: "api", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}}}
+	missing := &model.Service{Name: "missing", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env.local"}}}
+	noenv := &model.Service{Name: "noenv", Directory: "/srv/api", Environment: &model.EnvFiles{}}
+	defaulted := &model.Service{Name: "defaulted", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}, Defaulted: true}}
 
 	tests := []struct {
 		name     string
 		before   func()
-		names    []string
+		services []*model.Service
 		expected model.Severity
 	}{
 		{
 			name:     "no env files referenced",
 			before:   func() {},
-			names:    []string{"noenv"},
+			services: []*model.Service{noenv},
 			expected: model.SeverityIdle,
 		},
 		{
 			name:     "defaulted env files are not checked",
 			before:   func() {},
-			names:    []string{"defaulted"},
+			services: []*model.Service{defaulted},
 			expected: model.SeverityIdle,
 		},
 		{
@@ -186,7 +176,7 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 			before: func() {
 				mockFilesystem.EXPECT().FileExists("/srv/api/.env").Return(true)
 			},
-			names:    []string{"api"},
+			services: []*model.Service{api},
 			expected: model.SeverityOK,
 		},
 		{
@@ -195,7 +185,7 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 				mockFilesystem.EXPECT().FileExists("/srv/api/.env").Return(true)
 				mockFilesystem.EXPECT().FileExists("/srv/api/.env.local").Return(false)
 			},
-			names:    []string{"api", "missing"},
+			services: []*model.Service{api, missing},
 			expected: model.SeverityWarn,
 		},
 	}
@@ -204,7 +194,7 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.before()
 
-			r := subject.checkServiceDotenv(st, tt.names)
+			r := subject.checkServiceDotenv(tt.services)
 
 			assert.Equal(t, model.CheckServicesDotenv, r.ID)
 			assert.Equal(t, tt.expected, r.Severity)
@@ -213,65 +203,61 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 }
 
 func Test_checkServiceReadiness(t *testing.T) {
-	st := &state{Config: model.Config{Project: model.Project{
-		Services: []model.Service{
-			{Name: "http", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}},
-			{Name: "tcp", Readiness: &model.Readiness{Type: model.ReadinessTCP, Address: "localhost:5432"}},
-			{Name: "log", Readiness: &model.Readiness{Type: model.ReadinessLog, Pattern: `ready\s+\d+`}},
-			{Name: "badregex", Readiness: &model.Readiness{Type: model.ReadinessLog, Pattern: `[invalid`}},
-			{Name: "badaddr", Readiness: &model.Readiness{Type: model.ReadinessTCP, Address: "no-port"}},
-			{Name: "urlnoscheme", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "localhost:8080/health"}},
-			{Name: "urlnohost", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "http:///health"}},
-			{Name: "urlwrongscheme", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "ftp://host/health"}},
-			{Name: "none"},
-		},
-	}}}
+	http := &model.Service{Name: "http", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}}
+	tcp := &model.Service{Name: "tcp", Readiness: &model.Readiness{Type: model.ReadinessTCP, Address: "localhost:5432"}}
+	log := &model.Service{Name: "log", Readiness: &model.Readiness{Type: model.ReadinessLog, Pattern: `ready\s+\d+`}}
+	badregex := &model.Service{Name: "badregex", Readiness: &model.Readiness{Type: model.ReadinessLog, Pattern: `[invalid`}}
+	badaddr := &model.Service{Name: "badaddr", Readiness: &model.Readiness{Type: model.ReadinessTCP, Address: "no-port"}}
+	urlnoscheme := &model.Service{Name: "urlnoscheme", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "localhost:8080/health"}}
+	urlnohost := &model.Service{Name: "urlnohost", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "http:///health"}}
+	urlwrongscheme := &model.Service{Name: "urlwrongscheme", Readiness: &model.Readiness{Type: model.ReadinessHTTP, URL: "ftp://host/health"}}
+	none := &model.Service{Name: "none"}
 
 	tests := []struct {
 		name     string
-		names    []string
+		services []*model.Service
 		expected model.Severity
 	}{
 		{
 			name:     "no probes",
-			names:    []string{"none"},
+			services: []*model.Service{none},
 			expected: model.SeverityIdle,
 		},
 		{
 			name:     "all probes parse",
-			names:    []string{"http", "tcp", "log"},
+			services: []*model.Service{http, tcp, log},
 			expected: model.SeverityOK,
 		},
 		{
 			name:     "bad regex",
-			names:    []string{"badregex"},
+			services: []*model.Service{badregex},
 			expected: model.SeverityFail,
 		},
 		{
 			name:     "bad address",
-			names:    []string{"badaddr"},
+			services: []*model.Service{badaddr},
 			expected: model.SeverityFail,
 		},
 		{
 			name:     "http url without scheme is rejected",
-			names:    []string{"urlnoscheme"},
+			services: []*model.Service{urlnoscheme},
 			expected: model.SeverityFail,
 		},
 		{
 			name:     "http url with empty host is rejected",
-			names:    []string{"urlnohost"},
+			services: []*model.Service{urlnohost},
 			expected: model.SeverityFail,
 		},
 		{
 			name:     "http url with non-http scheme is rejected",
-			names:    []string{"urlwrongscheme"},
+			services: []*model.Service{urlwrongscheme},
 			expected: model.SeverityFail,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := checkServiceReadiness(st, tt.names)
+			r := checkServiceReadiness(tt.services)
 
 			assert.Equal(t, model.CheckServicesReadiness, r.ID)
 			assert.Equal(t, tt.expected, r.Severity)
