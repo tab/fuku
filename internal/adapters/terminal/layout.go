@@ -169,14 +169,8 @@ func PadRight(s string, width int) string {
 
 // TruncateAndPad truncates text to width with an ellipsis or pads it to exactly that display width
 func TruncateAndPad(s string, width int) string {
-	currentWidth := lipgloss.Width(s)
-
-	if currentWidth == width {
-		return s
-	}
-
-	if currentWidth < width {
-		return s + strings.Repeat(IndicatorEmpty, width-currentWidth)
+	if lipgloss.Width(s) <= width {
+		return PadRight(s, width)
 	}
 
 	ellipsis := "…"
@@ -314,11 +308,7 @@ func AppendContentLines(result, contentLines []string, innerWidth int, border fu
 	verticalBorder := border(BorderVertical)
 
 	for _, line := range contentLines {
-		lineWidth := lipgloss.Width(line)
-		padding := max(innerWidth-lineWidth, 0)
-
-		paddedLine := line + strings.Repeat(IndicatorEmpty, padding)
-		result = append(result, verticalBorder+paddedLine+verticalBorder)
+		result = append(result, verticalBorder+PadRight(line, innerWidth)+verticalBorder)
 	}
 
 	return result

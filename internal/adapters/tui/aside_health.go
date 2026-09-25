@@ -99,7 +99,7 @@ func (m Model) asideRetryCard(innerWidth int) string {
 // asideStatusCard renders the current lifecycle state and how long it has held
 func (m Model) asideStatusCard(service *model.Service, innerWidth int) string {
 	rows := []cardRow{
-		{label: "state", value: string(service.Status), style: m.asideStatusStyle(service.Status)},
+		{label: "state", value: string(service.Status), style: m.statusStyle(service.Status)},
 	}
 
 	if !service.LifecycleAt.IsZero() && !m.state.now.IsZero() {

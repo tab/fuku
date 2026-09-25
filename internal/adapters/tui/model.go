@@ -195,19 +195,6 @@ func (m Model) getSelectedService() *model.Service {
 	return m.snapshot.Services[ids[m.state.selected]]
 }
 
-// getAllReadyServices returns the count of all services in ready state regardless of filter
-func (m Model) getAllReadyServices() int {
-	count := 0
-
-	for _, id := range m.state.serviceIDs {
-		if m.snapshot.Services[id].Status == model.StatusRunning {
-			count++
-		}
-	}
-
-	return count
-}
-
 // activeTiers returns the tiers of the read model, narrowed to the matching services when filtering
 func (m Model) activeTiers() []*model.Tier {
 	if m.isFiltering() {

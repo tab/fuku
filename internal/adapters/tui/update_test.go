@@ -409,94 +409,108 @@ func Test_HandleKeyPress_EscClearsSeparatorOnlyQuery(t *testing.T) {
 	assert.Nil(t, result.state.filteredIDs)
 }
 
-func Test_HandleUpKey_WithFilter(t *testing.T) {
-	m := Model{}
-	m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
-	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{
-		"id-api": {ID: "id-api", Name: "api"},
-		"id-web": {ID: "id-web", Name: "web"},
-		"id-db":  {ID: "id-db", Name: "db"},
-	}}
-	m.snapshot.Tiers = []*model.Tier{
-		{Name: "tier1", Services: []*model.Service{m.snapshot.Services["id-api"], m.snapshot.Services["id-web"], m.snapshot.Services["id-db"]}},
+func Test_HandleMoveKey_WithFilter(t *testing.T) {
+	api := &model.Service{ID: "id-api", Name: "api"}
+	web := &model.Service{ID: "id-web", Name: "web"}
+	db := &model.Service{ID: "id-db", Name: "db"}
+	snapshot := &model.Snapshot{
+		Tiers:    []*model.Tier{{Name: "tier1", Services: []*model.Service{api, web, db}}},
+		Services: map[string]*model.Service{"id-api": api, "id-web": web, "id-db": db},
 	}
-	m.state.filterQuery = "b"
-	m.state.filteredIDs = []string{"id-web", "id-db"}
-	m.state.selected = 1
 
-	result, _ := m.handleUpKey(tea.KeyPressMsg{Code: tea.KeyUp})
+	tests := []struct {
+		name     string
+		before   func() Model
+		msg      tea.KeyPressMsg
+		delta    int
+		expected int
+	}{
+		{
+			name: "up moves to the previous match",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.filterQuery = "b"
+				m.state.filteredIDs = []string{"id-web", "id-db"}
+				m.state.selected = 1
 
-	assert.Equal(t, 0, result.state.selected)
-}
+				return m
+			},
+			msg:      tea.KeyPressMsg{Code: tea.KeyUp},
+			delta:    -1,
+			expected: 0,
+		},
+		{
+			name: "up stays at the top",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.filterQuery = "api"
+				m.state.filteredIDs = []string{"id-api"}
+				m.state.selected = 0
 
-func Test_HandleUpKey_WithFilter_AtTop(t *testing.T) {
-	m := Model{}
-	m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
-	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{
-		"id-api": {ID: "id-api", Name: "api"},
-		"id-web": {ID: "id-web", Name: "web"},
-		"id-db":  {ID: "id-db", Name: "db"},
-	}}
-	m.state.filterQuery = "api"
-	m.state.filteredIDs = []string{"id-api"}
-	m.state.selected = 0
+				return m
+			},
+			msg:      tea.KeyPressMsg{Code: tea.KeyUp},
+			delta:    -1,
+			expected: 0,
+		},
+		{
+			name: "down moves to the next match",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.filterQuery = "b"
+				m.state.filteredIDs = []string{"id-web", "id-db"}
+				m.state.selected = 0
 
-	result, _ := m.handleUpKey(tea.KeyPressMsg{Code: tea.KeyUp})
+				return m
+			},
+			msg:      tea.KeyPressMsg{Code: tea.KeyDown},
+			delta:    1,
+			expected: 1,
+		},
+		{
+			name: "down stays at the bottom",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.filterQuery = "api"
+				m.state.filteredIDs = []string{"id-api"}
+				m.state.selected = 0
 
-	assert.Equal(t, 0, result.state.selected)
-}
+				return m
+			},
+			msg:      tea.KeyPressMsg{Code: tea.KeyDown},
+			delta:    1,
+			expected: 0,
+		},
+		{
+			name: "down stays put with zero matches",
+			before: func() Model {
+				m := Model{snapshot: snapshot}
+				m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
+				m.state.filterQuery = "xyz"
+				m.state.filteredIDs = []string{}
+				m.state.selected = 0
 
-func Test_HandleDownKey_WithFilter(t *testing.T) {
-	m := Model{}
-	m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
-	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{
-		"id-api": {ID: "id-api", Name: "api"},
-		"id-web": {ID: "id-web", Name: "web"},
-		"id-db":  {ID: "id-db", Name: "db"},
-	}}
-	m.snapshot.Tiers = []*model.Tier{
-		{Name: "tier1", Services: []*model.Service{m.snapshot.Services["id-api"], m.snapshot.Services["id-web"], m.snapshot.Services["id-db"]}},
+				return m
+			},
+			msg:      tea.KeyPressMsg{Code: tea.KeyDown},
+			delta:    1,
+			expected: 0,
+		},
 	}
-	m.state.filterQuery = "b"
-	m.state.filteredIDs = []string{"id-web", "id-db"}
-	m.state.selected = 0
 
-	result, _ := m.handleDownKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.before()
 
-	assert.Equal(t, 1, result.state.selected)
-}
+			result, _ := m.handleMoveKey(tt.msg, tt.delta)
 
-func Test_HandleDownKey_WithFilter_AtBottom(t *testing.T) {
-	m := Model{}
-	m.state.serviceIDs = []string{"id-api", "id-web", "id-db"}
-	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{
-		"id-api": {ID: "id-api", Name: "api"},
-		"id-web": {ID: "id-web", Name: "web"},
-		"id-db":  {ID: "id-db", Name: "db"},
-	}}
-	m.state.filterQuery = "api"
-	m.state.filteredIDs = []string{"id-api"}
-	m.state.selected = 0
-
-	result, _ := m.handleDownKey(tea.KeyPressMsg{Code: tea.KeyDown})
-
-	assert.Equal(t, 0, result.state.selected)
-}
-
-func Test_HandleDownKey_WithFilter_ZeroMatches(t *testing.T) {
-	m := Model{}
-	m.state.serviceIDs = []string{"id-api", "id-web"}
-	m.snapshot = &model.Snapshot{Services: map[string]*model.Service{
-		"id-api": {ID: "id-api", Name: "api"},
-		"id-web": {ID: "id-web", Name: "web"},
-	}}
-	m.state.filterQuery = "xyz"
-	m.state.filteredIDs = []string{}
-	m.state.selected = 0
-
-	result, _ := m.handleDownKey(tea.KeyPressMsg{Code: tea.KeyDown})
-
-	assert.Equal(t, 0, result.state.selected)
+			assert.Equal(t, tt.expected, result.state.selected)
+		})
+	}
 }
 
 func Test_HandleStopKey_WithFilter(t *testing.T) {

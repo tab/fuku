@@ -102,67 +102,6 @@ func Test_ActiveServiceIDs(t *testing.T) {
 	}
 }
 
-func Test_GetAllReadyServices(t *testing.T) {
-	tests := []struct {
-		name   string
-		before func() Model
-		want   int
-	}{
-		{
-			name: "counts all ready services",
-			before: func() Model {
-				m := Model{snapshot: &model.Snapshot{Services: map[string]*model.Service{
-					"id-api": {Status: model.StatusRunning},
-					"id-db":  {Status: model.StatusRunning},
-				}}}
-				m.state.serviceIDs = []string{"id-api", "id-db"}
-
-				return m
-			},
-			want: 2,
-		},
-		{
-			name: "counts only running services",
-			before: func() Model {
-				m := Model{snapshot: &model.Snapshot{Services: map[string]*model.Service{
-					"id-api": {Status: model.StatusRunning},
-					"id-db":  {Status: model.StatusFailed},
-				}}}
-				m.state.serviceIDs = []string{"id-api", "id-db"}
-
-				return m
-			},
-			want: 1,
-		},
-		{
-			name: "ignores filter and counts all services",
-			before: func() Model {
-				m := Model{snapshot: &model.Snapshot{Services: map[string]*model.Service{
-					"id-api": {Status: model.StatusRunning},
-					"id-db":  {Status: model.StatusRunning},
-					"id-web": {Status: model.StatusFailed},
-				}}}
-				m.state.serviceIDs = []string{"id-api", "id-db", "id-web"}
-				m.state.filteredIDs = []string{"id-api"}
-				m.state.filterQuery = "api"
-
-				return m
-			},
-			want: 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := tt.before()
-
-			result := m.getAllReadyServices()
-
-			assert.Equal(t, tt.want, result)
-		})
-	}
-}
-
 func Test_IsFiltering(t *testing.T) {
 	tests := []struct {
 		name   string

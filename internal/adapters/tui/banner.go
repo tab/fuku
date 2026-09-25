@@ -29,8 +29,6 @@ func (v *LogView) banner(status contracts.LogStatus, subscribed []string) {
 	}
 
 	theme := v.theme()
-	innerWidth := TerminalWidth() - terminal.PanelInnerPadding
-	border := func(s string) string { return terminal.PanelBorderStyle.Render(s) }
 
 	muted := theme.PanelMutedStyle.Render
 	bold := terminal.BoldStyle.Render
@@ -39,21 +37,20 @@ func (v *LogView) banner(status contracts.LogStatus, subscribed []string) {
 		return " " + muted(label) + " " + bold(value)
 	}
 
-	titleText := terminal.PanelTitleStyle.Render("logs")
-	topBorder := terminal.BuildTopBorder(border, titleText, "", innerWidth)
-
 	contentLines := []string{
 		field("profile:", status.Profile),
 		field("services:", serviceCount),
 		field("showing:", showing),
 	}
 
-	lines := []string{topBorder}
-	lines = terminal.AppendContentLines(lines, contentLines, innerWidth, border)
-
-	versionText := theme.PanelMutedStyle.Render("v" + status.Version)
-	bottomBorder := terminal.BuildBottomBorder(border, "", versionText, innerWidth)
-	lines = append(lines, bottomBorder)
+	lines := terminal.RenderPanelLines(terminal.PanelOptions{
+		Title:       "logs",
+		Content:     strings.Join(contentLines, "\n"),
+		Version:     theme.PanelMutedStyle.Render("v" + status.Version),
+		Height:      len(contentLines) + terminal.PanelBorderHeight,
+		Width:       TerminalWidth(),
+		BorderStyle: terminal.PanelBorderStyle,
+	})
 
 	footer := " " + theme.HelpKeyStyle.Render("ctrl+c") + " " + theme.HelpDescStyle.Render("exit")
 	lines = append(lines, footer, "")

@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"io"
-	"strings"
 
 	"fuku/internal/adapters/terminal"
 	"fuku/internal/app/doctor"
@@ -82,7 +81,7 @@ func writeNotes(w io.Writer, theme terminal.Theme, r *model.Report) {
 	fmt.Fprintln(w, "Notes")
 
 	for _, res := range notes {
-		fmt.Fprintf(w, "   %s %s %s\n", styledGlyph(theme, res.Severity), padRight(string(res.ID), idColumnWidth), res.Summary)
+		fmt.Fprintf(w, "   %s %s %s\n", styledGlyph(theme, res.Severity), terminal.PadRight(string(res.ID), idColumnWidth), res.Summary)
 	}
 
 	fmt.Fprintln(w, divider)
@@ -109,18 +108,18 @@ func writeSection(w io.Writer, theme terminal.Theme, s model.Section, withDetail
 
 // writeResult prints a single result row and its optional indented details
 func writeResult(w io.Writer, theme terminal.Theme, res model.Result, withDetails bool) {
-	fmt.Fprintf(w, "  %s %s %s\n", styledGlyph(theme, res.Severity), padRight(string(res.ID), idColumnWidth), res.Summary)
+	fmt.Fprintf(w, "  %s %s %s\n", styledGlyph(theme, res.Severity), terminal.PadRight(string(res.ID), idColumnWidth), res.Summary)
 
 	if !withDetails {
 		return
 	}
 
 	for _, detail := range res.Details {
-		fmt.Fprintf(w, "      %s %s\n", padRight(detail.Key, detailKeyWidth), detail.Value)
+		fmt.Fprintf(w, "      %s %s\n", terminal.PadRight(detail.Key, detailKeyWidth), detail.Value)
 	}
 
 	if res.Remediation != "" {
-		fmt.Fprintf(w, "      %s %s\n", padRight("remediation", detailKeyWidth), res.Remediation)
+		fmt.Fprintf(w, "      %s %s\n", terminal.PadRight("remediation", detailKeyWidth), res.Remediation)
 	}
 }
 
@@ -150,13 +149,4 @@ func styledGlyph(theme terminal.Theme, s model.Severity) string {
 	default:
 		return "?"
 	}
-}
-
-// padRight returns s padded with spaces on the right to at least width runes
-func padRight(s string, width int) string {
-	if len(s) >= width {
-		return s
-	}
-
-	return s + strings.Repeat(" ", width-len(s))
 }

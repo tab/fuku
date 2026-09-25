@@ -113,11 +113,13 @@ func (m *Model) sampleTimelines() {
 
 // statusToSlot maps a service Status to the corresponding TimelineSlot
 func statusToSlot(status model.Status) TimelineSlot {
+	if transitional[status] {
+		return TimelineSlotStarting
+	}
+
 	switch status {
 	case model.StatusRunning:
 		return TimelineSlotRunning
-	case model.StatusStarting, model.StatusRestarting, model.StatusStopping:
-		return TimelineSlotStarting
 	case model.StatusFailed:
 		return TimelineSlotFailed
 	case model.StatusStopped:

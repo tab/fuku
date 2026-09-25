@@ -151,25 +151,13 @@ func (m *Model) updateAsideContent() {
 	m.ui.asideCache.content = body
 
 	m.ui.asideViewport.SetContent(body)
-	m.ui.asideLines = padAsideLines(strings.Split(body, "\n"), width)
-}
 
-// padAsideLines right-pads each line to width (ANSI-aware) so the render path skips per-line measurement
-func padAsideLines(lines []string, width int) []string {
-	out := make([]string, len(lines))
-
+	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		w := lipgloss.Width(line)
-		if w >= width {
-			out[i] = line
-
-			continue
-		}
-
-		out[i] = line + strings.Repeat(" ", width-w)
+		lines[i] = terminal.PadRight(line, width)
 	}
 
-	return out
+	m.ui.asideLines = lines
 }
 
 // asideContentCacheKey returns a stable string that captures every input affecting asideContent's output
@@ -278,15 +266,17 @@ func (m Model) readinessRows(r *model.Readiness) []cardRow {
 	return rows
 }
 
-// asideStatusStyle returns the style used for the status badge
-func (m Model) asideStatusStyle(status model.Status) lipgloss.Style {
+// statusStyle returns the style of a service status, the starting style for every transitional one
+func (m Model) statusStyle(status model.Status) lipgloss.Style {
+	if transitional[status] {
+		return m.theme.StatusStartingStyle
+	}
+
 	switch status {
 	case model.StatusPending:
 		return m.theme.StatusPendingStyle
 	case model.StatusRunning:
 		return m.theme.StatusRunningStyle
-	case model.StatusStarting, model.StatusRestarting, model.StatusStopping:
-		return m.theme.StatusStartingStyle
 	case model.StatusFailed:
 		return m.theme.StatusFailedStyle
 	case model.StatusStopped:

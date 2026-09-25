@@ -129,8 +129,7 @@ func (m Model) servicesPanelCacheKey(mainWidth, panelHeight int, asideShown bool
 
 // renderStatus renders the status bar with phase and service counts
 func (m Model) renderStatus() string {
-	ready := m.getAllReadyServices()
-	total := len(m.state.serviceIDs)
+	counts := m.snapshot.Counts()
 
 	phaseStr := string(m.snapshot.Phase)
 	phaseStyle := m.theme.PhaseMutedStyle
@@ -148,8 +147,8 @@ func (m Model) renderStatus() string {
 
 	return fmt.Sprintf("%s %d/%d ready",
 		phaseStyle.Render(phaseStr),
-		ready,
-		total,
+		counts.Running,
+		counts.Total,
 	)
 }
 

@@ -172,10 +172,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.handleQuitKey()
 
 	case key.Matches(msg, m.ui.servicesKeys.Up):
-		return m.handleUpKey(msg)
+		return m.handleMoveKey(msg, -1)
 
 	case key.Matches(msg, m.ui.servicesKeys.Down):
-		return m.handleDownKey(msg)
+		return m.handleMoveKey(msg, 1)
 
 	case key.Matches(msg, m.ui.servicesKeys.Stop):
 		return m.handleStopKey()
@@ -277,16 +277,13 @@ func (m Model) setAsideOpen(open bool) Model {
 	m.state.asideFocused = open
 	m = m.recomputeLayout()
 	m.recomputeViewport()
-	m.updateServicesContent()
-	m.updateAsideContent()
-	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
-	m.ui.asideViewport.SetYOffset(0)
+	m.refreshSelection()
 
 	return m
 }
 
-// handleUpKey scrolls the aside viewport when aside-focused, otherwise moves selection up one service
-func (m Model) handleUpKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+// handleMoveKey scrolls the aside viewport when aside-focused, otherwise moves the selection by delta
+func (m Model) handleMoveKey(msg tea.KeyPressMsg, delta int) (Model, tea.Cmd) {
 	if m.state.asideFocused {
 		var cmd tea.Cmd
 
@@ -295,37 +292,23 @@ func (m Model) handleUpKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	if m.state.selected > 0 {
-		m.state.selected--
-		m.updateServicesContent()
-		m.updateAsideContent()
-		m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
-		m.ui.asideViewport.SetYOffset(0)
+	next := m.state.selected + delta
+	if next < 0 || next >= len(m.activeServiceIDs()) {
+		return m, nil
 	}
+
+	m.state.selected = next
+	m.refreshSelection()
 
 	return m, nil
 }
 
-// handleDownKey scrolls the aside viewport when aside-focused, otherwise moves selection down one service
-func (m Model) handleDownKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
-	if m.state.asideFocused {
-		var cmd tea.Cmd
-
-		m.ui.asideViewport, cmd = m.ui.asideViewport.Update(msg)
-
-		return m, cmd
-	}
-
-	total := len(m.activeServiceIDs())
-	if m.state.selected < total-1 {
-		m.state.selected++
-		m.updateServicesContent()
-		m.updateAsideContent()
-		m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
-		m.ui.asideViewport.SetYOffset(0)
-	}
-
-	return m, nil
+// refreshSelection rebuilds both panels for the selection, scrolls it into view and resets the aside scroll
+func (m *Model) refreshSelection() {
+	m.updateServicesContent()
+	m.updateAsideContent()
+	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
+	m.ui.asideViewport.SetYOffset(0)
 }
 
 // tickCmd returns a command that sends a tick after the interval

@@ -13,6 +13,11 @@ func normalizeQuery(raw string) string {
 	return strings.ToLower(strings.Trim(raw, "-_ "))
 }
 
+// nameMatches reports whether the service name contains the normalized query, ignoring case
+func nameMatches(service *model.Service, query string) bool {
+	return strings.Contains(strings.ToLower(service.Name), query)
+}
+
 // filterServiceIDs returns the subset of allIDs whose service names match the query, preserving order
 func filterServiceIDs(query string, allIDs []string, services map[string]*model.Service) []string {
 	q := normalizeQuery(query)
@@ -23,7 +28,7 @@ func filterServiceIDs(query string, allIDs []string, services map[string]*model.
 	result := make([]string, 0, len(allIDs))
 
 	for _, id := range allIDs {
-		if strings.Contains(strings.ToLower(services[id].Name), q) {
+		if nameMatches(services[id], q) {
 			result = append(result, id)
 		}
 	}
@@ -44,7 +49,7 @@ func filterTiers(query string, tiers []*model.Tier) []*model.Tier {
 		matched := make([]*model.Service, 0, len(tier.Services))
 
 		for _, svc := range tier.Services {
-			if strings.Contains(strings.ToLower(svc.Name), q) {
+			if nameMatches(svc, q) {
 				matched = append(matched, svc)
 			}
 		}
@@ -105,10 +110,7 @@ func (m *Model) clearFilter() {
 		}
 	}
 
-	m.updateServicesContent()
-	m.updateAsideContent()
-	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
-	m.ui.asideViewport.SetYOffset(0)
+	m.refreshSelection()
 }
 
 // handleFilterInput processes key events while in filter input mode
@@ -134,10 +136,10 @@ func (m Model) handleFilterInput(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyUp:
-		return m.handleUpKey(msg)
+		return m.handleMoveKey(msg, -1)
 
 	case tea.KeyDown:
-		return m.handleDownKey(msg)
+		return m.handleMoveKey(msg, 1)
 
 	default:
 		if msg.Text != "" {
@@ -182,8 +184,5 @@ func (m *Model) applyFilter() {
 		m.state.lastFilteredSelectedID = previousID
 	}
 
-	m.updateServicesContent()
-	m.updateAsideContent()
-	m.ui.servicesViewport.SetYOffset(m.calculateScrollOffset())
-	m.ui.asideViewport.SetYOffset(0)
+	m.refreshSelection()
 }

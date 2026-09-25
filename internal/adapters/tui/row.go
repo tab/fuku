@@ -41,7 +41,7 @@ func (m Model) getServiceIndicator(service *model.Service, isSelected bool) stri
 		return m.getWatchIndicator(isSelected)
 	}
 
-	if service.Status != model.StatusStarting && service.Status != model.StatusStopping && service.Status != model.StatusRestarting {
+	if !transitional[service.Status] {
 		return defaultIndicator
 	}
 
@@ -249,20 +249,7 @@ func (m Model) styledStatus(service *model.Service, isSelected bool) string {
 		return statusStr
 	}
 
-	switch service.Status {
-	case model.StatusPending:
-		return m.theme.StatusPendingStyle.Render(statusStr)
-	case model.StatusRunning:
-		return m.theme.StatusRunningStyle.Render(statusStr)
-	case model.StatusStarting:
-		return m.theme.StatusStartingStyle.Render(statusStr)
-	case model.StatusFailed:
-		return m.theme.StatusFailedStyle.Render(statusStr)
-	case model.StatusStopped:
-		return m.theme.StatusStoppedStyle.Render(statusStr)
-	default:
-		return statusStr
-	}
+	return m.statusStyle(service.Status).Render(statusStr)
 }
 
 // getStyledAndPaddedStatus returns the styled status string padded to fit StatusWidth

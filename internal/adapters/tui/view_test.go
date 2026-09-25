@@ -215,7 +215,6 @@ func Test_RenderStatus_ShowsGlobalCountsWhenFiltering(t *testing.T) {
 		"id-svc2": {Status: model.StatusFailed},
 		"id-svc3": {Status: model.StatusRunning},
 	}}}
-	m.state.serviceIDs = []string{"id-svc1", "id-svc2", "id-svc3"}
 	m.state.filterQuery = "svc1"
 	m.state.filteredIDs = []string{"id-svc1"}
 	m.theme = terminal.NewTheme(terminal.AppearanceDark)

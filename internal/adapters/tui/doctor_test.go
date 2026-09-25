@@ -43,7 +43,7 @@ func Test_Report_Render(t *testing.T) {
 						Category:    model.CategoryServices,
 						Severity:    model.SeverityWarn,
 						Summary:     "1 of 4 referenced .env files missing",
-						Details:     []model.Detail{{Key: "auth/.env.local", Value: "MISSING"}},
+						Details:     []model.Detail{{Key: "auth/.env.local", Value: "MISSING"}, {Key: "サービス/.env", Value: "MISSING"}},
 						Remediation: "create the missing .env files or update env.files",
 					},
 				},
@@ -103,6 +103,10 @@ func Test_Report_Render(t *testing.T) {
 		{
 			name:     "result details rendered",
 			contains: "      path                      fuku.yaml\n",
+		},
+		{
+			name:     "wide detail key padded by display width",
+			contains: "      サービス/.env             MISSING\n",
 		},
 		{
 			name:     "remediation rendered",
@@ -273,42 +277,6 @@ func Test_styledGlyph(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := styledGlyph(theme, tt.severity)
-
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func Test_padRight(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		width    int
-		expected string
-	}{
-		{
-			name:     "shorter than width is padded",
-			input:    "abc",
-			width:    6,
-			expected: "abc   ",
-		},
-		{
-			name:     "exactly width is unchanged",
-			input:    "abcdef",
-			width:    6,
-			expected: "abcdef",
-		},
-		{
-			name:     "longer than width is unchanged",
-			input:    "abcdefgh",
-			width:    6,
-			expected: "abcdefgh",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := padRight(tt.input, tt.width)
 
 			assert.Equal(t, tt.expected, result)
 		})

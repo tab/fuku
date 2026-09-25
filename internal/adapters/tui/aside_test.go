@@ -289,14 +289,6 @@ func Test_RenderAsideLines(t *testing.T) {
 	}
 }
 
-func Test_padAsideLines(t *testing.T) {
-	lines := []string{"ab", "abcd", "abcdef"}
-
-	result := padAsideLines(lines, 4)
-
-	assert.Equal(t, []string{"ab  ", "abcd", "abcdef"}, result)
-}
-
 func Test_UpdateAsideContent_Cache(t *testing.T) {
 	theme := terminal.NewTheme(terminal.AppearanceDark)
 	log := slog.New(slog.DiscardHandler)
@@ -683,7 +675,7 @@ func Test_AsideTabIndex(t *testing.T) {
 	}
 }
 
-func Test_AsideStatusStyle(t *testing.T) {
+func Test_StatusStyle(t *testing.T) {
 	m := Model{theme: terminal.NewTheme(terminal.AppearanceDark)}
 
 	tests := []struct {
@@ -735,7 +727,7 @@ func Test_AsideStatusStyle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := m.asideStatusStyle(tt.status)
+			result := m.statusStyle(tt.status)
 
 			assert.Equal(t, tt.want, result)
 		})
