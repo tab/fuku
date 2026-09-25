@@ -157,7 +157,7 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.ui.servicesKeys.AsideClose),
 			key.Matches(msg, m.ui.servicesKeys.OpenAside):
-			return m.handleAsideCloseKey()
+			return m.setAsideOpen(false), nil
 		case key.Matches(msg, m.ui.servicesKeys.AsideTabNext):
 			return m.handleAsideTabNext()
 		case key.Matches(msg, m.ui.servicesKeys.AsideTabPrev):
@@ -246,11 +246,6 @@ func (m Model) handleOpenAsideKey() (Model, tea.Cmd) {
 	return m.setAsideOpen(true), nil
 }
 
-// handleAsideCloseKey closes the aside panel and restores full-width viewport
-func (m Model) handleAsideCloseKey() (Model, tea.Cmd) {
-	return m.setAsideOpen(false), nil
-}
-
 // handleAsideTabNext switches to the next aside tab
 func (m Model) handleAsideTabNext() (Model, tea.Cmd) {
 	m.state.asideTab = nextAsideTab(m.state.asideTab)
@@ -321,7 +316,7 @@ func (m Model) handleDownKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	total := m.getTotalServices()
+	total := len(m.activeServiceIDs())
 	if m.state.selected < total-1 {
 		m.state.selected++
 		m.updateServicesContent()

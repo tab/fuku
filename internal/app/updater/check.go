@@ -80,5 +80,9 @@ func (c *Checker) run(ctx context.Context) {
 		return
 	}
 
-	c.publishUpdate(normalize(release.Tag))
+	//nolint:errcheck // a non-critical publish never fails
+	c.publisher.Publish(contracts.Message{
+		Type: contracts.EventUpdateAvailable,
+		Data: contracts.UpdateAvailable{Version: normalize(release.Tag)},
+	})
 }

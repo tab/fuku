@@ -24,7 +24,7 @@ func prepare(command, directory string, stdout, stderr io.Writer) (*launch, erro
 		return nil, err
 	}
 
-	cmd := buildCommand(command)
+	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdout = stdout
@@ -32,15 +32,6 @@ func prepare(command, directory string, stdout, stderr io.Writer) (*launch, erro
 	cmd.WaitDelay = ShutdownTimeout
 
 	return &launch{cmd: cmd, dir: dir}, nil
-}
-
-// start runs the command
-func (l *launch) start() error {
-	if err := l.cmd.Start(); err != nil {
-		return fmt.Errorf("%w: %w", contracts.ErrFailedToStartCommand, err)
-	}
-
-	return nil
 }
 
 // resolveDir validates a service directory and returns it as an absolute path
@@ -55,9 +46,4 @@ func resolveDir(dir string) (string, error) {
 	}
 
 	return serviceDir, nil
-}
-
-// buildCommand creates an exec.Cmd that runs the configured command through the shell
-func buildCommand(command string) *exec.Cmd {
-	return exec.Command("sh", "-c", command)
 }

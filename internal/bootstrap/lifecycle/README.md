@@ -35,7 +35,7 @@ A failed start stops telemetry and closes the bus on its way out. The cancelled 
 
 | Cause                                                          | Exit                                                                          |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| the command returned (`complete`)                              | the command's code, with `Error: <cause>` on stderr when it returned an error |
+| the command returned (`decide`)                                | the command's code, with `Error: <cause>` on stderr when it returned an error |
 | a runtime failure (`Fail` from services or the bus) | 1, with `Error: <cause>` on stderr after the stop                             |
 | an OS signal (`observe` from `Run`)                            | 0, unless a failure came first                                                |
 | an Fx start failure                                            | 1, with the root cause                                                        |

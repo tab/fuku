@@ -104,11 +104,6 @@ type AsideHelpKeyMap struct {
 	km KeyMap
 }
 
-// newAsideHelpKeyMap wraps a KeyMap so only aside-relevant bindings appear in help
-func newAsideHelpKeyMap(km KeyMap) AsideHelpKeyMap {
-	return AsideHelpKeyMap{km: km}
-}
-
 // ShortHelp returns aside-only bindings
 func (a AsideHelpKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{a.km.AsideClose, a.km.AsideTabNext, a.km.AsideTabPrev, a.km.FocusToggle, a.km.Quit}

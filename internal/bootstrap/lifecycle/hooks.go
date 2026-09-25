@@ -188,7 +188,7 @@ func (c *Coordinator) run(ctx context.Context) {
 		}
 	}()
 
-	c.arbiter.complete(c.participants.Command.Run(ctx))
+	c.arbiter.decide(c.participants.Command.Run(ctx))
 }
 
 // unwind stops the producers a failed start already started, newest first, cancels, stops telemetry, closes the bus

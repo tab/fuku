@@ -80,7 +80,8 @@ func (s *Sampler) run(ctx context.Context) {
 	var process <-chan time.Time
 
 	if s.options.Enabled {
-		s.prime(ctx)
+		//nolint:errcheck // priming call; result is intentionally discarded
+		s.monitor.GetStats(ctx, os.Getpid())
 
 		ticker := time.NewTicker(processInterval)
 		defer ticker.Stop()
@@ -98,12 +99,6 @@ func (s *Sampler) run(ctx context.Context) {
 			s.sampleServices(ctx)
 		}
 	}
-}
-
-// prime warms up the CPU accounting so the first tick has a valid delta
-func (s *Sampler) prime(ctx context.Context) {
-	//nolint:errcheck // priming call; result is intentionally discarded
-	s.monitor.GetStats(ctx, os.Getpid())
 }
 
 func (s *Sampler) sampleProcess(ctx context.Context) {

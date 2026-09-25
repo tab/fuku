@@ -320,7 +320,7 @@ func Test_Coordinator_Stop(t *testing.T) {
 			name: "a shutdown decided from inside announces no signal",
 			before: func(t *testing.T) (*Coordinator, context.Context) {
 				arbiter := NewArbiter(mockShutdowner)
-				arbiter.complete(0, nil)
+				arbiter.decide(0, nil)
 				arbiter.observe(syscall.SIGTERM)
 
 				mockTrailing.EXPECT().Stop(gomock.Any()).Return(nil)

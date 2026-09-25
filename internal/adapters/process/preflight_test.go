@@ -382,13 +382,3 @@ func Test_kill_IgnoresSIGTERM(t *testing.T) {
 
 	require.EqualError(t, cmd.Wait(), "signal: killed")
 }
-
-func Test_sortedKeys(t *testing.T) {
-	keys := sortedKeys(map[string]string{
-		"charlie": "c",
-		"alpha":   "a",
-		"bravo":   "b",
-	})
-
-	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, keys)
-}

@@ -187,14 +187,9 @@ func (m Model) asideScrollIndicator() string {
 		return ""
 	}
 
-	percent := m.asideScrollPercent()
+	percent := int(m.ui.asideViewport.ScrollPercent() * 100)
 
 	return m.theme.PanelMutedStyle.Render(strconv.Itoa(percent) + "%")
-}
-
-// asideScrollPercent returns the scroll position as a 0-100 integer so single-line scrolls rarely invalidate the cache
-func (m Model) asideScrollPercent() int {
-	return int(m.ui.asideViewport.ScrollPercent() * 100)
 }
 
 // asideBorderTabs renders the tab labels as a single styled string for the panel border title area

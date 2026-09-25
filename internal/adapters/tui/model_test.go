@@ -32,7 +32,7 @@ func Test_NewModel(t *testing.T) {
 	assert.NotNil(t, m.loader)
 }
 
-func Test_GetTotalServices(t *testing.T) {
+func Test_ActiveServiceIDs(t *testing.T) {
 	tests := []struct {
 		name   string
 		before func() Model
@@ -95,7 +95,7 @@ func Test_GetTotalServices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.before()
 
-			result := m.getTotalServices()
+			result := len(m.activeServiceIDs())
 
 			assert.Equal(t, tt.want, result)
 		})

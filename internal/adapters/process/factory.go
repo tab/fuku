@@ -47,8 +47,8 @@ func (f *Factory) Start(svc model.Service) (contracts.Process, error) {
 	}
 
 	handle, err := f.tracker.track(func() (*Handle, error) {
-		if err := prepared.start(); err != nil {
-			return nil, err
+		if err := prepared.cmd.Start(); err != nil {
+			return nil, fmt.Errorf("%w: %w", contracts.ErrFailedToStartCommand, err)
 		}
 
 		return newHandle(svc, prepared.cmd, stdoutReader, stderrReader, f.log), nil

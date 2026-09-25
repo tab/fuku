@@ -36,7 +36,7 @@ func Test_Arbiter_FirstOutcomeWins(t *testing.T) {
 				mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).Return(nil)
 
 				arbiter.Fail(failure)
-				arbiter.complete(0, nil)
+				arbiter.decide(0, nil)
 
 				return arbiter
 			},
@@ -50,7 +50,7 @@ func Test_Arbiter_FirstOutcomeWins(t *testing.T) {
 
 				mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).Return(nil)
 
-				arbiter.complete(3, nil)
+				arbiter.decide(3, nil)
 				arbiter.Fail(failure)
 
 				return arbiter
@@ -64,7 +64,7 @@ func Test_Arbiter_FirstOutcomeWins(t *testing.T) {
 
 				mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).Return(nil)
 
-				arbiter.complete(1, commandErr)
+				arbiter.decide(1, commandErr)
 
 				return arbiter
 			},
@@ -89,7 +89,7 @@ func Test_Arbiter_FirstOutcomeWins(t *testing.T) {
 
 				mockShutdowner.EXPECT().Shutdown(gomock.Len(1)).Return(nil)
 
-				arbiter.complete(0, nil)
+				arbiter.decide(0, nil)
 				arbiter.observe(syscall.SIGTERM)
 
 				return arbiter
@@ -101,7 +101,7 @@ func Test_Arbiter_FirstOutcomeWins(t *testing.T) {
 				arbiter := NewArbiter(mockShutdowner)
 
 				arbiter.observe(syscall.SIGINT)
-				arbiter.complete(1, nil)
+				arbiter.decide(1, nil)
 				arbiter.Fail(failure)
 
 				return arbiter
@@ -123,7 +123,7 @@ func Test_Arbiter_FirstOutcomeWins(t *testing.T) {
 	}
 }
 
-func Test_Arbiter_complete_StopsTheContainerWithTheCode(t *testing.T) {
+func Test_Arbiter_decide_StopsTheContainerWithTheCode(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -139,5 +139,5 @@ func Test_Arbiter_complete_StopsTheContainerWithTheCode(t *testing.T) {
 
 	mockShutdowner.EXPECT().Shutdown(gomock.Any()).DoAndReturn(exitCode)
 
-	arbiter.complete(2, nil)
+	arbiter.decide(2, nil)
 }

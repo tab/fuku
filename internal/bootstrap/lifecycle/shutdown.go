@@ -27,11 +27,6 @@ func (a *Arbiter) Fail(err error) {
 	a.decide(1, err)
 }
 
-// complete records the command's exit code and its error as the terminal outcome and stops the container with the code
-func (a *Arbiter) complete(code int, err error) {
-	a.decide(code, err)
-}
-
 // observe records the stopping OS signal as the terminal outcome with exit code 0, unless one was recorded first
 func (a *Arbiter) observe(sig os.Signal) {
 	a.mu.Lock()

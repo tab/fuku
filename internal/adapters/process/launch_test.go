@@ -64,9 +64,3 @@ func Test_resolveDir_Relative(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Clean(wd), dir)
 }
-
-func Test_buildCommand(t *testing.T) {
-	cmd := buildCommand("go run cmd/main.go")
-
-	assert.Equal(t, []string{"sh", "-c", "go run cmd/main.go"}, cmd.Args)
-}

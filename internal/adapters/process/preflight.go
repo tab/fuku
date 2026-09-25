@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -67,7 +68,7 @@ func (p *Preflight) Cleanup(ctx context.Context, dirs map[string]string) error {
 
 	startTime := time.Now()
 
-	p.publishStarted(sortedKeys(dirs))
+	p.publishStarted(slices.Sorted(maps.Keys(dirs)))
 
 	processes, err := scan()
 	if err != nil {
@@ -231,16 +232,4 @@ func sendTERM(pid int32) error {
 	}
 
 	return err
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-
-	for k := range m {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-
-	return keys
 }

@@ -80,7 +80,7 @@ func Test_KeyMap_FullHelp(t *testing.T) {
 
 func Test_AsideHelpKeyMap(t *testing.T) {
 	km := defaultKeyMap()
-	a := newAsideHelpKeyMap(km)
+	a := AsideHelpKeyMap{km: km}
 
 	short := a.ShortHelp()
 	assert.Len(t, short, 5)

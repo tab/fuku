@@ -10,7 +10,7 @@ import (
 
 // asideEnvTab renders the env tab with values hard-wrapped to fill the row
 func (m Model) asideEnvTab(service *model.Service, innerWidth int) string {
-	merged := m.dotenvEntries(service)
+	merged := m.environment.Env(service.ID)
 	if len(merged) == 0 {
 		return m.theme.PlaceholderStyle.Render("no environment variables available")
 	}
@@ -67,11 +67,6 @@ func (m Model) envWrappedRow(row cardRow, labelWidth, available int) []string {
 	}
 
 	return out
-}
-
-// dotenvEntries returns the merged .env entries for the service (nil when unavailable)
-func (m Model) dotenvEntries(service *model.Service) []model.Env {
-	return m.environment.Env(service.ID)
 }
 
 // wrapRunes splits s into rune chunks of firstWidth then width

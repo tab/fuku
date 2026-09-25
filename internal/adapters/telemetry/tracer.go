@@ -47,7 +47,7 @@ func (t *Tracer) handle(ctx context.Context, msg contracts.Message) {
 	case contracts.EventTierReady:
 		t.handleTierReady(msg)
 	case contracts.EventWatchTriggered:
-		t.handleWatchTriggered()
+		t.createSpan(OpWatchRestart)
 	case contracts.CommandStopService:
 		t.createSpan(OpServiceStop)
 	case contracts.CommandRestartService:
@@ -125,10 +125,6 @@ func (t *Tracer) tierPosition(name string) (int, int) {
 	}
 
 	return 0, len(t.tiers)
-}
-
-func (t *Tracer) handleWatchTriggered() {
-	t.createSpan(OpWatchRestart)
 }
 
 func (t *Tracer) handlePhaseChanged(msg contracts.Message) {

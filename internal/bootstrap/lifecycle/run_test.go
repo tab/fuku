@@ -27,7 +27,7 @@ func Test_Run(t *testing.T) {
 			name: "returns the code the command completed with",
 			option: func(arbiter **Arbiter) fx.Option {
 				return fx.Invoke(func(a *Arbiter) {
-					go a.complete(3, nil)
+					go a.decide(3, nil)
 				})
 			},
 			expectedCode: 3,
@@ -36,7 +36,7 @@ func Test_Run(t *testing.T) {
 			name: "a command that completed with an error prints the cause once",
 			option: func(arbiter **Arbiter) fx.Option {
 				return fx.Invoke(func(a *Arbiter) {
-					go a.complete(1, commandErr)
+					go a.decide(1, commandErr)
 				})
 			},
 			expectedCode:   1,
@@ -85,7 +85,7 @@ func Test_Run(t *testing.T) {
 				return fx.Invoke(func(lc fx.Lifecycle, a *Arbiter) {
 					lc.Append(fx.Hook{OnStop: func(context.Context) error { return contracts.ErrNoServicesDefined }})
 
-					go a.complete(0, nil)
+					go a.decide(0, nil)
 				})
 			},
 			expectedCode:   1,

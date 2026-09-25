@@ -108,7 +108,16 @@ func checkConfigOverride(st *state) model.Result {
 // checkConfigValidate reports the result of schema validation
 func checkConfigValidate(st *state) model.Result {
 	if errors.Is(st.Error, contracts.ErrInvalidConfig) {
-		return invalidConfigResult(st.Error)
+		return model.Result{
+			ID:       model.CheckConfigValidate,
+			Category: model.CategoryConfiguration,
+			Severity: model.SeverityFail,
+			Summary:  "schema validation failed",
+			Details: []model.Detail{
+				{Key: "error", Value: st.Error.Error()},
+			},
+			Remediation: "fix the offending field in fuku.yaml",
+		}
 	}
 
 	if !st.loaded() {
@@ -120,20 +129,6 @@ func checkConfigValidate(st *state) model.Result {
 		Category: model.CategoryConfiguration,
 		Severity: model.SeverityOK,
 		Summary:  "schema ok",
-	}
-}
-
-// invalidConfigResult builds the config.validate failure result for a schema error
-func invalidConfigResult(err error) model.Result {
-	return model.Result{
-		ID:       model.CheckConfigValidate,
-		Category: model.CategoryConfiguration,
-		Severity: model.SeverityFail,
-		Summary:  "schema validation failed",
-		Details: []model.Detail{
-			{Key: "error", Value: err.Error()},
-		},
-		Remediation: "fix the offending field in fuku.yaml",
 	}
 }
 

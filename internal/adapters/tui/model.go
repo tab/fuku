@@ -195,11 +195,6 @@ func (m Model) getSelectedService() *model.Service {
 	return m.snapshot.Services[ids[m.state.selected]]
 }
 
-// getTotalServices returns the total count of services
-func (m Model) getTotalServices() int {
-	return len(m.activeServiceIDs())
-}
-
 // getAllReadyServices returns the count of all services in ready state regardless of filter
 func (m Model) getAllReadyServices() int {
 	count := 0

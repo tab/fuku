@@ -198,7 +198,7 @@ func (m Model) renderHelp(asideShown bool) string {
 	keys := m.helpKeyMap(asideShown)
 
 	if m.state.asideOpen {
-		return m.theme.HelpStyle.Render(m.ui.help.View(newAsideHelpKeyMap(keys)))
+		return m.theme.HelpStyle.Render(m.ui.help.View(AsideHelpKeyMap{km: keys}))
 	}
 
 	return m.theme.HelpStyle.Render(m.ui.help.View(keys))
