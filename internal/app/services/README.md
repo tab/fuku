@@ -50,7 +50,7 @@ Every start runs inside the worker bound.
 1. the frontend calls `Control.Restart(id)`
 2. `Guard.admit` checks the request and reserves the token
 3. `Control` publishes `CommandRestartService` and returns the `Admission`
-4. `Runtime` claims the token and runs the action on its own goroutine
+4. `Runtime` takes over the token and runs the action on its own goroutine
 5. the token is released when the action ends
 
 `Guard.admit` checks, in one locked step:

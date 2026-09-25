@@ -256,9 +256,7 @@ func (m Model) asideConfigTab(service *model.Service, innerWidth int) string {
 		parts = append(parts, readinessCard)
 	}
 
-	if logsCard := m.asideLogsCard(service, innerWidth); logsCard != "" {
-		parts = append(parts, logsCard)
-	}
+	parts = append(parts, m.asideLogsCard(service, innerWidth))
 
 	if watchCard := m.asideWatchCard(service, innerWidth); watchCard != "" {
 		parts = append(parts, watchCard)
@@ -344,10 +342,6 @@ func (m Model) asideReadinessCard(service *model.Service, innerWidth int) string
 
 // asideLogsCard renders configured per-service log outputs in a card
 func (m Model) asideLogsCard(service *model.Service, innerWidth int) string {
-	if len(service.LogOutput) == 0 {
-		return ""
-	}
-
 	rows := []cardRow{
 		{label: "output", value: strings.Join(service.LogOutput, ", ")},
 	}

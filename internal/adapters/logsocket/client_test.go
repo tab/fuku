@@ -31,32 +31,22 @@ func Test_NewClient(t *testing.T) {
 func Test_Client_Connect(t *testing.T) {
 	running := startScriptedServer(t)
 
-	tests := []struct {
-		name        string
-		fingerprint string
-		expect      error
-	}{
-		{
-			name:        "connects to the running instance",
-			fingerprint: running,
-		},
-		{
-			name:        "no instance for the project",
-			fingerprint: instance.Fingerprint("/Users/dev/projects/not-running"),
-			expect:      contracts.ErrNoInstanceRunning,
-		},
-	}
+	c := NewClient(model.Instance{Fingerprint: running})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewClient(model.Instance{Fingerprint: tt.fingerprint})
+	err := c.Connect()
 
-			err := c.Connect()
+	require.NoError(t, err)
+	require.NoError(t, c.Close())
+}
 
-			require.ErrorIs(t, err, tt.expect)
-			require.NoError(t, c.Close())
-		})
-	}
+func Test_Client_Connect_NoInstance(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/not-running")
+
+	c := NewClient(model.Instance{Fingerprint: fingerprint})
+
+	err := c.Connect()
+
+	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
 }
 
 func Test_Client_Connect_DeadSocket(t *testing.T) {
@@ -262,13 +252,6 @@ func Test_Client_Stream_ReadError(t *testing.T) {
 	err = c.Stream(t.Context(), mockHandler)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to read from socket")
-}
-
-func Test_Client_Close_WithoutConnection(t *testing.T) {
-	c := NewClient(model.Instance{})
-
-	err := c.Close()
-	require.NoError(t, err)
 }
 
 func Test_Client_Stream_BoundedReadAcknowledgement(t *testing.T) {

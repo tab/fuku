@@ -25,10 +25,6 @@ func (w *Watcher) Subscribe(ctx context.Context) error {
 
 // Drain returns once the queue is empty and no handler is in flight
 func (w *Watcher) Drain(ctx context.Context) error {
-	if w.loop == nil {
-		return nil
-	}
-
 	return w.loop.Drain(ctx)
 }
 

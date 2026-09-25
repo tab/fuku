@@ -45,7 +45,7 @@ func Test_Runner_Run(t *testing.T) {
 	mockRuntime := NewMockRuntime(ctrl)
 
 	project := model.Project{
-		Services:    []model.Service{{Name: "api", Command: "make run", Directory: "api", Tier: model.TierDefault}},
+		Services:    []model.Service{{Name: "api", Command: "make run", Directory: "api", Tier: model.TierDefault, Environment: &model.EnvFiles{}}},
 		Profiles:    map[string]model.Profile{model.ProfileDefault: {All: true}},
 		Logging:     model.Logging{Level: "info", Format: "console"},
 		Concurrency: model.Concurrency{Workers: 5},

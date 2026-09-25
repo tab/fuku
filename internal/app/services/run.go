@@ -138,10 +138,6 @@ func (r *Runtime) Start(ctx context.Context) error {
 
 // Stop cancels the run under the launch lock, so no child starts once it began, and waits for every service to stop
 func (r *Runtime) Stop(ctx context.Context) error {
-	if r.halt == nil {
-		return nil
-	}
-
 	r.mu.Lock()
 	r.halt()
 	r.mu.Unlock()

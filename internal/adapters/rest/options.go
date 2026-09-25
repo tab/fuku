@@ -8,7 +8,7 @@ const PortRetries = 10
 // readHeaderTimeout bounds the wait for a request header
 const readHeaderTimeout = 5 * time.Second
 
-// Options is the bind address and the bearer token of the REST API (an empty Listen disables the server)
+// Options is the bind address and the bearer token of the REST API
 type Options struct {
 	Listen string
 	Token  string

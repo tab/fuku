@@ -386,12 +386,6 @@ func Test_Server_Start_Producer(t *testing.T) {
 		before func() *Server
 	}{
 		{
-			name: "a server that never started has nothing to stop",
-			before: func() *Server {
-				return NewServer(nil, mockRegistry, testIdentity(t), log)
-			},
-		},
-		{
 			name: "stop ends a start still waiting for the profile",
 			before: func() *Server {
 				s := NewServer(nil, mockRegistry, testIdentity(t), log)

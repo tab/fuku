@@ -57,10 +57,6 @@ func (r *Recorder) Subscribe(ctx context.Context) error {
 
 // Drain records the queued events and returns once none is in flight (or once ctx expires)
 func (r *Recorder) Drain(ctx context.Context) error {
-	if r.loop == nil {
-		return nil
-	}
-
 	return r.loop.Drain(ctx)
 }
 

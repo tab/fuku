@@ -1,7 +1,6 @@
 package rest
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -94,54 +93,6 @@ func Test_AuthMiddleware(t *testing.T) {
 			assert.Equal(t, tt.expectStatus, w.Code)
 			assert.Equal(t, tt.expectNext, nextCalled)
 			assert.Equal(t, tt.expectBody, w.Body.String())
-		})
-	}
-}
-
-func Test_AuthMiddleware_EmptyToken(t *testing.T) {
-	nextCalled := false
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		nextCalled = true
-
-		w.WriteHeader(http.StatusOK)
-	})
-
-	tests := []struct {
-		name   string
-		header string
-	}{
-		{
-			name:   "rejects empty bearer when token is empty",
-			header: "Bearer ",
-		},
-		{
-			name:   "rejects valid-looking bearer when token is empty",
-			header: "Bearer some-token",
-		},
-		{
-			name:   "rejects missing header when token is empty",
-			header: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			nextCalled = false
-
-			handler := authMiddleware("", next)
-
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
-			req.Header.Set("Authorization", tt.header)
-
-			w := httptest.NewRecorder()
-			handler.ServeHTTP(w, req)
-
-			assert.Equal(t, http.StatusUnauthorized, w.Code)
-			assert.False(t, nextCalled)
-
-			var body map[string]string
-			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-			assert.Equal(t, "unauthorized", body["error"])
 		})
 	}
 }

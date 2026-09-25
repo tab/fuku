@@ -95,42 +95,18 @@ func Test_Watcher_Drain(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	subscription := contracts.SubscribeOptions{Name: "watcher", Required: true, Types: serviceTypes}
 
-	tests := []struct {
-		name   string
-		before func() *Watcher
-	}{
-		{
-			name: "a watcher that never subscribed has nothing to drain",
-			before: func() *Watcher {
-				return NewWatcher(nil, mockSubscriber, log)
-			},
-		},
-		{
-			name: "a subscribed watcher drains once its closed queue ends the loop",
-			before: func() *Watcher {
-				w := NewWatcher(nil, mockSubscriber, log)
+	messages := make(queue)
+	close(messages)
 
-				messages := make(queue)
-				close(messages)
+	w := NewWatcher(nil, mockSubscriber, log)
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), subscription).Return(messages, nil)
+	mockSubscriber.EXPECT().Subscribe(gomock.Any(), subscription).Return(messages, nil)
 
-				require.NoError(t, w.Subscribe(t.Context()))
+	require.NoError(t, w.Subscribe(t.Context()))
 
-				return w
-			},
-		},
-	}
+	err := w.Drain(t.Context())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := tt.before()
-
-			err := w.Drain(t.Context())
-
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, err)
 }
 
 func Test_Watcher_publishTriggered(t *testing.T) {

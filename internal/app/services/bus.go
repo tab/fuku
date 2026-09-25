@@ -36,10 +36,6 @@ func (r *Runtime) Subscribe(ctx context.Context) error {
 
 // Drain returns once the command queue is empty and no handler is in flight
 func (r *Runtime) Drain(ctx context.Context) error {
-	if r.loop == nil {
-		return nil
-	}
-
 	return r.loop.Drain(ctx)
 }
 
@@ -68,12 +64,6 @@ func (r *Runtime) handle(msg contracts.Message) {
 
 // handleCommand takes over the admission's token and runs the command's action on a worker (a stop needs none)
 func (r *Runtime) handleCommand(cmd contracts.MessageType, svc model.Service) {
-	if !r.guard.claim(svc.ID) {
-		r.log.Debug(fmt.Sprintf("Service '%s' was not admitted, dropping %s", svc.Name, cmd))
-
-		return
-	}
-
 	//nolint:exhaustive // the subscription is filtered to the command types
 	switch cmd {
 	case contracts.CommandStopService:

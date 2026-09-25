@@ -83,12 +83,6 @@ func Test_Recorder_Drain(t *testing.T) {
 		expected error
 	}{
 		{
-			name: "a recorder that never subscribed has nothing to drain",
-			before: func() context.Context {
-				return t.Context()
-			},
-		},
-		{
 			name: "returns once the queue is recorded",
 			before: func() context.Context {
 				messages := make(queue, 1)

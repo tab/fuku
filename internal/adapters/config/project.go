@@ -104,10 +104,8 @@ func projectProfile(value any) model.Profile {
 	case []any:
 		services := make([]string, 0, len(profile))
 		for _, value := range profile {
-			name, ok := value.(string)
-			if ok {
-				services = append(services, name)
-			}
+			name, _ := value.(string)
+			services = append(services, name)
 		}
 
 		return model.Profile{Services: services}

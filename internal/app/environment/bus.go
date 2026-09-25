@@ -24,10 +24,6 @@ func (s *Store) Subscribe(ctx context.Context) error {
 
 // Drain returns once the queue is empty and no reload is in flight
 func (s *Store) Drain(ctx context.Context) error {
-	if s.loop == nil {
-		return nil
-	}
-
 	return s.loop.Drain(ctx)
 }
 

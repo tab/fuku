@@ -31,21 +31,22 @@ func Test_AsideContent(t *testing.T) {
 			},
 		},
 		{
-			name: "service without optional config renders meta card only",
+			name: "service without optional config renders the meta and logs cards only",
 			service: &model.Service{
-				ID:     "api",
-				Name:   "api",
-				Tier:   "foundation",
-				Status: model.StatusRunning,
+				ID:        "api",
+				Name:      "api",
+				Tier:      "foundation",
+				LogOutput: []string{"stdout", "stderr"},
+				Status:    model.StatusRunning,
 			},
 			wantContain: []string{
 				"meta",
 				"tier", "foundation",
+				"output", "stdout, stderr",
 			},
 			wantMissing: []string{
 				"dir",
 				"address", "pattern",
-				"output",
 				"include",
 			},
 		},
@@ -96,6 +97,7 @@ func Test_AsideContent(t *testing.T) {
 				Command:   "make run",
 				Directory: "services/db",
 				Tier:      "foundation",
+				LogOutput: []string{"stdout"},
 				Status:    model.StatusStarting,
 			},
 			wantContain: []string{
@@ -104,10 +106,10 @@ func Test_AsideContent(t *testing.T) {
 				"tier", "foundation",
 				"dir", "services/db",
 				"command",
+				"output", "stdout",
 			},
 			wantMissing: []string{
 				"address", "pattern",
-				"output",
 				"include",
 			},
 		},

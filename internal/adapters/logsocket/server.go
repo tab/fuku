@@ -86,10 +86,6 @@ func (s *Server) Start(ctx context.Context) error {
 
 // Stop ends a pending start, waits for it, and closes the server
 func (s *Server) Stop(ctx context.Context) error {
-	if s.halt == nil {
-		return nil
-	}
-
 	s.halt()
 
 	var err error

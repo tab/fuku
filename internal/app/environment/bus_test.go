@@ -73,42 +73,18 @@ func Test_Store_Drain(t *testing.T) {
 	mockSubscriber := NewMockSubscriber(ctrl)
 	mockReader := NewMockReader(ctrl)
 
-	tests := []struct {
-		name   string
-		before func() *Store
-	}{
-		{
-			name: "a store that never subscribed has nothing to drain",
-			before: func() *Store {
-				return NewStore(mockSubscriber, mockReader)
-			},
-		},
-		{
-			name: "a subscribed store drains once its closed queue ends the loop",
-			before: func() *Store {
-				s := NewStore(mockSubscriber, mockReader)
+	messages := make(queue)
+	close(messages)
 
-				messages := make(queue)
-				close(messages)
+	s := NewStore(mockSubscriber, mockReader)
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(messages, nil)
+	mockSubscriber.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(messages, nil)
 
-				require.NoError(t, s.Subscribe(t.Context()))
+	require.NoError(t, s.Subscribe(t.Context()))
 
-				return s
-			},
-		},
-	}
+	err := s.Drain(t.Context())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := tt.before()
-
-			err := s.Drain(t.Context())
-
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, err)
 }
 
 func Test_Store_handle(t *testing.T) {

@@ -25,10 +25,6 @@ func (c *Collector) Subscribe(ctx context.Context) error {
 
 // Drain returns once the queue is empty and no handler is in flight
 func (c *Collector) Drain(ctx context.Context) error {
-	if c.loop == nil {
-		return nil
-	}
-
 	return c.loop.Drain(ctx)
 }
 
@@ -48,10 +44,6 @@ func (t *Tracer) Subscribe(ctx context.Context) error {
 
 // Drain returns once the queue is empty and no handler is in flight, then cancels a transaction the run left open
 func (t *Tracer) Drain(ctx context.Context) error {
-	if t.loop == nil {
-		return nil
-	}
-
 	err := t.loop.Drain(ctx)
 
 	t.mu.Lock()

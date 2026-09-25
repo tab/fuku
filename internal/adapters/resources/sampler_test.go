@@ -214,37 +214,13 @@ func Test_Sampler_StartStop(t *testing.T) {
 	mockMonitor := NewMockMonitor(ctrl)
 	mockRegistry := NewMockRegistry(ctrl)
 
-	tests := []struct {
-		name   string
-		before func() *Sampler
-	}{
-		{
-			name: "a sampler that never started has nothing to stop",
-			before: func() *Sampler {
-				return NewSampler(Options{}, mockPublisher, mockMonitor, mockRegistry)
-			},
-		},
-		{
-			name: "a started sampler stops its goroutine",
-			before: func() *Sampler {
-				sampler := NewSampler(Options{}, mockPublisher, mockMonitor, mockRegistry)
+	sampler := NewSampler(Options{}, mockPublisher, mockMonitor, mockRegistry)
 
-				require.NoError(t, sampler.Start(t.Context()))
+	require.NoError(t, sampler.Start(t.Context()))
 
-				return sampler
-			},
-		},
-	}
+	err := sampler.Stop(t.Context())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sampler := tt.before()
-
-			err := sampler.Stop(t.Context())
-
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, err)
 }
 
 func Test_Sampler_Stop_ContextDone(t *testing.T) {

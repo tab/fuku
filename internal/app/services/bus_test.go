@@ -76,42 +76,18 @@ func Test_Runtime_Drain(t *testing.T) {
 
 	log := slog.New(slog.DiscardHandler)
 
-	tests := []struct {
-		name   string
-		before func() *Runtime
-	}{
-		{
-			name: "a runtime that never subscribed has nothing to drain",
-			before: func() *Runtime {
-				return NewRuntime(RuntimeParams{Subscriber: mockSubscriber, Logger: log})
-			},
-		},
-		{
-			name: "a subscribed runtime drains once its closed queue ends the loop",
-			before: func() *Runtime {
-				runtime := NewRuntime(RuntimeParams{Subscriber: mockSubscriber, Logger: log})
+	messages := make(queue)
+	close(messages)
 
-				messages := make(queue)
-				close(messages)
+	runtime := NewRuntime(RuntimeParams{Subscriber: mockSubscriber, Logger: log})
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(messages, nil)
+	mockSubscriber.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(messages, nil)
 
-				require.NoError(t, runtime.Subscribe(t.Context()))
+	require.NoError(t, runtime.Subscribe(t.Context()))
 
-				return runtime
-			},
-		},
-	}
+	err := runtime.Drain(t.Context())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			runtime := tt.before()
-
-			err := runtime.Drain(t.Context())
-
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, err)
 }
 
 func Test_Runtime_Publish(t *testing.T) {
@@ -219,30 +195,6 @@ func Test_Runtime_Handle(t *testing.T) {
 				return ctx
 			},
 			msg: contracts.Message{Type: contracts.CommandStartService, Data: "api"},
-		},
-		{
-			name: "drops a command for a service whose token is held",
-			before: func() context.Context {
-				ctx := runtime.begin(t.Context())
-				runtime.guard.resolve(tiers)
-				runtime.guard.dispatch(svc.ID)
-
-				return ctx
-			},
-			msg:  contracts.Message{Type: contracts.CommandRestartService, Data: svc},
-			held: true,
-		},
-		{
-			name: "drops a command nobody admitted",
-			before: func() context.Context {
-				ctx := runtime.begin(t.Context())
-				runtime.guard.resolve(tiers)
-				runtime.guard.dispatch(svc.ID)
-				runtime.guard.release(svc.ID)
-
-				return ctx
-			},
-			msg: contracts.Message{Type: contracts.CommandStartService, Data: svc},
 		},
 		{
 			name: "stops the service on an admitted stop command and releases the token",

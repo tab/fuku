@@ -149,20 +149,6 @@ func Test_Tracer_Drain(t *testing.T) {
 	}
 }
 
-func Test_Tracer_Drain_NotSubscribed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSubscriber := NewMockSubscriber(ctrl)
-
-	tracer := NewTracer(mockSubscriber)
-
-	err := tracer.Drain(t.Context())
-
-	require.NoError(t, err)
-	assert.Nil(t, tracer.trace)
-}
-
 func Test_Tracer_handle(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

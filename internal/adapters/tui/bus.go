@@ -59,7 +59,7 @@ func (b *Bridge) Drain(ctx context.Context) error {
 	attached := b.view != nil
 	b.mu.Unlock()
 
-	if b.loop == nil || !attached {
+	if !attached {
 		return nil
 	}
 

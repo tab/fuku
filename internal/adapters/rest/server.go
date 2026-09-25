@@ -119,19 +119,8 @@ func (s *Server) publish(msg contracts.Message) {
 func (s *Server) listen() (net.Listener, string) {
 	address := s.options.Listen
 
-	host, portStr, err := net.SplitHostPort(address)
-	if err != nil {
-		s.log.Warn("Invalid API listen address: "+address, "error", err)
-
-		return nil, ""
-	}
-
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		s.log.Warn("Invalid API port: "+portStr, "error", err)
-
-		return nil, ""
-	}
+	host, portStr, _ := net.SplitHostPort(address)
+	port, _ := strconv.Atoi(portStr)
 
 	for i := range PortRetries {
 		addr := net.JoinHostPort(host, strconv.Itoa(port+i))

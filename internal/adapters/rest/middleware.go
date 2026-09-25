@@ -59,12 +59,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 func authMiddleware(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if token == "" {
-			writeError(w, http.StatusUnauthorized, ErrAPIUnauthorized)
-
-			return
-		}
-
 		header := r.Header.Get("Authorization")
 
 		if header == "" || len(header) < 7 || !strings.EqualFold(header[:7], "Bearer ") {

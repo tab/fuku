@@ -88,44 +88,20 @@ func Test_Collector_Drain(t *testing.T) {
 
 	mockSubscriber := NewMockSubscriber(ctrl)
 
-	tests := []struct {
-		name   string
-		before func() *Collector
-	}{
-		{
-			name: "a collector that never subscribed has nothing to drain",
-			before: func() *Collector {
-				return NewCollector(mockSubscriber)
-			},
-		},
-		{
-			name: "a subscribed collector drains once it handled its closed queue",
-			before: func() *Collector {
-				collector := NewCollector(mockSubscriber)
+	messages := make(queue, 1)
+	messages <- contracts.Message{Type: contracts.EventSnapshotChanged, Data: contracts.SnapshotChanged{}}
 
-				messages := make(queue, 1)
-				messages <- contracts.Message{Type: contracts.EventSnapshotChanged, Data: contracts.SnapshotChanged{}}
+	close(messages)
 
-				close(messages)
+	collector := NewCollector(mockSubscriber)
 
-				mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics"}).Return(messages, nil)
+	mockSubscriber.EXPECT().Subscribe(gomock.Any(), contracts.SubscribeOptions{Name: "metrics"}).Return(messages, nil)
 
-				require.NoError(t, collector.Subscribe(t.Context()))
+	require.NoError(t, collector.Subscribe(t.Context()))
 
-				return collector
-			},
-		},
-	}
+	err := collector.Drain(t.Context())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			collector := tt.before()
-
-			err := collector.Drain(t.Context())
-
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, err)
 }
 
 func Test_Collector_handle(t *testing.T) {

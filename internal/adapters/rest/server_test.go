@@ -188,37 +188,3 @@ func Test_Server_Start_PortBusy(t *testing.T) {
 
 	assert.Nil(t, s.httpServer)
 }
-
-func Test_Server_Start_InvalidListen(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPublisher := NewMockPublisher(ctrl)
-	mockRegistry := NewMockRegistry(ctrl)
-
-	log := slog.New(slog.DiscardHandler)
-
-	tests := []struct {
-		name   string
-		listen string
-	}{
-		{
-			name:   "Missing port separator",
-			listen: "not-an-address",
-		},
-		{
-			name:   "Non-numeric port",
-			listen: "127.0.0.1:abc",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer(Options{Listen: tt.listen}, mockRegistry, nil, mockPublisher, model.Instance{}, log)
-
-			s.Start(context.Background())
-
-			assert.Nil(t, s.httpServer)
-		})
-	}
-}

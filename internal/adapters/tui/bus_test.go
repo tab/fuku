@@ -103,12 +103,6 @@ func Test_Bridge_Drain(t *testing.T) {
 		before func() *Bridge
 	}{
 		{
-			name: "a bridge that never subscribed has nothing to drain",
-			before: func() *Bridge {
-				return NewBridge(mockSubscriber)
-			},
-		},
-		{
 			name: "a bridge without a view returns at once while its queue waits",
 			before: func() *Bridge {
 				bridge := NewBridge(mockSubscriber)

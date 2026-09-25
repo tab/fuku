@@ -706,53 +706,30 @@ func Test_Runtime_Stop_Producer(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	svc := model.Service{ID: "test-id-api", Name: "api"}
 	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
+	interrupted := make(chan struct{})
 
-	tests := []struct {
-		name   string
-		before func() *Runtime
-	}{
-		{
-			name: "a runtime that never started has nothing to stop",
-			before: func() *Runtime {
-				return NewRuntime(RuntimeParams{Options: Options{Profile: "backend"}, Logger: log})
-			},
-		},
-		{
-			name: "a started run is cancelled and waited for",
-			before: func() *Runtime {
-				runtime := NewRuntime(RuntimeParams{Options: Options{Profile: "backend"}, Profiles: mockProfiles, Preflight: mockPreflight, Tracker: mockTracker, Pool: mockPool, Guard: NewGuard(mockTracker), Publisher: mockPublisher, Logger: log})
-				interrupted := make(chan struct{})
-				blockUntilCancelled := func(ctx context.Context, _ map[string]string) error {
-					close(interrupted)
-					<-ctx.Done()
+	runtime := NewRuntime(RuntimeParams{Options: Options{Profile: "backend"}, Profiles: mockProfiles, Preflight: mockPreflight, Tracker: mockTracker, Pool: mockPool, Guard: NewGuard(mockTracker), Publisher: mockPublisher, Logger: log})
 
-					return nil
-				}
+	blockUntilCancelled := func(ctx context.Context, _ map[string]string) error {
+		close(interrupted)
+		<-ctx.Done()
 
-				mockProfiles.EXPECT().Resolve("backend").Return(tiers, nil)
-				mockPreflight.EXPECT().Cleanup(gomock.Any(), gomock.Any()).DoAndReturn(blockUntilCancelled)
-				mockPool.EXPECT().Acquire(gomock.Any()).Return(context.Canceled).AnyTimes()
-				mockTracker.EXPECT().Reverse().Return(nil)
-				mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
-
-				require.NoError(t, runtime.Start(t.Context()))
-
-				<-interrupted
-
-				return runtime
-			},
-		},
+		return nil
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			runtime := tt.before()
+	mockProfiles.EXPECT().Resolve("backend").Return(tiers, nil)
+	mockPreflight.EXPECT().Cleanup(gomock.Any(), gomock.Any()).DoAndReturn(blockUntilCancelled)
+	mockPool.EXPECT().Acquire(gomock.Any()).Return(context.Canceled).AnyTimes()
+	mockTracker.EXPECT().Reverse().Return(nil)
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
 
-			err := runtime.Stop(t.Context())
+	require.NoError(t, runtime.Start(t.Context()))
 
-			require.NoError(t, err)
-		})
-	}
+	<-interrupted
+
+	err := runtime.Stop(t.Context())
+
+	require.NoError(t, err)
 }
 
 func Test_Runtime_Stop_Deadline(t *testing.T) {

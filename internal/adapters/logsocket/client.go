@@ -115,11 +115,7 @@ func (c *Client) Stream(ctx context.Context, handler logs.Handler) error {
 
 // Close closes the connection
 func (c *Client) Close() error {
-	if c.conn != nil {
-		return c.conn.Close()
-	}
-
-	return nil
+	return c.conn.Close()
 }
 
 // notAcknowledged returns the compatibility error for a server that did not confirm the request

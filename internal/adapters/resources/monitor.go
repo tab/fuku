@@ -37,7 +37,7 @@ func NewProcessMonitor() *ProcessMonitor {
 
 // GetStats retrieves CPU and memory statistics for a process
 func (m *ProcessMonitor) GetStats(ctx context.Context, pid int) (Stats, error) {
-	if pid <= 0 || pid > math.MaxInt32 {
+	if pid > math.MaxInt32 {
 		return Stats{}, nil
 	}
 

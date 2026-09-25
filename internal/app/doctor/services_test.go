@@ -19,7 +19,7 @@ func Test_Runner_servicesSection(t *testing.T) {
 	subject := NewRunner(Options{}, model.Config{}, nil, mockFilesystem, nil, nil)
 
 	project := model.Project{
-		Services: []model.Service{{Name: "api", Directory: "/srv/api"}},
+		Services: []model.Service{{Name: "api", Directory: "/srv/api", Environment: &model.EnvFiles{}}},
 	}
 
 	tests := []struct {
@@ -158,7 +158,7 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 		Services: []model.Service{
 			{Name: "api", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}}},
 			{Name: "missing", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env.local"}}},
-			{Name: "noenv", Directory: "/srv/api"},
+			{Name: "noenv", Directory: "/srv/api", Environment: &model.EnvFiles{}},
 			{Name: "defaulted", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}, Defaulted: true}},
 		},
 	}}}

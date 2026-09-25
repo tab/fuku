@@ -13,7 +13,6 @@ type coordination struct {
 	service    model.Service
 	dispatched bool // tier startup handed the service to the pool
 	reserved   bool // a token is held by startup, an action or a watch restart
-	admitted   bool // an admitted command holds the token until its handler claims it
 	stopped    bool // the last admitted action stopped the service on purpose, so a file change must not restart it
 }
 
@@ -86,33 +85,12 @@ func (g *Guard) dispatch(id string) {
 	entry.stopped = false
 }
 
-// claim hands the token an admission holds to the command's handler, and reports false for a command nobody admitted
-func (g *Guard) claim(id string) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	entry, known := g.services[id]
-	if !known || !entry.admitted {
-		return false
-	}
-
-	entry.admitted = false
-
-	return true
-}
-
 // release returns the service token
 func (g *Guard) release(id string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	entry, known := g.services[id]
-	if !known {
-		return
-	}
-
-	entry.reserved = false
-	entry.admitted = false
+	g.services[id].reserved = false
 }
 
 // admit validates an action against the run, the service and its token, and reserves the service when it passes
@@ -142,7 +120,6 @@ func (g *Guard) admit(id string, action contracts.Action) (Admission, error) {
 	}
 
 	entry.reserved = true
-	entry.admitted = true
 	entry.stopped = action == contracts.ActionStop
 
 	return Admission{Service: entry.service, Action: action, Status: predicted[action]}, nil

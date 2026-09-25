@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -19,32 +20,12 @@ func Test_NewProcessMonitor(t *testing.T) {
 func Test_ProcessMonitor_GetStats_OutOfRangePID(t *testing.T) {
 	m := NewProcessMonitor()
 
-	tests := []struct {
-		name string
-		pid  int
-	}{
-		{
-			name: "zero PID",
-			pid:  0,
-		},
-		{
-			name: "negative PID",
-			pid:  -1,
-		},
-		{
-			name: "PID above int32",
-			pid:  2147483648,
-		},
-	}
+	pid := math.MaxInt32 + 1
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			stats, err := m.GetStats(t.Context(), tt.pid)
+	stats, err := m.GetStats(t.Context(), pid)
 
-			require.NoError(t, err)
-			assert.Equal(t, Stats{}, stats)
-		})
-	}
+	require.NoError(t, err)
+	assert.Equal(t, Stats{}, stats)
 }
 
 func Test_ProcessMonitor_GetStats_CurrentProcess(t *testing.T) {

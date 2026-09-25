@@ -360,7 +360,6 @@ func Test_Guard_reserve(t *testing.T) {
 
 				_, err := guard.admit(svc.ID, contracts.ActionStop)
 				require.NoError(t, err)
-				require.True(t, guard.claim(svc.ID))
 				guard.release(svc.ID)
 
 				return guard
@@ -422,89 +421,6 @@ func Test_Guard_reserve(t *testing.T) {
 	}
 }
 
-func Test_Guard_claim(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTracker := NewMockTracker(ctrl)
-
-	svc := model.Service{ID: "test-id-api", Name: "api"}
-	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
-
-	tests := []struct {
-		name     string
-		before   func() *Guard
-		expected bool
-		held     bool
-	}{
-		{
-			name: "takes over the token of an admitted command and keeps it held",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-
-				mockTracker.EXPECT().Get(svc.ID).Return(nil, false)
-
-				_, err := guard.admit(svc.ID, contracts.ActionStart)
-				require.NoError(t, err)
-
-				return guard
-			},
-			expected: true,
-			held:     true,
-		},
-		{
-			name: "refuses a free service nobody admitted",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-
-				return guard
-			},
-		},
-		{
-			name: "refuses a service whose token another action holds",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-
-				return guard
-			},
-			held: true,
-		},
-		{
-			name: "refuses a pending service",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-
-				return guard
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			guard := tt.before()
-
-			claimed := guard.claim(svc.ID)
-
-			assert.Equal(t, tt.expected, claimed)
-			assert.Equal(t, tt.held, guard.services[svc.ID].reserved)
-			assert.False(t, guard.services[svc.ID].admitted)
-		})
-	}
-}
-
 func Test_Guard_release(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -517,7 +433,6 @@ func Test_Guard_release(t *testing.T) {
 	tests := []struct {
 		name   string
 		before func() *Guard
-		id     string
 	}{
 		{
 			name: "frees a dispatched service",
@@ -529,7 +444,6 @@ func Test_Guard_release(t *testing.T) {
 
 				return guard
 			},
-			id: svc.ID,
 		},
 		{
 			name: "frees an admitted service",
@@ -547,20 +461,6 @@ func Test_Guard_release(t *testing.T) {
 
 				return guard
 			},
-			id: svc.ID,
-		},
-		{
-			name: "ignores an unknown service",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-
-				return guard
-			},
-			id: "test-id-unknown",
 		},
 	}
 
@@ -568,7 +468,7 @@ func Test_Guard_release(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			guard := tt.before()
 
-			guard.release(tt.id)
+			guard.release(svc.ID)
 
 			assert.True(t, guard.reserve(svc.ID))
 		})

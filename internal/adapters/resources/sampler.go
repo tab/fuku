@@ -62,10 +62,6 @@ func (s *Sampler) Start(ctx context.Context) error {
 
 // Stop ends the sampling and waits for the last reading to finish
 func (s *Sampler) Stop(ctx context.Context) error {
-	if s.cancel == nil {
-		return nil
-	}
-
 	s.cancel()
 
 	select {
