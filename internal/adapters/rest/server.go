@@ -67,7 +67,7 @@ func (s *Server) Start(context.Context) error {
 	}
 
 	s.httpServer = &http.Server{
-		Handler:           telemetryMiddleware(s.publisher, corsMiddleware(mux)),
+		Handler:           telemetryMiddleware(s.publisher, mux),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 

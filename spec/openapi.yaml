@@ -175,7 +175,7 @@ components:
       properties:
         status:
           type: string
-          example: alive
+          example: ready
 
     Live:
       type: object
@@ -311,8 +311,6 @@ paths:
                 $ref: "#/components/schemas/Status"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
 
   /services:
     get:
@@ -327,8 +325,6 @@ paths:
                 $ref: "#/components/schemas/ServiceList"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
 
   /services/{id}:
     get:
@@ -354,8 +350,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
 
   /services/{id}/start:
     post:

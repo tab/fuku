@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -416,6 +417,7 @@ func Test_HandleAction(t *testing.T) {
 }
 
 const schemaRefPrefix = "#/components/schemas/"
+const responseRefPrefix = "#/components/responses/"
 
 type openapiSchema struct {
 	Ref         string                   `yaml:"$ref"`
@@ -433,6 +435,7 @@ type openapiMedia struct {
 }
 
 type openapiResponse struct {
+	Ref     string                  `yaml:"$ref"`
 	Content map[string]openapiMedia `yaml:"content"`
 }
 
@@ -441,13 +444,15 @@ type openapiOperation struct {
 }
 
 type openapiPath struct {
-	Get openapiOperation `yaml:"get"`
+	Get  openapiOperation `yaml:"get"`
+	Post openapiOperation `yaml:"post"`
 }
 
 type openapiSpec struct {
 	Paths      map[string]openapiPath `yaml:"paths"`
 	Components struct {
-		Schemas map[string]openapiSchema `yaml:"schemas"`
+		Schemas   map[string]openapiSchema   `yaml:"schemas"`
+		Responses map[string]openapiResponse `yaml:"responses"`
 	} `yaml:"components"`
 }
 
@@ -492,18 +497,32 @@ func (s openapiSpec) property(t *testing.T, schema, name string) openapiSchema {
 	return property
 }
 
-// responseRef reports the schema reference the GET on a path declares for its 200 application/json response
-func (s openapiSpec) responseRef(t *testing.T, path string) string {
+// responseRef reports the schema reference a path's method declares for a status's application/json response
+func (s openapiSpec) responseRef(t *testing.T, method, path, status string) string {
 	t.Helper()
 
 	route, found := s.Paths[path]
 	require.True(t, found, "path %s is missing from the spec", path)
 
-	response, found := route.Get.Responses["200"]
-	require.True(t, found, "path %s declares no 200 response", path)
+	operation := route.Get
+	if method == http.MethodPost {
+		operation = route.Post
+	}
+
+	response, found := operation.Responses[status]
+	require.True(t, found, "%s %s declares no %s response", method, path, status)
+
+	if response.Ref != "" {
+		name := strings.TrimPrefix(response.Ref, responseRefPrefix)
+
+		resolved, found := s.Components.Responses[name]
+		require.True(t, found, "response %s referenced but not defined", name)
+
+		response = resolved
+	}
 
 	media, found := response.Content["application/json"]
-	require.True(t, found, "path %s declares no application/json 200 response", path)
+	require.True(t, found, "%s %s declares no application/json %s response", method, path, status)
 
 	return media.Schema.Ref
 }
@@ -523,6 +542,8 @@ func openapiType(t *testing.T, typ reflect.Type) string {
 		return "boolean"
 	case reflect.Struct:
 		return "object"
+	case reflect.Slice:
+		return "array"
 	default:
 		t.Fatalf("no OpenAPI type mapped for Go kind %s", typ.Kind())
 
@@ -535,27 +556,73 @@ func Test_OpenAPI_ResponseSchemas(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		method     string
 		path       string
+		status     string
 		schema     string
 		serializer any
 	}{
 		{
 			name:       "live response",
+			method:     http.MethodGet,
 			path:       "/live",
+			status:     "200",
 			schema:     "Live",
 			serializer: LiveSerializer{},
 		},
 		{
 			name:       "status response",
+			method:     http.MethodGet,
 			path:       "/status",
+			status:     "200",
 			schema:     "Status",
 			serializer: StatusSerializer{},
+		},
+		{
+			name:       "service response",
+			method:     http.MethodGet,
+			path:       "/services/{id}",
+			status:     "200",
+			schema:     "Service",
+			serializer: ServiceSerializer{},
+		},
+		{
+			name:       "service list response",
+			method:     http.MethodGet,
+			path:       "/services",
+			status:     "200",
+			schema:     "ServiceList",
+			serializer: ServiceListSerializer{},
+		},
+		{
+			name:       "service action accepted response",
+			method:     http.MethodPost,
+			path:       "/services/{id}/start",
+			status:     "202",
+			schema:     "ServiceActionAccepted",
+			serializer: ActionSerializer{},
+		},
+		{
+			name:       "probe response",
+			method:     http.MethodGet,
+			path:       "/ready",
+			status:     "200",
+			schema:     "Probe",
+			serializer: ProbeSerializer{},
+		},
+		{
+			name:       "error response",
+			method:     http.MethodGet,
+			path:       "/services/{id}",
+			status:     "404",
+			schema:     "Error",
+			serializer: ErrorSerializer{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, schemaRefPrefix+tt.schema, spec.responseRef(t, tt.path), "GET %s does not respond with %s", tt.path, tt.schema)
+			assert.Equal(t, schemaRefPrefix+tt.schema, spec.responseRef(t, tt.method, tt.path, tt.status), "%s %s does not respond with %s", tt.method, tt.path, tt.schema)
 
 			schema, found := spec.Components.Schemas[tt.schema]
 			require.True(t, found, "schema %s is missing from the spec", tt.schema)
@@ -563,12 +630,12 @@ func Test_OpenAPI_ResponseSchemas(t *testing.T) {
 			serializer := reflect.TypeOf(tt.serializer)
 
 			for field := range serializer.Fields() {
-				tag, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+				tag, opts, _ := strings.Cut(field.Tag.Get("json"), ",")
 
 				property, found := schema.Properties[tag]
 				require.True(t, found, "%s.%s is missing from the spec", tt.schema, tag)
 
-				assert.Contains(t, schema.Required, tag, "%s.%s is not listed as required", tt.schema, tag)
+				assert.Equal(t, opts != "omitempty", slices.Contains(schema.Required, tag), "%s.%s is required exactly when its field is not omitempty", tt.schema, tag)
 				assert.Equal(t, openapiType(t, field.Type), spec.resolveType(t, property), "%s.%s declares the wrong type", tt.schema, tag)
 			}
 		})

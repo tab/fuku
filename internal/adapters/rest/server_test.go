@@ -89,6 +89,7 @@ func Test_Server_StartAndShutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 	assert.Equal(t, identity.ID, live.Instance)
 	assert.Equal(t, identity.Fingerprint, live.Fingerprint)
 

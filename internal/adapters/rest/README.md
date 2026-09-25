@@ -17,7 +17,7 @@ The server is a producer of the run composition. It is added last, and only when
 ## Routes
 
 `GET /api/v1/live` and `GET /api/v1/ready` need no token.
-The single-instance guard uses `live` to recognise another instance of the project.
+The single-instance guard takes an exclusive `flock` on the project's lock file. The socket only names the owner in the refusal.
 `ready` answers `503` until the profile is resolved.
 
 Every other route needs `Authorization: Bearer <server.auth.token>`:
@@ -42,7 +42,9 @@ Every other route needs `Authorization: Bearer <server.auth.token>`:
 | the same on restart                              | `409`  | `service cannot be restarted`       |
 | anything else (`ErrBusOverloaded`)               | `500`  | `instance is overloaded`            |
 
-Every response is JSON. An error is `{"error": "<text>"}`. A missing or wrong token is `401` `unauthorized`.
+Every response from a route above is JSON. An error is `{"error": "<text>"}`. A missing or wrong token is `401` `unauthorized`.
+An `OPTIONS` or a wrong method needs the token too. With it, the mux answers a plain-text `405` on an authenticated route and a plain-text `404` on a probe.
+An unmatched path gets the mux's plain-text `404`. Under `/api/v1/` it needs the token first.
 
 ## Changing it
 

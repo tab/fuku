@@ -9,6 +9,9 @@ import (
 	"fuku/internal/contracts"
 )
 
+// bearerPrefix is the scheme prefix an Authorization header must carry
+const bearerPrefix = "Bearer "
+
 func telemetryMiddleware(publisher contracts.Publisher, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -41,33 +44,17 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 func authMiddleware(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
 
-		if header == "" || len(header) < 7 || !strings.EqualFold(header[:7], "Bearer ") {
+		if len(header) < len(bearerPrefix) || !strings.EqualFold(header[:len(bearerPrefix)], bearerPrefix) {
 			writeError(w, http.StatusUnauthorized, ErrAPIUnauthorized)
 
 			return
 		}
 
-		if subtle.ConstantTimeCompare([]byte(header[7:]), []byte(token)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(header[len(bearerPrefix):]), []byte(token)) != 1 {
 			writeError(w, http.StatusUnauthorized, ErrAPIUnauthorized)
 
 			return
