@@ -24,7 +24,7 @@ func Test_AsideHealthTab(t *testing.T) {
 		{
 			name: "http readiness, running pid, retry config, last event",
 			before: func() Model {
-				m := Model{theme: theme, project: model.Project{Retry: model.Retry{Attempts: 3, Backoff: 500 * time.Millisecond}}}
+				m := Model{theme: theme, retryAttempts: 3, retryBackoff: 500 * time.Millisecond}
 				m.state.asideTab = AsideTabHealth
 				m.state.now = now
 

@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"log/slog"
-	"slices"
 	"strings"
 	"testing"
 
@@ -45,7 +43,6 @@ func Test_View_RendersWhileShuttingDown(t *testing.T) {
 
 	loader := &Loader{Model: spinner.New(), Active: true, queue: []LoaderItem{{Service: loaderKeyShutdown, Message: "shutting down…"}}}
 	m := Model{loader: loader, registry: mockRegistry}
-	m.ui.servicesPanelCache = &renderCache{}
 	m.state.ready = true
 	m.state.shuttingDown = true
 	m.ui.width = 100
@@ -83,81 +80,6 @@ func Test_RenderTitle_WithActiveLoader(t *testing.T) {
 	title := m.renderTitle()
 
 	assert.Contains(t, title, "starting api…")
-}
-
-func Test_RenderServicesPanelLines_Cache(t *testing.T) {
-	theme := terminal.NewTheme(terminal.AppearanceDark)
-	log := slog.New(slog.DiscardHandler)
-
-	api := &model.Service{ID: "id-api", Name: "api", Status: model.StatusRunning}
-	tiers := []*model.Tier{{Name: "tier1", Services: []*model.Service{api}}}
-	services := map[string]*model.Service{"id-api": api}
-	running := &model.Snapshot{Phase: model.PhaseRunning, Tiers: tiers, Services: services}
-	stopping := &model.Snapshot{Phase: model.PhaseStopping, Tiers: tiers, Services: services}
-	listening := &model.Snapshot{Phase: model.PhaseRunning, API: model.API{Address: "127.0.0.1:9876", Listening: true}, Tiers: tiers, Services: services}
-
-	subject := NewModel(t.Context(), ModelParams{Profile: "default", Theme: theme, Logger: log})
-	subject.snapshot = running
-	subject.state.serviceIDs = []string{"id-api"}
-
-	width := 100
-	height := 20
-
-	tests := []struct {
-		name   string
-		before func() Model
-		cached bool
-	}{
-		{
-			name: "an unchanged state returns the cached lines",
-			before: func() Model {
-				return subject
-			},
-			cached: true,
-		},
-		{
-			name: "a phase change renders again",
-			before: func() Model {
-				m := subject
-				m.snapshot = stopping
-
-				return m
-			},
-			cached: false,
-		},
-		{
-			name: "an API change renders again",
-			before: func() Model {
-				m := subject
-				m.snapshot = listening
-
-				return m
-			},
-			cached: false,
-		},
-		{
-			name: "a filter change renders again",
-			before: func() Model {
-				m := subject
-				m.state.filterQuery = "web"
-
-				return m
-			},
-			cached: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := tt.before()
-
-			first := subject.renderServicesPanelLines(width, height, false, "")
-			second := m.renderServicesPanelLines(width, height, false, "")
-
-			assert.Equal(t, tt.cached, &first[0] == &second[0])
-			assert.Equal(t, tt.cached, slices.Equal(first, second))
-		})
-	}
 }
 
 func Test_RenderStatus_PhaseColors(t *testing.T) {
@@ -637,7 +559,6 @@ func Test_View_FilterBarInBottomBorder(t *testing.T) {
 
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, registry: mockRegistry}
-	m.ui.servicesPanelCache = &renderCache{}
 	m.state.ready = true
 	m.state.profile = "default"
 	m.state.serviceIDs = []string{"api"}
@@ -795,7 +716,6 @@ func Test_View_AsideClosed_FullWidth(t *testing.T) {
 
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, registry: mockRegistry}
-	m.ui.servicesPanelCache = &renderCache{}
 	m.state.ready = true
 	m.state.profile = "default"
 	m.state.serviceIDs = []string{"api"}
@@ -831,7 +751,6 @@ func Test_View_AsideOpen_SplitWidth(t *testing.T) {
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, registry: mockRegistry, snapshot: snapshot}
 	m.ui.asideCache = &asideContentCache{}
-	m.ui.servicesPanelCache = &renderCache{}
 	m.state.ready = true
 	m.state.profile = "default"
 	m.state.serviceIDs = []string{"api"}
@@ -871,7 +790,6 @@ func Test_View_AsideOpen_NarrowTerminalHidesAside(t *testing.T) {
 
 	loader := &Loader{Model: spinner.New(), Active: false, queue: make([]LoaderItem, 0)}
 	m := Model{loader: loader, registry: mockRegistry, snapshot: snapshot}
-	m.ui.servicesPanelCache = &renderCache{}
 	m.state.ready = true
 	m.state.profile = "default"
 	m.state.serviceIDs = []string{"api"}

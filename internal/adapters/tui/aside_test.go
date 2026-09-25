@@ -372,6 +372,16 @@ func Test_UpdateAsideContent_Cache(t *testing.T) {
 			},
 			cached: false,
 		},
+		{
+			name: "a background change within the same second rebuilds the lines",
+			before: func() (Model, []string) {
+				m := primed()
+				m.theme = terminal.NewTheme(terminal.AppearanceLight)
+
+				return m, m.ui.asideLines
+			},
+			cached: false,
+		},
 	}
 
 	for _, tt := range tests {

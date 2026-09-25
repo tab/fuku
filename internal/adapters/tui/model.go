@@ -2,7 +2,7 @@ package tui
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"charm.land/bubbles/v2/help"
@@ -48,13 +48,14 @@ type Logger interface {
 
 // Model represents the Bubble Tea model for the services UI
 type Model struct {
-	ctx         context.Context
-	project     model.Project
-	control     Control
-	registry    Registry
-	monitor     Monitor
-	environment Environment
-	theme       terminal.Theme
+	ctx           context.Context
+	retryAttempts int
+	retryBackoff  time.Duration
+	control       Control
+	registry      Registry
+	monitor       Monitor
+	environment   Environment
+	theme         terminal.Theme
 
 	loader   *Loader
 	snapshot *model.Snapshot // set inside the Read callback, cleared by Update before it returns the model
@@ -86,20 +87,18 @@ type Model struct {
 	}
 
 	ui struct {
-		height                 int
-		width                  int
-		layout                 terminal.TableLayout
-		servicesKeys           KeyMap
-		tickCounter            int
-		showTips               bool
-		tipOffset              int
-		servicesContentVersion uint64
-		help                   help.Model
-		servicesViewport       viewport.Model
-		asideViewport          viewport.Model
-		asideLines             []string
-		asideCache             *asideContentCache
-		servicesPanelCache     *renderCache
+		height           int
+		width            int
+		layout           terminal.TableLayout
+		servicesKeys     KeyMap
+		tickCounter      int
+		showTips         bool
+		tipOffset        int
+		help             help.Model
+		servicesViewport viewport.Model
+		asideViewport    viewport.Model
+		asideLines       []string
+		asideCache       *asideContentCache
 	}
 
 	log Logger
@@ -107,28 +106,30 @@ type Model struct {
 
 // ModelParams contains the dependencies of the services UI model
 type ModelParams struct {
-	Profile     string
-	Project     model.Project
-	Control     Control
-	Registry    Registry
-	Monitor     Monitor
-	Environment Environment
-	Theme       terminal.Theme
-	Logger      Logger
+	Profile       string
+	RetryAttempts int
+	RetryBackoff  time.Duration
+	Control       Control
+	Registry      Registry
+	Monitor       Monitor
+	Environment   Environment
+	Theme         terminal.Theme
+	Logger        Logger
 }
 
 // NewModel creates the services UI model (bus messages reach it as EventMsg values sent to the program)
 func NewModel(ctx context.Context, params ModelParams) Model {
 	m := Model{
-		ctx:         ctx,
-		project:     params.Project,
-		control:     params.Control,
-		registry:    params.Registry,
-		monitor:     params.Monitor,
-		environment: params.Environment,
-		theme:       params.Theme,
-		loader:      NewLoader(),
-		log:         params.Logger,
+		ctx:           ctx,
+		retryAttempts: params.RetryAttempts,
+		retryBackoff:  params.RetryBackoff,
+		control:       params.Control,
+		registry:      params.Registry,
+		monitor:       params.Monitor,
+		environment:   params.Environment,
+		theme:         params.Theme,
+		loader:        NewLoader(),
+		log:           params.Logger,
 	}
 
 	m.state.profile = params.Profile
@@ -139,27 +140,19 @@ func NewModel(ctx context.Context, params ModelParams) Model {
 	m.ui.servicesKeys = defaultKeyMap()
 	m.ui.showTips = true
 	//nolint:gosec // not security-critical
-	m.ui.tipOffset = rand.Intn(len(terminal.Tips))
+	m.ui.tipOffset = rand.IntN(len(terminal.Tips))
 	m.ui.help = help.New()
 	m.ui.help.Styles = help.DefaultStyles(params.Theme.Appearance == terminal.AppearanceDark)
 	m.ui.servicesViewport = viewport.New()
 	m.ui.asideViewport = viewport.New()
 	m.ui.asideCache = &asideContentCache{}
-	m.ui.servicesPanelCache = &renderCache{}
 
 	return m
 }
 
 // asideContentCache debounces asideContent rebuilds to one per second (a pointer so value receivers can write it)
 type asideContentCache struct {
-	key     string
-	content string
-}
-
-// renderCache memoizes a rendered panel as lines keyed by a state hash (a pointer so value receivers can write it)
-type renderCache struct {
-	key   string
-	lines []string
+	key string
 }
 
 // Init initializes the model
@@ -252,10 +245,8 @@ func (m Model) calculateScrollOffset() int {
 	return m.ui.servicesViewport.YOffset()
 }
 
-// updateServicesContent rebuilds the services viewport content and bumps the version that invalidates the cached render
+// updateServicesContent rebuilds the services viewport content
 func (m *Model) updateServicesContent() {
-	m.ui.servicesContentVersion++
-
 	tiers := m.activeTiers()
 
 	if len(tiers) == 0 {

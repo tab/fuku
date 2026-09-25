@@ -148,7 +148,6 @@ func (m *Model) updateAsideContent() {
 	body := m.asideContent(service, width)
 
 	m.ui.asideCache.key = key
-	m.ui.asideCache.content = body
 
 	m.ui.asideViewport.SetContent(body)
 
@@ -163,10 +162,10 @@ func (m *Model) updateAsideContent() {
 // asideContentCacheKey returns a stable string that captures every input affecting asideContent's output
 func (m Model) asideContentCacheKey(service *model.Service, innerWidth int) string {
 	if service == nil {
-		return strconv.Itoa(innerWidth) + "|" + string(m.state.asideTab) + "|nil"
+		return strconv.Itoa(innerWidth) + "|" + string(m.theme.Appearance) + "|" + string(m.state.asideTab) + "|nil"
 	}
 
-	return strconv.Itoa(innerWidth) + "|" + string(m.state.asideTab) + "|" + service.ID + "|" + string(service.Status) + "|" + strconv.Itoa(service.Process.PID) + "|" + service.Error + "|" + service.LifecycleAt.String() + "|" + m.state.now.Truncate(time.Second).String()
+	return strconv.Itoa(innerWidth) + "|" + string(m.theme.Appearance) + "|" + string(m.state.asideTab) + "|" + service.ID + "|" + string(service.Status) + "|" + strconv.Itoa(service.Process.PID) + "|" + service.Error + "|" + service.LifecycleAt.String() + "|" + m.state.now.Truncate(time.Second).String()
 }
 
 // asideScrollIndicator returns a small percent string when the aside content exceeds the viewport, otherwise empty

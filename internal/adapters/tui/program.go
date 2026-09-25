@@ -8,7 +8,6 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/terminal"
-	"fuku/internal/model"
 )
 
 // Output switches the application log output on once the view no longer owns the terminal
@@ -21,7 +20,6 @@ type ProgramParams struct {
 	fx.In
 
 	Options     Options
-	Project     model.Project
 	Bridge      *Bridge
 	Control     Control
 	Registry    Registry
@@ -46,14 +44,15 @@ func NewProgram(params ProgramParams) *Program {
 // Run runs the view on the bridge until it quits or ctx ends, then gives the terminal back to the log
 func (p *Program) Run(ctx context.Context) (int, error) {
 	model := NewModel(ctx, ModelParams{
-		Profile:     p.params.Options.Profile,
-		Project:     p.params.Project,
-		Control:     p.params.Control,
-		Registry:    p.params.Registry,
-		Monitor:     p.params.Monitor,
-		Environment: p.params.Environment,
-		Theme:       p.params.Theme(),
-		Logger:      p.params.Logger,
+		Profile:       p.params.Options.Profile,
+		RetryAttempts: p.params.Options.RetryAttempts,
+		RetryBackoff:  p.params.Options.RetryBackoff,
+		Control:       p.params.Control,
+		Registry:      p.params.Registry,
+		Monitor:       p.params.Monitor,
+		Environment:   p.params.Environment,
+		Theme:         p.params.Theme(),
+		Logger:        p.params.Logger,
 	})
 
 	program := tea.NewProgram(model, append([]tea.ProgramOption{tea.WithContext(ctx), tea.WithoutSignalHandler()}, p.options...)...)

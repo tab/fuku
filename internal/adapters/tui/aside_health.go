@@ -76,8 +76,8 @@ func (m Model) asideProcessCard(service *model.Service, innerWidth int) string {
 
 // asideRetryCard renders the global retry policy
 func (m Model) asideRetryCard(innerWidth int) string {
-	attempts := m.project.Retry.Attempts
-	backoff := m.project.Retry.Backoff
+	attempts := m.retryAttempts
+	backoff := m.retryBackoff
 
 	if attempts == 0 && backoff == 0 {
 		return ""

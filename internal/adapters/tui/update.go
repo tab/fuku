@@ -205,16 +205,16 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 
 	if m.state.asideFocused {
-		switch msg.String() {
-		case "home":
+		switch {
+		case key.Matches(msg, m.ui.servicesKeys.Home):
 			m.ui.asideViewport.GotoTop()
 
 			return m, nil
-		case "end":
+		case key.Matches(msg, m.ui.servicesKeys.End):
 			m.ui.asideViewport.GotoBottom()
 
 			return m, nil
-		case "pgup", "pgdown":
+		case key.Matches(msg, m.ui.servicesKeys.PageUp, m.ui.servicesKeys.PageDown):
 			var cmd tea.Cmd
 
 			m.ui.asideViewport, cmd = m.ui.asideViewport.Update(msg)
@@ -225,8 +225,7 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.String() {
-	case "pgup", "pgdown", "home", "end":
+	if key.Matches(msg, m.ui.servicesKeys.PageUp, m.ui.servicesKeys.PageDown, m.ui.servicesKeys.Home, m.ui.servicesKeys.End) {
 		var cmd tea.Cmd
 
 		m.ui.servicesViewport, cmd = m.ui.servicesViewport.Update(msg)

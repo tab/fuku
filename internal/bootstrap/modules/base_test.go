@@ -240,7 +240,7 @@ func Test_Projections(t *testing.T) {
 	buildHeadless.Telemetry = buildTelemetry
 	buildHeadless.Resources = resources.Options{Enabled: true}
 	view := headless
-	view.TUI = tui.Options{Profile: profile}
+	view.TUI = tui.Options{Profile: profile, RetryAttempts: 3, RetryBackoff: 2 * time.Second}
 	stream := shared
 	stream.Request = logs.Request{Profile: profile, Services: []string{"api"}, ReplayOptions: replay}
 	bare := options{Bus: shared.Bus, Telemetry: buildTelemetry}

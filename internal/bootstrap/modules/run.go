@@ -77,7 +77,9 @@ var headless = fx.Options(
 var view = fx.Options(
 	fx.Provide(
 		func(log *slog.Logger) tui.Logger { return log.With("component", "UI") },
-		func(cmd *cli.Options) tui.Options { return tui.Options{Profile: cmd.Profile} },
+		func(cmd *cli.Options, p model.Project) tui.Options {
+			return tui.Options{Profile: cmd.Profile, RetryAttempts: p.Retry.Attempts, RetryBackoff: p.Retry.Backoff}
+		},
 		func(w *output.Writer) tui.Output { return w },
 		func(m *resources.ProcessMonitor) tui.Monitor { return m },
 		func(r *envfiles.Reader) environment.Reader { return r },

@@ -23,7 +23,7 @@ func Test_NewModel(t *testing.T) {
 	theme := terminal.NewTheme(terminal.AppearanceDark)
 	log := slog.New(slog.DiscardHandler)
 
-	m := NewModel(t.Context(), ModelParams{Profile: "dev", Project: model.Project{}, Theme: theme, Logger: log})
+	m := NewModel(t.Context(), ModelParams{Profile: "dev", Theme: theme, Logger: log})
 
 	assert.Equal(t, theme, m.theme)
 	assert.Equal(t, help.DefaultStyles(true), m.ui.help.Styles)

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -41,7 +40,7 @@ func (m Model) render() tea.View {
 		panelVersion = ""
 	}
 
-	panelLines := m.renderServicesPanelLines(mainWidth, panelHeight, asideShown, panelVersion)
+	panelLines := m.renderServicesPanelLines(mainWidth, panelHeight, panelVersion)
 
 	rowLines := panelLines
 
@@ -76,15 +75,9 @@ func (m Model) helpKeyMap(asideShown bool) KeyMap {
 	return km
 }
 
-// renderServicesPanelLines returns the services panel as lines, cached while its cheap-to-hash inputs are unchanged
-func (m Model) renderServicesPanelLines(mainWidth, panelHeight int, asideShown bool, panelVersion string) []string {
-	key := m.servicesPanelCacheKey(mainWidth, panelHeight, asideShown, panelVersion)
-
-	if m.ui.servicesPanelCache.key == key {
-		return m.ui.servicesPanelCache.lines
-	}
-
-	lines := terminal.RenderPanelLines(terminal.PanelOptions{
+// renderServicesPanelLines returns the services panel as lines
+func (m Model) renderServicesPanelLines(mainWidth, panelHeight int, panelVersion string) []string {
+	return terminal.RenderPanelLines(terminal.PanelOptions{
 		Title:       m.renderTitle(),
 		Content:     m.renderServices(),
 		Status:      m.renderStatus(),
@@ -94,37 +87,6 @@ func (m Model) renderServicesPanelLines(mainWidth, panelHeight int, asideShown b
 		Width:       mainWidth,
 		BorderStyle: m.servicesPanelBorderStyle(),
 	})
-
-	m.ui.servicesPanelCache.key = key
-	m.ui.servicesPanelCache.lines = lines
-
-	return lines
-}
-
-// servicesPanelCacheKey concatenates every input that affects the services panel render into a stable key
-func (m Model) servicesPanelCacheKey(mainWidth, panelHeight int, asideShown bool, panelVersion string) string {
-	loaderTick := 0
-	if m.loader.Active {
-		loaderTick = m.ui.tickCounter
-	}
-
-	return strconv.Itoa(mainWidth) + "|" +
-		strconv.Itoa(panelHeight) + "|" +
-		strconv.Itoa(m.ui.servicesViewport.YOffset()) + "|" +
-		strconv.FormatUint(m.ui.servicesContentVersion, 10) + "|" +
-		strconv.Itoa(loaderTick) + "|" +
-		strconv.FormatBool(m.state.asideFocused) + "|" +
-		strconv.FormatBool(asideShown) + "|" +
-		string(m.snapshot.Phase) + "|" +
-		m.snapshot.API.Address + "|" +
-		strconv.FormatBool(m.snapshot.API.Listening) + "|" +
-		strconv.Itoa(int(m.state.appCPU*100)) + "|" +
-		strconv.Itoa(int(m.state.appMEM*100)) + "|" +
-		strconv.FormatBool(m.state.filterActive) + "|" +
-		m.state.filterQuery + "|" +
-		m.state.profile + "|" +
-		m.state.availableVersion + "|" +
-		panelVersion
 }
 
 // renderStatus renders the status bar with phase and service counts
