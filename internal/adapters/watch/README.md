@@ -31,7 +31,7 @@ flowchart LR
 
 - write, create, remove and rename count. Other events are ignored
 - a path is matched relative to the service directory or the shared path. A `**/` pattern also matches at the root
-- the window is `watch.debounce`, default 500ms. Every change restarts the timer. The batch is the set of changed files
+- the window is `watch.debounce`. Every change restarts the timer. The batch is the set of changed files
 - `WatchTriggered` is critical. A rejected publish is logged
 
 ## Changing it

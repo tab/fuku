@@ -99,7 +99,7 @@ func (r *Runner) checkServiceDotenv(st *state, names []string) model.Result {
 
 	for _, name := range names {
 		svc, _ := st.Project.Service(name)
-		if svc.Environment == nil || len(svc.Environment.Files) == 0 {
+		if svc.Environment == nil || svc.Environment.Defaulted || len(svc.Environment.Files) == 0 {
 			continue
 		}
 

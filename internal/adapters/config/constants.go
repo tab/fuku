@@ -42,6 +42,19 @@ const (
 	DefaultInterval = 500 * time.Millisecond
 )
 
+// Watch defaults
+const (
+	DefaultDebounce = 500 * time.Millisecond
+)
+
+// Env file defaults
+const (
+	DefaultEnvFile                 = ".env"
+	DefaultEnvFileLocal            = ".env.local"
+	DefaultEnvFileDevelopment      = ".env.development"
+	DefaultEnvFileDevelopmentLocal = ".env.development.local"
+)
+
 // Retry settings
 const (
 	RetryAttempts = 3

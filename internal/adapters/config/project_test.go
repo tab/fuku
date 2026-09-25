@@ -32,8 +32,14 @@ func Test_Project(t *testing.T) {
 			Logs: &Logs{Output: []string{"stdout"}},
 			Env:  &Env{Files: []string{".env", ".env.local"}},
 		},
-		"db":      {Dir: "services/db", Tier: "foundation"},
-		"cache":   {Dir: "services/cache", Tier: "foundation", Env: &Env{}},
+		"db": {Dir: "services/db", Tier: "foundation"},
+		"cache": {
+			Dir:   "services/cache",
+			Tier:  "foundation",
+			Watch: &Watch{Include: []string{"**/*.go"}},
+			Logs:  &Logs{Output: []string{}},
+			Env:   &Env{},
+		},
 		"unknown": {Dir: "services/unknown", Tier: "missing", Env: &Env{Files: []string{}}},
 	}
 	profiles := map[string]any{
@@ -62,8 +68,23 @@ func Test_Project(t *testing.T) {
 	topology := &model.Topology{Order: tierOrder}
 	expected := model.Project{
 		Services: []model.Service{
-			{Name: "cache", Command: DefaultServiceCommand, Directory: "services/cache", Tier: "foundation", Environment: &model.EnvFiles{}},
-			{Name: "db", Command: DefaultServiceCommand, Directory: "services/db", Tier: "foundation"},
+			{
+				Name:        "cache",
+				Command:     DefaultServiceCommand,
+				Directory:   "services/cache",
+				Tier:        "foundation",
+				Watch:       &model.Watch{Include: []string{"**/*.go"}, Debounce: DefaultDebounce},
+				LogOutput:   []string{"stdout", "stderr"},
+				Environment: &model.EnvFiles{Files: []string{".env", ".env.local", ".env.development", ".env.development.local"}, Defaulted: true},
+			},
+			{
+				Name:        "db",
+				Command:     DefaultServiceCommand,
+				Directory:   "services/db",
+				Tier:        "foundation",
+				LogOutput:   []string{"stdout", "stderr"},
+				Environment: &model.EnvFiles{Files: []string{".env", ".env.local", ".env.development", ".env.development.local"}, Defaulted: true},
+			},
 			{
 				Name:      "web",
 				Command:   "make dev",
@@ -89,6 +110,7 @@ func Test_Project(t *testing.T) {
 				Command:     DefaultServiceCommand,
 				Directory:   "services/unknown",
 				Tier:        model.TierDefault,
+				LogOutput:   []string{"stdout", "stderr"},
 				Environment: &model.EnvFiles{Files: []string{}},
 			},
 		},

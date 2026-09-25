@@ -14,7 +14,7 @@ Each stream goes to a stream writer that exec copies the child's output into:
 
 - the writer passes every chunk to the handle's reader. Readiness reads it
 - it also logs each line under the service and broadcasts it to the `LogSink`.
-  The service's `logs.output` says which streams; both by default
+  The service's `logs.output` says which streams
 - lines longer than 4 MiB are truncated in the broadcast
 
 `wait` reaps the child, closes both writers and then closes `Done()`.

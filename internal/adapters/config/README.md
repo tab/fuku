@@ -46,7 +46,10 @@ A `model.Service` carries identity and configuration:
 - the command defaults to `make run`
 - the tier defaults to `default` when unset or unknown
 - the readiness timeout and interval default to 30s and 500ms
-- an explicit empty `env.files` list stays a non-nil empty slice. `app/environment` reads that as "load nothing". An absent list loads the defaults
+- the watch debounce defaults to 500ms
+- the log output defaults to `stdout` and `stderr` when the list is absent or empty
+- an absent `env.files` list defaults to `.env`, `.env.local`, `.env.development` and `.env.development.local`. `Defaulted` marks it
+- an explicit empty `env.files` list stays empty. It loads nothing
 
 Profile resolution preserves the service's ID and configuration.
 Starts, stops and restarts use that same ID for the loaded project.

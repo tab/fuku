@@ -64,9 +64,10 @@ type Watch struct {
 	Debounce time.Duration
 }
 
-// EnvFiles lists the environment files shown by fuku (an empty list disables loading, nil means the defaults)
+// EnvFiles lists the environment files shown by fuku (an empty list disables loading)
 type EnvFiles struct {
-	Files []string
+	Files     []string
+	Defaulted bool
 }
 
 // Logging is the application log level and output format

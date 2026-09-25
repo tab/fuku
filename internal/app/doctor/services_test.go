@@ -159,6 +159,7 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 			{Name: "api", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}}},
 			{Name: "missing", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env.local"}}},
 			{Name: "noenv", Directory: "/srv/api"},
+			{Name: "defaulted", Directory: "/srv/api", Environment: &model.EnvFiles{Files: []string{".env"}, Defaulted: true}},
 		},
 	}}}
 
@@ -172,6 +173,12 @@ func Test_Runner_checkServiceDotenv(t *testing.T) {
 			name:     "no env files referenced",
 			before:   func() {},
 			names:    []string{"noenv"},
+			expected: model.SeverityIdle,
+		},
+		{
+			name:     "defaulted env files are not checked",
+			before:   func() {},
+			names:    []string{"defaulted"},
 			expected: model.SeverityIdle,
 		},
 		{

@@ -93,12 +93,8 @@ func (w *streamWriter) emit() {
 	w.line = w.line[:0]
 }
 
-// logsStream reports whether the service logs a stream (no log output or an empty list logs both)
+// logsStream reports whether the service logs a stream
 func logsStream(service model.Service, stream string) bool {
-	if len(service.LogOutput) == 0 {
-		return true
-	}
-
 	for _, output := range service.LogOutput {
 		if strings.EqualFold(output, stream) {
 			return true

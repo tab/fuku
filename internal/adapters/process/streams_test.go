@@ -22,24 +22,6 @@ func Test_logsStream(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "no log output logs both streams",
-			service:  model.Service{Name: "api"},
-			stream:   streamStdout,
-			expected: true,
-		},
-		{
-			name:     "an empty output list logs stdout",
-			service:  model.Service{Name: "api", LogOutput: []string{}},
-			stream:   streamStdout,
-			expected: true,
-		},
-		{
-			name:     "an empty output list logs stderr",
-			service:  model.Service{Name: "api", LogOutput: []string{}},
-			stream:   streamStderr,
-			expected: true,
-		},
-		{
 			name:     "stdout configured logs stdout",
 			service:  model.Service{Name: "api", LogOutput: []string{"stdout"}},
 			stream:   streamStdout,

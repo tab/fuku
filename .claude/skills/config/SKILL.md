@@ -92,12 +92,12 @@ server:
 - `include` is required when `watch` is set. Globs relative to `dir`.
 - `ignore` lists globs to skip.
 - `shared` lists directories outside `dir` that also restart the service. Relative to fuku's working directory.
-- `debounce` is the quiet window after a change. Default 500ms (`adapters/watch`).
+- `debounce` is the quiet window after a change. Default 500ms.
 
 ### `env`
 
 - `files` lists `.env` files relative to `dir`. They feed the TUI env tab only. Nothing reaches the child.
-- absent: the four defaults (`app/environment`). An explicit `[]` loads nothing. A path that leaves `dir` is an error.
+- absent: the four defaults. An explicit `[]` loads nothing. A path that leaves `dir` is an error.
 
 ## `defaults`
 

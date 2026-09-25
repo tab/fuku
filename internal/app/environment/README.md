@@ -9,7 +9,7 @@ The store is a consumer of the run composition. Its subscription is optional and
 
 - `ProfileResolved` reloads every service of the profile
 - `ServiceStarting` reloads that one service, so a restart picks up an edit
-- the files are the service's `env.files`, or `.env`, `.env.local`, `.env.development` and `.env.development.local`
+- the files are the service's `env.files`. `adapters/config` fills the defaults
 - the files merge in that order. A later file overrides an earlier key. The first occurrence keeps its position
 - a file the reader cannot supply is skipped: missing, unreadable or unparsable. The tab shows what loaded
 - a service without a directory has no entries

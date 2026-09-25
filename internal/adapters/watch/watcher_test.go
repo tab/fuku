@@ -1021,7 +1021,7 @@ func Test_Watcher_register(t *testing.T) {
 
 	require.NoError(t, w.Start(t.Context()))
 
-	w.targets[api.ID] = &target{svc: api, debouncer: newDebouncer(DefaultDebounce, nil)}
+	w.targets[api.ID] = &target{svc: api, debouncer: newDebouncer(time.Hour, nil)}
 
 	tests := []struct {
 		name             string

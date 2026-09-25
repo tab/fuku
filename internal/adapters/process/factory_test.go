@@ -148,7 +148,7 @@ func Test_Factory_Start_ReadsTheStreamsToTheirEnd(t *testing.T) {
 
 	factory := NewFactory(tracker, mockSink, mockLog)
 
-	svc := model.Service{ID: "test-id-api", Name: "api", Command: "seq 1 50000", Directory: t.TempDir()}
+	svc := model.Service{ID: "test-id-api", Name: "api", Command: "seq 1 50000", Directory: t.TempDir(), LogOutput: []string{"stdout", "stderr"}}
 
 	var last string
 

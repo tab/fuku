@@ -136,30 +136,34 @@ func projectWatch(watch *Watch) *model.Watch {
 		return nil
 	}
 
+	debounce := watch.Debounce
+	if debounce == 0 {
+		debounce = DefaultDebounce
+	}
+
 	return &model.Watch{
 		Include:  append([]string(nil), watch.Include...),
 		Ignore:   append([]string(nil), watch.Ignore...),
 		Shared:   append([]string(nil), watch.Shared...),
-		Debounce: watch.Debounce,
+		Debounce: debounce,
 	}
 }
 
 func projectLogOutput(logs *Logs) []string {
-	if logs == nil {
-		return nil
+	if logs == nil || len(logs.Output) == 0 {
+		return []string{"stdout", "stderr"}
 	}
 
 	return append([]string(nil), logs.Output...)
 }
 
-// projectEnvironment tells an explicit empty file list from an absent one (an empty list disables env loading)
+// projectEnvironment fills the default files for an absent list and keeps an explicit empty one
 func projectEnvironment(env *Env) *model.EnvFiles {
-	if env == nil {
-		return nil
-	}
-
-	if env.Files == nil {
-		return &model.EnvFiles{}
+	if env == nil || env.Files == nil {
+		return &model.EnvFiles{
+			Files:     []string{DefaultEnvFile, DefaultEnvFileLocal, DefaultEnvFileDevelopment, DefaultEnvFileDevelopmentLocal},
+			Defaulted: true,
+		}
 	}
 
 	return &model.EnvFiles{Files: append([]string{}, env.Files...)}

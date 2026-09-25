@@ -9,16 +9,12 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
-
-// DefaultDebounce is the restart delay after a change for a service that sets none
-const DefaultDebounce = 500 * time.Millisecond
 
 // target holds state for a single watched service
 type target struct {
@@ -119,12 +115,7 @@ func (w *Watcher) startWatching(svc model.Service) {
 		matcher: matcher,
 	}
 
-	debounce := svc.Watch.Debounce
-	if debounce == 0 {
-		debounce = DefaultDebounce
-	}
-
-	t.debouncer = newDebouncer(debounce, func(files []string) {
+	t.debouncer = newDebouncer(svc.Watch.Debounce, func(files []string) {
 		w.publishTriggered(svc, files)
 	})
 
