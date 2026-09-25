@@ -51,7 +51,6 @@ func configured(cmd *cli.Options, project model.Project) fx.Option {
 			func(p model.Project) output.Options { return output.Options{Format: p.Logging.Format} },
 			func(p model.Project) terminal.Options { return terminal.Options{Format: p.Logging.Format} },
 			func(h *logs.Hub) eventlog.Broadcaster { return h },
-			func(l *terminal.Log) output.Formatter { return l },
 		),
 		cli.Module,
 		eventlog.Module,

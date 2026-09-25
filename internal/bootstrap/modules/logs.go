@@ -27,8 +27,6 @@ func Logs(cmd *cli.Options, project model.Project) fx.Option {
 				return logs.Request{Profile: cmd.Profile, Services: cmd.Services, ReplayOptions: cmd.ReplayOptions}
 			},
 			func(c *logsocket.Client) logs.Client { return c },
-			func(l *terminal.Log) cli.Formatter { return l },
-			func(l *terminal.Log) tui.Formatter { return l },
 			func(s *logs.Session) cli.Session { return s },
 			newLogsParticipants,
 		),

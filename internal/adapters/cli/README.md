@@ -26,8 +26,8 @@ Each command is the `Command` participant of its composition. Its `Run` returns 
 ## Using it
 
 `bootstrap.Run` calls `Parse`, then `ChangeToConfigDir`, so the project resolves from the directory of an explicit `--config` file.
-The compositions bind the consumer interfaces: `Runtime` and `Cleaner` to the services core, `Session` to the log session,
-`Checker` to the doctor runner and `Formatter` to `terminal.Log`.
+The compositions bind the consumer interfaces: `Runtime` and `Cleaner` to the services core, `Session` to the log session
+and `Checker` to the doctor runner. `LogView` takes `terminal.Log` as its `Formatter` directly. No binding exists for it.
 The doctor `Renderer` is `JSON` here or a `tui` renderer, picked by `--json` and `--summary`.
 
 ## Changing it
