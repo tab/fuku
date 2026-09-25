@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"io"
 	"time"
 
 	"fuku/internal/contracts"
@@ -170,31 +169,13 @@ func (r *Runtime) terminate(proc contracts.Process) {
 	r.tracker.Untrack(id, proc)
 }
 
-// waitForReady runs the readiness check while keeping the process streams flowing (a log check reads them itself first)
+// waitForReady runs the readiness check of a service that has one
 func (r *Runtime) waitForReady(ctx context.Context, readiness *model.Readiness, proc contracts.Process) error {
-	stdout := proc.Stdout()
-	stderr := proc.Stderr()
-
 	if readiness == nil {
-		go drainPipe(stdout)
-		go drainPipe(stderr)
-
 		return nil
 	}
 
-	if readiness.Type != model.ReadinessLog {
-		go drainPipe(stdout)
-		go drainPipe(stderr)
-
-		return r.check(ctx, *readiness, proc)
-	}
-
-	err := r.check(ctx, *readiness, proc)
-
-	go drainPipe(stdout)
-	go drainPipe(stderr)
-
-	return err
+	return r.check(ctx, *readiness, proc)
 }
 
 // check runs the readiness check and names a failure
@@ -257,9 +238,4 @@ func (r *Runtime) probePort(name string, readiness *model.Readiness) error {
 	r.log.Warn(fmt.Sprintf("Service '%s' address %s is already in use", name, port.Address))
 
 	return fmt.Errorf("%w: %s", contracts.ErrPortAlreadyInUse, port.Address)
-}
-
-func drainPipe(reader io.Reader) {
-	//nolint:errcheck // intentionally draining pipe
-	io.Copy(io.Discard, reader)
 }

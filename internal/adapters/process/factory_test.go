@@ -155,9 +155,6 @@ func Test_Factory_Start_ReadsTheStreamsToTheirEnd(t *testing.T) {
 	record := func(_, message string) {
 		last = message
 	}
-	drain := func(reader io.Reader) {
-		io.Copy(io.Discard, reader)
-	}
 
 	mockLog.EXPECT().Info(gomock.Any(), gomock.Any()).AnyTimes()
 	mockSink.EXPECT().Broadcast(svc.Name, gomock.Any()).Do(record).AnyTimes()
@@ -166,9 +163,6 @@ func Test_Factory_Start_ReadsTheStreamsToTheirEnd(t *testing.T) {
 
 	require.NoError(t, err)
 
-	go drain(proc.Stdout())
-	go drain(proc.Stderr())
-
 	select {
 	case <-proc.Done():
 	case <-time.After(5 * time.Second):
@@ -176,6 +170,93 @@ func Test_Factory_Start_ReadsTheStreamsToTheirEnd(t *testing.T) {
 	}
 
 	assert.Equal(t, "50000", last)
+}
+
+func Test_Factory_Start_LongLineNeverStallsTheChild(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSink := NewMockLogSink(ctrl)
+
+	tracker := NewTracker()
+	log := slog.New(slog.DiscardHandler)
+
+	factory := NewFactory(tracker, mockSink, log)
+
+	svc := model.Service{ID: "test-id-api", Name: "api", Command: "head -c 5242880 /dev/zero | tr '\\0' x; echo", Directory: t.TempDir(), LogOutput: []string{"stdout"}}
+
+	var broadcast int
+
+	record := func(_, message string) {
+		broadcast = len(message)
+	}
+
+	mockSink.EXPECT().Broadcast(svc.Name, gomock.Any()).Do(record)
+
+	proc, err := factory.Start(svc)
+
+	require.NoError(t, err)
+
+	killGroup := func() {
+		syscall.Kill(-proc.PID(), syscall.SIGKILL)
+	}
+
+	defer killGroup()
+
+	select {
+	case <-proc.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("a 5 MiB line nobody reads stalled the child")
+	}
+
+	assert.Equal(t, MaxLineSize, broadcast)
+}
+
+func Test_Factory_Start_StdoutCopy(t *testing.T) {
+	tracker := NewTracker()
+	log := slog.New(slog.DiscardHandler)
+
+	factory := NewFactory(tracker, nil, log)
+
+	logProbe := &model.Readiness{Type: model.ReadinessLog, Pattern: "ready"}
+	httpProbe := &model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}
+
+	tests := []struct {
+		name     string
+		service  model.Service
+		expected string
+		err      error
+	}{
+		{
+			name:     "a service with a log probe gets a copy of its output",
+			service:  model.Service{ID: "test-id-api", Name: "api", Command: "echo ready", Directory: t.TempDir(), Readiness: logProbe},
+			expected: "ready\n",
+		},
+		{
+			name:    "a service without a log probe gets its copy closed from the start",
+			service: model.Service{ID: "test-id-api", Name: "api", Command: "echo ready", Directory: t.TempDir(), Readiness: httpProbe},
+			err:     io.ErrClosedPipe,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proc, err := factory.Start(tt.service)
+
+			require.NoError(t, err)
+
+			output, err := io.ReadAll(proc.Stdout())
+
+			require.ErrorIs(t, err, tt.err)
+			assert.Equal(t, tt.expected, string(output))
+
+			select {
+			case <-proc.Done():
+			case <-time.After(2 * time.Second):
+				t.Fatal("the child's exit did not close done")
+			}
+		})
+	}
 }
 
 func Test_Factory_Start_DescendantHoldingTheStreams(t *testing.T) {

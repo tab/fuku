@@ -3,10 +3,8 @@ package services
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 
@@ -81,7 +79,6 @@ func Test_Runtime_Run(t *testing.T) {
 	mockProcess := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	http := &model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}
 	svc := model.Service{ID: "test-id-api", Name: "api", Directory: "api", Tier: "platform", Readiness: http}
@@ -149,8 +146,6 @@ func Test_Runtime_Run(t *testing.T) {
 	mockReadiness.EXPECT().ProbePort(*http).Return(model.Port{Address: "localhost:8080"}).AnyTimes()
 	mockProcess.EXPECT().PID().Return(42).AnyTimes()
 	mockProcess.EXPECT().Service().Return(svc).AnyTimes()
-	mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 	mockTracker.EXPECT().Untrack(svc.ID, mockProcess).Return(false).AnyTimes()
 
 	tests := []struct {
@@ -389,7 +384,6 @@ func Test_Runtime_StartTier(t *testing.T) {
 	mockProcess := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	api := model.Service{ID: "test-id-api", Name: "api", Tier: "platform"}
 	worker := model.Service{ID: "test-id-worker", Name: "worker", Tier: "platform"}
@@ -428,8 +422,6 @@ func Test_Runtime_StartTier(t *testing.T) {
 	})
 
 	mockProcess.EXPECT().PID().Return(42).AnyTimes()
-	mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 	mockProcess.EXPECT().Done().Return(running).AnyTimes()
 
 	tests := []struct {
@@ -537,7 +529,6 @@ func Test_Runtime_StartAllTiers(t *testing.T) {
 	mockProcess := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	postgres := model.Service{ID: "test-id-postgres", Name: "postgres", Tier: "foundation"}
 	api := model.Service{ID: "test-id-api", Name: "api", Tier: "platform"}
@@ -606,8 +597,6 @@ func Test_Runtime_StartAllTiers(t *testing.T) {
 	mockPool.EXPECT().Acquire(gomock.Any()).Return(nil).Times(2)
 	mockPool.EXPECT().Release().Times(2)
 	mockProcess.EXPECT().PID().Return(42).AnyTimes()
-	mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 	mockProcess.EXPECT().Done().Return(running).AnyTimes()
 	gomock.InOrder(
 		mockLauncher.EXPECT().Start(postgres).Return(nil, launchErr),

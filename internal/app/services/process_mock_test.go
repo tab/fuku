@@ -84,10 +84,10 @@ func (mr *MockProcessMockRecorder) Service() *gomock.Call {
 }
 
 // Stderr mocks base method.
-func (m *MockProcess) Stderr() io.Reader {
+func (m *MockProcess) Stderr() io.ReadCloser {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stderr")
-	ret0, _ := ret[0].(io.Reader)
+	ret0, _ := ret[0].(io.ReadCloser)
 	return ret0
 }
 
@@ -98,10 +98,10 @@ func (mr *MockProcessMockRecorder) Stderr() *gomock.Call {
 }
 
 // Stdout mocks base method.
-func (m *MockProcess) Stdout() io.Reader {
+func (m *MockProcess) Stdout() io.ReadCloser {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stdout")
-	ret0, _ := ret[0].(io.Reader)
+	ret0, _ := ret[0].(io.ReadCloser)
 	return ret0
 }
 

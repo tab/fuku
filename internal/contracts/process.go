@@ -11,7 +11,7 @@ type Process interface {
 	Service() model.Service
 	PID() int
 	Done() <-chan struct{}
-	Stdout() io.Reader
-	Stderr() io.Reader
+	Stdout() io.ReadCloser
+	Stderr() io.ReadCloser
 	Terminate() error
 }

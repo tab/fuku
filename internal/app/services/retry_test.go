@@ -3,10 +3,8 @@ package services
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +27,6 @@ func Test_Runtime_StartWithRetry(t *testing.T) {
 	mockProcess := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	http := &model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}
 	svc := model.Service{ID: "test-id-api", Name: "api", Tier: "platform", Readiness: http}
@@ -74,8 +71,6 @@ func Test_Runtime_StartWithRetry(t *testing.T) {
 
 	mockReadiness.EXPECT().ProbePort(*http).Return(model.Port{Address: "localhost:8080"}).AnyTimes()
 	mockProcess.EXPECT().PID().Return(42).AnyTimes()
-	mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 	mockProcess.EXPECT().Done().Return(running).AnyTimes()
 
 	tests := []struct {

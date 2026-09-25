@@ -53,13 +53,13 @@ func (h *Handle) Done() <-chan struct{} {
 	return h.done
 }
 
-// Stdout returns the child's standard output
-func (h *Handle) Stdout() io.Reader {
+// Stdout returns the copy of the child's standard output a log probe reads (closed from the start without one)
+func (h *Handle) Stdout() io.ReadCloser {
 	return h.stdout
 }
 
-// Stderr returns the child's standard error
-func (h *Handle) Stderr() io.Reader {
+// Stderr returns the copy of the child's standard error a log probe reads (closed from the start without one)
+func (h *Handle) Stderr() io.ReadCloser {
 	return h.stderr
 }
 

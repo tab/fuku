@@ -45,9 +45,9 @@ func (f *Factory) newStreamWriter(dst *io.PipeWriter, service model.Service, str
 	}
 }
 
-// Write passes the chunk to the handle's reader and emits every line it completes
+// Write passes the chunk to the handle's reader while it is open and emits every line it completes
 func (w *streamWriter) Write(chunk []byte) (int, error) {
-	//nolint:errcheck // pipe write errors are handled by the reader
+	//nolint:errcheck // a closed reader returns at once, so the child never waits on a probe that stopped
 	w.dst.Write(chunk)
 
 	if !w.logged {

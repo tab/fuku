@@ -51,9 +51,6 @@ func Test_Checker_Check(t *testing.T) {
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
 
-	defer stdout.Close()
-	defer stderr.Close()
-
 	completed := func(readinessType model.ReadinessType) gomock.Matcher {
 		return gomock.Cond(func(msg contracts.Message) bool {
 			data, ok := msg.Data.(contracts.ReadinessComplete)

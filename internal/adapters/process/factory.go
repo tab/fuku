@@ -38,6 +38,12 @@ func (f *Factory) Start(svc model.Service) (contracts.Process, error) {
 	stdoutReader, stdoutPipe := io.Pipe()
 	stderrReader, stderrPipe := io.Pipe()
 
+	logProbe := svc.Readiness != nil && svc.Readiness.Type == model.ReadinessLog
+	if !logProbe {
+		stdoutReader.Close()
+		stderrReader.Close()
+	}
+
 	stdout := f.newStreamWriter(stdoutPipe, svc, streamStdout)
 	stderr := f.newStreamWriter(stderrPipe, svc, streamStderr)
 

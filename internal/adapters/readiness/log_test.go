@@ -41,8 +41,6 @@ func Test_Checker_checkLog(t *testing.T) {
 				stdout, stdoutWriter := io.Pipe()
 				stderr, stderrWriter := io.Pipe()
 
-				t.Cleanup(func() { stdout.Close(); stderr.Close() })
-
 				go func() {
 					defer stdoutWriter.Close()
 					defer stderrWriter.Close()
@@ -60,8 +58,6 @@ func Test_Checker_checkLog(t *testing.T) {
 			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
 				stdout, stdoutWriter := io.Pipe()
 				stderr, stderrWriter := io.Pipe()
-
-				t.Cleanup(func() { stdout.Close(); stderr.Close() })
 
 				go func() {
 					defer stdoutWriter.Close()
@@ -81,8 +77,6 @@ func Test_Checker_checkLog(t *testing.T) {
 				stdout, stdoutWriter := io.Pipe()
 				stderr, stderrWriter := io.Pipe()
 
-				t.Cleanup(func() { stdout.Close(); stderr.Close() })
-
 				go func() {
 					defer stdoutWriter.Close()
 					defer stderrWriter.Close()
@@ -100,8 +94,6 @@ func Test_Checker_checkLog(t *testing.T) {
 			before: func(t *testing.T) (context.Context, *io.PipeReader, *io.PipeReader, <-chan struct{}) {
 				stdout, stdoutWriter := io.Pipe()
 				stderr, stderrWriter := io.Pipe()
-
-				t.Cleanup(func() { stdout.Close(); stderr.Close() })
 
 				go func() {
 					defer stdoutWriter.Close()
@@ -122,7 +114,6 @@ func Test_Checker_checkLog(t *testing.T) {
 				stdout, stdoutWriter := io.Pipe()
 				stderr, stderrWriter := io.Pipe()
 
-				t.Cleanup(func() { stdout.Close(); stderr.Close() })
 				t.Cleanup(func() { stdoutWriter.Close(); stderrWriter.Close() })
 
 				return t.Context(), stdout, stderr, make(chan struct{})
@@ -137,7 +128,6 @@ func Test_Checker_checkLog(t *testing.T) {
 				stdout, stdoutWriter := io.Pipe()
 				stderr, stderrWriter := io.Pipe()
 
-				t.Cleanup(func() { stdout.Close(); stderr.Close() })
 				t.Cleanup(func() { stdoutWriter.Close(); stderrWriter.Close() })
 
 				ctx, cancel := context.WithCancel(t.Context())
@@ -155,7 +145,6 @@ func Test_Checker_checkLog(t *testing.T) {
 				stdout, stdoutWriter := io.Pipe()
 				stderr, stderrWriter := io.Pipe()
 
-				t.Cleanup(func() { stdout.Close(); stderr.Close() })
 				t.Cleanup(func() { stdoutWriter.Close(); stderrWriter.Close() })
 
 				done := make(chan struct{})
@@ -181,21 +170,30 @@ func Test_Checker_checkLog(t *testing.T) {
 }
 
 func Test_Checker_checkLog_InvalidPattern(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockPublisher := NewMockPublisher(ctrl)
+		mockPublisher := NewMockPublisher(ctrl)
 
-	log := slog.New(slog.DiscardHandler)
+		log := slog.New(slog.DiscardHandler)
 
-	checker := NewChecker(mockPublisher, log)
+		checker := NewChecker(mockPublisher, log)
 
-	stdout := strings.NewReader("")
-	stderr := strings.NewReader("")
+		stdout, stdoutWriter := io.Pipe()
+		stderr, stderrWriter := io.Pipe()
+		line := []byte("Server ready on port 8080\n")
 
-	err := checker.checkLog(t.Context(), "[invalid(", stdout, stderr, time.Second, make(chan struct{}))
+		err := checker.checkLog(t.Context(), "[invalid(", stdout, stderr, time.Second, make(chan struct{}))
 
-	require.ErrorContains(t, err, "invalid regex pattern")
+		require.ErrorContains(t, err, "invalid regex pattern")
+
+		_, stdoutErr := stdoutWriter.Write(line)
+		_, stderrErr := stderrWriter.Write(line)
+
+		require.ErrorIs(t, stdoutErr, io.ErrClosedPipe)
+		require.ErrorIs(t, stderrErr, io.ErrClosedPipe)
+	})
 }
 
 func Test_Checker_checkLog_LineTooLong(t *testing.T) {
@@ -210,22 +208,22 @@ func Test_Checker_checkLog_LineTooLong(t *testing.T) {
 
 		stdout, stdoutWriter := io.Pipe()
 		stderr, stderrWriter := io.Pipe()
-
-		defer stdout.Close()
-		defer stderrWriter.Close()
-
-		line := []byte(strings.Repeat("x", process.MaxLineSize+1))
-		writeLine := func() {
+		line := []byte(strings.Repeat("x", process.MaxLineSize+1024*1024) + "\n")
+		done := make(chan struct{})
+		writeLineAndExit := func() {
 			stdoutWriter.Write(line)
+			stdoutWriter.Close()
+			stderrWriter.Close()
+			close(done)
 		}
 
-		go writeLine()
+		go writeLineAndExit()
 
 		mockLog.EXPECT().Warn("Log readiness scan ended before a match", "error", bufio.ErrTooLong)
 
-		err := checker.checkLog(t.Context(), "ready", stdout, stderr, time.Second, make(chan struct{}))
+		err := checker.checkLog(t.Context(), "ready", stdout, stderr, time.Second, done)
 
-		require.ErrorIs(t, err, contracts.ErrReadinessTimeout)
+		require.ErrorIs(t, err, contracts.ErrProcessExited)
 	})
 }
 
@@ -256,7 +254,7 @@ func Test_Checker_checkLog_NoScannerOutlivesTheCheck(t *testing.T) {
 
 		written, err := stderrWriter.Write(noise)
 
-		require.NoError(t, err)
-		assert.Equal(t, len(noise), written)
+		require.ErrorIs(t, err, io.ErrClosedPipe)
+		assert.Zero(t, written)
 	})
 }

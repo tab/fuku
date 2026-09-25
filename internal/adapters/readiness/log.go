@@ -12,8 +12,12 @@ import (
 	"fuku/internal/contracts"
 )
 
-// checkLog scans stdout and stderr until a line matches pattern, the timeout elapses, ctx ends or the process exits
-func (c *Checker) checkLog(ctx context.Context, pattern string, stdout, stderr io.Reader, timeout time.Duration, done <-chan struct{}) error {
+// checkLog scans both streams until a line matches, the timeout elapses, ctx ends or the child exits, then closes them
+func (c *Checker) checkLog(ctx context.Context, pattern string, stdout, stderr io.ReadCloser, timeout time.Duration, done <-chan struct{}) error {
+	// sync: deferred first so they run after ended closes, and a scanner woken by the close stays quiet
+	defer stdout.Close()
+	defer stderr.Close()
+
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return fmt.Errorf("invalid regex pattern: %w", err)
@@ -25,7 +29,9 @@ func (c *Checker) checkLog(ctx context.Context, pattern string, stdout, stderr i
 
 	defer close(ended)
 
-	scanStream := func(reader io.Reader) {
+	scanStream := func(reader io.ReadCloser) {
+		defer reader.Close()
+
 		scanner := bufio.NewScanner(reader)
 		scanner.Buffer(nil, process.MaxLineSize)
 

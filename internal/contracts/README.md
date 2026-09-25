@@ -37,6 +37,9 @@ The loop is the only receiver of the channel. That is what makes an empty channe
 `Process` is the live child of one service. `adapters/process` creates and tracks it, `adapters/readiness` reads its streams, `app/services` drives it.
 It lives here so the core can hold a child without importing its maker.
 
+`Stdout` and `Stderr` are copies of the child's streams for a `log` readiness probe. The child waits on them until the probe reads or closes them.
+Without a `log` probe they are closed from the start.
+
 ## Errors
 
 The sentinels here are the outcomes that cross a layer: a config that did not load, a readiness timeout, a rejected action, an overloaded bus.

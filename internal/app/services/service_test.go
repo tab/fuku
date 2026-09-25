@@ -3,10 +3,8 @@ package services
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +26,6 @@ func Test_Runtime_Attempt(t *testing.T) {
 	mockProcess := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	svc := model.Service{ID: "test-id-api", Name: "api"}
 	http := &model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}
@@ -107,8 +104,6 @@ func Test_Runtime_Attempt(t *testing.T) {
 			before: func() context.Context {
 				mockLauncher.EXPECT().Start(plain).Return(mockProcess, nil)
 				mockProcess.EXPECT().PID().Return(42).Times(2)
-				mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream)
-				mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream)
 				gomock.InOrder(
 					mockPublisher.EXPECT().Publish(isStarting(plain, 3)).Return(nil),
 					mockPublisher.EXPECT().Publish(isReady(plain)).Return(nil),
@@ -144,8 +139,6 @@ func Test_Runtime_Attempt(t *testing.T) {
 				mockReadiness.EXPECT().ProbePort(*http).Return(model.Port{Address: "localhost:8080"})
 				mockLauncher.EXPECT().Start(probed).Return(mockProcess, nil)
 				mockProcess.EXPECT().PID().Return(42).Times(2)
-				mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream)
-				mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream)
 				mockReadiness.EXPECT().Check(gomock.Any(), *http, mockProcess).Return(nil)
 				gomock.InOrder(
 					mockPublisher.EXPECT().Publish(isStarting(probed, 1)).Return(nil),
@@ -164,8 +157,6 @@ func Test_Runtime_Attempt(t *testing.T) {
 				mockReadiness.EXPECT().ProbePort(*http).Return(model.Port{Address: "localhost:8080"})
 				mockLauncher.EXPECT().Start(probed).Return(mockProcess, nil)
 				mockProcess.EXPECT().PID().Return(42)
-				mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream)
-				mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream)
 				mockPublisher.EXPECT().Publish(isStarting(probed, 1)).Return(nil)
 				mockReadiness.EXPECT().Check(gomock.Any(), *http, mockProcess).Return(readinessErr)
 				gomock.InOrder(
@@ -263,16 +254,12 @@ func Test_Runtime_WaitForReady(t *testing.T) {
 	mockProcess := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	http := &model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}
 	logReadiness := &model.Readiness{Type: model.ReadinessLog, Pattern: "ready"}
 	checkErr := errors.New("timed out")
 
 	runtime := NewRuntime(RuntimeParams{Readiness: mockReadiness, Logger: log})
-
-	mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 
 	tests := []struct {
 		name      string
@@ -390,7 +377,6 @@ func Test_Runtime_Restart(t *testing.T) {
 	mockNew := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	svc := model.Service{ID: "test-id-api", Name: "api", Tier: "platform"}
 	event := contracts.ServiceEvent{Service: svc, Tier: "platform"}
@@ -420,8 +406,6 @@ func Test_Runtime_Restart(t *testing.T) {
 	runtime := NewRuntime(RuntimeParams{Launcher: mockLauncher, Tracker: mockTracker, Publisher: mockPublisher, Logger: log})
 
 	mockNew.EXPECT().PID().Return(43).AnyTimes()
-	mockNew.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockNew.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 	mockNew.EXPECT().Done().Return(running).AnyTimes()
 
 	tests := []struct {
@@ -520,7 +504,6 @@ func Test_Runtime_Start(t *testing.T) {
 	mockExited := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	svc := model.Service{ID: "test-id-api", Name: "api", Tier: "platform"}
 	running := make(chan struct{})
@@ -531,8 +514,6 @@ func Test_Runtime_Start(t *testing.T) {
 	runtime := NewRuntime(RuntimeParams{Options: Options{RetryAttempts: 1}, Launcher: mockLauncher, Tracker: mockTracker, Publisher: mockPublisher, Logger: log})
 
 	mockProcess.EXPECT().PID().Return(42).AnyTimes()
-	mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 	mockProcess.EXPECT().Done().Return(running).AnyTimes()
 	mockExited.EXPECT().Service().Return(svc).AnyTimes()
 	mockExited.EXPECT().Done().Return(exited).AnyTimes()

@@ -15,10 +15,14 @@ Nothing is added per service. A service's `env.files` feed the TUI only.
 
 Each stream goes to a stream writer that exec copies the child's output into:
 
-- the writer passes every chunk to the handle's reader. Readiness reads it
+- the writer passes every chunk to the handle's reader, a copy for the `log` readiness probe
 - it also logs each line under the service and broadcasts it to the `LogSink`.
   The service's `logs.output` says which streams
 - lines longer than 4 MiB are truncated in the broadcast
+
+The child waits on an open copy until the probe reads it. The probe closes the copy when it stops.
+A write into a closed copy returns at once, so the log and the sink still get every line.
+A service without a `log` probe gets its copies closed at start. Its child never waits on a reader.
 
 `wait` reaps the child, closes both writers and then closes `Done()`.
 Exec stops writing before `Wait` returns, so the last line is never lost.
@@ -61,3 +65,4 @@ It runs for `fuku run` before the first tier and for `fuku stop`.
 
 - keep start-and-track under one lock and `Untrack` behind the identity check. Both exist so a stale exit is never reported against a newer child
 - raw output stays off the bus. A line goes to the application log and to the `LogSink`. Nowhere else
+- only a `log` probe holds a copy open, and only while it scans. A reader that stops without closing its copy stalls the child

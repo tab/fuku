@@ -2,9 +2,7 @@ package services
 
 import (
 	"context"
-	"io"
 	"log/slog"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -144,7 +142,6 @@ func Test_Runtime_Handle(t *testing.T) {
 	mockExited := NewMockProcess(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
-	emptyStream := func() io.Reader { return strings.NewReader("") }
 
 	svc := model.Service{ID: "test-id-api", Name: "api", Tier: "platform"}
 	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
@@ -171,8 +168,6 @@ func Test_Runtime_Handle(t *testing.T) {
 
 	mockProcess.EXPECT().PID().Return(42).AnyTimes()
 	mockProcess.EXPECT().Service().Return(svc).AnyTimes()
-	mockProcess.EXPECT().Stdout().DoAndReturn(emptyStream).AnyTimes()
-	mockProcess.EXPECT().Stderr().DoAndReturn(emptyStream).AnyTimes()
 	mockProcess.EXPECT().Done().Return(running).AnyTimes()
 	mockExited.EXPECT().Service().Return(svc).AnyTimes()
 	mockExited.EXPECT().Done().Return(exited).AnyTimes()
