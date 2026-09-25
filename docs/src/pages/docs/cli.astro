@@ -218,12 +218,12 @@ fuku version`} />
   <div class="section-eyebrow" id="environment-file-loading">Environment</div>
   <h2>Environment file loading</h2>
 
-  <p>On startup, fuku loads its own environment files using <a href="https://github.com/joho/godotenv" target="_blank" rel="noopener">godotenv</a>, in this order (later files take precedence):</p>
+  <p>On startup, fuku loads its own environment files using <a href="https://github.com/joho/godotenv" target="_blank" rel="noopener">godotenv</a>, in this order (the first file to set a variable wins):</p>
 
   <ol>
-    <li><code>.env</code></li>
-    <li><code>.env.&lt;GO_ENV&gt;</code></li>
     <li><code>.env.&lt;GO_ENV&gt;.local</code></li>
+    <li><code>.env.&lt;GO_ENV&gt;</code></li>
+    <li><code>.env</code></li>
   </ol>
 
   <p>

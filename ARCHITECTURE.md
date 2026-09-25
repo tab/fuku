@@ -84,11 +84,12 @@ internal/adapters
   resources                    samples CPU and memory
   logsocket                    the project socket: server and client
   config                       loads fuku.yaml, builds model.Project
+  config/template              the fuku.yaml init writes, embedded
   envfiles                     reads one .env file
   diagnostics                  observes files, tools, sockets and ports for doctor
   github                       looks up the latest release
   instance                     identity, socket path, single-instance guard
-  eventlog                     writes every event to the debug log and log clients
+  eventlog                     writes most events to the debug log and log clients
   telemetry                    Sentry: client, metrics, traces
   output                       the application log writer
   terminal                     theme, styles, layout
@@ -103,7 +104,7 @@ internal/app
   updater                      the release check
 
 internal/platform              bus, logging, worker, buildinfo
-internal/contracts             one message or protocol type per file
+internal/contracts             the messages of one object or protocol area per file
 internal/model                 plain values
 ```
 
@@ -140,7 +141,7 @@ Runs a profile. Admits start, stop and restart from every frontend.
 - core: `app/services` (`Runtime` runs, `Control` admits, `Guard` holds the phase and tokens, `Cleaner` cleans up for `stop`), `app/profiles`
 - adapters: `process` launches and tracks, `readiness` probes, `watch` reports file changes
 - frontends: the `s`, `r` and `ctrl+r` keys in `tui`; `POST /api/v1/services/{id}/{start,stop,restart}` in `rest`; `Run` and `Stop` in `cli` for `--no-ui` and `stop`
-- bus: consumes the four commands and `WatchTriggered`; publishes the phase, tier and service events
+- bus: consumes the four commands and `WatchTriggered`; publishes `ProfileResolved`, the phase, tier and service events
 - wired in `runtime.go`, blocks `processes` and `profile`; `Control` in `run.go` (`view`, `api`); `Cleaner` in `stop.go`
 - details: [`internal/app/services/README.md`](internal/app/services/README.md)
 
@@ -209,14 +210,14 @@ Tells the user that a newer release exists.
 
 These run next to every feature. They decide nothing about services.
 
-| Package     | Does                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| `eventlog`  | writes every event to the debug log and log clients as `fuku` lines                              |
-| `telemetry` | one metric per event, one trace per `run`; off without a DSN or with `FUKU_TELEMETRY_DISABLED`   |
-| `instance`  | refuses a second `run` of the same project; gives `run`, `logs` and `doctor` one socket path     |
-| `cli`       | parses the command line; publishes `CommandStarted`; every command that runs without the TUI     |
-| `output`    | writes the application log; off while the TUI owns the terminal                                  |
-| `terminal`  | theme, every style, layout helpers                                                               |
+| Package     | Does                                                                                                                    |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `eventlog`  | writes every event but `SnapshotChanged` and `ServiceResourcesSampled` to the debug log and log clients as `fuku` lines |
+| `telemetry` | one metric per event, one trace per `run`; off without a DSN or with `FUKU_TELEMETRY_DISABLED`                          |
+| `instance`  | refuses a second `run` of the same project; gives `run`, `logs` and `doctor` one socket path                            |
+| `cli`       | parses the command line; publishes `CommandStarted`; every command that runs without the TUI                            |
+| `output`    | writes the application log; off while the TUI owns the terminal                                                         |
+| `terminal`  | theme, every style, layout helpers                                                                                      |
 
 ## Bus messages
 

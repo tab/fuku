@@ -127,7 +127,7 @@ Change an adapter only for new IO, input, transport or presentation.
   ),
 
   // internal/bootstrap/modules/run.go — a producer participant, listed in order
-  participants.Producers = append(participants.Producers, p.Socket, p.Runtime, p.Sampler, p.Watcher, p.Checker)
+  participants.Producers = append(participants.Producers, p.Socket, p.Watcher, p.Runtime, p.Sampler, p.Checker)
   ```
 
 - a value that exists once but serves two consumers is bound twice from the one concrete type (`*worker.Pool` → `services.Pool` and `process.Pool`).

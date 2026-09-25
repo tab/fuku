@@ -129,7 +129,6 @@ const endpoints: Endpoint[] = [
     responses: [
       { status: "success", code: "200", body: statusJson },
       { status: "error", code: "401", body: unauthorizedJson },
-      { status: "error", code: "500", body: internalErrorJson },
     ],
   },
   {
@@ -139,7 +138,6 @@ const endpoints: Endpoint[] = [
     responses: [
       { status: "success", code: "200", body: serviceListJson },
       { status: "error", code: "401", body: unauthorizedJson },
-      { status: "error", code: "500", body: internalErrorJson },
     ],
   },
   {
@@ -150,7 +148,6 @@ const endpoints: Endpoint[] = [
       { status: "success", code: "200", body: serviceJson },
       { status: "error", code: "401", body: unauthorizedJson },
       { status: "error", code: "404", body: notFoundJson },
-      { status: "error", code: "500", body: internalErrorJson },
     ],
   },
   {
@@ -298,7 +295,7 @@ const endpoints: Endpoint[] = [
                 )}
                 <button class="pg-button pg-send">
                   <span class={`method-tag ${ep.method.toLowerCase()}`}>{ep.method}</span>
-                  Send
+                  Copy curl
                 </button>
                 <div class="playground-result pg-result" style="display: none;">
                   <div class="result-header">
@@ -364,37 +361,18 @@ const endpoints: Endpoint[] = [
       const timeEl = pg.querySelector('.pg-time')!;
       const bodyEl = pg.querySelector('.pg-body')!;
 
-      resultEl.style.display = '';
-      statusEl.textContent = 'Sending...';
-      statusEl.className = 'result-status pg-status';
-      timeEl.textContent = '';
-      bodyEl.textContent = '';
+      let curl = `curl -X ${method} '${url}'`;
+      if (token) curl += ` \\\n  -H 'Authorization: Bearer ${token}'`;
 
-      const start = performance.now();
+      resultEl.style.display = '';
+      statusEl.textContent = 'curl';
+      timeEl.textContent = '';
+      bodyEl.textContent = curl;
 
       try {
-        const headers: Record<string, string> = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(url, { method, headers });
-        const elapsed = Math.round(performance.now() - start);
-        const text = await res.text();
-
-        let body: string;
-        try { body = JSON.stringify(JSON.parse(text), null, 2); }
-        catch { body = text; }
-
-        statusEl.textContent = `${res.status} ${res.statusText}`;
-        statusEl.className = `result-status pg-status ${res.ok ? 'ok' : 'err'}`;
-        timeEl.textContent = `${elapsed}ms`;
-        bodyEl.textContent = body;
-      } catch (err: any) {
-        const elapsed = Math.round(performance.now() - start);
-        statusEl.textContent = 'Error';
-        statusEl.className = 'result-status pg-status err';
-        timeEl.textContent = `${elapsed}ms`;
-        bodyEl.textContent = err.message || 'Request failed';
-      }
+        await navigator.clipboard.writeText(curl);
+        timeEl.textContent = 'copied to clipboard';
+      } catch {}
     });
   });
 
@@ -738,8 +716,6 @@ const endpoints: Endpoint[] = [
   }
 
   .result-status { font-family: var(--mono); font-weight: 600; color: var(--text-muted); }
-  .result-status.ok { color: #22c55e; }
-  .result-status.err { color: #ef4444; }
 
   .result-time { font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted); }
 

@@ -25,7 +25,7 @@ flowchart LR
 
 The rules worth knowing:
 
-- `ProfileResolved` allocates the store's own tiers and services from the payload, once. No payload aliases registry state
+- `ProfileResolved` reallocates the store's own tiers and services from the payload on every occurrence. No payload aliases registry state
 - `ServiceStarting` records the PID and the attempt time. It clears the error and the usage
 - `ServiceFailed` keeps the error text and drops the PID
 - a resource sample applies only where its PID still matches the service
@@ -52,6 +52,7 @@ Each consumer reads what it needs inside `Read` and does the slow part outside:
 - a callback reads through the snapshot only while it runs. It does no IO
 - a callback never calls `Control`, publishes or blocks
 - a new projected type is a row in `projected` and one `apply` handler. The handler reports whether the visible state changed.
-  Returning true for an unchanged state publishes a useless notification
+  Returning true for an unchanged state publishes a useless notification. `applyWatching` is the exception: it returns true
+  whenever the service exists, without comparing the previous value
 - the store is the only projection. A frontend that needs a derived fact computes it inside `Read`
 - admission never reads the snapshot. `app/services` keeps its own facts

@@ -150,7 +150,7 @@ func NewModel(ctx context.Context, params ModelParams) Model {
 	return m
 }
 
-// asideContentCache debounces asideContent rebuilds to one per second (a pointer so value receivers can write it)
+// asideContentCache holds the key of the last aside build (a pointer so value receivers can write it)
 type asideContentCache struct {
 	key string
 }

@@ -127,7 +127,7 @@ func (m Model) asideVisibleLinesPadded(innerWidth, contentHeight int) ([]string,
 	return out, true
 }
 
-// updateAsideContent rebuilds the aside viewport for the selected service and tab, at most once per wall-clock second
+// updateAsideContent rebuilds the aside viewport only when asideContentCacheKey returns a new key
 func (m *Model) updateAsideContent() {
 	if !m.state.asideOpen {
 		return

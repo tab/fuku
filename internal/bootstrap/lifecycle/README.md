@@ -13,7 +13,8 @@ Four roles. A package satisfies one structurally. No package imports this one.
 
 - `Guard`: `Check` refuses the run. Today that is the single-instance check
 - `Consumer`: `Subscribe` registers a bus subscription and returns. `Drain` waits until its queue is empty
-- `Producer`: `Start` acquires what `Stop` releases. A goroutine, a listener, a watcher
+- `Producer`: `Start` acquires what `Stop` releases. A goroutine, a listener, a watcher.
+  `Stop` is empty when `Start` only publishes once, like `Announcer`
 - `Command`: `Run` is the one command of the composition. Its return code is the exit code. Its error is the cause `Run` prints
 
 A package can be both a consumer and a producer, like `services.Runtime`. It appears in both slices.

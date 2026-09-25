@@ -1,6 +1,6 @@
 # app/profiles
 
-Turns a profile name into the ordered tiers of a run. `services.Runtime` and `doctor` call `Resolve` through their own interfaces.
+Turns a profile name into the ordered tiers of a run. `services.Runtime`, `services.Cleaner` and `doctor` call `Resolve` through their own interfaces.
 The YAML shape of a profile and the tier order belong to `adapters/config`. They arrive here as `model.Project`.
 
 ## How it works

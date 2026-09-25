@@ -1,13 +1,13 @@
 # contracts
 
-The vocabulary the rings share: every bus message, the bus protocol, the live process handle and the errors that cross a layer.
+The vocabulary the rings share: every bus message, the bus protocol, the live process handle, the log socket's status handshake and the errors that cross a layer.
 It imports `model` and the standard library. It imports no Fx and no package of an outer ring.
 
 `platform/bus` moves the messages. `contracts` says what they are and which ones must arrive.
 
 ## Messages
 
-One file holds one message or protocol type. A message is a `MessageType` string plus a payload struct.
+One file holds the messages of one object or protocol area (`service.go`, `tier.go`, `watch.go`). A message is a `MessageType` string plus a payload struct.
 
 - an event is `Event<Object><State>` with a past participle or adjective (`EventServiceStopped`, `EventTierReady`).
   Its payload is the struct of the same name minus the kind (`ServiceStopped`)
@@ -49,7 +49,7 @@ A sentinel only one adapter raises and handles lives in an `errors.go` beside th
 
 ## Changing it
 
-- a new message gets its own file, a row in the critical table and a row in the bus table of `ARCHITECTURE.md`
+- a new message joins its object's file, or starts one, plus a row in the critical table and a row in the bus table of `ARCHITECTURE.md`
 - a wire string never changes. Rename the identifier, keep the value, add the comment
 - before a new type, check whether an existing payload can carry the data. Extend that struct
 - a handler runs on the loop goroutine. A slow handler fills its own queue and, when the subscription is required, fails the next critical publish

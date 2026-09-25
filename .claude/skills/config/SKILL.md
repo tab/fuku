@@ -71,7 +71,7 @@ server:
 - `dir` is the working directory of the child. Defaults to the service name.
 - `command` runs through `sh -c`. Defaults to `make run`. A command of only whitespace is invalid.
 - `tier` is the startup bucket. Names are trimmed and lowercased. Tier order is the first appearance in the file.
-  A service without a tier runs last, in `default`. An unknown tier falls back to `default`.
+  A service without a tier gets `defaults.tier` when it is set, else it runs last in `default`. An unknown tier falls back to `default`.
 - the child inherits fuku's environment. That includes what fuku loaded from its own env files. See [Environment files](#environment-files).
 - fuku exports nothing per service.
 
@@ -148,7 +148,8 @@ Fuku loads `.env.<GO_ENV>.local`, `.env.<GO_ENV>` and `.env` from its working di
 
 ## Override
 
-`fuku.override.yaml`, or `.yml`, beside `fuku.yaml` merges on top. `--config` skips it.
+`fuku.override.yaml`, or `.yml`, beside `fuku.yaml` merges on top. `--config` skips the merge.
+The loader still stats the override file under `--config`. A stat error other than not-found, such as a permission error, fails the load.
 
 - mappings merge by key. A scalar or a mismatched kind is replaced by the override.
 - sequences are concatenated, override items after base.

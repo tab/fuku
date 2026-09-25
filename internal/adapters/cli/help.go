@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-// Help text constants
+// Usage is the printed help text
 const (
 	Usage = `Usage:
   fuku                            Run services with default profile (with TUI)

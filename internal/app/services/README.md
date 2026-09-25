@@ -28,9 +28,9 @@ The run:
 A run cancelled during startup returns `errStartupInterrupted`. A `StopAll` during startup is the same clean end. Any other failure reaches `Reporter.Fail`, which exits 1.
 A rejected lifecycle publish is only logged. The bus reports an overload itself.
 
-A start or restart cut short by the end of the run publishes `ServiceStopped`. Never `ServiceFailed`, and never nothing.
-It applies while the service waits for a worker, runs its readiness check or waits out a retry backoff.
-So every service the run touched ends in a terminal status.
+A start or restart cut short by the end of the run publishes `ServiceStopped`, never `ServiceFailed`.
+It applies while the service runs its readiness check or waits out a retry backoff, and while tier startup waits for a worker.
+A start or restart from a command or a file change publishes nothing when the run ends while it waits for a worker.
 
 One attempt at a service:
 

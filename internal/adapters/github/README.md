@@ -22,5 +22,6 @@ The cache is `$UserConfigDir/fuku/version.json` with the keys `tag` and `fetched
 
 ## Changing it
 
-- every IO failure stays a returned error. The caller decides the check is best effort
+- a fetch failure stays a returned error. The caller decides the check is best effort
+- a cache read or write failure is only logged at debug. `Latest` treats an unreadable cache as a miss and drops a failed write
 - the request goes through `HTTPDoer`, so a test never reaches the network. Keep the timeout on the client
