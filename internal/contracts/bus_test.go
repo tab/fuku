@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -162,4 +163,111 @@ func Test_Loop_Drain_ContextCancelled(t *testing.T) {
 	err := loop.Drain(ctx)
 
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func Test_Loop_Drain_ContextCancelledBehindQueuedMessages(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		first := make(chan struct{})
+
+		last := make(chan struct{})
+		defer close(last)
+
+		// sync: behind 64 queued messages the loop's select skips the drain request only with odds of 2^-65
+		queued := 64
+
+		messages := make(queue, queued+2)
+		messages <- Message{Type: EventPhaseChanged}
+
+		for range queued {
+			messages <- Message{Type: EventServiceReady}
+		}
+
+		messages <- Message{Type: EventTierStarting}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		drained := make(chan error, 1)
+		handle := func(msg Message) {
+			if msg.Type == EventPhaseChanged {
+				<-first
+			}
+
+			if msg.Type == EventTierStarting {
+				<-last
+			}
+		}
+
+		loop := Run(t.Context(), messages, handle)
+		drain := func() {
+			drained <- loop.Drain(ctx)
+		}
+
+		synctest.Wait()
+
+		go drain()
+
+		synctest.Wait()
+		close(first)
+		synctest.Wait()
+		cancel()
+
+		err := <-drained
+
+		require.ErrorIs(t, err, context.Canceled)
+	})
+}
+
+func Test_Loop_Drain_ReturnsWhenLoopStoppedBehindQueuedMessages(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+
+		first := make(chan struct{})
+		last := make(chan struct{})
+
+		// sync: behind 64 queued messages the loop's select skips the drain request or the cancel only with odds of 2^-64
+		queued := 64
+
+		messages := make(queue, 2*queued+2)
+		messages <- Message{Type: EventPhaseChanged}
+
+		for range queued {
+			messages <- Message{Type: EventServiceReady}
+		}
+
+		messages <- Message{Type: EventTierStarting}
+
+		for range queued {
+			messages <- Message{Type: EventServiceReady}
+		}
+
+		drained := make(chan error, 1)
+		handle := func(msg Message) {
+			if msg.Type == EventPhaseChanged {
+				<-first
+			}
+
+			if msg.Type == EventTierStarting {
+				<-last
+			}
+		}
+
+		loop := Run(ctx, messages, handle)
+		drain := func() {
+			drained <- loop.Drain(t.Context())
+		}
+
+		synctest.Wait()
+
+		go drain()
+
+		synctest.Wait()
+		close(first)
+		synctest.Wait()
+		cancel()
+		close(last)
+
+		err := <-drained
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, messages, "the loop emptied the queue before it stopped")
+	})
 }
