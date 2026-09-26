@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -740,6 +741,10 @@ func Test_Watcher_startWatching(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	missingDir := filepath.Join(t.TempDir(), "missing")
+	loopRoot := t.TempDir()
+	loopDir := filepath.Join(loopRoot, "pkg")
+
+	require.NoError(t, os.Mkdir(loopDir, 0o755))
 
 	watched := model.Service{
 		ID:        "test-id-svc",
@@ -765,6 +770,43 @@ func Test_Watcher_startWatching(t *testing.T) {
 			Include: []string{"**/*.go"},
 		},
 	}
+	relative := model.Service{
+		ID:        "test-id-relative",
+		Name:      "relative-service",
+		Directory: "api",
+		Watch: &model.Watch{
+			Include: []string{"**/*.go"},
+		},
+	}
+	shared := model.Service{
+		ID:        "test-id-shared",
+		Name:      "shared-service",
+		Directory: tmpDir,
+		Watch: &model.Watch{
+			Include: []string{"**/*.go"},
+			Shared:  []string{"pkg/**"},
+		},
+	}
+	looped := model.Service{
+		ID:        "test-id-looped",
+		Name:      "looped-service",
+		Directory: loopRoot,
+		Watch: &model.Watch{
+			Include: []string{"**/*.go"},
+		},
+	}
+
+	unsearchableWorkingDir := func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root searches a directory without permission bits")
+		}
+
+		dir := t.TempDir()
+		t.Chdir(dir)
+
+		require.NoError(t, os.Chmod(dir, 0))
+		t.Cleanup(func() { os.Chmod(dir, 0o700) })
+	}
 
 	w := NewWatcher(mockPublisher, nil, mockLog)
 
@@ -774,13 +816,13 @@ func Test_Watcher_startWatching(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		before   func()
+		before   func(t *testing.T)
 		svc      model.Service
 		expected bool
 	}{
 		{
 			name: "invalid include pattern logs and skips the service",
-			before: func() {
+			before: func(*testing.T) {
 				mockLog.EXPECT().Warn("Failed to create matcher for service 'invalid-service'", "error", gomock.Any())
 			},
 			svc:      invalid,
@@ -788,7 +830,7 @@ func Test_Watcher_startWatching(t *testing.T) {
 		},
 		{
 			name: "missing directory logs and skips the service",
-			before: func() {
+			before: func(*testing.T) {
 				mockLog.EXPECT().Warn("Failed to add directories for service 'missing-service'", "error", gomock.Any())
 			},
 			svc:      missing,
@@ -796,7 +838,7 @@ func Test_Watcher_startWatching(t *testing.T) {
 		},
 		{
 			name: "already watched service is not walked or announced again",
-			before: func() {
+			before: func(*testing.T) {
 				mockLog.EXPECT().Info("Started watching service 'test-service' in " + tmpDir)
 				mockPublisher.EXPECT().Publish(contracts.Message{Type: contracts.EventWatchStarted, Data: contracts.WatchStarted{Service: watched}}).Return(nil)
 
@@ -805,11 +847,49 @@ func Test_Watcher_startWatching(t *testing.T) {
 			svc:      watched,
 			expected: true,
 		},
+		{
+			name: "a directory that cannot be resolved logs and skips the service",
+			before: func(t *testing.T) {
+				unsearchableWorkingDir(t)
+
+				mockLog.EXPECT().Warn("Failed to get absolute path for service 'relative-service'", "error", gomock.Any())
+			},
+			svc:      relative,
+			expected: false,
+		},
+		{
+			name: "a shared path that cannot be resolved logs and keeps watching the root",
+			before: func(t *testing.T) {
+				unsearchableWorkingDir(t)
+
+				mockLog.EXPECT().Warn("Failed to resolve shared path 'pkg' for service 'shared-service'", "error", gomock.Any())
+				mockLog.EXPECT().Info("Started watching service 'shared-service' in " + tmpDir)
+				mockPublisher.EXPECT().Publish(contracts.Message{Type: contracts.EventWatchStarted, Data: contracts.WatchStarted{Service: shared}}).Return(nil)
+			},
+			svc:      shared,
+			expected: true,
+		},
+		{
+			name: "a subdirectory fsnotify cannot watch logs and keeps watching the rest",
+			before: func(t *testing.T) {
+				if runtime.GOOS != "darwin" {
+					t.Skip("only kqueue opens the entries of a directory it adds")
+				}
+
+				require.NoError(t, os.Symlink("loop", filepath.Join(loopDir, "loop")))
+
+				mockLog.EXPECT().Warn("Failed to watch directory: "+loopDir, "error", gomock.Any())
+				mockLog.EXPECT().Info("Started watching service 'looped-service' in " + loopRoot)
+				mockPublisher.EXPECT().Publish(contracts.Message{Type: contracts.EventWatchStarted, Data: contracts.WatchStarted{Service: looped}}).Return(nil)
+			},
+			svc:      looped,
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.before()
+			tt.before(t)
 
 			w.startWatching(tt.svc)
 

@@ -107,6 +107,32 @@ func Test_Preflight_Cleanup_NoDirectories(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_Preflight_Cleanup_UnresolvableWorkingDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root searches a directory without permission bits")
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPublisher := NewMockPublisher(ctrl)
+	mockWorker := NewMockPool(ctrl)
+
+	log := slog.New(slog.DiscardHandler)
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	require.NoError(t, os.Chmod(dir, 0))
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	preflight := NewPreflight(mockPublisher, mockWorker, log)
+
+	err := preflight.Cleanup(t.Context(), map[string]string{"api": "api"})
+
+	require.ErrorContains(t, err, "failed to get working directory")
+}
+
 func Test_Preflight_Cleanup_KillsMatchingProcess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

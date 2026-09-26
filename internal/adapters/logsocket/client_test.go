@@ -28,6 +28,17 @@ func Test_NewClient(t *testing.T) {
 	assert.Nil(t, c.conn)
 }
 
+func Test_Client_Connect(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
+
+	c := NewClient(model.Instance{Fingerprint: fingerprint})
+
+	err := c.Connect()
+
+	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
+	assert.Nil(t, c.conn)
+}
+
 func Test_Client_connect(t *testing.T) {
 	fingerprint := instance.Fingerprint("/Users/dev/projects/running")
 	dir := testSocketDir(t)

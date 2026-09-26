@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -167,6 +168,46 @@ func Test_Server_run_StartFails(t *testing.T) {
 
 	mockRegistry.EXPECT().WaitResolved(gomock.Any()).Do(resolved)
 	mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(snapshot))
+	mockLog.EXPECT().Warn("Failed to start logs server, continuing without it", "error", gomock.Any())
+
+	s.run(t.Context())
+
+	assert.Equal(t, testProfile, s.profile)
+	assert.False(t, s.running.Load())
+}
+
+func Test_Server_run_CleanupFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root removes a file from a read-only directory")
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRegistry := NewMockRegistry(ctrl)
+	mockLog := NewMockLogger(ctrl)
+
+	dir := testSocketDir(t)
+
+	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	require.NoError(t, err)
+	require.NoError(t, syscall.Bind(fd, &syscall.SockaddrUnix{Name: instance.SocketPath(dir, "0123456789abcdef")}))
+	require.NoError(t, syscall.Close(fd))
+	require.NoError(t, os.Chmod(dir, 0o555))
+
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	identity := model.Instance{Fingerprint: instance.Fingerprint("/Users/dev/projects/" + t.Name())}
+	snapshot := &model.Snapshot{Profile: testProfile}
+
+	resolved := func(context.Context) {}
+
+	s := NewServer(nil, mockRegistry, identity, mockLog)
+	s.socketPath = instance.SocketPath(dir, identity.Fingerprint)
+
+	mockRegistry.EXPECT().WaitResolved(gomock.Any()).Do(resolved)
+	mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(snapshot))
+	mockLog.EXPECT().Warn("Socket cleanup failed, continuing startup", "error", gomock.Any())
 	mockLog.EXPECT().Warn("Failed to start logs server, continuing without it", "error", gomock.Any())
 
 	s.run(t.Context())

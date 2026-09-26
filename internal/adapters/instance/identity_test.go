@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -64,16 +65,60 @@ func Test_NewInstance_ResolvesSymlink(t *testing.T) {
 	assert.Equal(t, Fingerprint(resolved), identity.Fingerprint)
 }
 
-func Test_NewInstance_RemovedWorkingDir(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
+func Test_NewInstance_UnresolvableWorkingDir(t *testing.T) {
+	tests := []struct {
+		name   string
+		before func(t *testing.T)
+	}{
+		{
+			name: "a removed working directory",
+			before: func(t *testing.T) {
+				dir := t.TempDir()
+				t.Chdir(dir)
 
-	require.NoError(t, os.RemoveAll(dir))
+				require.NoError(t, os.RemoveAll(dir))
+			},
+		},
+		{
+			name: "a removed working directory PWD still resolves to",
+			before: func(t *testing.T) {
+				if runtime.GOOS != "linux" {
+					t.Skip("only Linux exposes the working directory under /proc/self/cwd")
+				}
 
-	identity, err := NewInstance()
+				dir := t.TempDir()
+				t.Chdir(dir)
+				t.Setenv("PWD", "/proc/self/cwd")
 
-	require.ErrorIs(t, err, ErrFailedToResolveProject)
-	assert.Empty(t, identity.ID)
+				require.NoError(t, os.RemoveAll(dir))
+			},
+		},
+		{
+			name: "a working directory the process cannot search",
+			before: func(t *testing.T) {
+				if os.Geteuid() == 0 {
+					t.Skip("root searches a directory without permission bits")
+				}
+
+				dir := t.TempDir()
+				t.Chdir(dir)
+
+				require.NoError(t, os.Chmod(dir, 0))
+				t.Cleanup(func() { os.Chmod(dir, 0o700) })
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before(t)
+
+			identity, err := NewInstance()
+
+			require.ErrorIs(t, err, ErrFailedToResolveProject)
+			assert.Empty(t, identity.ID)
+		})
+	}
 }
 
 func Test_Fingerprint(t *testing.T) {

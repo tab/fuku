@@ -266,3 +266,42 @@ func Test_Checker_checkLog_NoScannerOutlivesTheCheck(t *testing.T) {
 		assert.Zero(t, written)
 	})
 }
+
+func Test_Checker_checkLog_DropsALineScannedAfterTheCheck(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockPublisher := NewMockPublisher(ctrl)
+
+		log := slog.New(slog.DiscardHandler)
+
+		checker := NewChecker(mockPublisher, log)
+
+		stdout := io.NopCloser(strings.NewReader("Server ready on port 8080\n"))
+		stderrReader, stderrWriter := io.Pipe()
+		stderr := io.NopCloser(stderrReader)
+		late := []byte("GET /health 200\n")
+		next := []byte("GET /metrics 200\n")
+		unread := make(chan error, 1)
+		writeNext := func() {
+			_, err := stderrWriter.Write(next)
+			unread <- err
+		}
+
+		err := checker.checkLog(t.Context(), "ready", stdout, stderr, time.Second, make(chan struct{}))
+
+		require.NoError(t, err)
+
+		_, err = stderrWriter.Write(late)
+
+		require.NoError(t, err)
+
+		go writeNext()
+
+		synctest.Wait()
+		stderrReader.Close()
+
+		require.ErrorIs(t, <-unread, io.ErrClosedPipe)
+	})
+}

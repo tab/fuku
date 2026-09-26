@@ -4,6 +4,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -102,6 +103,20 @@ func Test_Guard_acquire(t *testing.T) {
 				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
 				path := lockPath(dir, identity.Fingerprint)
 				require.NoError(t, os.Mkdir(path, 0o700))
+
+				return identity, ""
+			},
+			expected: ErrFailedToLockProject,
+		},
+		{
+			name: "fails when the lock file refuses a lock",
+			before: func(t *testing.T) (model.Instance, string) {
+				if runtime.GOOS != "darwin" {
+					t.Skip("only darwin refuses to flock a FIFO")
+				}
+
+				identity := model.Instance{Fingerprint: Fingerprint("/Users/dev/projects/" + t.Name())}
+				require.NoError(t, syscall.Mkfifo(lockPath(dir, identity.Fingerprint), 0o600))
 
 				return identity, ""
 			},

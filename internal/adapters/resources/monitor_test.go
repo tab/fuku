@@ -3,6 +3,8 @@ package resources
 import (
 	"math"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -51,6 +53,26 @@ func Test_ProcessMonitor_GetStats_NonExistentProcess(t *testing.T) {
 	_, err := m.GetStats(t.Context(), 999999999)
 
 	require.Error(t, err)
+}
+
+func Test_ProcessMonitor_GetStats_UnreadableProcess(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("HOST_PROC only redirects the process table on linux")
+	}
+
+	t.Setenv("HOST_PROC", filepath.Join(t.TempDir(), "missing"))
+
+	pid := os.Getpid()
+	pid32 := int32(pid) // #nosec G115 -- PID fits in int32
+
+	m := NewProcessMonitor()
+	m.prev[pid32] = cpuState{createTime: 100, total: 1.0, time: time.Now()}
+
+	stats, err := m.GetStats(t.Context(), pid)
+
+	require.NoError(t, err)
+	assert.Equal(t, Stats{}, stats)
+	assert.NotContains(t, m.prev, pid32)
 }
 
 func Test_ProcessMonitor_cpuPercent(t *testing.T) {

@@ -76,6 +76,16 @@ func Test_socketAt(t *testing.T) {
 	}
 }
 
+func Test_Runtime_Socket(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
+
+	subject := NewRuntime()
+
+	socket := subject.Socket(fingerprint)
+
+	assert.Equal(t, model.Socket{Path: instance.SocketPath(instance.SocketDir, fingerprint)}, socket)
+}
+
 func Test_scanSockets(t *testing.T) {
 	//nolint:usetesting // socket path length exceeds macOS limit with t.TempDir
 	dir, err := os.MkdirTemp("/tmp", "fuku-test-")

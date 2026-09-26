@@ -55,6 +55,23 @@ func Test_prepare_MissingDirectory(t *testing.T) {
 	}
 }
 
+func Test_prepare_UnresolvableWorkingDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root searches a directory without permission bits")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	require.NoError(t, os.Chmod(dir, 0))
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	prepared, err := prepare("echo test", "api", io.Discard, io.Discard)
+
+	require.ErrorContains(t, err, "failed to get working directory")
+	assert.Nil(t, prepared)
+}
+
 func Test_resolveDir_Relative(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
