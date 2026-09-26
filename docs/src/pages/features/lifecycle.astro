@@ -86,5 +86,21 @@ const nav = getFeaturesNav(base);
     Pre-flight checks each service directory for leftover PID files and kills any stale processes before starting fresh. This runs automatically – no configuration needed.
   </p>
 
+  <hr />
+
+  <div class="section-eyebrow">Single instance</div>
+  <h2>One run per project</h2>
+
+  <p>
+    A second <code>fuku run</code> of the same project is refused while the first instance holds an exclusive lock on the project's lock file. The second process exits before its pre-flight cleanup can touch the running services. An instance started by an older fuku holds no lock, so it is not detected.
+  </p>
+
+  <Terminal title="fuku run">
+    <pre><span class="dim">$</span> fuku run
+<span class="red">Error: fuku is already running for this project</span> <span class="dim">(socket /tmp/fuku-3f9a1c2b7d4e5f60.sock)</span>
+Run 'fuku logs' to follow it or stop that instance before starting another.
+</pre>
+  </Terminal>
+
   <GetStartedCTA />
 </DocsLayout>

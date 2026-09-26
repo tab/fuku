@@ -27,34 +27,9 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
         with:
-          version: v2.11.3
-  vet:
-    name: Vet
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version: '1.26'
-      - name: go vet
-        run: make vet
-  static-check:
-    name: Staticcheck
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version: '1.26'
-      - name: static-check
-        uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431
-        with:
-          version: "v0.7.0"
-          install-go: false
+          version: v2.13.2
+      - name: Comments
+        run: go run ./.github/scripts/comments
   tests:
     name: Tests
     permissions:
@@ -90,7 +65,7 @@ jobs:
         run: make test:e2e
   coverage:
     name: Codecov
-    needs: [linter, vet, static-check, tests, e2e]
+    needs: [linter, tests, e2e]
     permissions:
       contents: read
     env:

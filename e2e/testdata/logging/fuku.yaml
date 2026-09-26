@@ -1,0 +1,15 @@
+version: 1
+
+services:
+  echo-api:
+    dir: .
+    command: "echo 'Service ready'; sleep 60"
+  quiet-api:
+    dir: .
+    command: "echo 'hidden stdout'; echo 'shown stderr' >&2; sleep 60"
+    logs:
+      output: [stderr]
+
+logging:
+  format: json
+  level: info

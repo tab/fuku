@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -107,12 +109,17 @@ func (r *Runner) StartWithConfig(configFile, profile string) error {
 
 // Stop sends SIGTERM and waits for graceful shutdown
 func (r *Runner) Stop() error {
+	return r.Signal(syscall.SIGTERM)
+}
+
+// Signal sends sig and waits for fuku to exit, killing it after 10s
+func (r *Runner) Signal(sig os.Signal) error {
 	if r.cmd == nil || r.cmd.Process == nil {
 		return nil
 	}
 
-	if err := r.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		return fmt.Errorf("failed to send SIGTERM: %w", err)
+	if err := r.cmd.Process.Signal(sig); err != nil {
+		return fmt.Errorf("failed to send %s: %w", sig, err)
 	}
 
 	done := make(chan error, 1)
@@ -172,6 +179,51 @@ func (r *Runner) WaitForTierReady(tier string, timeout time.Duration) error {
 // WaitForRunning waits for the startup phase to complete
 func (r *Runner) WaitForRunning(timeout time.Duration) error {
 	return r.WaitForLog("Startup phase complete", timeout)
+}
+
+// ServicePID waits for a service_starting event of the service and returns its latest PID, also its process group
+func (r *Runner) ServicePID(service string, timeout time.Duration) (int, error) {
+	pattern := regexp.MustCompile(fmt.Sprintf(`service_starting .*pid=(\d+) service=%s\s`, regexp.QuoteMeta(service)))
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		matches := pattern.FindAllStringSubmatch(r.Output(), -1)
+		if len(matches) > 0 {
+			return strconv.Atoi(matches[len(matches)-1][1])
+		}
+
+		select {
+		case <-ctx.Done():
+			return 0, fmt.Errorf("timeout waiting for service_starting of %q\nOutput:\n%s", service, r.Output())
+		case <-ticker.C:
+		}
+	}
+}
+
+// WaitForGroupExit blocks until no process of the group is left or timeout
+func WaitForGroupExit(pgid int, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if errors.Is(syscall.Kill(-pgid, 0), syscall.ESRCH) {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for process group %d to exit", pgid)
+		case <-ticker.C:
+		}
+	}
 }
 
 // TouchFile modifies a file to trigger watcher
@@ -265,8 +317,7 @@ func indexOf(s, substr string) int {
 	return strings.Index(s, substr)
 }
 
-// SocketPath returns the relay socket of the fuku instance serving dir (the name carries the first 16 hex
-// characters of the SHA-256 of the symlink-resolved directory, the same fingerprint the binary computes)
+// SocketPath returns the socket of the fuku instance serving dir, named by the fingerprint the binary computes
 func SocketPath(t *testing.T, dir string) string {
 	t.Helper()
 

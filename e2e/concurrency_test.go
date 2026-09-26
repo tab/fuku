@@ -63,8 +63,6 @@ func Test_Concurrency_WorkersSerializeStartup(t *testing.T) {
 	err := runner.Start("default")
 	require.NoError(t, err)
 
-	// Sample the status endpoint during startup: with workers: 1 the queue
-	// must drain one service at a time while the rest report pending
 	var (
 		maxStarting int
 		sawQueue    bool

@@ -36,6 +36,7 @@ run() {
 grep -qE '^(cmd|internal|e2e|spec)/|^go\.(mod|sum)$|^Makefile$' <<<"$changed" && run "go verification loop" . make check
 grep -q '^plugins/jetbrains/' <<<"$changed" && run "plugin lint" . make lint:plugin
 grep -q '^docs/' <<<"$changed" && run "docs build" docs npm run build
+grep -qE '^(ARCHITECTURE\.md|docs/features/backlog\.md|internal/.*/README\.md)$' <<<"$changed" && run "docs links" . make docs
 
 echo "pre-push: spec drift"
 "$root/.github/scripts/openapi.sh" "${range%%..*}" || exit 1

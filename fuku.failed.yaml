@@ -44,13 +44,9 @@ services:
   frontend-api:
     dir: examples/bookstore/frontend-api
     tier: edge
-    profiles: [core]
     readiness:
       <<: *readiness
       pattern: "Starting frontend-api"
-
-defaults:
-  profiles: [default]
 
 profiles:
   default: "*"                        # All services

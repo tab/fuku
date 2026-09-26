@@ -2,18 +2,15 @@ package e2e
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// fuku doctor exit codes (mirror internal/app/doctor.Report.ExitCode):
-//   0 — no fails (warns/notes allowed)
-//   2 — at least one fail
-//   3 — doctor itself errored (e.g. RenderJSON write failure)
 
 func Test_Doctor_NoConfig(t *testing.T) {
 	dir := t.TempDir()
@@ -82,7 +79,6 @@ func Test_Doctor_InvalidSchema_Fails(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "api"), 0o755))
 
-	// parses as YAML but fails schema validation (unknown readiness type)
 	yaml := `version: 1
 
 services:
@@ -102,7 +98,6 @@ profiles:
 	assert.Equal(t, 2, result.ExitCode)
 	assert.Contains(t, result.Stdout, "config.validate")
 	assert.Contains(t, result.Stdout, "schema validation failed")
-	// the file parsed fine, so config.file must not claim a load failure
 	assert.Contains(t, result.Stdout, "found and parsed")
 	assert.NotContains(t, result.Stdout, "failed to load")
 }
@@ -202,7 +197,6 @@ profiles:
 }
 
 func Test_Doctor_StaleSocketRemediation_NoFixFlag(t *testing.T) {
-	// regression: doctor must not advertise a `--fix` flag that doesn't exist
 	result := RunOnce(t, "testdata/yml-config", "doctor")
 	assert.NotContains(t, result.Stdout, "doctor --fix")
 }
@@ -212,4 +206,120 @@ func Test_Doctor_UnknownProfile_Fails(t *testing.T) {
 
 	assert.Equal(t, 2, result.ExitCode)
 	assert.Contains(t, result.Stdout, "no-such-profile")
+}
+
+// doctorCheck is one check of the doctor JSON report
+type doctorCheck struct {
+	Status  string            `json:"status"`
+	Summary string            `json:"summary"`
+	Details map[string]string `json:"details"`
+}
+
+// doctorChecks parses the checks of a doctor JSON report by ID
+func doctorChecks(t *testing.T, stdout string) map[string]doctorCheck {
+	t.Helper()
+
+	var report struct {
+		Checks map[string]doctorCheck `json:"checks"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+
+	return report.Checks
+}
+
+func Test_Doctor_Dotenv(t *testing.T) {
+	tests := []struct {
+		name     string
+		env      string
+		present  []string
+		expected doctorCheck
+	}{
+		{
+			name:    "missing file warns",
+			env:     "    env:\n      files: [.env, .env.local]\n",
+			present: []string{".env"},
+			expected: doctorCheck{
+				Status:  "warn",
+				Summary: "1 of 2 referenced .env files missing",
+				Details: map[string]string{"api/.env.local": "MISSING"},
+			},
+		},
+		{
+			name:    "every file present",
+			env:     "    env:\n      files: [.env, .env.local]\n",
+			present: []string{".env", ".env.local"},
+			expected: doctorCheck{
+				Status:  "ok",
+				Summary: "2 files referenced, all readable",
+			},
+		},
+		{
+			name: "default files are not checked",
+			env:  "",
+			expected: doctorCheck{
+				Status:  "idle",
+				Summary: "no .env files referenced",
+			},
+		},
+		{
+			name: "explicit empty list",
+			env:  "    env:\n      files: []\n",
+			expected: doctorCheck{
+				Status:  "idle",
+				Summary: "no .env files referenced",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, "api"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte("version: 1\n\nservices:\n  api:\n    dir: api\n"+tt.env), 0o600))
+
+			for _, file := range tt.present {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "api", file), []byte("KEY=value\n"), 0o600))
+			}
+
+			result := RunOnce(t, dir, "doctor", "--json")
+
+			assert.Equal(t, 0, result.ExitCode, "a missing .env file is a warn, not a fail")
+			assert.Equal(t, tt.expected, doctorChecks(t, result.Stdout)["services.dotenv"])
+		})
+	}
+}
+
+func Test_Doctor_RunningInstance_Notes(t *testing.T) {
+	runner := NewRunner(t, "testdata/default-tier")
+	defer runner.Stop()
+
+	require.NoError(t, runner.Start("default"))
+	require.NoError(t, runner.WaitForRunning(15*time.Second))
+
+	result := RunOnce(t, "testdata/default-tier", "doctor", "--json")
+
+	assert.Equal(t, 0, result.ExitCode)
+
+	instance := doctorChecks(t, result.Stdout)["runtime.instance"]
+
+	assert.Equal(t, "note", instance.Status)
+	assert.Equal(t, "another fuku is running for this project", instance.Summary)
+	assert.Equal(t, SocketPath(t, "testdata/default-tier"), instance.Details["socket"])
+}
+
+func Test_Doctor_BusyReadinessPort_Warns(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:19882")
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	result := RunOnce(t, "testdata/readiness", "doctor", "unhealthy", "--json")
+
+	assert.Equal(t, 0, result.ExitCode, "a busy port is a warn, not a fail")
+	assert.Equal(t, doctorCheck{
+		Status:  "warn",
+		Summary: "1 readiness port(s) already bound",
+		Details: map[string]string{"unreachable": "127.0.0.1:19882 already LISTENING"},
+	}, doctorChecks(t, result.Stdout)["runtime.ports"])
 }

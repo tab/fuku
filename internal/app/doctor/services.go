@@ -1,144 +1,144 @@
 package doctor
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 
-	"fuku/internal/app/discovery"
-	"fuku/internal/config"
+	"fuku/internal/model"
 )
 
+// Filesystem observes the working directory and the paths a project references
+type Filesystem interface {
+	Getwd() (string, error)
+	DirExists(path string) bool
+	FileExists(path string) bool
+}
+
 // servicesSection collects per-service filesystem and field checks
-func servicesSection(_ context.Context, env *Env) Section {
-	section := Section{
+func (r *Runner) servicesSection(st *state) model.Section {
+	section := model.Section{
 		Title: "Services",
 	}
 
-	if env.Config == nil {
+	if !st.loaded() {
 		section.Note = "skipped (config did not load)"
 		section.Results = skippedServiceResults("config did not load")
 
 		return section
 	}
 
-	// The profile resolution failure is reported authoritatively by topology.profile,
-	// so here we only skip the per-service checks that depend on it.
-	if env.ProfileErr != nil {
+	if st.profileErr != nil {
 		section.Note = "skipped (profile did not resolve)"
 		section.Results = skippedServiceResults("profile did not resolve")
 
 		return section
 	}
 
-	names := env.ProfileServices
+	services := st.services
 
-	section.Note = fmt.Sprintf("active profile: %s · %d services", env.Profile, len(names))
-	section.Results = []Result{
-		timed(func() Result { return checkServiceDirectories(env, names) }),
-		timed(func() Result { return checkServiceDotenv(env, names) }),
-		timed(func() Result { return checkServiceReadiness(env, names) }),
+	section.Note = fmt.Sprintf("active profile: %s · %d services", st.Profile, len(services))
+	section.Results = []model.Result{
+		timed(func() model.Result { return r.checkServiceDirectories(services) }),
+		timed(func() model.Result { return r.checkServiceDotenv(services) }),
+		timed(func() model.Result { return checkServiceReadiness(services) }),
 	}
 
 	return section
 }
 
 // checkServiceDirectories verifies that each service.Dir exists on disk
-func checkServiceDirectories(env *Env, names []string) Result {
+func (r *Runner) checkServiceDirectories(services []*model.Service) model.Result {
 	var missing []string
 
-	details := make([]Detail, 0, len(names))
+	details := make([]model.Detail, 0, len(services))
 
-	for _, name := range names {
-		svc := env.Config.Services[name]
-		dir := serviceDirAbs(svc)
+	for _, svc := range services {
+		dir := r.serviceDirAbs(*svc)
 
-		if dirExists(dir) {
-			details = append(details, Detail{Key: name, Value: dir})
+		if r.filesystem.DirExists(dir) {
+			details = append(details, model.Detail{Key: svc.Name, Value: dir})
+
 			continue
 		}
 
-		missing = append(missing, name)
-		details = append(details, Detail{Key: name, Value: dir + " (MISSING)"})
+		missing = append(missing, svc.Name)
+		details = append(details, model.Detail{Key: svc.Name, Value: dir + " (MISSING)"})
 	}
 
 	if len(missing) == 0 {
-		return Result{
-			ID:       CheckServicesDirectories,
-			Category: CategoryServices,
-			Status:   StatusOK,
-			Summary:  fmt.Sprintf("%d of %d directories present", len(names), len(names)),
+		return model.Result{
+			ID:       model.CheckServicesDirectories,
+			Category: model.CategoryServices,
+			Severity: model.SeverityOK,
+			Summary:  fmt.Sprintf("%d of %d directories present", len(services), len(services)),
 			Details:  details,
 		}
 	}
 
-	return Result{
-		ID:          CheckServicesDirectories,
-		Category:    CategoryServices,
-		Status:      StatusWarn,
-		Summary:     fmt.Sprintf("%d of %d directories missing", len(missing), len(names)),
+	return model.Result{
+		ID:          model.CheckServicesDirectories,
+		Category:    model.CategoryServices,
+		Severity:    model.SeverityWarn,
+		Summary:     fmt.Sprintf("%d of %d directories missing", len(missing), len(services)),
 		Details:     details,
 		Remediation: "create the missing directories or fix `dir:` paths in fuku.yaml",
 	}
 }
 
 // checkServiceDotenv verifies that each referenced .env file exists and is readable
-func checkServiceDotenv(env *Env, names []string) Result {
+func (r *Runner) checkServiceDotenv(services []*model.Service) model.Result {
 	var missing []string
 
 	total := 0
-	details := []Detail{}
+	details := []model.Detail{}
 
-	for _, name := range names {
-		svc := env.Config.Services[name]
-		if svc.Env == nil || len(svc.Env.Files) == 0 {
+	for _, svc := range services {
+		if svc.Environment.Defaulted || len(svc.Environment.Files) == 0 {
 			continue
 		}
 
-		dir := serviceDirAbs(svc)
+		dir := r.serviceDirAbs(*svc)
 
-		for _, file := range svc.Env.Files {
+		for _, file := range svc.Environment.Files {
 			total++
 
 			path := filepath.Join(dir, file)
-			if fileExists(path) {
+			if r.filesystem.FileExists(path) {
 				continue
 			}
 
-			label := fmt.Sprintf("%s/%s", name, file)
+			label := fmt.Sprintf("%s/%s", svc.Name, file)
 			missing = append(missing, label)
-			details = append(details, Detail{Key: label, Value: "MISSING"})
+			details = append(details, model.Detail{Key: label, Value: "MISSING"})
 		}
 	}
 
 	if total == 0 {
-		return Result{
-			ID:       CheckServicesDotenv,
-			Category: CategoryServices,
-			Status:   StatusIdle,
+		return model.Result{
+			ID:       model.CheckServicesDotenv,
+			Category: model.CategoryServices,
+			Severity: model.SeverityIdle,
 			Summary:  "no .env files referenced",
 		}
 	}
 
 	if len(missing) == 0 {
-		return Result{
-			ID:       CheckServicesDotenv,
-			Category: CategoryServices,
-			Status:   StatusOK,
+		return model.Result{
+			ID:       model.CheckServicesDotenv,
+			Category: model.CategoryServices,
+			Severity: model.SeverityOK,
 			Summary:  fmt.Sprintf("%d files referenced, all readable", total),
 		}
 	}
 
-	return Result{
-		ID:          CheckServicesDotenv,
-		Category:    CategoryServices,
-		Status:      StatusWarn,
+	return model.Result{
+		ID:          model.CheckServicesDotenv,
+		Category:    model.CategoryServices,
+		Severity:    model.SeverityWarn,
 		Summary:     fmt.Sprintf("%d of %d referenced .env files missing", len(missing), total),
 		Details:     details,
 		Remediation: "create the missing .env files or update `env.files` in fuku.yaml",
@@ -146,67 +146,66 @@ func checkServiceDotenv(env *Env, names []string) Result {
 }
 
 // checkServiceReadiness verifies probe fields parse as URL, regex, or host:port
-func checkServiceReadiness(env *Env, names []string) Result {
+func checkServiceReadiness(services []*model.Service) model.Result {
 	var (
 		http, tcp, log int
-		issues         []Detail
+		issues         []model.Detail
 	)
 
-	for _, name := range names {
-		svc := env.Config.Services[name]
+	for _, svc := range services {
 		if svc.Readiness == nil {
 			continue
 		}
 
-		r := svc.Readiness
+		probe := svc.Readiness
 
-		switch r.Type {
-		case config.TypeHTTP:
+		switch probe.Type {
+		case model.ReadinessHTTP:
 			http++
 
-			if err := validateHTTPURL(r.URL); err != nil {
-				issues = append(issues, Detail{Key: name + " url", Value: err.Error()})
+			if err := validateHTTPURL(probe.URL); err != nil {
+				issues = append(issues, model.Detail{Key: svc.Name + " url", Value: err.Error()})
 			}
-		case config.TypeTCP:
+		case model.ReadinessTCP:
 			tcp++
 
-			if _, _, err := net.SplitHostPort(r.Address); err != nil {
-				issues = append(issues, Detail{Key: name + " address", Value: err.Error()})
+			if _, _, err := net.SplitHostPort(probe.Address); err != nil {
+				issues = append(issues, model.Detail{Key: svc.Name + " address", Value: err.Error()})
 			}
-		case config.TypeLog:
+		case model.ReadinessLog:
 			log++
 
-			if _, err := regexp.Compile(r.Pattern); err != nil {
-				issues = append(issues, Detail{Key: name + " pattern", Value: err.Error()})
+			if _, err := regexp.Compile(probe.Pattern); err != nil {
+				issues = append(issues, model.Detail{Key: svc.Name + " pattern", Value: err.Error()})
 			}
 		}
 	}
 
 	total := http + tcp + log
 	if total == 0 {
-		return Result{
-			ID:       CheckServicesReadiness,
-			Category: CategoryServices,
-			Status:   StatusIdle,
+		return model.Result{
+			ID:       model.CheckServicesReadiness,
+			Category: model.CategoryServices,
+			Severity: model.SeverityIdle,
 			Summary:  "no readiness probes defined",
 		}
 	}
 
 	if len(issues) > 0 {
-		return Result{
-			ID:          CheckServicesReadiness,
-			Category:    CategoryServices,
-			Status:      StatusFail,
+		return model.Result{
+			ID:          model.CheckServicesReadiness,
+			Category:    model.CategoryServices,
+			Severity:    model.SeverityFail,
 			Summary:     fmt.Sprintf("%d probe field(s) failed to parse", len(issues)),
 			Details:     issues,
 			Remediation: "fix the malformed readiness fields in fuku.yaml",
 		}
 	}
 
-	return Result{
-		ID:       CheckServicesReadiness,
-		Category: CategoryServices,
-		Status:   StatusOK,
+	return model.Result{
+		ID:       model.CheckServicesReadiness,
+		Category: model.CategoryServices,
+		Severity: model.SeverityOK,
 		Summary:  fmt.Sprintf("%d probes parse (http=%d tcp=%d log=%d)", total, http, tcp, log),
 	}
 }
@@ -229,51 +228,27 @@ func validateHTTPURL(raw string) error {
 	return nil
 }
 
-// resolveProfileServices returns the sorted list of services in the active profile
-func resolveProfileServices(env *Env) ([]string, error) {
-	disc := discovery.NewDiscovery(env.Config, env.Topology)
-
-	tiers, err := disc.Resolve(env.Profile)
-	if err != nil {
-		return nil, err
-	}
-
-	var names []string
-	for _, tier := range tiers {
-		names = append(names, tier.Services...)
-	}
-
-	sort.Strings(names)
-
-	return names, nil
-}
-
 // serviceDirAbs returns the absolute service directory path
-func serviceDirAbs(svc *config.Service) string {
-	if filepath.IsAbs(svc.Dir) {
-		return svc.Dir
+func (r *Runner) serviceDirAbs(svc model.Service) string {
+	if filepath.IsAbs(svc.Directory) {
+		return svc.Directory
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := r.filesystem.Getwd()
 	if err != nil {
-		return svc.Dir
+		return svc.Directory
 	}
 
-	return filepath.Join(cwd, svc.Dir)
+	return filepath.Join(cwd, svc.Directory)
 }
 
 // skippedServiceResults returns idle placeholders for the per-service checks with the given reason
-func skippedServiceResults(reason string) []Result {
-	ids := []CheckID{CheckServicesDirectories, CheckServicesDotenv, CheckServicesReadiness}
-	results := make([]Result, 0, len(ids))
+func skippedServiceResults(reason string) []model.Result {
+	ids := []model.CheckID{model.CheckServicesDirectories, model.CheckServicesDotenv, model.CheckServicesReadiness}
+	results := make([]model.Result, 0, len(ids))
 
 	for _, id := range ids {
-		results = append(results, Result{
-			ID:       id,
-			Category: CategoryServices,
-			Status:   StatusIdle,
-			Summary:  "skipped (" + reason + ")",
-		})
+		results = append(results, skipped(id, model.CategoryServices, reason))
 	}
 
 	return results

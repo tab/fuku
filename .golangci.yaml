@@ -7,6 +7,7 @@ linters:
     - bodyclose
     - containedctx
     - copyloopvar
+    - depguard
     - dupl
     - dupword
     - durationcheck
@@ -54,21 +55,127 @@ linters:
     - wsl_v5
     - zerologlint
   settings:
+    depguard:
+      rules:
+        model:
+          list-mode: strict
+          files:
+            - "**/internal/model/**"
+            - "!$test"
+          allow:
+            - $gostd
+        contracts:
+          list-mode: strict
+          files:
+            - "**/internal/contracts/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - fuku/internal/model$
+        model-tests:
+          list-mode: strict
+          files:
+            - "**/internal/model/*_test.go"
+          allow:
+            - $gostd
+            - fuku/internal/model$
+            - github.com/stretchr/testify
+        contracts-tests:
+          list-mode: strict
+          files:
+            - "**/internal/contracts/*_test.go"
+          allow:
+            - $gostd
+            - fuku/internal/model$
+            - fuku/internal/contracts$
+            - github.com/stretchr/testify
+        app:
+          list-mode: lax
+          files:
+            - "**/internal/app/**"
+          deny:
+            - pkg: fuku/internal/adapters
+              desc: app imports no adapter; declare a consumer-owned interface and bind it in bootstrap/modules
+            - pkg: fuku/internal/platform
+              desc: app imports no platform package; declare a consumer-owned interface and bind it in bootstrap/modules
+        platform:
+          list-mode: lax
+          files:
+            - "**/internal/platform/**"
+          deny:
+            - pkg: fuku/internal/app
+              desc: platform imports no app package
+            - pkg: fuku/internal/adapters
+              desc: platform imports no adapter
+            - pkg: fuku/internal/bootstrap
+              desc: platform imports no bootstrap package
+        adapters:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/**"
+          deny:
+            - pkg: fuku/internal/bootstrap
+              desc: an adapter imports no bootstrap package
+        tui:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/tui/**"
+          deny:
+            - pkg: fuku/internal/adapters/rest
+              desc: the TUI reads API state from the registry snapshot, not from the REST server
+        process:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/process/**"
+          deny:
+            - pkg: fuku/internal/adapters/logsocket
+              desc: process streams write to a LogSink bound in bootstrap/modules, never to the socket transport
+        cli:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/cli/**"
+          deny:
+            - pkg: fuku/internal/adapters/tui
+              desc: the CLI imports no TUI; the composition selects the view
+        bootstrap-children:
+          list-mode: lax
+          files:
+            - "**/internal/bootstrap/*/**"
+          deny:
+            - pkg: fuku/internal/bootstrap$
+              desc: lifecycle and modules do not import the bootstrap root
+        production:
+          list-mode: lax
+          files:
+            - "!$test"
+          deny:
+            - pkg: go.uber.org/mock
+              desc: only *_test.go files import gomock; generated mocks are *_mock_test.go
     exhaustive:
       default-signifies-exhaustive: true
     goconst:
       min-len: 2
       min-occurrences: 7
+    godoclint:
+      enable:
+        - require-doc
+        - max-len
+        - start-with-name
+      options:
+        max-len:
+          length: 120
+        start-with-name:
+          include-unexported: true
     forbidigo:
       forbid:
         - pattern: ^time\.Sleep$
           msg: "time.Sleep is a code smell. Use channel-based synchronization instead."
         - pattern: ^fmt\.Print$
-          msg: "Use structured logging with zerolog instead of fmt.Print."
+          msg: "Use structured logging instead of fmt.Print."
         - pattern: ^fmt\.Printf$
-          msg: "Use structured logging with zerolog instead of fmt.Printf."
+          msg: "Use structured logging instead of fmt.Printf."
         - pattern: ^fmt\.Println$
-          msg: "Use structured logging with zerolog instead of fmt.Println."
+          msg: "Use structured logging instead of fmt.Println."
     revive:
       rules:
         - name: early-return
@@ -97,6 +204,7 @@ linters:
       - linters:
           - dupl
           - errcheck
+          - goconst
           - gosec
           - nilnil
         path: _test\.go
@@ -122,6 +230,10 @@ linters:
           - revive
         text: should have a package comment
       - linters:
+          - godoclint
+        path: _test\.go$
+        text: symbol should have a godoc
+      - linters:
           - revive
         path: _test\.go$
         text: unused-parameter
@@ -131,24 +243,24 @@ linters:
         path: ^e2e/
       - linters:
           - forbidigo
-        path: ^internal/app/cli/
+        path: ^internal/adapters/cli/
       - linters:
           - forbidigo
         path: ^internal/bootstrap/
       - linters:
           - containedctx
           - recvcheck
-        path: ^internal/app/ui/
+        path: ^internal/adapters/tui/
       - linters:
           - forcetypeassert
           - zerologlint
         path: _test\.go
       - linters:
           - dupword
-        path: ^internal/app/cli/
+        path: ^internal/adapters/cli/
       - linters:
           - zerologlint
-        path: ^internal/config/logger/
+        path: ^internal/platform/logging/
     paths:
       - docs
       - vendor
@@ -156,6 +268,14 @@ linters:
       - builtin$
       - ^examples/
 formatters:
+  enable:
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(fuku)
   exclusions:
     generated: lax
     paths:

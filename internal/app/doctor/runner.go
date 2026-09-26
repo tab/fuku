@@ -2,70 +2,97 @@ package doctor
 
 import (
 	"context"
-	"runtime"
-	"time"
+	"sort"
 
-	"fuku/internal/config"
+	"fuku/internal/model"
 )
 
-// Options controls a doctor run
+// Options controls a doctor run (Version is the running fuku version the report is stamped with)
 type Options struct {
-	Profile     string
-	ConfigPath  string
-	Fingerprint string
+	Profile        string
+	ExplicitConfig bool
+	Fingerprint    string
+	Version        string
 }
 
-// Env holds shared loaded state passed to each check
-type Env struct {
-	Profile         string
-	Fingerprint     string
-	ConfigPath      string
-	ExplicitConfig  bool
-	OverridePath    string
-	Config          *config.Config
-	Topology        *config.Topology
-	LoadErr         error
-	ProfileServices []string
-	ProfileErr      error
+// Profiles resolves a profile of the loaded project into its tiers
+type Profiles interface {
+	Resolve(profile string) (model.Tiers, error)
+}
+
+// Runner executes the doctor checks over the loaded config and the observers that see the machine
+type Runner struct {
+	options     Options
+	config      model.Config
+	environment Environment
+	filesystem  Filesystem
+	profiles    Profiles
+	runtime     Runtime
+}
+
+// NewRunner creates a doctor runner over the loaded config
+func NewRunner(options Options, config model.Config, environment Environment, filesystem Filesystem, profiles Profiles, runtime Runtime) *Runner {
+	return &Runner{
+		options:     options,
+		config:      config,
+		environment: environment,
+		filesystem:  filesystem,
+		profiles:    profiles,
+		runtime:     runtime,
+	}
 }
 
 // Run executes all doctor checks and returns the report
-func Run(ctx context.Context, opts Options) *Report {
-	env := loadEnv(opts)
+func (r *Runner) Run(ctx context.Context) *model.Report {
+	st := r.load()
 
-	report := &Report{
-		SchemaVersion: 1,
-		GeneratedAt:   time.Now().UTC(),
-		FukuVersion:   config.Version,
-		Platform:      runtime.GOOS + "-" + runtime.GOARCH,
-	}
-
-	report.Sections = []Section{
-		environmentSection(ctx, env),
-		configSection(ctx, env),
-		servicesSection(ctx, env),
-		topologySection(ctx, env),
-		runtimeSection(ctx, env),
+	report := newReport(r.options.Version)
+	report.Sections = []model.Section{
+		r.environmentSection(),
+		configSection(st),
+		r.servicesSection(st),
+		topologySection(st),
+		r.runtimeSection(ctx, st),
 	}
 
 	return report
 }
 
-// loadEnv resolves config paths and attempts to load the config without panicking on failure
-func loadEnv(opts Options) *Env {
-	env := &Env{Profile: opts.Profile, Fingerprint: opts.Fingerprint, ExplicitConfig: opts.ConfigPath != ""}
+// state is the loaded config and the resolved profile every check reads
+type state struct {
+	Options
+	model.Config
+	services   []*model.Service
+	profileErr error
+}
 
-	env.ConfigPath, _ = config.ResolveConfigPath(opts.ConfigPath)
-	env.OverridePath, _ = config.ResolveOverridePath(env.ConfigPath)
+// loaded reports whether the config was read, parsed and validated
+func (s *state) loaded() bool {
+	return s.Error == nil
+}
 
-	cfg, topo, err := config.LoadPath(opts.ConfigPath)
-	env.Config = cfg
-	env.Topology = topo
-	env.LoadErr = err
+// load unpacks the loaded config and resolves the active profile when the config loaded
+func (r *Runner) load() *state {
+	st := &state{Options: r.options, Config: r.config}
 
-	if cfg != nil && topo != nil {
-		env.ProfileServices, env.ProfileErr = resolveProfileServices(env)
+	if st.loaded() {
+		st.services, st.profileErr = resolveProfileServices(r.profiles, st.Profile)
 	}
 
-	return env
+	return st
+}
+
+// resolveProfileServices returns the services in the active profile sorted by name
+func resolveProfileServices(profiles Profiles, profile string) ([]*model.Service, error) {
+	tiers, err := profiles.Resolve(profile)
+	if err != nil {
+		return nil, err
+	}
+
+	services := tiers.Services()
+	sort.Slice(services, func(i, j int) bool {
+		return services[i].Name < services[j].Name
+	})
+
+	return services, nil
 }

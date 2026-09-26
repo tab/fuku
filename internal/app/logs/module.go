@@ -1,10 +1,11 @@
 package logs
 
-import (
-	"go.uber.org/fx"
-)
+import "go.uber.org/fx"
 
-// Module provides the logs package dependencies
+// Module provides the log hub and the log session for dependency injection
 var Module = fx.Options(
-	fx.Provide(NewScreen),
+	fx.Provide(
+		NewHub,
+		NewSession,
+	),
 )

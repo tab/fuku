@@ -443,3 +443,89 @@ func Test_API_ServiceHasUUID(t *testing.T) {
 		assert.Contains(t, id, "-")
 	}
 }
+
+func Test_API_UnroutedRequests(t *testing.T) {
+	runner := startAPIRunner(t)
+	defer runner.Stop()
+
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		token       string
+		status      int
+		contentType string
+		body        string
+	}{
+		{
+			name:        "preflight without token",
+			method:      http.MethodOptions,
+			path:        "/api/v1/status",
+			status:      http.StatusUnauthorized,
+			contentType: "application/json",
+			body:        "{\"error\":\"unauthorized\"}\n",
+		},
+		{
+			name:        "preflight with token",
+			method:      http.MethodOptions,
+			path:        "/api/v1/status",
+			token:       apiToken,
+			status:      http.StatusMethodNotAllowed,
+			contentType: "text/plain; charset=utf-8",
+			body:        "Method Not Allowed\n",
+		},
+		{
+			name:        "wrong method on a probe without token",
+			method:      http.MethodPost,
+			path:        "/api/v1/live",
+			status:      http.StatusUnauthorized,
+			contentType: "application/json",
+			body:        "{\"error\":\"unauthorized\"}\n",
+		},
+		{
+			name:        "wrong method on a probe with token",
+			method:      http.MethodPost,
+			path:        "/api/v1/live",
+			token:       apiToken,
+			status:      http.StatusNotFound,
+			contentType: "text/plain; charset=utf-8",
+			body:        "404 page not found\n",
+		},
+		{
+			name:        "unknown path with token",
+			method:      http.MethodGet,
+			path:        "/api/v1/nope",
+			token:       apiToken,
+			status:      http.StatusNotFound,
+			contentType: "text/plain; charset=utf-8",
+			body:        "404 page not found\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := apiRequest(t, tt.method, tt.path, tt.token)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.status, resp.StatusCode)
+			assert.Equal(t, tt.contentType, resp.Header.Get("Content-Type"))
+			assert.Equal(t, tt.body, string(body))
+			assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+		})
+	}
+}
+
+func Test_API_NoCORSHeaders(t *testing.T) {
+	runner := startAPIRunner(t)
+	defer runner.Stop()
+
+	resp := apiRequest(t, http.MethodGet, "/api/v1/live", "")
+	resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Methods"))
+}

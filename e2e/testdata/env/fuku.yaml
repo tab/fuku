@@ -1,0 +1,10 @@
+version: 1
+
+services:
+  printer:
+    dir: .
+    command: "echo \"file=$E2E_FILE_ONLY goenv=$E2E_GOENV_WINS process=$E2E_PROCESS_WINS\"; sleep 60"
+
+logging:
+  format: console
+  level: debug

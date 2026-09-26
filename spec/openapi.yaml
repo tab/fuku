@@ -175,7 +175,7 @@ components:
       properties:
         status:
           type: string
-          example: alive
+          example: ready
 
     Live:
       type: object
@@ -231,7 +231,7 @@ components:
             error: service not found
 
     Conflict:
-      description: Invalid action for the current service state or instance phase
+      description: Invalid action for the current service state, a conflicting action still in flight on the service, or an instance that is not accepting actions (before the profile is resolved or during shutdown)
       content:
         application/json:
           schema:
@@ -249,19 +249,19 @@ components:
               summary: Service cannot be restarted
               value:
                 error: service cannot be restarted
-            invalidPhase:
+            notAccepting:
               summary: Instance not accepting actions
               value:
                 error: instance is not accepting actions
 
     InternalServerError:
-      description: Unexpected server error
+      description: The instance could not queue the action
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
           example:
-            error: internal server error
+            error: instance is overloaded
 
 paths:
   /live:
@@ -311,8 +311,6 @@ paths:
                 $ref: "#/components/schemas/Status"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
 
   /services:
     get:
@@ -327,8 +325,6 @@ paths:
                 $ref: "#/components/schemas/ServiceList"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
 
   /services/{id}:
     get:
@@ -354,13 +350,11 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
 
   /services/{id}/start:
     post:
       summary: Start a stopped or failed service
-      description: Accepts the action and returns immediately. Poll GET /services/{id} for completion.
+      description: Accepts the action while the instance starts up or runs and returns immediately. Poll GET /services/{id} for completion.
       operationId: startService
       parameters:
         - name: id
@@ -395,7 +389,7 @@ paths:
   /services/{id}/stop:
     post:
       summary: Stop a running service
-      description: Accepts the action and returns immediately. Poll GET /services/{id} for completion.
+      description: Accepts the action while the instance starts up or runs and returns immediately. Poll GET /services/{id} for completion.
       operationId: stopService
       parameters:
         - name: id
@@ -430,7 +424,7 @@ paths:
   /services/{id}/restart:
     post:
       summary: Restart a running, stopped, or failed service
-      description: Accepts the action and returns immediately. Poll GET /services/{id} for completion.
+      description: Accepts the action while the instance starts up or runs and returns immediately. Poll GET /services/{id} for completion.
       operationId: restartService
       parameters:
         - name: id

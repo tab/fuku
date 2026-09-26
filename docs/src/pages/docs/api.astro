@@ -92,7 +92,7 @@ const conflictStartJson = esc(`{ "error": "service cannot be started" }`);
 const conflictStopJson = esc(`{ "error": "service is not running" }`);
 const conflictRestartJson = esc(`{ "error": "service cannot be restarted" }`);
 const notAcceptingJson = esc(`{ "error": "instance is not accepting actions" }`);
-const internalErrorJson = esc(`{ "error": "internal server error" }`);
+const internalErrorJson = esc(`{ "error": "instance is overloaded" }`);
 
 interface Endpoint {
   id: string;
@@ -129,7 +129,6 @@ const endpoints: Endpoint[] = [
     responses: [
       { status: "success", code: "200", body: statusJson },
       { status: "error", code: "401", body: unauthorizedJson },
-      { status: "error", code: "500", body: internalErrorJson },
     ],
   },
   {
@@ -139,7 +138,6 @@ const endpoints: Endpoint[] = [
     responses: [
       { status: "success", code: "200", body: serviceListJson },
       { status: "error", code: "401", body: unauthorizedJson },
-      { status: "error", code: "500", body: internalErrorJson },
     ],
   },
   {
@@ -150,12 +148,11 @@ const endpoints: Endpoint[] = [
       { status: "success", code: "200", body: serviceJson },
       { status: "error", code: "401", body: unauthorizedJson },
       { status: "error", code: "404", body: notFoundJson },
-      { status: "error", code: "500", body: internalErrorJson },
     ],
   },
   {
     id: "start-service", method: "POST", path: "/api/v1/services/:id/start", apiPath: "/api/v1/services/:id/start",
-    description: "Starts a stopped or failed service. Asynchronous – poll GET /services/:id for completion.",
+    description: "Starts a stopped or failed service while the instance starts up or runs. Asynchronous – poll GET /services/:id for completion.",
     hasId: true,
     responses: [
       { status: "accepted", code: "202", body: startJson },
@@ -168,7 +165,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "stop-service", method: "POST", path: "/api/v1/services/:id/stop", apiPath: "/api/v1/services/:id/stop",
-    description: "Stops a running service. Asynchronous – poll GET /services/:id for completion.",
+    description: "Stops a running service while the instance starts up or runs. Asynchronous – poll GET /services/:id for completion.",
     hasId: true,
     responses: [
       { status: "accepted", code: "202", body: stopJson },
@@ -181,7 +178,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "restart-service", method: "POST", path: "/api/v1/services/:id/restart", apiPath: "/api/v1/services/:id/restart",
-    description: "Restarts a running, stopped, or failed service. Asynchronous – poll GET /services/:id for completion.",
+    description: "Restarts a running, stopped, or failed service while the instance starts up or runs. Asynchronous – poll GET /services/:id for completion.",
     hasId: true,
     responses: [
       { status: "accepted", code: "202", body: restartJson },
@@ -298,7 +295,7 @@ const endpoints: Endpoint[] = [
                 )}
                 <button class="pg-button pg-send">
                   <span class={`method-tag ${ep.method.toLowerCase()}`}>{ep.method}</span>
-                  Send
+                  Copy curl
                 </button>
                 <div class="playground-result pg-result" style="display: none;">
                   <div class="result-header">
@@ -325,10 +322,11 @@ const endpoints: Endpoint[] = [
               <tbody>
                 <tr><td><code>401</code></td><td>unauthorized</td><td>Missing or invalid bearer token</td></tr>
                 <tr><td><code>404</code></td><td>service not found</td><td>Unknown UUID</td></tr>
-                <tr><td><code>409</code></td><td>service cannot be started</td><td>Start on non-stopped service</td></tr>
-                <tr><td><code>409</code></td><td>service is not running</td><td>Stop on non-running service</td></tr>
-                <tr><td><code>409</code></td><td>service cannot be restarted</td><td>Restart on starting/stopping/restarting service</td></tr>
-                <tr><td><code>409</code></td><td>instance is not accepting actions</td><td>Action during startup or shutdown</td></tr>
+                <tr><td><code>409</code></td><td>service cannot be started</td><td>Start on a running or pending service, or one busy with another action</td></tr>
+                <tr><td><code>409</code></td><td>service is not running</td><td>Stop on a service that is not running, or one busy with another action</td></tr>
+                <tr><td><code>409</code></td><td>service cannot be restarted</td><td>Restart on a pending service, or one busy with another action</td></tr>
+                <tr><td><code>409</code></td><td>instance is not accepting actions</td><td>Action before the profile is resolved or during shutdown</td></tr>
+                <tr><td><code>500</code></td><td>instance is overloaded</td><td>The command queue is full. The instance shuts down and the run exits 1</td></tr>
               </tbody>
             </table>
           </div>
@@ -363,37 +361,18 @@ const endpoints: Endpoint[] = [
       const timeEl = pg.querySelector('.pg-time')!;
       const bodyEl = pg.querySelector('.pg-body')!;
 
-      resultEl.style.display = '';
-      statusEl.textContent = 'Sending...';
-      statusEl.className = 'result-status pg-status';
-      timeEl.textContent = '';
-      bodyEl.textContent = '';
+      let curl = `curl -X ${method} '${url}'`;
+      if (token) curl += ` \\\n  -H 'Authorization: Bearer ${token}'`;
 
-      const start = performance.now();
+      resultEl.style.display = '';
+      statusEl.textContent = 'curl';
+      timeEl.textContent = '';
+      bodyEl.textContent = curl;
 
       try {
-        const headers: Record<string, string> = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(url, { method, headers });
-        const elapsed = Math.round(performance.now() - start);
-        const text = await res.text();
-
-        let body: string;
-        try { body = JSON.stringify(JSON.parse(text), null, 2); }
-        catch { body = text; }
-
-        statusEl.textContent = `${res.status} ${res.statusText}`;
-        statusEl.className = `result-status pg-status ${res.ok ? 'ok' : 'err'}`;
-        timeEl.textContent = `${elapsed}ms`;
-        bodyEl.textContent = body;
-      } catch (err: any) {
-        const elapsed = Math.round(performance.now() - start);
-        statusEl.textContent = 'Error';
-        statusEl.className = 'result-status pg-status err';
-        timeEl.textContent = `${elapsed}ms`;
-        bodyEl.textContent = err.message || 'Request failed';
-      }
+        await navigator.clipboard.writeText(curl);
+        timeEl.textContent = 'copied to clipboard';
+      } catch {}
     });
   });
 
@@ -737,8 +716,6 @@ const endpoints: Endpoint[] = [
   }
 
   .result-status { font-family: var(--mono); font-weight: 600; color: var(--text-muted); }
-  .result-status.ok { color: #22c55e; }
-  .result-status.err { color: #ef4444; }
 
   .result-time { font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted); }
 

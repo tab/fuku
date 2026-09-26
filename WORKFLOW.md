@@ -2,14 +2,16 @@
 
 ## Overview
 
-All workflows live in `.github/workflows/` and form a three-layer protection chain:
+The workflows live in `.github/workflows/`. Three gates and one deployment:
 
 ```
-feature branch → PR → Checks (gate to master)
+feature branch → PR → Checks + Conventions (gate to master)
                         ↓ merge
                       master → Master (post-merge verification + coverage)
                         ↓ tag release
                       release → Release (verify → build → publish)
+
+master, docs/** or spec/openapi.yaml changed → Pages (docs site)
 ```
 
 ## Workflows
@@ -18,34 +20,40 @@ feature branch → PR → Checks (gate to master)
 
 **Trigger:** Pull requests (opened, reopened, synchronize, ready_for_review)
 
-Primary gatekeeper. All jobs must pass before merging to master.
+The gate to master. Every job must pass.
 
-| Job         | Go Versions  | What it does             |
-|-------------|--------------|--------------------------|
-| Linter      | 1.26         | golangci-lint v2         |
-| Vet         | 1.26         | `go vet ./...`           |
-| Staticcheck | 1.26         | Static analysis          |
-| Tests       | 1.26, 1.27   | `go test -race` (matrix) |
-| E2E         | 1.26         | Build binary + e2e tests |
+| Job         | What it does                                                                        |
+| ----------- | ----------------------------------------------------------------------------------- |
+| Linter      | golangci-lint v2, which runs `govet` and `staticcheck`                              |
+| Tests       | `make test:race` on each Go version of the matrix                                   |
+| E2E         | `make build && make test:e2e`                                                       |
+| Plugin      | ktlint and `buildPlugin` for the JetBrains plugin                                   |
+| Codecov     | Coverage upload. Runs after Linter, Tests and E2E pass                              |
+| Spec        | `openapi.sh` (the spec ships with an API change) and `links.sh` (doc links resolve) |
 
-All jobs run in parallel. Concurrency group cancels outdated runs on the same PR.
+The jobs run in parallel. A new push cancels the older run of the same PR.
+The `contract-unchanged` label waives the spec check for a PR that touches the API package without changing the contract.
 
-**Required:** Enable branch protection on `master` with all five checks as required status checks.
+### Conventions (`conventions.yaml`)
+
+**Trigger:** Pull requests (opened, reopened, edited, synchronize, ready_for_review). Skipped for dependabot
+
+One job, `Conventions`. The title is a scoped Conventional Commit (`subject.sh`).
+Every commit is scoped and carries no AI attribution (`commits.sh`).
+It is a separate workflow so a title edit reruns it without cancelling the code jobs.
 
 ### Master (`master.yaml`)
 
 **Trigger:** Push to master (skips docs-only changes), workflow_dispatch
 
-Post-merge safety net. Mirrors the full Checks suite and uploads coverage.
+Re-runs the Go jobs after the merge and uploads coverage.
 
-| Job         | Go Versions  | What it does                               |
-|-------------|--------------|--------------------------------------------|
-| Linter      | 1.26         | golangci-lint v2                           |
-| Vet         | 1.26         | `go vet ./...`                             |
-| Staticcheck | 1.26         | Static analysis                            |
-| Tests       | 1.26, 1.27   | `go test -race` (matrix)                   |
-| E2E         | 1.26         | Build binary + e2e tests                   |
-| Codecov     | 1.26         | Coverage upload (runs after all jobs pass) |
+| Job         | What it does                                           |
+| ----------- | ------------------------------------------------------ |
+| Linter      | golangci-lint v2, which runs `govet` and `staticcheck` |
+| Tests       | `make test:race` on each Go version of the matrix      |
+| E2E         | `make build && make test:e2e`                          |
+| Codecov     | Coverage upload. Runs after Linter, Tests and E2E pass |
 
 Ignored paths: `docs/**`, `assets/**`, `**.md`, `LICENSE`, `.github/workflows/pages.yaml`
 
@@ -53,35 +61,36 @@ Ignored paths: `docs/**`, `assets/**`, `**.md`, `LICENSE`, `.github/workflows/pa
 
 **Trigger:** GitHub release (released event)
 
-Final gate before code reaches users via GitHub Releases and Homebrew.
+The gate before a release reaches GitHub Releases and Homebrew.
 
-| Job     | Depends on  | What it does                           |
-|---------|-------------|----------------------------------------|
-| Verify  | —           | Tests with race detector + build + e2e |
-| Release | Verify      | GoReleaser (cross-compile + publish)   |
-| Sentry  | Release     | Create Sentry release with commits     |
+| Job              | Depends on | What it does                                             |
+| ---------------- | ---------- | -------------------------------------------------------- |
+| Verify           | —          | `make test:race`, `make build`, `make test:e2e`          |
+| Release          | Verify     | GoReleaser (cross-compile + publish)                     |
+| JetBrains Plugin | Verify     | `buildPlugin` and upload of the zip to the release       |
+| Sentry Release   | Release    | Create the Sentry release with commits                   |
 
-If Verify fails, no artifacts are built or published.
+If Verify fails, nothing is built or published.
 
 ### Pages (`pages.yaml`)
 
-**Trigger:** Push to master (only `docs/**`, `assets/**`, `.github/workflows/pages.yaml`), workflow_dispatch
+**Trigger:** Push to master (only `docs/**`, `spec/openapi.yaml`, `assets/**`, `.github/workflows/pages.yaml`), workflow_dispatch
 
-Builds and deploys the documentation site to GitHub Pages. Independent from Go CI.
+Copies `spec/openapi.yaml` into `docs/public/`, builds the Astro site and deploys it. Independent of the Go CI.
 
 ## Branch Protection
 
-For the pipeline to be truly bulletproof, configure branch protection on `master`:
+Configure branch protection on `master`:
 
-- Require status checks to pass: Linter, Vet, Staticcheck, Tests (version: 1.26), Tests (version: 1.27), E2E
-- Require branches to be up to date before merging
-- Require pull request reviews (optional but recommended)
+- required checks: Linter, both Tests matrix jobs, E2E, Plugin, Spec, Conventions
+- the branch must be up to date before a merge
+- pull request reviews are recommended
 
 ## Development Flow
 
-1. Create `feature/*` or `fix/*` branch from `master`
-2. Push branch — Checks workflow runs on PR
-3. Code review + all checks green — merge to `master`
-4. Master workflow re-verifies merged code and uploads coverage
-5. When ready to release — create a GitHub release with a `v*` tag
-6. Release workflow verifies, builds, and publishes
+1. Branch `feature/*` or `fix/*` from `master`
+2. Open a PR. Checks and Conventions run
+3. Review, green checks, merge
+4. Master re-verifies and uploads coverage
+5. Create a GitHub release with a `v*` tag
+6. Release verifies, builds and publishes

@@ -1,181 +1,159 @@
 package doctor
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
-	"fuku/internal/app/errors"
+	"fuku/internal/contracts"
+	"fuku/internal/model"
 )
 
 // configSection collects config-file and validation checks
-func configSection(_ context.Context, env *Env) Section {
-	return Section{
+func configSection(st *state) model.Section {
+	return model.Section{
 		Title: "Configuration",
-		Results: []Result{
-			timed(func() Result { return checkConfigFile(env) }),
-			timed(func() Result { return checkConfigOverride(env) }),
-			timed(func() Result { return checkConfigValidate(env) }),
-			timed(func() Result { return checkConfigSettings(env) }),
+		Results: []model.Result{
+			timed(func() model.Result { return checkConfigFile(st) }),
+			timed(func() model.Result { return checkConfigOverride(st) }),
+			timed(func() model.Result { return checkConfigValidate(st) }),
+			timed(func() model.Result { return checkConfigSettings(st) }),
 		},
 	}
 }
 
 // checkConfigFile reports whether the base config file was found and loaded
-func checkConfigFile(env *Env) Result {
-	if env.ConfigPath == "" {
-		return Result{
-			ID:          CheckConfigFile,
-			Category:    CategoryConfiguration,
-			Status:      StatusFail,
+func checkConfigFile(st *state) model.Result {
+	if st.Path == "" {
+		return model.Result{
+			ID:          model.CheckConfigFile,
+			Category:    model.CategoryConfiguration,
+			Severity:    model.SeverityFail,
 			Summary:     "no fuku.yaml found in current directory",
 			Remediation: "run `fuku init` to generate a template",
 		}
 	}
 
-	// A schema-validation failure means the file was found, read, and parsed; that
-	// is reported by config.validate, so this check only flags read/parse failures.
-	if env.LoadErr != nil && !errors.Is(env.LoadErr, errors.ErrInvalidConfig) {
-		return Result{
-			ID:       CheckConfigFile,
-			Category: CategoryConfiguration,
-			Status:   StatusFail,
-			Summary:  "failed to load " + env.ConfigPath,
-			Details: []Detail{
-				{Key: "path", Value: env.ConfigPath},
-				{Key: "error", Value: env.LoadErr.Error()},
+	if st.Error != nil && !errors.Is(st.Error, contracts.ErrInvalidConfig) {
+		return model.Result{
+			ID:       model.CheckConfigFile,
+			Category: model.CategoryConfiguration,
+			Severity: model.SeverityFail,
+			Summary:  "failed to load " + st.Path,
+			Details: []model.Detail{
+				{Key: "path", Value: st.Path},
+				{Key: "error", Value: st.Error.Error()},
 			},
 			Remediation: "check YAML syntax and required fields",
 		}
 	}
 
-	return Result{
-		ID:       CheckConfigFile,
-		Category: CategoryConfiguration,
-		Status:   StatusOK,
+	return model.Result{
+		ID:       model.CheckConfigFile,
+		Category: model.CategoryConfiguration,
+		Severity: model.SeverityOK,
 		Summary:  "found and parsed",
-		Details: []Detail{
-			{Key: "path", Value: env.ConfigPath},
+		Details: []model.Detail{
+			{Key: "path", Value: st.Path},
 		},
 	}
 }
 
 // checkConfigOverride reports whether an override file is present and whether it was merged
-func checkConfigOverride(env *Env) Result {
-	if env.OverridePath == "" {
-		return Result{
-			ID:       CheckConfigOverride,
-			Category: CategoryConfiguration,
-			Status:   StatusIdle,
+func checkConfigOverride(st *state) model.Result {
+	if st.OverridePath == "" {
+		return model.Result{
+			ID:       model.CheckConfigOverride,
+			Category: model.CategoryConfiguration,
+			Severity: model.SeverityIdle,
 			Summary:  "no override file present",
 		}
 	}
 
-	if env.ExplicitConfig {
-		return Result{
-			ID:       CheckConfigOverride,
-			Category: CategoryConfiguration,
-			Status:   StatusNote,
+	if st.ExplicitConfig {
+		return model.Result{
+			ID:       model.CheckConfigOverride,
+			Category: model.CategoryConfiguration,
+			Severity: model.SeverityNote,
 			Summary:  "override file present but skipped (--config bypasses overrides)",
-			Details: []Detail{
-				{Key: "path", Value: env.OverridePath},
+			Details: []model.Detail{
+				{Key: "path", Value: st.OverridePath},
 			},
 		}
 	}
 
-	if env.LoadErr != nil {
-		return Result{
-			ID:       CheckConfigOverride,
-			Category: CategoryConfiguration,
-			Status:   StatusIdle,
+	if st.Error != nil {
+		return model.Result{
+			ID:       model.CheckConfigOverride,
+			Category: model.CategoryConfiguration,
+			Severity: model.SeverityIdle,
 			Summary:  "override merge status unknown (config did not load)",
-			Details: []Detail{
-				{Key: "path", Value: env.OverridePath},
+			Details: []model.Detail{
+				{Key: "path", Value: st.OverridePath},
 			},
 		}
 	}
 
-	return Result{
-		ID:       CheckConfigOverride,
-		Category: CategoryConfiguration,
-		Status:   StatusOK,
+	return model.Result{
+		ID:       model.CheckConfigOverride,
+		Category: model.CategoryConfiguration,
+		Severity: model.SeverityOK,
 		Summary:  "override applied",
-		Details: []Detail{
-			{Key: "path", Value: env.OverridePath},
+		Details: []model.Detail{
+			{Key: "path", Value: st.OverridePath},
 		},
 	}
 }
 
 // checkConfigValidate reports the result of schema validation
-func checkConfigValidate(env *Env) Result {
-	// Load() validates internally and returns a nil Config with ErrInvalidConfig on
-	// failure, so a validation error arrives via LoadErr rather than env.Config.
-	if errors.Is(env.LoadErr, errors.ErrInvalidConfig) {
-		return invalidConfigResult(env.LoadErr)
-	}
-
-	if env.Config == nil {
-		return Result{
-			ID:       CheckConfigValidate,
-			Category: CategoryConfiguration,
-			Status:   StatusIdle,
-			Summary:  "skipped (config did not load)",
+func checkConfigValidate(st *state) model.Result {
+	if errors.Is(st.Error, contracts.ErrInvalidConfig) {
+		return model.Result{
+			ID:       model.CheckConfigValidate,
+			Category: model.CategoryConfiguration,
+			Severity: model.SeverityFail,
+			Summary:  "schema validation failed",
+			Details: []model.Detail{
+				{Key: "error", Value: st.Error.Error()},
+			},
+			Remediation: "fix the offending field in fuku.yaml",
 		}
 	}
 
-	if err := env.Config.Validate(); err != nil {
-		return invalidConfigResult(err)
+	if !st.loaded() {
+		return skipped(model.CheckConfigValidate, model.CategoryConfiguration, "config did not load")
 	}
 
-	return Result{
-		ID:       CheckConfigValidate,
-		Category: CategoryConfiguration,
-		Status:   StatusOK,
+	return model.Result{
+		ID:       model.CheckConfigValidate,
+		Category: model.CategoryConfiguration,
+		Severity: model.SeverityOK,
 		Summary:  "schema ok",
 	}
 }
 
-// invalidConfigResult builds the config.validate failure result for a schema error
-func invalidConfigResult(err error) Result {
-	return Result{
-		ID:       CheckConfigValidate,
-		Category: CategoryConfiguration,
-		Status:   StatusFail,
-		Summary:  "schema validation failed",
-		Details: []Detail{
-			{Key: "error", Value: err.Error()},
-		},
-		Remediation: "fix the offending field in fuku.yaml",
-	}
-}
-
 // checkConfigSettings reports concurrency, retry, and log buffer settings
-func checkConfigSettings(env *Env) Result {
-	if env.Config == nil {
-		return Result{
-			ID:       CheckConfigSettings,
-			Category: CategoryConfiguration,
-			Status:   StatusIdle,
-			Summary:  "skipped (config did not load)",
-		}
+func checkConfigSettings(st *state) model.Result {
+	if !st.loaded() {
+		return skipped(model.CheckConfigSettings, model.CategoryConfiguration, "config did not load")
 	}
 
-	cfg := env.Config
+	project := st.Project
 
-	return Result{
-		ID:       CheckConfigSettings,
-		Category: CategoryConfiguration,
-		Status:   StatusOK,
+	return model.Result{
+		ID:       model.CheckConfigSettings,
+		Category: model.CategoryConfiguration,
+		Severity: model.SeverityOK,
 		Summary: fmt.Sprintf("workers=%d retry=%d backoff=%s",
-			cfg.Concurrency.Workers, cfg.Retry.Attempts, cfg.Retry.Backoff),
-		Details: []Detail{
-			{Key: "concurrency workers", Value: strconv.Itoa(cfg.Concurrency.Workers)},
-			{Key: "retry attempts", Value: strconv.Itoa(cfg.Retry.Attempts)},
-			{Key: "retry backoff", Value: cfg.Retry.Backoff.String()},
-			{Key: "logs buffer", Value: strconv.Itoa(cfg.Logs.Buffer)},
-			{Key: "logs history", Value: strconv.Itoa(cfg.Logs.History)},
-			{Key: "logging level", Value: cfg.Logging.Level},
-			{Key: "logging format", Value: cfg.Logging.Format},
+			project.Concurrency.Workers, project.Retry.Attempts, project.Retry.Backoff),
+		Details: []model.Detail{
+			{Key: "concurrency workers", Value: strconv.Itoa(project.Concurrency.Workers)},
+			{Key: "retry attempts", Value: strconv.Itoa(project.Retry.Attempts)},
+			{Key: "retry backoff", Value: project.Retry.Backoff.String()},
+			{Key: "logs buffer", Value: strconv.Itoa(project.Logs.Buffer)},
+			{Key: "logs history", Value: strconv.Itoa(project.Logs.History)},
+			{Key: "logging level", Value: project.Logging.Level},
+			{Key: "logging format", Value: project.Logging.Format},
 		},
 	}
 }

@@ -1,27 +1,26 @@
 package doctor
 
 import (
-	"os"
 	"time"
+
+	"fuku/internal/model"
 )
 
 // timed records the duration of fn into the returned result
-func timed(fn func() Result) Result {
+func timed(fn func() model.Result) model.Result {
 	start := time.Now()
 	r := fn()
-	r.DurationMs = time.Since(start).Milliseconds()
+	r.Duration = time.Since(start)
 
 	return r
 }
 
-// fileExists reports whether path refers to an existing file
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
-}
-
-// dirExists reports whether path exists and is a directory
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
+// skipped builds the idle placeholder of a check that could not run for the given reason
+func skipped(id model.CheckID, category model.Category, reason string) model.Result {
+	return model.Result{
+		ID:       id,
+		Category: category,
+		Severity: model.SeverityIdle,
+		Summary:  "skipped (" + reason + ")",
+	}
 }

@@ -1,170 +1,254 @@
 package doctor
 
 import (
-	"context"
-	"fmt"
-	"net"
-	"os"
-	"syscall"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"fuku/internal/app/instance"
-	"fuku/internal/config"
+	"fuku/internal/model"
 )
 
-func Test_extractAddress(t *testing.T) {
-	tests := []struct {
-		name     string
-		probe    *config.Readiness
-		expected string
-	}{
-		{
-			name:     "http with explicit port",
-			probe:    &config.Readiness{Type: config.TypeHTTP, URL: "http://localhost:8080/health"},
-			expected: "localhost:8080",
-		},
-		{
-			name:     "https default port",
-			probe:    &config.Readiness{Type: config.TypeHTTP, URL: "https://example.com/health"},
-			expected: "example.com:443",
-		},
-		{
-			name:     "http default port",
-			probe:    &config.Readiness{Type: config.TypeHTTP, URL: "http://example.com/health"},
-			expected: "example.com:80",
-		},
-		{
-			name:     "tcp address passthrough",
-			probe:    &config.Readiness{Type: config.TypeTCP, Address: "localhost:5432"},
-			expected: "localhost:5432",
-		},
-		{
-			name:     "log type returns empty",
-			probe:    &config.Readiness{Type: config.TypeLog, Pattern: "ready"},
-			expected: "",
-		},
-		{
-			name:     "malformed url returns empty",
-			probe:    &config.Readiness{Type: config.TypeHTTP, URL: "://broken"},
-			expected: "",
-		},
-		{
-			name:     "non-http scheme returns empty",
-			probe:    &config.Readiness{Type: config.TypeHTTP, URL: "ftp://host/health"},
-			expected: "",
-		},
-		{
-			name:     "scheme-less host returns empty",
-			probe:    &config.Readiness{Type: config.TypeHTTP, URL: "localhost:8080/health"},
-			expected: "",
-		},
-	}
+func Test_Runner_runtimeSection(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, extractAddress(tt.probe))
-		})
-	}
+	mockRuntime := NewMockRuntime(ctrl)
+	mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock"})
+	mockRuntime.EXPECT().Sockets().Return(model.SocketScan{Dir: "/tmp", Pattern: "/tmp/fuku-*.sock"})
+
+	subject := NewRunner(Options{}, model.Config{}, nil, nil, nil, mockRuntime)
+
+	st := &state{Options: Options{Fingerprint: "0123456789abcdef"}, Config: model.Config{Error: assert.AnError}}
+
+	section := subject.runtimeSection(t.Context(), st)
+
+	assert.Equal(t, "Runtime", section.Title)
+	require.Len(t, section.Results, 3)
+	assert.Equal(t, model.CheckRuntimeInstance, section.Results[0].ID)
+	assert.Equal(t, model.CheckRuntimeSockets, section.Results[1].ID)
+	assert.Equal(t, model.CheckRuntimePorts, section.Results[2].ID)
 }
 
-func Test_checkInstance(t *testing.T) {
+func Test_Runner_checkInstance(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRuntime := NewMockRuntime(ctrl)
+
+	subject := NewRunner(Options{}, model.Config{}, nil, nil, nil, mockRuntime)
+
+	st := &state{Options: Options{Fingerprint: "0123456789abcdef"}}
+
 	tests := []struct {
-		name    string
-		before  func(t *testing.T, socketPath string) func()
-		status  Status
-		summary string
+		name                string
+		before              func()
+		expectedSeverity    model.Severity
+		expectedSummary     string
+		expectedDetails     []model.Detail
+		expectedRemediation string
 	}{
 		{
 			name: "absent socket",
-			before: func(*testing.T, string) func() {
-				return func() {}
+			before: func() {
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock"})
 			},
-			status:  StatusIdle,
-			summary: "no other fuku running for this project",
+			expectedSeverity: model.SeverityIdle,
+			expectedSummary:  "no other fuku running for this project",
+			expectedDetails:  []model.Detail{{Key: "socket", Value: "/tmp/fuku-0123456789abcdef.sock (absent)"}},
 		},
 		{
 			name: "live socket",
-			before: func(t *testing.T, socketPath string) func() {
-				t.Helper()
-
-				listener, err := net.Listen("unix", socketPath)
-				require.NoError(t, err)
-
-				return func() {
-					listener.Close()
-					os.Remove(socketPath)
-				}
+			before: func() {
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock", Present: true, Reachable: true})
 			},
-			status:  StatusNote,
-			summary: "another fuku is running for this project",
+			expectedSeverity: model.SeverityNote,
+			expectedSummary:  "another fuku is running for this project",
+			expectedDetails:  []model.Detail{{Key: "socket", Value: "/tmp/fuku-0123456789abcdef.sock"}},
 		},
 		{
 			name: "stale socket",
-			before: func(t *testing.T, socketPath string) func() {
-				t.Helper()
-
-				fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
-				require.NoError(t, err)
-				require.NoError(t, syscall.Bind(fd, &syscall.SockaddrUnix{Name: socketPath}))
-				require.NoError(t, syscall.Close(fd))
-
-				return func() { os.Remove(socketPath) }
+			before: func() {
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock", Present: true, Error: assert.AnError})
 			},
-			status:  StatusWarn,
-			summary: "socket present but unreachable",
+			expectedSeverity:    model.SeverityWarn,
+			expectedSummary:     "socket present but unreachable",
+			expectedDetails:     []model.Detail{{Key: "socket", Value: "/tmp/fuku-0123456789abcdef.sock"}, {Key: "error", Value: assert.AnError.Error()}},
+			expectedRemediation: "remove the stale socket: rm /tmp/fuku-0123456789abcdef.sock",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fingerprint := instance.Fingerprint(fmt.Sprintf("/Users/dev/projects/%s-%d", t.Name(), time.Now().UnixNano()))
-			socketPath := instance.SocketPath(config.SocketDir, fingerprint)
+			tt.before()
 
-			cleanup := tt.before(t, socketPath)
-			defer cleanup()
+			r := subject.checkInstance(st)
 
-			r := checkInstance(&Env{Profile: config.Default, Fingerprint: fingerprint})
-
-			assert.Equal(t, CheckRuntimeInstance, r.ID)
-			assert.Equal(t, tt.status, r.Status)
-			assert.Equal(t, tt.summary, r.Summary)
+			assert.Equal(t, model.CheckRuntimeInstance, r.ID)
+			assert.Equal(t, tt.expectedSeverity, r.Severity)
+			assert.Equal(t, tt.expectedSummary, r.Summary)
+			assert.Equal(t, tt.expectedDetails, r.Details)
+			assert.Equal(t, tt.expectedRemediation, r.Remediation)
 		})
 	}
 }
 
-func Test_checkStaleSockets(t *testing.T) {
-	r := checkStaleSockets()
+func Test_Runner_checkStaleSockets(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	assert.Equal(t, CheckRuntimeSockets, r.ID)
-	assert.Contains(t, []Status{StatusOK, StatusWarn}, r.Status)
+	mockRuntime := NewMockRuntime(ctrl)
+
+	subject := NewRunner(Options{}, model.Config{}, nil, nil, nil, mockRuntime)
+
+	tests := []struct {
+		name                string
+		before              func()
+		expectedSeverity    model.Severity
+		expectedSummary     string
+		expectedDetails     []model.Detail
+		expectedRemediation string
+	}{
+		{
+			name: "no sockets",
+			before: func() {
+				mockRuntime.EXPECT().Sockets().Return(model.SocketScan{Dir: "/tmp", Pattern: "/tmp/fuku-*.sock"})
+			},
+			expectedSeverity: model.SeverityOK,
+			expectedSummary:  "no stale sockets",
+			expectedDetails:  []model.Detail{{Key: "scanned", Value: "/tmp/fuku-*.sock (0 files)"}},
+		},
+		{
+			name: "only live sockets",
+			before: func() {
+				mockRuntime.EXPECT().Sockets().Return(model.SocketScan{Dir: "/tmp", Pattern: "/tmp/fuku-*.sock", Files: 2, Sockets: []model.Socket{
+					{Path: "/tmp/fuku-aaaa.sock", Present: true, Reachable: true},
+				}})
+			},
+			expectedSeverity: model.SeverityOK,
+			expectedSummary:  "no stale sockets",
+			expectedDetails:  []model.Detail{{Key: "scanned", Value: "/tmp/fuku-*.sock (2 files)"}},
+		},
+		{
+			name: "stale sockets",
+			before: func() {
+				mockRuntime.EXPECT().Sockets().Return(model.SocketScan{Dir: "/tmp", Pattern: "/tmp/fuku-*.sock", Files: 3, Sockets: []model.Socket{
+					{Path: "/tmp/fuku-aaaa.sock", Present: true, Reachable: true},
+					{Path: "/tmp/fuku-bbbb.sock", Present: true, Error: assert.AnError},
+					{Path: "/tmp/fuku-cccc.sock", Present: true, Error: assert.AnError},
+				}})
+			},
+			expectedSeverity:    model.SeverityWarn,
+			expectedSummary:     "2 stale socket file(s)",
+			expectedDetails:     []model.Detail{{Key: "fuku-bbbb.sock", Value: "stale"}, {Key: "fuku-cccc.sock", Value: "stale"}},
+			expectedRemediation: "remove the stale sockets from /tmp",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+
+			r := subject.checkStaleSockets()
+
+			assert.Equal(t, model.CheckRuntimeSockets, r.ID)
+			assert.Equal(t, tt.expectedSeverity, r.Severity)
+			assert.Equal(t, tt.expectedSummary, r.Summary)
+			assert.Equal(t, tt.expectedDetails, r.Details)
+			assert.Equal(t, tt.expectedRemediation, r.Remediation)
+		})
+	}
 }
 
-func Test_checkPorts_NoConfig(t *testing.T) {
-	r := checkPorts(context.Background(), &Env{})
+func Test_Runner_checkPorts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	assert.Equal(t, StatusIdle, r.Status)
-}
+	mockRuntime := NewMockRuntime(ctrl)
 
-func Test_checkPorts_NoReadiness(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Services["api"] = &config.Service{Dir: "api"}
+	subject := NewRunner(Options{}, model.Config{}, nil, nil, nil, mockRuntime)
 
-	env := &Env{Config: cfg, Topology: config.DefaultTopology(), Profile: config.Default, ProfileServices: []string{"api"}}
+	http := model.Readiness{Type: model.ReadinessHTTP, URL: "http://localhost:8080/health"}
+	tcp := model.Readiness{Type: model.ReadinessTCP, Address: "localhost:5432"}
+	log := model.Readiness{Type: model.ReadinessLog, Pattern: "ready"}
 
-	r := checkPorts(context.Background(), env)
+	api := &model.Service{Name: "api", Directory: "api"}
+	httpProbed := &model.Service{Name: "http", Readiness: &http}
+	tcpProbed := &model.Service{Name: "tcp", Readiness: &tcp}
+	logProbed := &model.Service{Name: "log", Readiness: &log}
 
-	assert.Equal(t, StatusIdle, r.Status)
-}
+	tests := []struct {
+		name             string
+		before           func()
+		state            *state
+		expectedSeverity model.Severity
+		expectedSummary  string
+		expectedDetails  []model.Detail
+	}{
+		{
+			name:             "config did not load",
+			before:           func() {},
+			state:            &state{Config: model.Config{Error: assert.AnError}},
+			expectedSeverity: model.SeverityIdle,
+			expectedSummary:  "skipped (config did not load)",
+		},
+		{
+			name:             "profile did not resolve",
+			before:           func() {},
+			state:            &state{profileErr: assert.AnError},
+			expectedSeverity: model.SeverityIdle,
+			expectedSummary:  "skipped (profile did not resolve)",
+		},
+		{
+			name:             "no readiness probes",
+			before:           func() {},
+			state:            &state{services: []*model.Service{api}},
+			expectedSeverity: model.SeverityIdle,
+			expectedSummary:  "no probed readiness ports",
+		},
+		{
+			name: "log probe has no port",
+			before: func() {
+				mockRuntime.EXPECT().ProbePort(gomock.Any(), log).Return(model.Port{})
+			},
+			state:            &state{services: []*model.Service{logProbed}},
+			expectedSeverity: model.SeverityIdle,
+			expectedSummary:  "no probed readiness ports",
+		},
+		{
+			name: "ports available",
+			before: func() {
+				mockRuntime.EXPECT().ProbePort(gomock.Any(), http).Return(model.Port{Address: "localhost:8080"})
+				mockRuntime.EXPECT().ProbePort(gomock.Any(), tcp).Return(model.Port{Address: "localhost:5432"})
+			},
+			state:            &state{services: []*model.Service{httpProbed, tcpProbed}},
+			expectedSeverity: model.SeverityOK,
+			expectedSummary:  "2 readiness port(s) available",
+		},
+		{
+			name: "port already bound",
+			before: func() {
+				mockRuntime.EXPECT().ProbePort(gomock.Any(), http).Return(model.Port{Address: "localhost:8080", InUse: true})
+				mockRuntime.EXPECT().ProbePort(gomock.Any(), tcp).Return(model.Port{Address: "localhost:5432"})
+			},
+			state:            &state{services: []*model.Service{httpProbed, tcpProbed}},
+			expectedSeverity: model.SeverityWarn,
+			expectedSummary:  "1 readiness port(s) already bound",
+			expectedDetails:  []model.Detail{{Key: "http", Value: "localhost:8080 already LISTENING"}},
+		},
+	}
 
-func Test_checkPorts_ProfileError(t *testing.T) {
-	env := &Env{Config: config.DefaultConfig(), Topology: config.DefaultTopology(), ProfileErr: assert.AnError}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
 
-	r := checkPorts(context.Background(), env)
+			r := subject.checkPorts(t.Context(), tt.state)
 
-	assert.Equal(t, StatusIdle, r.Status)
-	assert.Equal(t, CheckRuntimePorts, r.ID)
+			assert.Equal(t, model.CheckRuntimePorts, r.ID)
+			assert.Equal(t, tt.expectedSeverity, r.Severity)
+			assert.Equal(t, tt.expectedSummary, r.Summary)
+			assert.Equal(t, tt.expectedDetails, r.Details)
+		})
+	}
 }

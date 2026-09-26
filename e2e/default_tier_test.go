@@ -29,15 +29,12 @@ func Test_DefaultTier_StartsConcurrently(t *testing.T) {
 
 	output := runner.Output()
 
-	// Profile events
 	assert.Contains(t, output, "profile_resolved profile=default")
 	assert.Contains(t, output, "Starting services in profile 'default': [auth-api user-api]")
 
-	// Tier events
 	assert.Contains(t, output, "tier_starting tier=default")
 	assert.Contains(t, output, "tier_ready")
 
-	// Service events
 	assert.Contains(t, output, "service_ready")
 	assert.Contains(t, output, "service=auth-api")
 	assert.Contains(t, output, "service=user-api")
@@ -58,7 +55,6 @@ func Test_DefaultTier_GracefulShutdown(t *testing.T) {
 
 	output := runner.Output()
 
-	// Shutdown outcome
 	assert.Contains(t, output, "phase=stopping")
 	assert.Contains(t, output, "service_stopped")
 	assert.Contains(t, output, "All services stopped")
