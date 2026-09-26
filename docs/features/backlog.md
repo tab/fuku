@@ -63,9 +63,10 @@
   - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (coverage pass)
 
 - [ ] **BL-016 – Spare bystanders in the preflight cleanup**
-  - Why: preflight picks the processes to kill by working directory and spares only its own PID, so a service with `dir: .` gets every process in the project root killed on `fuku run` and `fuku stop`, including the shell that launched `fuku`
+  - Why: preflight picks the processes to kill by working directory, so a service with `dir: .` gets every process in the project root killed on `fuku run` and `fuku stop`
   - Boundary: present at `e45386f`; found by an e2e scenario that was not kept because it can only fail
-  - Options: spare the ancestors of the `fuku` process; or mark each child with an environment variable and match on it instead of the directory
+  - Done: `fuku` and its ancestors are spared, so the launching shell or IDE survives
+  - Left: any other process in the project root, such as an editor or the `tee` of `fuku run | tee log`; matching children by an environment marker instead of the directory would close it
   - Added: 20260926
   - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (coverage pass)
 

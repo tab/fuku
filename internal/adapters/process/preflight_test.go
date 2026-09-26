@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"syscall"
 	"testing"
 	"testing/synctest"
@@ -57,17 +58,6 @@ func Test_matchProcesses(t *testing.T) {
 			expected: []match{
 				{service: "api", entry: running{pid: 100, dir: "/project/api", name: "node"}},
 				{service: "web", entry: running{pid: 200, dir: "/project/web", name: "go"}},
-			},
-		},
-		{
-			name: "the own process is never matched",
-			processes: []running{
-				{pid: int32(os.Getpid()), dir: "/project/api", name: "fuku"}, // #nosec G115 -- PID fits in int32
-				{pid: 200, dir: "/project/api", name: "node"},
-			},
-			dirs: map[string]string{"api": "/project/api"},
-			expected: []match{
-				{service: "api", entry: running{pid: 200, dir: "/project/api", name: "node"}},
 			},
 		},
 	}
@@ -317,23 +307,28 @@ func Test_Preflight_Cleanup_ScanFails(t *testing.T) {
 }
 
 func Test_scan(t *testing.T) {
+	bystander := exec.Command("sleep", "60")
+	require.NoError(t, bystander.Start())
+
+	stop := func() {
+		_ = bystander.Process.Kill()
+		_ = bystander.Wait()
+	}
+	t.Cleanup(stop)
+
+	ownPID := int32(os.Getpid())                 // #nosec G115 -- PID fits in int32
+	parentPID := int32(os.Getppid())             // #nosec G115 -- PID fits in int32
+	bystanderPID := int32(bystander.Process.Pid) // #nosec G115 -- PID fits in int32
+	own := func(entry running) bool { return entry.pid == ownPID }
+	parent := func(entry running) bool { return entry.pid == parentPID }
+	child := func(entry running) bool { return entry.pid == bystanderPID }
+
 	entries, err := scan()
 
 	require.NoError(t, err)
-	assert.NotEmpty(t, entries)
-
-	ownPID := int32(os.Getpid()) // #nosec G115 -- PID fits in int32
-	found := false
-
-	for _, e := range entries {
-		if e.pid == ownPID {
-			found = true
-
-			break
-		}
-	}
-
-	assert.True(t, found)
+	assert.True(t, slices.ContainsFunc(entries, child), "the scan left out a child of fuku")
+	assert.False(t, slices.ContainsFunc(entries, own), "the scan listed fuku itself")
+	assert.False(t, slices.ContainsFunc(entries, parent), "the scan listed the process that launched fuku")
 }
 
 func Test_kill(t *testing.T) {

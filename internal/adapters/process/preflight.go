@@ -86,14 +86,9 @@ func (p *Preflight) Cleanup(ctx context.Context, dirs map[string]string) error {
 
 // matchProcesses returns the running processes matching a service directory
 func matchProcesses(processes []running, dirs map[string]string) []match {
-	ownPID := int32(os.Getpid()) // #nosec G115 -- PID fits in int32
 	matches := make([]match, 0, len(processes))
 
 	for _, proc := range processes {
-		if proc.pid == ownPID {
-			continue
-		}
-
 		for service, dir := range dirs {
 			if proc.dir != dir {
 				continue
@@ -168,15 +163,21 @@ func absDirs(dirs map[string]string) (map[string]string, error) {
 	return resolved, nil
 }
 
+// scan lists the processes with a readable working directory, without fuku and its ancestors
 func scan() ([]running, error) {
 	processes, err := process.Processes()
 	if err != nil {
 		return nil, err
 	}
 
+	spared := ancestry()
 	results := make([]running, 0, len(processes))
 
 	for _, p := range processes {
+		if spared[p.Pid] {
+			continue
+		}
+
 		dir, err := p.Cwd()
 		if err != nil {
 			continue
@@ -191,6 +192,29 @@ func scan() ([]running, error) {
 	}
 
 	return results, nil
+}
+
+// ancestry returns the PID of fuku and of every process above it, which the preflight never signals
+func ancestry() map[int32]bool {
+	spared := make(map[int32]bool)
+
+	pid := int32(os.Getpid()) // #nosec G115 -- PID fits in int32
+
+	for pid > 0 && !spared[pid] {
+		spared[pid] = true
+
+		proc, err := process.NewProcess(pid)
+		if err != nil {
+			break
+		}
+
+		pid, err = proc.Ppid()
+		if err != nil {
+			break
+		}
+	}
+
+	return spared
 }
 
 func kill(pid int32) error {

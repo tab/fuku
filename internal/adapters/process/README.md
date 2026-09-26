@@ -51,7 +51,7 @@ The tracker keeps the live handle per service, in start order:
 `Cleanup(ctx, dirs)`:
 
 1. publishes `PreflightStarted` with the service names
-2. scans the running processes
+2. scans the running processes. fuku and its ancestors are left out, so the shell or IDE that launched it survives a `dir: .` service
 3. matches each one's working directory to a service directory
 4. kills every match within the worker bound: SIGTERM, SIGKILL after 2s
 5. publishes `PreflightKilled` per process and `PreflightComplete`.
