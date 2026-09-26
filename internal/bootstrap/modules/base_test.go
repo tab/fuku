@@ -337,3 +337,17 @@ func Test_Projections(t *testing.T) {
 		})
 	}
 }
+
+func Test_newTheme_FallsBackToDarkWithoutATerminal(t *testing.T) {
+	theme := newTheme()
+
+	result := theme()
+
+	assert.Equal(t, terminal.AppearanceDark, result.Appearance)
+}
+
+func Test_newDiscardLogger(t *testing.T) {
+	result := newDiscardLogger()
+
+	assert.Equal(t, slog.DiscardHandler, result.Handler())
+}

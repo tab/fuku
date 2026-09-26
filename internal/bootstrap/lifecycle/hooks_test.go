@@ -478,3 +478,36 @@ func Test_Coordinator_Stop_ClosesTheBusLast(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func Test_Coordinator_run_ReportsThePanicAndPanicsAgain(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCommand := NewMockCommand(ctrl)
+	mockTelemetry := NewMockTelemetry(ctrl)
+	mockShutdowner := NewMockShutdowner(ctrl)
+
+	log := slog.New(slog.DiscardHandler)
+	coordinator := NewCoordinator(NewArbiter(mockShutdowner), nil, nil, mockTelemetry, Participants{Command: mockCommand}, log)
+	coordinator.done = make(chan struct{})
+	crash := errors.New("command crashed")
+	panicking := func(context.Context) (int, error) {
+		panic(crash)
+	}
+	run := func() {
+		coordinator.run(t.Context())
+	}
+
+	gomock.InOrder(
+		mockCommand.EXPECT().Run(t.Context()).DoAndReturn(panicking),
+		mockTelemetry.EXPECT().Recover(crash),
+	)
+
+	assert.PanicsWithValue(t, crash, run)
+
+	select {
+	case <-coordinator.done:
+	default:
+		t.Fatal("run left done open, so Stop would wait for the command forever")
+	}
+}
