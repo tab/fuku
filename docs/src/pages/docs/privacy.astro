@@ -75,7 +75,7 @@ rm ~/.config/fuku/telemetry.id`} />
   <h2>Update Notifications</h2>
 
   <p>
-    When <code>fuku run</code> starts, with or without the TUI, fuku queries the public <a href="https://api.github.com/repos/tab/fuku/releases/latest" target="_blank" rel="noopener">GitHub releases API</a> to see whether a newer release is available. When one is, the TUI version footer renders an inline hint (e.g. <code>v0.19.1 - &uarr; v0.20.0</code>); without the TUI the result only reaches the debug log and the log stream. The request carries no payload from fuku beyond a standard HTTPS GET; GitHub may log the requesting IP per its own policies.
+    When <code>fuku run</code> starts the TUI, fuku queries the public <a href="https://api.github.com/repos/tab/fuku/releases/latest" target="_blank" rel="noopener">GitHub releases API</a> to see whether a newer release is available. When one is, the TUI version footer renders an inline hint (e.g. <code>v0.19.1 - &uarr; v0.20.0</code>). A run with <code>--no-ui</code> makes no request. The request carries no payload from fuku beyond a standard HTTPS GET; GitHub may log the requesting IP per its own policies.
   </p>
 
   <p>

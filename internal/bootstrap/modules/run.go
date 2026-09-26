@@ -105,7 +105,6 @@ type runParams struct {
 	Watcher  *watch.Watcher
 	Socket   *logsocket.Server
 	Sampler  *resources.Sampler
-	Checker  *updater.Checker
 	Server   *rest.Server `optional:"true"`
 }
 
@@ -114,7 +113,7 @@ func (p runParams) participants(observers observerParams) lifecycle.Participants
 	participants := observers.participants()
 	participants.Guard = p.Guard
 	participants.Consumers = append([]lifecycle.Consumer{p.Runtime, p.Registry, p.Watcher}, participants.Consumers...)
-	participants.Producers = append(participants.Producers, p.Socket, p.Watcher, p.Runtime, p.Sampler, p.Checker)
+	participants.Producers = append(participants.Producers, p.Socket, p.Watcher, p.Runtime, p.Sampler)
 
 	if p.Server != nil {
 		participants.Producers = append(participants.Producers, p.Server)
@@ -123,10 +122,11 @@ func (p runParams) participants(observers observerParams) lifecycle.Participants
 	return participants
 }
 
-// newViewParticipants runs the profile with the services view, whose store and bridge subscribe before any publish
-func newViewParticipants(observers observerParams, p runParams, store *environment.Store, bridge *tui.Bridge) lifecycle.Participants {
+// newViewParticipants runs the profile under the view: store and bridge subscribe first, the update check starts last
+func newViewParticipants(observers observerParams, p runParams, store *environment.Store, bridge *tui.Bridge, checker *updater.Checker) lifecycle.Participants {
 	participants := p.participants(observers)
 	participants.Consumers = append(participants.Consumers, store, bridge)
+	participants.Producers = append(participants.Producers, checker)
 
 	return participants
 }

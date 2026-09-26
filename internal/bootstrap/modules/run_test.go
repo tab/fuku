@@ -48,14 +48,14 @@ func Test_runParams_participants(t *testing.T) {
 		Watcher:  &watch.Watcher{},
 		Socket:   &logsocket.Server{},
 		Sampler:  &resources.Sampler{},
-		Checker:  &updater.Checker{},
 	}
 	server := &rest.Server{}
 	store := &environment.Store{}
 	bridge := &tui.Bridge{}
+	checker := &updater.Checker{}
 
 	consumers := []lifecycle.Consumer{params.Runtime, params.Registry, params.Watcher, observers.Recorder}
-	producers := []lifecycle.Producer{observers.Base.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler, params.Checker}
+	producers := []lifecycle.Producer{observers.Base.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler}
 
 	tests := []struct {
 		name      string
@@ -65,16 +65,16 @@ func Test_runParams_participants(t *testing.T) {
 		producers []lifecycle.Producer
 	}{
 		{
-			name:   "the view with the API: the environment store and the bridge subscribe last, the API server starts last",
+			name:   "the view with the API: the environment store and the bridge subscribe last, the update check starts last",
 			server: server,
 			build: func(observers observerParams, p runParams) lifecycle.Participants {
-				return newViewParticipants(observers, p, store, bridge)
+				return newViewParticipants(observers, p, store, bridge, checker)
 			},
 			consumers: []lifecycle.Consumer{params.Runtime, params.Registry, params.Watcher, observers.Recorder, store, bridge},
-			producers: []lifecycle.Producer{observers.Base.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler, params.Checker, server},
+			producers: []lifecycle.Producer{observers.Base.Announcer, params.Socket, params.Watcher, params.Runtime, params.Sampler, server, checker},
 		},
 		{
-			name:   "headless without the API: no environment store, the run command waits on the runtime, the update check still runs",
+			name:   "headless without the API: no environment store, the run command waits on the runtime, no update check",
 			server: nil,
 			build: func(observers observerParams, p runParams) lifecycle.Participants {
 				return p.participants(observers)

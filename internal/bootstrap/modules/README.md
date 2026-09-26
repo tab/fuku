@@ -40,7 +40,7 @@ The participants of a command, in order:
 - every command runs over `Announcer` as a producer, and `Collector` and `Tracer` as consumers when telemetry is on
 - `configured` puts `Recorder` before them
 - `run.go` adds the runtime around them. Consumers: `Runtime`, `Registry`, `Watcher`, the observers, then `Environment` and `Bridge` under the view
-- Producers: `Announcer`, `Socket`, `Watcher`, `Runtime`, `Sampler`, `Checker`, then `Server` with a listen address
+- Producers: `Announcer`, `Socket`, `Watcher`, `Runtime`, `Sampler`, then `Server` with a listen address, then `Checker` under the view
 - the socket server and the watcher precede the runtime. They are open before a service becomes ready and stop after the runtime published its final events
 - the guard is `instance.Guard`. The command is `tui.Program`, or `cli.Run` with `--no-ui`
 - the stop budget is Fx's default plus one `process.ShutdownTimeout` per service, so a stop never outruns the children's shutdown

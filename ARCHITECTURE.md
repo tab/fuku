@@ -199,7 +199,7 @@ Checks the environment, config, services, topology and running instance. Renders
 
 Tells the user that a newer release exists.
 
-- core: `app/updater` (`Checker`, runs once on `Start`)
+- core: `app/updater` (`Checker`, runs once on `Start`, under the TUI only)
 - adapters: `github` fetches the release and keeps a cache
 - frontends: `tui` shows the version in the header
 - bus: publishes `UpdateAvailable`

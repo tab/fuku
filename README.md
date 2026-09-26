@@ -242,7 +242,7 @@ See [Privacy & Telemetry](https://getfuku.sh/docs/privacy/) for what is collecte
 
 ## Update Notifications
 
-`fuku run` checks GitHub for a newer release once a day. The TUI shows it next to the version (`v0.19.1 - ↑ v0.20.0`).
+Under the TUI, `fuku run` checks GitHub for a newer release once a day. The TUI shows it next to the version (`v0.19.1 - ↑ v0.20.0`).
 Network failures are silent. Set `FUKU_UPDATER_DISABLED=1` to turn the check off.
 
 ## About the Name
