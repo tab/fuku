@@ -63,4 +63,7 @@ After the verdict. Neither reopens the gate.
 - Codex `gpt-6-sol`, xhigh, on `e45386f..df7a736`: four findings. The phase overwrite after `StopAll` is fixed in `74f3e2c`.
   The orphaned descendant is BL-014, present at the base. The discarded `Terminate` error needs an EPERM child and is already logged. The hidden socket cleanup warning is harmless, because the next `start` removes a dead stale socket
 - Coverage pass on the same head: unit coverage 99.3% to 99.7%, e2e 59 to 88 tests.
-  It found two pre-existing bugs, BL-015 (a self-referencing merge key overflows the stack) and BL-016 (the preflight kills bystanders in the project root)
+  It found two pre-existing bugs, BL-015 (a self-referencing merge key overflows the stack) and BL-016 (the preflight kills bystanders in the project root).
+  The worst case of BL-016 is fixed: the preflight spares `fuku` and its ancestors, so the launching shell or IDE survives
+- Codex `gpt-6-sol` again, on the head with the fixes: one finding, a child that starts between `StopAll` and the cancel.
+  Dropped: the child is tracked under the launch lock and `shutdown` stops every tracked child, the same as a SIGINT during startup

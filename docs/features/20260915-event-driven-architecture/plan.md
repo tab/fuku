@@ -50,7 +50,7 @@ Current step: push the branch and open the PR, then the PR review gate
 
 ## Verification
 
-Recorded 2026-09-26 at `4c7b8b8`, after the Codex `gpt-6-sol` pass and the coverage pass:
+Recorded 2026-09-26 at `7355d17`, after the Codex `gpt-6-sol` passes, the coverage pass and the preflight fix:
 
 - `make check`: exit 0. Lint prints `0 issues.`. 33 packages pass
 - `make test:race`: exit 0, 33 packages, no race. 99.7% of statements (`go test -coverprofile ./internal/...`)
@@ -66,7 +66,7 @@ Recorded 2026-09-26 at `4c7b8b8`, after the Codex `gpt-6-sol` pass and the cover
 - [x] Plan approval
 - [x] Code review – PASS, round 2, 2026-09-26. Round 1 found two majors and five mediums; four were fixed, three went to the backlog as BL-010 to BL-012. See `code-review.md`
 - [ ] PR review – not run. It needs the work committed and a PR open
-- 53 commits sit on `feature/event-driven-architecture` above `e45386f`, the last nine unsigned. The branch is not pushed and has no PR
+- 57 commits sit on `feature/event-driven-architecture` above `e45386f`, the last thirteen unsigned. The branch is not pushed and has no PR
 
 ## Follow-ups
 
