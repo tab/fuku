@@ -66,7 +66,7 @@ Recorded 2026-09-26 at `7355d17`, after the Codex `gpt-6-sol` passes, the covera
 - [x] Plan approval
 - [x] Code review – PASS, round 2, 2026-09-26. Round 1 found two majors and five mediums; four were fixed, three went to the backlog as BL-010 to BL-012. See `code-review.md`
 - [ ] PR review – not run. It needs the work committed and a PR open
-- 57 commits sit on `feature/event-driven-architecture` above `e45386f`, the last thirteen unsigned. The branch is not pushed and has no PR
+- 58 commits sit on `feature/event-driven-architecture` above `e45386f`, the last fourteen unsigned. The branch is not pushed and has no PR
 
 ## Follow-ups
 

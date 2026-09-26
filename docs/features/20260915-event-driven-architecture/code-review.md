@@ -67,3 +67,7 @@ After the verdict. Neither reopens the gate.
   The worst case of BL-016 is fixed: the preflight spares `fuku` and its ancestors, so the launching shell or IDE survives
 - Codex `gpt-6-sol` again, on the head with the fixes: one finding, a child that starts between `StopAll` and the cancel.
   Dropped: the child is tracked under the launch lock and `shutdown` stops every tracked child, the same as a SIGINT during startup
+- Codex `gpt-6-sol`, last pass, on `579c357`: three findings on the preflight, none new to the branch.
+  A matched bystander that leads `fuku`'s process group signals `fuku` too: pre-existing, recorded under BL-016.
+  A partial ancestor walk keeps the kill pass on: dropped, `fuku`'s own PID is always in the set and skipping the pass would leave the orphans alive.
+  A service that runs `fuku stop` is spared as an ancestor: dropped, killing it killed the stop command too, so sparing is never worse

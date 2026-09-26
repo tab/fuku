@@ -66,7 +66,8 @@
   - Why: preflight picks the processes to kill by working directory, so a service with `dir: .` gets every process in the project root killed on `fuku run` and `fuku stop`
   - Boundary: present at `e45386f`; found by an e2e scenario that was not kept because it can only fail
   - Done: `fuku` and its ancestors are spared, so the launching shell or IDE survives
-  - Left: any other process in the project root, such as an editor or the `tee` of `fuku run | tee log`; matching children by an environment marker instead of the directory would close it
+  - Left: any other process in the project root, such as an editor or the `tee` of `fuku run | tee log`; matching children by an environment marker instead of the directory would close it.
+    A matched bystander that leads `fuku`'s own process group, as `tail -f x | fuku run` does, takes `fuku` down with the group signal; skipping `fuku`'s own group in the scan would cover that case
   - Added: 20260926
   - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (coverage pass)
 
