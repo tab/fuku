@@ -367,7 +367,7 @@ func Test_kill(t *testing.T) {
 }
 
 func Test_kill_IgnoresSIGTERM(t *testing.T) {
-	cmd := exec.Command("sh", "-c", "trap '' TERM; echo ready; sleep 60")
+	cmd := exec.Command("sh", "-c", "trap '' TERM; echo ready; exec sleep 60")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
