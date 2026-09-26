@@ -6,7 +6,7 @@ Status: implemented
 
 Phase: code review
 
-Current step: the code review gate
+Current step: push the branch and open the PR, then the PR review gate
 
 ## Approach
 
@@ -50,21 +50,23 @@ Current step: the code review gate
 
 ## Verification
 
-- `make check`: exit 0. Lint prints `0 issues.`. 33 packages pass. `make fmt` changed no Go file
-- `make test:race`: exit 0 with `GOFLAGS=-count=1`, so no result came from the test cache
-- Total coverage after the race run is 99.4%: `go tool cover -func=coverage.out | tail -1`
+Recorded 2026-09-26 at `ed532d4`:
+
+- `make check`: exit 0. Lint prints `0 issues.`. 33 packages pass
+- `make test:race`: exit 0, 33 packages, no race. Mean package coverage 98.8% (`go test -cover ./internal/...`)
 - `make test:e2e`: 59 tests pass on a fresh `make build`
-- `make docs`: `All links resolve.`
-- `golangci-lint run --enable-only depguard ./...`: `0 issues.`
+- `make docs`: `All links resolve.` The docs site builds, 20 pages
+- `.github/scripts/openapi.sh e45386f`: `No spec drift.`
+- `golangci-lint run --enable-only depguard ./...`: `0 issues.` The comments script and the CLAUDE.md audits print nothing
 
 ## Gates
 
 - [x] Feature approval
 - [x] Plan review – PASS, round 3
 - [x] Plan approval
-- [ ] Code review – open. Next: a `feature-review` run at the code gate. It writes a fresh `code-review.md`
+- [x] Code review – PASS, round 2, 2026-09-26. Round 1 found two majors and five mediums; four were fixed, three went to the backlog as BL-010 to BL-012. See `code-review.md`
 - [ ] PR review – not run. It needs the work committed and a PR open
-- Nothing is committed. `HEAD` is `e45386f`, the same commit as `origin/master`
+- 47 commits sit on `feature/event-driven-architecture` above `e45386f`, the last three unsigned. The branch is not pushed and has no PR
 
 ## Follow-ups
 

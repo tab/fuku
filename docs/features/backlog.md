@@ -37,6 +37,18 @@
   - Added: 20260916
   - Source: [Application architecture](20260915-event-driven-architecture/feature.md) and [Watermill GoChannel](https://watermill.io/pubsubs/gochannel/)
 
+- [ ] **BL-010 – Enforce the criticality table by construction**
+  - Why: `contracts.MessageType.Critical()` reads a map and its test compares two hand-kept lists, so a new type added to neither passes and becomes droppable
+  - Fix: write `Critical()` as a `switch` with no `default` over every constant, so the `exhaustive` linter fails on a missing one
+  - Added: 20260926
+  - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (CODE-3)
+
+- [ ] **BL-013 – Poll the process group, not the leader, in the preflight kill loop**
+  - Why: after a group SIGTERM, `kill` polls the matched pid only; a leader that exits while a group child with another working directory ignores SIGTERM returns before the SIGKILL fallback
+  - Boundary: present at `e45386f`; the scan already targets children that keep the service directory
+  - Added: 20260926
+  - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (Codex pass)
+
 ## Low
 
 - [ ] **BL-005 – Add a test toolchain to the JetBrains plugin**
@@ -44,6 +56,16 @@
     only by ktlint and `buildPlugin`; a regression in either passes CI
   - Added: 20260913
   - Source: [Project-scoped sockets](20260913-project-scoped-sockets/plan.md)
+
+- [ ] **BL-011 – Keep one list of log levels**
+  - Why: config validation accepts four levels while `platform/logging` still lists seven and parses `trace`, `fatal` and `panic`, reachable only from tests
+  - Added: 20260926
+  - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (CODE-5)
+
+- [ ] **BL-012 – Remove the test-only `options` field from `tui.Program`**
+  - Why: only tests write it; try injecting stdin and stdout as named values with `tea.WithInput` and `tea.WithOutput` and delete the field if the program then runs headless under `go test`
+  - Added: 20260926
+  - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (CODE-7)
 
 ## Done
 

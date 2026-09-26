@@ -23,7 +23,17 @@ The core publishes what happened, and the observers react.
 - The coordinator and the outcome arbiter in `internal/bootstrap/lifecycle`
 - One read model, `app/registry`, for the TUI, REST and the socket
 - One admission policy, `services.Control`, for the TUI and REST
-- Two behavior changes: the shared admission policy, and `fuku logs` failures on stderr as `Error: <cause>`
+- Behavior changes:
+  - the shared admission policy
+  - `fuku logs` failures on stderr as `Error: <cause>`
+  - the REST API sends no CORS headers
+  - `logging.level` accepts only `debug`, `info`, `warn` and `error`
+  - an override file fuku cannot stat fails the load, also under `--config`
+  - stopping and restarting rows are amber in the TUI
+  - the Sentry `path` tag reads the route pattern, with `{id}` for a service
+  - an HTTP readiness request runs until the readiness deadline, not the interval
+  - the log readiness probe reads lines up to 4 MiB
+  - a service still waiting for a worker when the run ends is published as stopped, not failed
 
 ### Out
 
@@ -54,7 +64,7 @@ Unit test paths are under `internal/`.
 - **AC1** – Each composition validates and lacks the types its command does not need. `bootstrap/modules/base_test.go`
 - **AC2** – Start runs in order and unwinds a failure. Stop runs in reverse. `bootstrap/lifecycle/hooks_test.go`
 - **AC3** – The first outcome sets the exit code. A signal alone exits 0. `bootstrap/lifecycle/shutdown_test.go`
-- **AC4** – A full required queue rejects a critical message. Unnamed subscriptions fail. `platform/bus/bus_test.go`
+- **AC4** – A full required queue rejects a critical message. `platform/bus/bus_test.go`
 - **AC5** – Every message type has one fixed criticality and wire string. `contracts/message_test.go`
 - **AC6** – The registry announces only a change. Reads are race-free. `app/registry/store_test.go`, `query_test.go`
 - **AC7** – The TUI and REST map the same `Control` outcomes. `app/services/control_test.go`,
@@ -75,7 +85,7 @@ Unit test paths are under `internal/`.
 
 - Rings: five rings. An inner ring never imports an outer one. See [ARCHITECTURE.md](../../../ARCHITECTURE.md#rings)
 - Participants: `Consumer`, `Producer` and one `Command`. See [lifecycle](../../../internal/bootstrap/lifecycle/README.md)
-- Named subscriptions: the bus refuses one without a `Name`. See [bus](../../../internal/platform/bus/README.md)
+- Named subscriptions: a subscription carries a `Name` for its diagnostics. The bus does not refuse an empty one. See [bus](../../../internal/platform/bus/README.md)
 - `Required`: a critical publish fails while a required matching queue is full. An optional queue drops
 - `Types`: a subscription receives only the listed types. `nil` means every type
 - Criticality: `MessageType.Critical()` reads one fixed table. See [contracts](../../../internal/contracts/README.md)
@@ -93,7 +103,7 @@ Unit test paths are under `internal/`.
 - Kept `Tier.ID` for upcoming work. `profiles` assigns it and no code acts on it yet
 - Kept the wire values `signal`, `preflight_kill`, `resource_sample` and `api_request`, because log clients read them
 - Reserved a queue slot with check-then-send under the publish lock, because only the publisher fills a queue
-- Routed every service action through `Control`. The runtime drops a command nobody admitted
+- Routed every service action through `Control`. Only `Control` publishes a service command. The runtime runs it on the admission's token
 - Listed the socket server before the runtime, so it stops after the runtime's last events
 - Drained the consumers in two fixed passes. A publish back to an earlier consumer in the second pass is missed
 - Set `fx.StopTimeout` to the default plus one `process.ShutdownTimeout` per service, so every child can stop gracefully

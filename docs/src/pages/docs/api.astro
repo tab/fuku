@@ -326,7 +326,7 @@ const endpoints: Endpoint[] = [
                 <tr><td><code>409</code></td><td>service is not running</td><td>Stop on a service that is not running, or one busy with another action</td></tr>
                 <tr><td><code>409</code></td><td>service cannot be restarted</td><td>Restart on a pending service, or one busy with another action</td></tr>
                 <tr><td><code>409</code></td><td>instance is not accepting actions</td><td>Action before the profile is resolved or during shutdown</td></tr>
-                <tr><td><code>500</code></td><td>instance is overloaded</td><td>The command queue is full; retry later</td></tr>
+                <tr><td><code>500</code></td><td>instance is overloaded</td><td>The command queue is full. The instance shuts down and the run exits 1</td></tr>
               </tbody>
             </table>
           </div>

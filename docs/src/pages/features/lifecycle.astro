@@ -92,7 +92,7 @@ const nav = getFeaturesNav(base);
   <h2>One run per project</h2>
 
   <p>
-    A second <code>fuku run</code> of the same project is refused while the first instance answers on its project socket or its API port range. The second process exits before its pre-flight cleanup can touch the running services.
+    A second <code>fuku run</code> of the same project is refused while the first instance holds an exclusive lock on the project's lock file. The second process exits before its pre-flight cleanup can touch the running services. An instance started by an older fuku holds no lock, so it is not detected.
   </p>
 
   <Terminal title="fuku run">
