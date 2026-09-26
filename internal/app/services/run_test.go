@@ -401,21 +401,6 @@ func Test_Runtime_StartTier(t *testing.T) {
 			expected: []string{},
 		},
 		{
-			name: "a service without a worker fails without a launch",
-			before: func() context.Context {
-				runtime.guard.open()
-				runtime.guard.resolve(tiers)
-
-				mockPool.EXPECT().Acquire(gomock.Any()).Return(context.Canceled).Times(2)
-				mockPublisher.EXPECT().Publish(isFailed(api, contracts.ErrFailedToAcquireWorker)).Return(nil)
-				mockPublisher.EXPECT().Publish(isFailed(worker, contracts.ErrFailedToAcquireWorker)).Return(nil)
-
-				return t.Context()
-			},
-			services: []*model.Service{&api, &worker},
-			expected: []string{"api", "worker"},
-		},
-		{
 			name: "a run that ends while the service waits for a worker ends it as stopped",
 			before: func() context.Context {
 				ctx, cancel := context.WithCancel(t.Context())

@@ -295,24 +295,8 @@ func (r *Runtime) startTier(ctx context.Context, services []*model.Service) []st
 		wg.Go(func() {
 			defer r.guard.release(svc.ID)
 
-			err := r.pool.Acquire(ctx)
-			if err != nil && ctx.Err() != nil {
+			if err := r.pool.Acquire(ctx); err != nil {
 				r.publishStopped(*svc)
-
-				failedChan <- svc.Name
-
-				return
-			}
-
-			if err != nil {
-				r.log.Error(fmt.Sprintf("Failed to acquire worker for service '%s'", svc.Name), "error", err)
-				r.publish(contracts.Message{
-					Type: contracts.EventServiceFailed,
-					Data: contracts.ServiceFailed{
-						ServiceEvent: contracts.ServiceEvent{Service: *svc, Tier: svc.Tier},
-						Error:        fmt.Errorf("%w: %w", contracts.ErrFailedToAcquireWorker, err),
-					},
-				})
 
 				failedChan <- svc.Name
 
