@@ -49,6 +49,26 @@
   - Added: 20260926
   - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (Codex pass)
 
+- [ ] **BL-014 – Signal the process group when a service leader exits and leaves a child behind**
+  - Why: a command such as `sleep 30 & exit 0` exits while its child keeps the streams; `Wait` returns `ErrWaitDelay` after `ShutdownTimeout`, the exit watcher untracks the service and shutdown never signals the group, so the child outlives `fuku`
+  - Boundary: present at `e45386f`, where the child was orphaned at once; the branch delays it by `ShutdownTimeout`, and the next `fuku run` or `fuku stop` kills it through preflight
+  - Decision: a group kill in `Factory.wait` also kills a script's backgrounded server while `fuku` still runs, so it needs a decision on that behaviour first
+  - Added: 20260926
+  - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (Codex pass)
+
+- [ ] **BL-015 – Reject a self-referencing merge key instead of overflowing the stack**
+  - Why: `services: { api: &b { <<: *b, dir: api } }` makes `flattenMergeKeys` recurse forever through `tierOf`, so `fuku run` dies with `fatal error: stack overflow` instead of a config error; `replaceAliases` and `copyNode` likely share the cycle for `a: &x [*x]`
+  - Boundary: present at `e45386f`; found while covering `merge.go`
+  - Added: 20260926
+  - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (coverage pass)
+
+- [ ] **BL-016 – Spare bystanders in the preflight cleanup**
+  - Why: preflight picks the processes to kill by working directory and spares only its own PID, so a service with `dir: .` gets every process in the project root killed on `fuku run` and `fuku stop`, including the shell that launched `fuku`
+  - Boundary: present at `e45386f`; found by an e2e scenario that was not kept because it can only fail
+  - Options: spare the ancestors of the `fuku` process; or mark each child with an environment variable and match on it instead of the directory
+  - Added: 20260926
+  - Source: [Event-driven architecture code review](20260915-event-driven-architecture/code-review.md) (coverage pass)
+
 ## Low
 
 - [ ] **BL-005 – Add a test toolchain to the JetBrains plugin**
@@ -93,7 +113,8 @@
     sockets the machine holds and can only assert OK-or-Warn; a socket directory the test can set makes the check
     deterministic
   - Status: Won't do – the check reads `Runtime.Sockets()`, an injected observer. `Test_Runner_checkStaleSockets`
-    drives the mock and asserts the exact severity. `diagnostics.Test_Runtime_Sockets` binds its own socket in
-    `instance.SocketDir` and asserts on that one. A settable directory would add a knob nothing reads
+    drives the mock and asserts the exact severity. `diagnostics.Test_scanSockets` binds its own socket in a directory
+    of its own. The one-line `Sockets()` wrapper over `instance.SocketDir` stays untested. A settable directory would
+    add a knob nothing reads
   - Added: 20260914
   - Source: [`internal/app/doctor/runtime_test.go`](../../internal/app/doctor/runtime_test.go)

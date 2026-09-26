@@ -50,11 +50,11 @@ Current step: push the branch and open the PR, then the PR review gate
 
 ## Verification
 
-Recorded 2026-09-26 at `ed532d4`:
+Recorded 2026-09-26 at `4c7b8b8`, after the Codex `gpt-6-sol` pass and the coverage pass:
 
 - `make check`: exit 0. Lint prints `0 issues.`. 33 packages pass
-- `make test:race`: exit 0, 33 packages, no race. Mean package coverage 98.8% (`go test -cover ./internal/...`)
-- `make test:e2e`: 59 tests pass on a fresh `make build`
+- `make test:race`: exit 0, 33 packages, no race. 99.7% of statements (`go test -coverprofile ./internal/...`)
+- `make test:e2e`: 88 tests pass on a fresh `make build`, no skips
 - `make docs`: `All links resolve.` The docs site builds, 20 pages
 - `.github/scripts/openapi.sh e45386f`: `No spec drift.`
 - `golangci-lint run --enable-only depguard ./...`: `0 issues.` The comments script and the CLAUDE.md audits print nothing
@@ -66,7 +66,7 @@ Recorded 2026-09-26 at `ed532d4`:
 - [x] Plan approval
 - [x] Code review – PASS, round 2, 2026-09-26. Round 1 found two majors and five mediums; four were fixed, three went to the backlog as BL-010 to BL-012. See `code-review.md`
 - [ ] PR review – not run. It needs the work committed and a PR open
-- 47 commits sit on `feature/event-driven-architecture` above `e45386f`, the last three unsigned. The branch is not pushed and has no PR
+- 53 commits sit on `feature/event-driven-architecture` above `e45386f`, the last nine unsigned. The branch is not pushed and has no PR
 
 ## Follow-ups
 

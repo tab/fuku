@@ -55,3 +55,12 @@ Not findings of this change. One backlog item each, for triage after the verdict
 - a null `tier:` splitting the topology from the model
 - Sentry stamps `sentry.server.address` with the hostname on every metric and `stripPII` does not cover it
 - the telemetry `Subscribe` tests compare `Types` against the same variable the code uses
+
+## Follow-up passes
+
+After the verdict. Neither reopens the gate.
+
+- Codex `gpt-6-sol`, xhigh, on `e45386f..df7a736`: four findings. The phase overwrite after `StopAll` is fixed in `74f3e2c`.
+  The orphaned descendant is BL-014, present at the base. The discarded `Terminate` error needs an EPERM child and is already logged. The hidden socket cleanup warning is harmless, because the next `start` removes a dead stale socket
+- Coverage pass on the same head: unit coverage 99.3% to 99.7%, e2e 59 to 88 tests.
+  It found two pre-existing bugs, BL-015 (a self-referencing merge key overflows the stack) and BL-016 (the preflight kills bystanders in the project root)
