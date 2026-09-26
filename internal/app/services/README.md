@@ -75,7 +75,7 @@ The lifecycle events say what happened.
 A `WatchTriggered` restart takes the token with `reserve`. It is dropped when the token is held. A watch never queues.
 It is also dropped for a service stopped on purpose, so a change that arrives after the stop never restarts it.
 A failed service carries no mark. The next change restarts it.
-`StopAll` closes admission and publishes `CommandStopAll`.
+`StopAll` closes admission and publishes `CommandStopAll`. The end of startup never reopens it.
 
 Once a service is ready, `watchForExit` waits on the child. A child stopped on purpose was detached first. Its exit is ignored.
 An unexpected exit publishes `ServiceFailed{ErrUnexpectedExit}` for a watched service, so the next file change restarts it.

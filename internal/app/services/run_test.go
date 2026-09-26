@@ -324,6 +324,77 @@ func Test_Runtime_Run_StopAllInterruption(t *testing.T) {
 	assert.Equal(t, model.PhaseStopped, runtime.guard.phase)
 }
 
+func Test_Runtime_Run_HaltDuringStartupKeepsStopping(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProfiles := NewMockProfileResolver(ctrl)
+	mockPreflight := NewMockPreflight(ctrl)
+	mockPool := NewMockPool(ctrl)
+	mockLauncher := NewMockLauncher(ctrl)
+	mockProcess := NewMockProcess(ctrl)
+	mockTracker := NewMockTracker(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+
+	log := slog.New(slog.DiscardHandler)
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
+	done := make(chan struct{})
+	close(done)
+
+	var settled model.Phase
+
+	runtime := NewRuntime(RuntimeParams{
+		Options:   Options{RetryAttempts: 1, Profile: "default"},
+		Profiles:  mockProfiles,
+		Preflight: mockPreflight,
+		Launcher:  mockLauncher,
+		Tracker:   mockTracker,
+		Pool:      mockPool,
+		Guard:     NewGuard(mockTracker),
+		Publisher: mockPublisher,
+		Logger:    log,
+	})
+
+	settling := func(msg contracts.Message) error {
+		data, ok := msg.Data.(contracts.PhaseChanged)
+		if !ok || data.Phase != model.PhaseRunning {
+			return nil
+		}
+
+		runtime.guard.mu.Lock()
+		settled = runtime.guard.phase
+		runtime.guard.mu.Unlock()
+
+		runtime.handle(contracts.Message{Type: contracts.CommandStopAll})
+
+		return nil
+	}
+	halting := func(context.Context, map[string]string) error {
+		runtime.guard.halt()
+
+		return nil
+	}
+
+	mockPublisher.EXPECT().Publish(gomock.Any()).DoAndReturn(settling).AnyTimes()
+	mockProfiles.EXPECT().Resolve("default").Return(tiers, nil)
+	mockPreflight.EXPECT().Cleanup(gomock.Any(), gomock.Any()).DoAndReturn(halting)
+	mockPool.EXPECT().Acquire(gomock.Any()).Return(nil)
+	mockLauncher.EXPECT().Start(svc).Return(mockProcess, nil)
+	mockProcess.EXPECT().PID().Return(42).AnyTimes()
+	mockProcess.EXPECT().Done().Return(done).AnyTimes()
+	mockProcess.EXPECT().Service().Return(svc).AnyTimes()
+	mockTracker.EXPECT().Untrack(svc.ID, mockProcess).Return(false).AnyTimes()
+	mockPool.EXPECT().Release()
+	mockTracker.EXPECT().Reverse().Return(nil)
+
+	err := runtime.run(runtime.begin(t.Context()))
+
+	require.NoError(t, err)
+	assert.Equal(t, model.PhaseStopping, settled)
+}
+
 func Test_Runtime_StartTier(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -64,6 +64,16 @@ func (g *Guard) halt() model.Phase {
 	return phase
 }
 
+// settle moves a run in startup to running and leaves a halted run alone
+func (g *Guard) settle() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.phase == model.PhaseStartup {
+		g.phase = model.PhaseRunning
+	}
+}
+
 // setPhase records the run phase admission checks against
 func (g *Guard) setPhase(phase model.Phase) {
 	g.mu.Lock()

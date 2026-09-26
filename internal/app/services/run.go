@@ -206,7 +206,7 @@ func (r *Runtime) run(ctx context.Context) error {
 	}
 
 	r.log.Info("Startup phase complete, waiting for signals...")
-	r.guard.setPhase(model.PhaseRunning)
+	r.guard.settle()
 	r.publishPhase(contracts.PhaseChanged{Phase: model.PhaseRunning, Duration: time.Since(startupStart), ServiceCount: len(names)})
 
 	<-ctx.Done()

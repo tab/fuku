@@ -540,3 +540,48 @@ func Test_Guard_halt(t *testing.T) {
 		})
 	}
 }
+
+func Test_Guard_settle(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTracker := NewMockTracker(ctrl)
+
+	tests := []struct {
+		name     string
+		before   func() *Guard
+		expected model.Phase
+	}{
+		{
+			name: "moves a run in startup to running",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+
+				return guard
+			},
+			expected: model.PhaseRunning,
+		},
+		{
+			name: "keeps a run halted during startup stopping",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.halt()
+
+				return guard
+			},
+			expected: model.PhaseStopping,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guard := tt.before()
+
+			guard.settle()
+
+			assert.Equal(t, tt.expected, guard.phase)
+		})
+	}
+}
