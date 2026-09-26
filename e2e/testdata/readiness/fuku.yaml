@@ -1,0 +1,55 @@
+version: 1
+
+services:
+  tcp-api:
+    dir: tcp-api
+    command: go run main.go
+    readiness:
+      type: tcp
+      address: 127.0.0.1:19880
+      interval: 100ms
+  http-api:
+    dir: http-api
+    command: go run main.go
+    readiness:
+      type: http
+      url: http://127.0.0.1:19881/health
+      interval: 100ms
+  unreachable:
+    dir: .
+    command: sleep 60
+    readiness:
+      type: tcp
+      address: 127.0.0.1:19882
+      timeout: 1s
+      interval: 100ms
+  crashing:
+    dir: .
+    command: exit 1
+    readiness:
+      type: log
+      pattern: never printed
+  slow:
+    dir: .
+    command: sleep 60
+    readiness:
+      type: log
+      pattern: never printed
+
+profiles:
+  healthy: [tcp-api, http-api]
+  unhealthy: [unreachable, crashing]
+  slow: [slow]
+
+retry:
+  attempts: 2
+  backoff: 100ms
+
+server:
+  listen: "127.0.0.1:19876"
+  auth:
+    token: "test-token"
+
+logging:
+  format: console
+  level: debug

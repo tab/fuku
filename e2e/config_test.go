@@ -167,3 +167,126 @@ profiles:
 	assert.Contains(t, result.Stderr, "backend")
 	assert.Contains(t, result.Stderr, "nonexistent-service")
 }
+
+func Test_Config_InvalidLogLevel(t *testing.T) {
+	dir := t.TempDir()
+
+	yaml := `version: 1
+
+services:
+  api:
+    dir: .
+    command: sleep 60
+
+logging:
+  level: trace
+`
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte(yaml), 0o600))
+
+	result := RunOnce(t, dir, "run", "default", "--no-ui")
+
+	assert.Equal(t, 1, result.ExitCode)
+	assert.Contains(t, result.Stderr, "Error: invalid configuration")
+	assert.Contains(t, result.Stderr, "'trace'")
+	assert.NotContains(t, result.Stdout, "Started service")
+}
+
+func Test_Config_OverrideSymlinkLoop(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "default load",
+			args: []string{"run", "default", "--no-ui"},
+		},
+		{
+			name: "config flag",
+			args: []string{"--config", "fuku.yaml", "run", "default", "--no-ui"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			override := filepath.Join(dir, "fuku.override.yaml")
+
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte("version: 1\nservices:\n  api:\n    dir: .\n"), 0o600))
+			require.NoError(t, os.Symlink(override, override))
+
+			result := RunOnce(t, dir, tt.args...)
+
+			assert.Equal(t, 1, result.ExitCode)
+			assert.Contains(t, result.Stderr, "Error: failed to read config file")
+			assert.Contains(t, result.Stderr, "fuku.override.yaml")
+			assert.NotContains(t, result.Stdout, "Started service")
+		})
+	}
+}
+
+func Test_Config_AliasedServiceKeepsTier(t *testing.T) {
+	dir := t.TempDir()
+
+	yaml := `version: 1
+
+x-base: &base
+  dir: .
+  command: sleep 60
+  tier: foundation
+
+services:
+  db:
+    dir: .
+    command: sleep 60
+    tier: foundation
+  api: *base
+  web:
+    dir: .
+    command: sleep 60
+`
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte(yaml), 0o600))
+
+	result := RunOnce(t, dir, "doctor", "--json")
+
+	require.Equal(t, 0, result.ExitCode)
+
+	checks := doctorChecks(t, result.Stdout)
+	tiers := checks["topology.tiers"]
+
+	assert.Equal(t, "foundation → default", tiers.Summary)
+	assert.Equal(t, "2 services", tiers.Details["foundation"])
+	assert.Equal(t, "profile 'default' resolves to 3 services", checks["topology.profile"].Summary)
+}
+
+func Test_Config_TierDefaultsAndNormalization(t *testing.T) {
+	dir := t.TempDir()
+
+	yaml := `version: 1
+
+defaults:
+  tier: Platform
+
+services:
+  db:
+    dir: .
+    tier: " Foundation "
+  api:
+    dir: .
+  web:
+    dir: .
+    tier: edge
+`
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte(yaml), 0o600))
+
+	result := RunOnce(t, dir, "doctor", "--json")
+
+	require.Equal(t, 0, result.ExitCode)
+
+	tiers := doctorChecks(t, result.Stdout)["topology.tiers"]
+
+	assert.Equal(t, "ok", tiers.Status)
+	assert.Equal(t, "foundation → platform → edge", tiers.Summary)
+}

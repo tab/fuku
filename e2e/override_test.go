@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -77,4 +79,30 @@ func Test_Override_ExcludeSuppressesService(t *testing.T) {
 	assert.NotContains(t, output, "Started service 'debug-tool'")
 	assert.NotContains(t, output, "service not found")
 	assert.NotContains(t, stderr, "service not found")
+}
+
+func Test_Override_NullDeletesService(t *testing.T) {
+	dir := t.TempDir()
+
+	base := `version: 1
+
+services:
+  api:
+    dir: .
+  debug-tool:
+    dir: .
+`
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.yaml"), []byte(base), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "fuku.override.yaml"), []byte("services:\n  debug-tool: null\n"), 0o600))
+
+	result := RunOnce(t, dir, "doctor", "--json")
+
+	require.Equal(t, 0, result.ExitCode)
+
+	checks := doctorChecks(t, result.Stdout)
+
+	assert.Equal(t, "override applied", checks["config.override"].Summary)
+	assert.Regexp(t, `resolves to 1 services?$`, checks["topology.profile"].Summary)
+	assert.NotContains(t, checks["services.directories"].Details, "debug-tool")
 }

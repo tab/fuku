@@ -40,4 +40,6 @@ func Test_Tier_StartsInOrder(t *testing.T) {
 - wait on a log line, never on a sleep: `WaitForLog`, `WaitForRunning`, `WaitForServiceStarted`, `WaitForTierReady`.
   Give each a timeout. Keep the total under the suite's `-timeout 5m`
 - assert on event names (`tier_starting`, `service_ready`, `service=postgres`), not on prose
-- never `t.Parallel()`. The fixtures pin real ports. `testdata/api` binds `127.0.0.1:19876`. Two runners fight over them
+- `ServicePID` reads a child's PID from its `service_starting` event. `WaitForGroupExit` proves no process of its group is left
+- a fixture's `.env` is ignored by `.gitignore` and its `fuku.yaml` by a global ignore. Add them to a new fixture with `git add -f`
+- never `t.Parallel()`. The fixtures pin real ports. `testdata/api` and `testdata/readiness` bind `127.0.0.1:19876`. Two runners fight over them
