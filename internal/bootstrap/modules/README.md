@@ -25,7 +25,7 @@ The blocks are `var`s and functions in `base.go`, `runtime.go` and `run.go`. Eac
 | `runtime`      | `profile` plus the instance, the registry, the watcher, the sampler, the socket server, the update check                        |
 | `api`          | the REST server. Only when `server.listen` is set                                                                               |
 | `headless`     | `cli.Run` as the command                                                                                                        |
-| `view`         | `tui.Program` as the command, the environment store and `tui.Bridge` as consumers. The log writer stays off until the TUI exits |
+| `view`         | `tui.Program` as the command, the environment store and `tui.Bridge` as consumers. The log writer stays off for the whole run  |
 
 | Composition                        | Blocks                                                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -66,4 +66,5 @@ The wiring rules are in [`CLAUDE.md`](../../../CLAUDE.md#dependency-injection-wi
   No package checks the command type or a listen address
 - the order in a participant slice is a guarantee. Fx value groups are shuffled and cannot carry it
 - building the graph queries no terminal and loads no `.env` file. The theme is a function that detects the terminal on its first call, not at construction
-- `view` turns the log writer off with `fx.Decorate`. A decorator reaches only its own `fx.Module`. The blocks are `fx.Options`, so it reaches the logger too. `Test_Run_Writer` proves it
+- `view` turns the log writer off with `fx.Decorate` for the whole run. A failed run still prints `Error: <cause>` on stderr through the arbiter.
+  A decorator reaches only its own `fx.Module`. The blocks are `fx.Options`, so it reaches the logger too. `Test_Run_Writer` proves it

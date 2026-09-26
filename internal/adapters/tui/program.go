@@ -10,11 +10,6 @@ import (
 	"fuku/internal/adapters/terminal"
 )
 
-// Output switches the application log output on once the view no longer owns the terminal
-type Output interface {
-	SetEnabled(enabled bool)
-}
-
 // ProgramParams contains the dependencies of the services view
 type ProgramParams struct {
 	fx.In
@@ -26,7 +21,6 @@ type ProgramParams struct {
 	Monitor     Monitor
 	Environment Environment
 	Theme       func() terminal.Theme
-	Writer      Output
 	Logger      Logger
 }
 
@@ -41,7 +35,7 @@ func NewProgram(params ProgramParams) *Program {
 	return &Program{params: params}
 }
 
-// Run runs the view on the bridge until it quits or ctx ends, then gives the terminal back to the log
+// Run runs the view on the bridge until it quits or ctx ends
 func (p *Program) Run(ctx context.Context) (int, error) {
 	model := NewModel(ctx, ModelParams{
 		Profile:       p.params.Options.Profile,
@@ -60,9 +54,6 @@ func (p *Program) Run(ctx context.Context) (int, error) {
 	p.params.Bridge.attach(program)
 
 	_, err := program.Run()
-
-	p.params.Writer.SetEnabled(true)
-
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return 1, err
 	}

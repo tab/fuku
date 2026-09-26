@@ -168,7 +168,7 @@ func Test_Run_Writer(t *testing.T) {
 		written bool
 	}{
 		{
-			name:    "with the TUI the writer drops the line until the view returns the terminal",
+			name:    "with the TUI the writer drops the line",
 			before:  stdout.Reset,
 			cmd:     &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault},
 			written: false,

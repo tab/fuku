@@ -80,7 +80,6 @@ var view = fx.Options(
 		func(cmd *cli.Options, p model.Project) tui.Options {
 			return tui.Options{Profile: cmd.Profile, RetryAttempts: p.Retry.Attempts, RetryBackoff: p.Retry.Backoff}
 		},
-		func(w *output.Writer) tui.Output { return w },
 		func(m *resources.ProcessMonitor) tui.Monitor { return m },
 		func(r *envfiles.Reader) environment.Reader { return r },
 		func(s *environment.Store) tui.Environment { return s },
@@ -131,7 +130,7 @@ func newViewParticipants(observers observerParams, p runParams, store *environme
 	return participants
 }
 
-// disableWriter keeps the log writer off until the TUI hands the terminal back
+// disableWriter keeps the log writer off for the whole run under the TUI
 func disableWriter(writer *output.Writer) *output.Writer {
 	writer.SetEnabled(false)
 

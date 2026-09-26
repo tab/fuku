@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"fuku/internal/adapters/terminal"
 	"fuku/internal/contracts"
@@ -24,11 +23,6 @@ func (q queue) Messages() <-chan contracts.Message {
 }
 
 func Test_Program_Run(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockWriter := NewMockOutput(ctrl)
-
 	log := slog.New(slog.DiscardHandler)
 	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceDark) }
 
@@ -46,15 +40,12 @@ func Test_Program_Run(t *testing.T) {
 		expectedError error
 	}{
 		{
-			name: "the context ends and the terminal returns to the log",
+			name: "the context ends",
 			before: func() *Program {
-				mockWriter.EXPECT().SetEnabled(true)
-
 				program := NewProgram(ProgramParams{
 					Options: Options{Profile: "default"},
 					Bridge:  NewBridge(nil),
 					Theme:   theme,
-					Writer:  mockWriter,
 					Logger:  log,
 				})
 				program.options = []tea.ProgramOption{tea.WithInput(nil), tea.WithoutRenderer()}
@@ -65,15 +56,12 @@ func Test_Program_Run(t *testing.T) {
 			expectedExit: 0,
 		},
 		{
-			name: "a failed input returns the error after the terminal returns to the log",
+			name: "a failed input returns the error",
 			before: func() *Program {
-				mockWriter.EXPECT().SetEnabled(true)
-
 				program := NewProgram(ProgramParams{
 					Options: Options{Profile: "default"},
 					Bridge:  NewBridge(nil),
 					Theme:   theme,
-					Writer:  mockWriter,
 					Logger:  log,
 				})
 				program.options = []tea.ProgramOption{tea.WithInput(iotest.ErrReader(errInput)), tea.WithoutRenderer(), tea.WithFilter(dropAll)}

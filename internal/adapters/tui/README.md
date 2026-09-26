@@ -17,7 +17,8 @@ Its handler blocks until the program exists. A message published before the view
 
 `Program` is the command of the composition.
 It builds the model, attaches the program to the bridge and runs it with `tea.WithoutSignalHandler()`. Fx owns the OS signals.
-A signal reaches the view as its cancelled context. When the program returns, it re-enables the application log writer.
+A signal reaches the view as its cancelled context.
+The application log writer stays off for the whole run. A failed run still prints `Error: <cause>` on stderr through the arbiter.
 The program's exit code is the exit code of the run, unless the arbiter recorded a failure first.
 
 ## The read model
