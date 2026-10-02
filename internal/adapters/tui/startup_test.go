@@ -2,6 +2,9 @@ package tui
 
 import (
 	"bytes"
+	"os"
+	"os/signal"
+	"syscall"
 	"testing"
 	"time"
 
@@ -87,6 +90,21 @@ func Test_startupModel_Update_Done(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	assert.Equal(t, tea.QuitMsg{}, cmd())
+}
+
+func Test_startupModel_Update_CtrlC(t *testing.T) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT)
+
+	defer signal.Stop(signals)
+
+	model := newStartupModel("core", terminal.NewTheme(terminal.AppearanceDark), time.Now())
+
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	require.NotNil(t, cmd)
+
+	assert.Nil(t, cmd())
+	assert.Equal(t, syscall.SIGINT, <-signals)
 }
 
 func Test_Startup_OpenShowClose_DoesNotBlock(t *testing.T) {

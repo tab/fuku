@@ -3,7 +3,9 @@ package tui
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"charm.land/bubbles/v2/spinner"
@@ -42,13 +44,12 @@ func NewStartup(options Options, theme func() terminal.Theme, stdout io.Writer) 
 	return &Startup{options: options, theme: theme, stdout: stdout}
 }
 
-// Open starts the view inline, without reading input, so Ctrl-C stays a signal for the parent
+// Open starts the view inline; it reads the terminal, so the replies to its queries never reach the shell
 func (s *Startup) Open() {
 	opened := time.Now()
 
 	s.program = tea.NewProgram(
 		newStartupModel(s.options.Profile, s.theme(), opened),
-		tea.WithInput(nil),
 		tea.WithoutSignalHandler(),
 		tea.WithOutput(s.stdout),
 	)
@@ -116,6 +117,10 @@ func (m startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 
 		return m, cmd
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
+			return m, interrupt
+		}
 	case startupDone:
 		return m, tea.Quit
 	}
@@ -201,4 +206,12 @@ func (m startupModel) ready() int {
 	}
 
 	return count
+}
+
+// interrupt turns Ctrl-C, a key press in raw mode, back into the SIGINT the parent stops on
+func interrupt() tea.Msg {
+	//nolint:errcheck // signalling the own process does not fail
+	syscall.Kill(os.Getpid(), syscall.SIGINT)
+
+	return nil
 }

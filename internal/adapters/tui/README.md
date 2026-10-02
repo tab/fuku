@@ -75,5 +75,6 @@ It answers with `admissionMsg`, or with `stopAllMsg` for `q`. The view reacts to
 ## The startup view
 
 `Startup` implements `detach.View` for a detached start on a terminal. It draws one line per service, the way `docker compose up -d` does.
-It runs inline with `tea.WithInput(nil)` and `tea.WithoutSignalHandler()`. The terminal stays cooked, so `Ctrl-C` is a `SIGINT` the parent handles.
+It runs inline and reads the terminal, so the replies to Bubble Tea's mode queries never leak into the shell.
+In raw mode `Ctrl-C` is a key press. The model turns it into a `SIGINT` to its own process, the one abort path of the parent.
 `Close` sends the final frame and waits for the program. The frame stays on screen above the summary.
