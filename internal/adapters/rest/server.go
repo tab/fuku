@@ -27,6 +27,8 @@ type Server struct {
 	publisher  contracts.Publisher
 	identity   model.Instance
 	httpServer *http.Server
+	bound      chan struct{}
+	address    string
 	log        Logger
 }
 
@@ -38,6 +40,7 @@ func NewServer(options Options, registry Registry, control Control, publisher co
 		control:   control,
 		publisher: publisher,
 		identity:  identity,
+		bound:     make(chan struct{}),
 		log:       log,
 	}
 }
@@ -62,6 +65,10 @@ func (s *Server) Start(context.Context) error {
 	mux.Handle("/api/v1/", authMiddleware(token, authedMux))
 
 	ln, addr := s.listen()
+
+	s.address = addr
+	close(s.bound)
+
 	if ln == nil {
 		return nil
 	}
@@ -85,6 +92,16 @@ func (s *Server) Start(context.Context) error {
 	}()
 
 	return nil
+}
+
+// Address waits for the bind attempt and returns the bound address, empty when the bind failed or ctx ended first
+func (s *Server) Address(ctx context.Context) string {
+	select {
+	case <-s.bound:
+		return s.address
+	case <-ctx.Done():
+		return ""
+	}
 }
 
 // Stop gracefully shuts down the HTTP server

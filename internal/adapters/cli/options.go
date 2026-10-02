@@ -53,13 +53,15 @@ type Flag string
 
 // Flag name values
 const (
-	FlagConfig   Flag = "config"
-	FlagNoUI     Flag = "no-ui"
-	FlagProfile  Flag = "profile"
-	FlagTail     Flag = "tail"
-	FlagNoFollow Flag = "no-follow"
-	FlagSummary  Flag = "summary"
-	FlagJSON     Flag = "json"
+	FlagConfig        Flag = "config"
+	FlagNoUI          Flag = "no-ui"
+	FlagDetached      Flag = "detached"
+	FlagDetachedChild Flag = "detached-child"
+	FlagProfile       Flag = "profile"
+	FlagTail          Flag = "tail"
+	FlagNoFollow      Flag = "no-follow"
+	FlagSummary       Flag = "summary"
+	FlagJSON          Flag = "json"
 )
 
 // String returns the string representation of a Flag
@@ -79,12 +81,14 @@ const (
 
 // Options contains the parsed command-line arguments
 type Options struct {
-	ConfigFile   string
-	Type         CommandType
-	Profile      string
-	Services     []string
-	NoUI         bool
-	DoctorFormat Format
+	ConfigFile    string
+	Type          CommandType
+	Profile       string
+	Services      []string
+	NoUI          bool
+	Detached      bool
+	DetachedChild bool
+	DoctorFormat  Format
 	model.ReplayOptions
 }
 

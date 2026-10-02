@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
+	"fuku/internal/adapters/detach"
 	"fuku/internal/adapters/eventlog"
 	"fuku/internal/adapters/github"
 	"fuku/internal/adapters/instance"
@@ -53,6 +54,8 @@ func Test_Compositions(t *testing.T) {
 	noView := func(*tui.Program) {}
 	noHeadless := func(*cli.Run) {}
 	noServer := func(*rest.Server) {}
+	noProgress := func(*detach.Progress) {}
+	noGuard := func(*instance.Guard) {}
 
 	tests := []struct {
 		name   string
@@ -103,6 +106,26 @@ func Test_Compositions(t *testing.T) {
 			name:   "headless run has no view",
 			option: Run(&cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true}, project),
 			absent: noView,
+		},
+		{
+			name:   "detached child runs headless with no view",
+			option: Run(&cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true, DetachedChild: true}, project),
+			absent: noView,
+		},
+		{
+			name:   "headless run has no detached progress",
+			option: Run(&cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true}, project),
+			absent: noProgress,
+		},
+		{
+			name:   "detached run starts no services of its own",
+			option: Detach(&cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, Detached: true}, project),
+			absent: noRuntime,
+		},
+		{
+			name:   "detached run takes no instance lock",
+			option: Detach(&cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, Detached: true}, project),
+			absent: noGuard,
 		},
 		{
 			name:   "run without a listen address resolves no *rest.Server",

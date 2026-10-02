@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Stop_KillsRunningServices(t *testing.T) {
+func Test_Stop_StopsTheRunningInstance(t *testing.T) {
 	runner := NewRunner(t, "testdata/default-tier")
 	defer runner.Stop()
 
@@ -26,19 +26,15 @@ func Test_Stop_KillsRunningServices(t *testing.T) {
 	result := RunOnce(t, "testdata/default-tier", "stop")
 
 	assert.Equal(t, 0, result.ExitCode)
-	assert.Regexp(t, `preflight_kill .*service=auth-api`, result.Stdout)
-	assert.Regexp(t, `preflight_kill .*service=user-api`, result.Stdout)
+	assert.Regexp(t, `Stopping fuku · pid \d+ · profile default \.\.\. stopped in \d+\.\ds`, result.Stdout)
 
 	require.NoError(t, WaitForGroupExit(authPID, 10*time.Second))
 	require.NoError(t, WaitForGroupExit(userPID, 10*time.Second))
 
-	require.NoError(t, runner.WaitForLogCount("service_stopped", 2, 10*time.Second))
-
 	output := runner.Output()
 
-	assert.Contains(t, output, "Service 'auth-api' exited unexpectedly")
-	assert.Contains(t, output, "Service 'user-api' exited unexpectedly")
-	assert.NotContains(t, output, "phase=stopping", "stop kills the service processes, not the run")
+	assert.Contains(t, output, "phase=stopping", "stop shuts the instance down gracefully")
+	assert.NotContains(t, output, "exited unexpectedly", "the instance stops its services, nothing kills them under it")
 }
 
 func Test_Stop_CleansUpOrphans(t *testing.T) {

@@ -191,6 +191,17 @@ func Test_StatusMessage_MarshalUnmarshal(t *testing.T) {
 			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"]}`,
 		},
 		{
+			name: "with the server process ID",
+			message: StatusMessage{
+				Type:     MessageStatus,
+				Version:  "0.17.0",
+				Profile:  "core",
+				Services: []string{"api"},
+				PID:      4321,
+			},
+			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"],"pid":4321}`,
+		},
+		{
 			name: "echoed bounded read options",
 			message: StatusMessage{
 				Type:          MessageStatus,

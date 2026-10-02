@@ -58,6 +58,7 @@ func Test_Server_StartAndShutdown(t *testing.T) {
 	require.NotNil(t, s.httpServer)
 	assert.NotEmpty(t, address)
 	assert.NotContains(t, address, ":0")
+	assert.Equal(t, address, s.Address(t.Context()))
 
 	resp, err := http.Get("http://" + address + "/api/v1/live")
 	require.NoError(t, err)
@@ -185,4 +186,14 @@ func Test_Server_Start_PortBusy(t *testing.T) {
 	defer s.Stop(t.Context())
 
 	assert.Nil(t, s.httpServer)
+	assert.Empty(t, s.Address(t.Context()))
+}
+
+func Test_Server_Address_BeforeStart(t *testing.T) {
+	s := NewServer(Options{}, nil, nil, nil, model.Instance{}, slog.New(slog.DiscardHandler))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	assert.Empty(t, s.Address(ctx))
 }

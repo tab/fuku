@@ -131,7 +131,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 
 	mockHandler := NewMockHandler(ctrl)
 
-	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}})
+	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321})
 	line := marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
 	c := &Client{conn: startScriptedServer(t, status, line)}
 
@@ -140,7 +140,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 	require.NoError(t, c.Subscribe(nil, model.ReplayOptions{}))
 
 	gomock.InOrder(
-		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}}).Return(nil),
+		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321}).Return(nil),
 		mockHandler.EXPECT().HandleLog(model.LogLine{Service: "api", Message: "hello from api"}),
 	)
 
@@ -492,4 +492,65 @@ func marshalLine(t *testing.T, msg any) string {
 	require.NoError(t, err)
 
 	return string(data)
+}
+
+func Test_Client_Status(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
+
+	_, err := NewClient(model.Instance{Fingerprint: fingerprint}).Status()
+
+	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
+}
+
+func Test_Client_statusAt_DeadSocket(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/dead-status")
+	dir := testSocketDir(t)
+
+	createStaleSocket(t, instance.SocketPath(dir, fingerprint))
+
+	_, err := NewClient(model.Instance{Fingerprint: fingerprint}).statusAt(dir)
+
+	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
+}
+
+func Test_Client_status(t *testing.T) {
+	tests := []struct {
+		name        string
+		lines       []string
+		expected    contracts.LogStatus
+		expectedErr error
+		errContains string
+	}{
+		{
+			name:     "reads the status frame the server sends first",
+			lines:    []string{marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.21.0", Profile: "core", Services: []string{"api"}, PID: 4242})},
+			expected: contracts.LogStatus{Version: "0.21.0", Profile: "core", Services: []string{"api"}, PID: 4242},
+		},
+		{
+			name:        "a first frame that is not a status fails",
+			lines:       []string{marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello"})},
+			expectedErr: errStatusMissing,
+		},
+		{
+			name:        "a server that closes without a frame fails",
+			errContains: "failed to read the status",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Client{conn: startScriptedServer(t, tt.lines...)}
+
+			status, err := c.status()
+
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
+
+				return
+			}
+
+			require.ErrorIs(t, err, tt.expectedErr)
+			assert.Equal(t, tt.expected, status)
+		})
+	}
 }

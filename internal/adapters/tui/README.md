@@ -1,6 +1,7 @@
 # adapters/tui
 
-The Bubble Tea frontends: the services view of `fuku run`, plus the inline doctor report and log view that render without a program.
+The Bubble Tea frontends: the services view of `fuku run`, the startup view of `fuku run -d`,
+plus the inline doctor report and log view that render without a program.
 
 The view owns interaction, animation and history. Every shared fact comes from the registry snapshot.
 Every action goes through `Control`. The view never decides what a service may do.
@@ -70,3 +71,9 @@ It answers with `admissionMsg`, or with `stopAllMsg` for `q`. The view reacts to
 - a new transition the view reacts to keeps the last seen value of the compared field in `serviceView`. Nothing else goes there
 - a new action goes through `Control`. The view never checks eligibility
 - a new style is a field on `terminal.Theme` or a `var` in `terminal/styles.go`
+
+## The startup view
+
+`Startup` implements `detach.View` for a detached start on a terminal. It draws one line per service, the way `docker compose up -d` does.
+It runs inline with `tea.WithInput(nil)` and `tea.WithoutSignalHandler()`. The terminal stays cooked, so `Ctrl-C` is a `SIGINT` the parent handles.
+`Close` sends the final frame and waits for the program. The frame stays on screen above the summary.

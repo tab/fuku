@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"fuku/internal/model"
@@ -96,6 +97,7 @@ func (s *Server) hello(conn net.Conn, clientID string, replay model.ReplayOption
 		Fingerprint:   s.fingerprint,
 		Profile:       s.profile,
 		Services:      s.services,
+		PID:           os.Getpid(),
 		ReplayOptions: replay,
 	}
 

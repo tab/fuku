@@ -7,6 +7,7 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
+	"fuku/internal/adapters/detach"
 	"fuku/internal/adapters/envfiles"
 	"fuku/internal/adapters/instance"
 	"fuku/internal/adapters/logsocket"
@@ -24,10 +25,14 @@ import (
 	"fuku/internal/model"
 )
 
-// Run composes a run: the runtime under the view or headless, with the API when the project sets a listen address
+// Run composes a run: the runtime under the view, headless or as a detached child, with the API when one is configured
 func Run(cmd *cli.Options, project model.Project) fx.Option {
 	command := headless
-	if !cmd.NoUI {
+
+	switch {
+	case cmd.DetachedChild:
+		command = child
+	case !cmd.NoUI:
 		command = view
 	}
 
@@ -71,6 +76,21 @@ var headless = fx.Options(
 		func(r *cli.Run) lifecycle.Command { return r },
 		runParams.participants,
 	),
+)
+
+// child runs headless as the detached instance and reports its startup to the parent on the standard error
+var child = fx.Options(
+	fx.Provide(
+		func(log *slog.Logger) detach.Logger { return log.With("component", "DETACH") },
+		func(s *logsocket.Server) detach.Relay { return s },
+		newChildAPI,
+		func(a *lifecycle.Arbiter) detach.Reporter { return a },
+		func(s *detach.Stderr) detach.Output { return s },
+		func(r *services.Runtime) cli.Runtime { return r },
+		func(r *cli.Run) lifecycle.Command { return r },
+		newChildParticipants,
+	),
+	detach.Module,
 )
 
 // view runs the services view as the command, fed by the bridge, with the environment store the aside reads
@@ -126,6 +146,30 @@ func newViewParticipants(observers observerParams, p runParams, store *environme
 	participants := p.participants(observers)
 	participants.Consumers = append(participants.Consumers, store, bridge)
 	participants.Producers = append(participants.Producers, checker)
+
+	return participants
+}
+
+// childAPI is the API server of the detached child, absent without a listen address
+type childAPI struct {
+	fx.In
+
+	Server *rest.Server `optional:"true"`
+}
+
+// newChildAPI binds the API server the detached start reports, and nil when the project serves none
+func newChildAPI(p childAPI) detach.API {
+	if p.Server == nil {
+		return nil
+	}
+
+	return p.Server
+}
+
+// newChildParticipants runs the profile headless with the startup reporter subscribed after the runtime consumers
+func newChildParticipants(observers observerParams, p runParams, progress *detach.Progress) lifecycle.Participants {
+	participants := p.participants(observers)
+	participants.Consumers = append(participants.Consumers, progress)
 
 	return participants
 }

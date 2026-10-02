@@ -71,6 +71,10 @@ func Parse(args []string) (*Options, error) {
 		return nil, ErrConfigFlagNotSupported
 	}
 
+	if result.Detached && result.Type != CommandRun {
+		return nil, ErrDetachedNotSupported
+	}
+
 	return result, nil
 }
 
@@ -94,6 +98,7 @@ func buildRootCommand(result *Options, flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVarP(&flags.stop, CommandStop.String(), "s", "", "Stop services with specified profile")
 	cmd.Flags().BoolVarP(&flags.logs, CommandLogs.String(), "l", false, "Stream logs from running services")
 	cmd.Flags().BoolVarP(&flags.init, CommandInit.String(), "i", false, "Generate fuku.yaml template")
+	cmd.Flags().BoolVarP(&result.Detached, FlagDetached.String(), "d", false, "Run in the background once every service is running")
 	cmd.MarkFlagsMutuallyExclusive(CommandVersion.String(), CommandRun.String(), CommandStop.String(), CommandLogs.String(), CommandInit.String())
 
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
@@ -132,6 +137,12 @@ func buildRunCommand(result *Options) *cobra.Command {
 			}
 		},
 	}
+
+	cmd.Flags().BoolVarP(&result.Detached, FlagDetached.String(), "d", false, "Run in the background once every service is running")
+	cmd.Flags().BoolVar(&result.DetachedChild, FlagDetachedChild.String(), false, "Run as the background instance of a detached run")
+
+	//nolint:errcheck // the flag is defined on the line above
+	cmd.Flags().MarkHidden(FlagDetachedChild.String())
 
 	return cmd
 }

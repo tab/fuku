@@ -45,6 +45,7 @@ func Test_Server_handleConnection(t *testing.T) {
 		Fingerprint:   identity.Fingerprint,
 		Profile:       testProfile,
 		Services:      []string{"api", "web"},
+		PID:           os.Getpid(),
 		ReplayOptions: replay,
 	}) + "\n"
 

@@ -111,6 +111,7 @@ func Test_Server_run(t *testing.T) {
 		profile  string
 		services []string
 		running  bool
+		bound    error
 	}{
 		{
 			name: "binds the socket once the profile is resolved",
@@ -128,6 +129,7 @@ func Test_Server_run(t *testing.T) {
 				mockRegistry.EXPECT().WaitResolved(gomock.Any()).Do(cancelled)
 				cancel()
 			},
+			bound: context.Canceled,
 		},
 	}
 
@@ -147,6 +149,7 @@ func Test_Server_run(t *testing.T) {
 			assert.Equal(t, tt.profile, s.profile)
 			assert.Equal(t, tt.services, s.services)
 			assert.Equal(t, tt.running, s.running.Load())
+			assert.ErrorIs(t, s.Bound(ctx), tt.bound)
 		})
 	}
 }
@@ -174,6 +177,7 @@ func Test_Server_run_StartFails(t *testing.T) {
 
 	assert.Equal(t, testProfile, s.profile)
 	assert.False(t, s.running.Load())
+	assert.ErrorContains(t, s.Bound(t.Context()), "failed to listen on socket")
 }
 
 func Test_Server_run_CleanupFails(t *testing.T) {

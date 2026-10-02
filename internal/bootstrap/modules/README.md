@@ -26,11 +26,13 @@ The blocks are `var`s and functions in `base.go`, `runtime.go` and `run.go`. Eac
 | `api`          | the REST server. Only when `server.listen` is set                                                                               |
 | `headless`     | `cli.Run` as the command                                                                                                        |
 | `view`         | `tui.Program` as the command, the environment store and `tui.Bridge` as consumers. The log writer stays off for the whole run  |
+| `child`        | `cli.Run` as the command and `detach.Progress` as the last consumer, for the detached child                                    |
 
 | Composition                        | Blocks                                                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `run.go`                           | `base`, `configured`, `runtime`; `api` with a listen address; `view`, or `headless` with `--no-ui`       |
-| `stop.go`                          | `base`, `configured`, `processes`                                                                        |
+| `run.go`                           | `base`, `configured`, `runtime`; `api` with a listen address; `view`, `headless` or `child`              |
+| `detach.go`                        | `base`, `configured`, `detach`; the live view on a terminal, plain lines otherwise                       |
+| `stop.go`                          | `base`, `configured`, `processes`, `instance`, `logsocket`, `detach`                                     |
 | `logs.go`                          | `base`, `configured`, `instance`, `logsocket`; the inline view, or bare lines with `--no-ui`             |
 | `doctor.go`                        | `base`, `standalone`, `instance`, `diagnostics`, `profiles`, `doctor`                                    |
 | `init.go`, `help.go`, `version.go` | `base`, `standalone`                                                                                     |
@@ -43,6 +45,7 @@ The participants of a command, in order:
 - Producers: `Announcer`, `Socket`, `Watcher`, `Runtime`, `Sampler`, then `Server` with a listen address, then `Checker` under the view
 - the socket server and the watcher precede the runtime. They are open before a service becomes ready and stop after the runtime published its final events
 - the guard is `instance.Guard`. The command is `tui.Program`, or `cli.Run` with `--no-ui`
+- `detach.go` has no guard; its child takes the lock. The writer stays off, and a signal exits 130
 - the stop budget is Fx's default plus one `process.ShutdownTimeout` per service, so a stop never outruns the children's shutdown
 
 What the order guarantees is in [`bootstrap/lifecycle/README.md`](../lifecycle/README.md).

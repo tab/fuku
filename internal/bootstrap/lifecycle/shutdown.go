@@ -10,6 +10,7 @@ import (
 // Arbiter records the first terminal outcome of the run and derives the exit code from it
 type Arbiter struct {
 	shutdowner fx.Shutdowner
+	signalCode int
 	mu         sync.Mutex
 	decided    bool
 	code       int
@@ -27,7 +28,12 @@ func (a *Arbiter) Fail(err error) {
 	a.decide(1, err)
 }
 
-// observe records the stopping OS signal as the terminal outcome with exit code 0, unless one was recorded first
+// SetSignalCode sets the exit code of a run that an OS signal ended (0 by default)
+func (a *Arbiter) SetSignalCode(code int) {
+	a.signalCode = code
+}
+
+// observe records the stopping OS signal as the terminal outcome with the signal code, unless one was recorded first
 func (a *Arbiter) observe(sig os.Signal) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -37,6 +43,7 @@ func (a *Arbiter) observe(sig os.Signal) {
 	}
 
 	a.decided = true
+	a.code = a.signalCode
 	a.sig = sig
 }
 

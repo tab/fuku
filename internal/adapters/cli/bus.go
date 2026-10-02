@@ -17,8 +17,12 @@ func NewAnnouncer(options *Options, publisher contracts.Publisher) *Announcer {
 	return &Announcer{options: options, publisher: publisher}
 }
 
-// Start publishes CommandStarted for the parsed command
+// Start publishes CommandStarted for the parsed command, except in a detached child, whose parent announced it
 func (a *Announcer) Start(context.Context) error {
+	if a.options.DetachedChild {
+		return nil
+	}
+
 	//nolint:errcheck // a non-critical publish never fails
 	a.publisher.Publish(contracts.Message{
 		Type: contracts.EventCommandStarted,

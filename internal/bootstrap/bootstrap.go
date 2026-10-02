@@ -58,6 +58,10 @@ func compose(cmd *cli.Options) (fx.Option, error) {
 	case cli.CommandLogs:
 		return load(cmd, modules.Logs)
 	default:
+		if cmd.Detached {
+			return load(cmd, modules.Detach)
+		}
+
 		return load(cmd, modules.Run)
 	}
 }

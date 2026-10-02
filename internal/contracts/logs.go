@@ -5,4 +5,5 @@ type LogStatus struct {
 	Version  string
 	Profile  string
 	Services []string
+	PID      int
 }

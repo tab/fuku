@@ -25,6 +25,8 @@ Start: guard, telemetry, consumers in order, producers in order, command on its 
 `Start` creates the run context before the guard. The constructor creates nothing to cancel.
 A failed stage unwinds the producers started so far and cancels the context.
 
+`Run` traps `SIGINT` and `SIGTERM` before the start. A signal during the start runs the stop once the start returns.
+
 Stop: `SignalReceived` is published if an OS signal ended the run. Producers stop, newest first.
 Consumers drain in order, twice, because a handler may publish during the first pass. The first failed drain ends both passes.
 The context is cancelled. The command is joined.
@@ -39,7 +41,7 @@ A failed start stops telemetry and closes the bus on its way out. The cancelled 
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | the command returned (`decide`)                                | the command's code, with `Error: <cause>` on stderr when it returned an error |
 | a runtime failure (`Fail` from services or the bus) | 1, with `Error: <cause>` on stderr after the stop                             |
-| an OS signal (`observe` from `Run`)                            | 0, unless a failure came first                                                |
+| an OS signal (`observe` from `Run`)                            | the signal code (0 unless the composition sets it), unless a failure came first |
 | an Fx start failure                                            | 1, with the root cause                                                        |
 
 `Run` prints the cause after `app.Stop`, once the TUI has released the terminal. It is the one report of a command failure.

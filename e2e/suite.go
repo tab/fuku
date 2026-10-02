@@ -107,6 +107,25 @@ func (r *Runner) StartWithConfig(configFile, profile string) error {
 	return nil
 }
 
+// StartWith launches fuku with the given arguments
+func (r *Runner) StartWith(args ...string) error {
+	bin := os.Getenv("FUKU_BIN")
+	if bin == "" {
+		bin = "fuku"
+	}
+
+	r.cmd = exec.Command(bin, args...)
+	r.cmd.Dir = r.workDir
+	r.cmd.Stdout = r.stdout
+	r.cmd.Stderr = r.stderr
+
+	if err := r.cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start fuku: %w", err)
+	}
+
+	return nil
+}
+
 // Stop sends SIGTERM and waits for graceful shutdown
 func (r *Runner) Stop() error {
 	return r.Signal(syscall.SIGTERM)
@@ -221,6 +240,28 @@ func WaitForGroupExit(pgid int, timeout time.Duration) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("timeout waiting for process group %d to exit", pgid)
+		case <-ticker.C:
+		}
+	}
+}
+
+// WaitForNoProcess blocks until no process command line matches pattern or timeout
+func WaitForNoProcess(pattern string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		var exitErr *exec.ExitError
+		if err := exec.Command("pgrep", "-f", pattern).Run(); errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for no process to match %q", pattern)
 		case <-ticker.C:
 		}
 	}
