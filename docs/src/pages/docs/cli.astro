@@ -41,7 +41,7 @@ const nav = getDocsNav(base);
       <tr>
         <td><code>fuku stop [profile]</code></td>
         <td><code>s</code></td>
-        <td>Stop services by killing processes in service directories</td>
+        <td>Stop the running fuku of the project gracefully, then kill what is left in the service directories</td>
       </tr>
       <tr>
         <td><code>fuku logs [services...]</code></td>
@@ -93,6 +93,10 @@ const nav = getDocsNav(base);
         <td>Run without the interactive TUI (log-only mode)</td>
       </tr>
       <tr>
+        <td><code>--detached</code>, <code>-d</code></td>
+        <td>Run in the background and return once every service is running. Exits 1 when a service fails and stops what started, 130 on <code>Ctrl-C</code>. Supported with <code>run</code> only</td>
+      </tr>
+      <tr>
         <td><code>--profile</code></td>
         <td>Profile the running instance must serve; <code>logs</code> exits with 1 on a mismatch</td>
       </tr>
@@ -125,7 +129,10 @@ fuku run core --no-ui
 # Use short aliases
 fuku r core
 
-# Stop services for a profile
+# Run in the background and return once every service is running
+fuku run core -d
+
+# Stop the running fuku, then the services of a profile
 fuku stop                       # Default profile
 fuku stop core                  # Specific profile
 

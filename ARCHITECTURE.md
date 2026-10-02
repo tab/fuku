@@ -83,6 +83,7 @@ internal/adapters
   watch                        watches the files of a running service
   resources                    samples CPU and memory
   logsocket                    the project socket: server and client
+  detach                       the detached run: launcher, startup pipe, plain view, stop of the running instance
   config                       loads fuku.yaml, builds model.Project
   config/template              the fuku.yaml init writes, embedded
   envfiles                     reads one .env file
@@ -116,12 +117,16 @@ internal/model                 plain values
 | Command    | Composition           | Command participant                        |
 |------------|-----------------------|--------------------------------------------|
 | `run`      | `modules/run.go`      | `tui.Program`, or `cli.Run` with `--no-ui` |
+| `run -d`   | `modules/detach.go`   | `detach.Command`                           |
 | `stop`     | `modules/stop.go`     | `cli.Stop`                                 |
 | `logs`     | `modules/logs.go`     | `cli.Logs`                                 |
 | `doctor`   | `modules/doctor.go`   | `cli.Doctor`                               |
 | `init`     | `modules/init.go`     | `cli.Init`                                 |
 | `help`     | `modules/help.go`     | `cli.Help`                                 |
 | `version`  | `modules/version.go`  | `cli.Version`                              |
+
+`run -d` starts a second fuku in its own session as `run <profile> --no-ui --detached-child`, the run composition headless.
+The child writes its startup to the parent over its standard error and releases that pipe once every service runs.
 
 A composition gives the coordinator ordered lists of participants. A `Consumer` has `Subscribe` and `Drain`.
 A `Producer` has `Start` and `Stop`. The one `Command` has `Run`. Start order: guard, telemetry, consumers, producers, command.
