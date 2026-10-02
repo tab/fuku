@@ -141,8 +141,7 @@ func (c *Command) abort(child Process, lines <-chan []byte) (int, error) {
 		return 1, fmt.Errorf("failed to stop the detached instance: %w", err)
 	}
 
-	for range lines {
-	}
+	drain(lines)
 
 	//nolint:errcheck // the child was asked to stop; how it exited changes nothing
 	child.Wait()
@@ -175,6 +174,13 @@ func aborted(ctx context.Context, interrupt <-chan os.Signal) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// drain discards the rest of the pipe, so the child's shutdown never blocks on a write
+func drain(lines <-chan []byte) {
+	for range lines {
+		continue
 	}
 }
 
