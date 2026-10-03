@@ -2,13 +2,41 @@ package detach
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
+
+func TestMain(m *testing.M) {
+	if os.Getenv("FUKU_TEST_DETACHED_CHILD") != "1" {
+		os.Exit(m.Run())
+	}
+
+	sid, _ := unix.Getsid(0)
+	fmt.Fprintf(os.Stderr, "%s leads=%t\n", strings.Join(os.Args[1:], " "), sid == os.Getpid())
+}
+
+func Test_Launcher_Launch(t *testing.T) {
+	t.Setenv("FUKU_TEST_DETACHED_CHILD", "1")
+
+	launcher := NewLauncher(Options{Profile: "core", ConfigFile: "fuku.ci.yaml"})
+
+	child, err := launcher.Launch()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { child.Wait() })
+
+	line, err := bufio.NewReader(child.Output()).ReadString('\n')
+
+	require.NoError(t, err)
+	assert.Equal(t, "run core --no-ui --detached-child --config fuku.ci.yaml leads=true\n", line)
+}
 
 func Test_Launcher_args(t *testing.T) {
 	tests := []struct {

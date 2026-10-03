@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
+	"fuku/internal/adapters/detach"
 	"fuku/internal/adapters/eventlog"
 	"fuku/internal/adapters/instance"
 	"fuku/internal/adapters/logsocket"
@@ -122,6 +123,33 @@ func Test_stopTimeout(t *testing.T) {
 			timeout := stopTimeout(tt.project)
 
 			assert.Equal(t, tt.expected, timeout)
+		})
+	}
+}
+
+func Test_newChildAPI(t *testing.T) {
+	server := &rest.Server{}
+
+	tests := []struct {
+		name     string
+		params   childAPI
+		expected detach.API
+	}{
+		{
+			name:     "a project without a listen address reports no API",
+			params:   childAPI{},
+			expected: nil,
+		},
+		{
+			name:     "a project that serves the API reports its server",
+			params:   childAPI{Server: server},
+			expected: server,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, newChildAPI(tt.params))
 		})
 	}
 }

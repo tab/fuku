@@ -144,6 +144,14 @@ func Test_startupModel_Update_CtrlC(t *testing.T) {
 	assert.Equal(t, syscall.SIGINT, <-signals)
 }
 
+func Test_startupModel_Update_OtherKey(t *testing.T) {
+	model := newStartupModel("core", terminal.NewTheme(terminal.AppearanceDark), time.Now())
+
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'q'})
+
+	assert.Nil(t, cmd)
+}
+
 func Test_Startup_OpenShowClose_DoesNotBlock(t *testing.T) {
 	theme := terminal.NewTheme(terminal.AppearanceDark)
 

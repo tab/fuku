@@ -307,3 +307,18 @@ func Test_aborted(t *testing.T) {
 		})
 	}
 }
+
+func Test_drain(t *testing.T) {
+	lines := make(chan []byte, 2)
+
+	lines <- []byte("one")
+
+	lines <- []byte("two")
+
+	close(lines)
+
+	drain(lines)
+
+	_, open := <-lines
+	assert.False(t, open)
+}

@@ -514,6 +514,74 @@ func Test_Client_statusAt_DeadSocket(t *testing.T) {
 	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
 }
 
+func Test_Client_statusAt_LiveSocket(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/live-status")
+	dir := testSocketDir(t)
+
+	listener, err := net.Listen("unix", instance.SocketPath(dir, fingerprint))
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	frame := marshalLine(t, StatusMessage{Type: MessageStatus, Profile: "core", PID: 4242})
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+
+		defer conn.Close()
+
+		if _, err := bufio.NewReader(conn).ReadBytes('\n'); err != nil {
+			return
+		}
+
+		conn.Write([]byte(frame + "\n"))
+	}()
+
+	status, err := NewClient(model.Instance{Fingerprint: fingerprint}).statusAt(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, contracts.LogStatus{Profile: "core", PID: 4242}, status)
+}
+
+func Test_Client_status_ClosedConnection(t *testing.T) {
+	client, server := net.Pipe()
+
+	defer server.Close()
+
+	require.NoError(t, client.Close())
+
+	closed := &Client{conn: client}
+
+	_, err := closed.status()
+
+	assert.ErrorContains(t, err, "failed to set the status deadline")
+}
+
+func Test_Client_status_WriteFails(t *testing.T) {
+	listener, err := net.Listen("unix", instance.SocketPath(testSocketDir(t), "write-fails"))
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	conn, err := net.Dial("unix", listener.Addr().String())
+	require.NoError(t, err)
+
+	defer conn.Close()
+
+	unixConn, ok := conn.(*net.UnixConn)
+	require.True(t, ok)
+	require.NoError(t, unixConn.CloseWrite())
+
+	halfClosed := &Client{conn: conn}
+
+	_, err = halfClosed.status()
+
+	assert.ErrorContains(t, err, "failed to write to socket")
+}
+
 func Test_Client_status(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -609,4 +677,20 @@ func Test_Client_removeAt(t *testing.T) {
 			assert.Equal(t, tt.expectedExists, err == nil)
 		})
 	}
+}
+
+func Test_Client_removeAt_ReadOnlyDirectory(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/remove-read-only")
+	dir := testSocketDir(t)
+	socketPath := instance.SocketPath(dir, fingerprint)
+	client := NewClient(model.Instance{Fingerprint: fingerprint})
+
+	createStaleSocket(t, socketPath)
+	require.NoError(t, os.Chmod(dir, 0o500))
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	err := client.removeAt(dir)
+
+	require.ErrorContains(t, err, "failed to remove the stale socket")
+	assert.FileExists(t, socketPath)
 }

@@ -35,3 +35,18 @@ func Test_Stderr_Release(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "before\n", string(read))
 }
+
+func Test_Stderr_Release_ClosedFile(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+
+	defer reader.Close()
+
+	require.NoError(t, writer.Close())
+
+	stderr := &Stderr{file: writer}
+
+	err = stderr.Release()
+
+	assert.ErrorContains(t, err, "failed to release the standard error")
+}
