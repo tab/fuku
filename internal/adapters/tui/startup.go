@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"os"
@@ -87,6 +88,7 @@ type startupModel struct {
 	theme    terminal.Theme
 	opened   time.Time
 	services []*startupService
+	stopped  time.Duration
 	spinner  spinner.Model
 }
 
@@ -140,7 +142,9 @@ func (m *startupModel) apply(record detach.Record) {
 	case detach.KindReady:
 		m.set(record.Service, stateReady, record.Duration)
 	case detach.KindFailed:
-		m.set(record.Service, stateFailed, time.Since(m.opened))
+		elapsed := time.Since(m.opened)
+		m.set(record.Service, stateFailed, elapsed)
+		m.stopped = cmp.Or(m.stopped, elapsed)
 	default:
 		// no-op: the summary reports the API and the running instance
 	}
@@ -160,18 +164,19 @@ func (m *startupModel) set(name string, state startupState, duration time.Durati
 func (m startupModel) View() tea.View {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "%s run %s %d/%d\n", terminal.BoldStyle.Render("[+]"), m.profile, m.ready(), len(m.services))
+	fmt.Fprintf(&b, "%s fuku run %s -d %d/%d\n", terminal.BoldStyle.Render("[+]"), m.profile, m.ready(), len(m.services))
 
 	width := 0
 	for _, svc := range m.services {
-		width = max(width, len(svc.name))
+		width = max(width, lipgloss.Width(svc.name))
 	}
 
 	elapsed := time.Since(m.opened)
 
 	for _, svc := range m.services {
 		glyph, label, duration := m.row(svc, elapsed)
-		fmt.Fprintf(&b, " %s %-*s  %s  %4.1fs\n", glyph, width, svc.name, label, duration.Seconds())
+		padding := strings.Repeat(" ", width-lipgloss.Width(svc.name))
+		fmt.Fprintf(&b, " %s %s%s  %s  %4.1fs\n", glyph, svc.name, padding, label, duration.Seconds())
 	}
 
 	return tea.NewView(b.String())
@@ -183,12 +188,14 @@ func (m startupModel) row(svc *startupService, elapsed time.Duration) (string, s
 		return style.Render(fmt.Sprintf("%-8s", text))
 	}
 
-	switch svc.state {
-	case stateReady:
+	switch {
+	case svc.state == stateReady:
 		return m.theme.StatusRunningStyle.Render("✔"), label(m.theme.StatusRunningStyle, "Ready"), svc.duration
-	case stateFailed:
+	case svc.state == stateFailed:
 		return m.theme.StatusFailedStyle.Render("✗"), label(m.theme.StatusFailedStyle, "Failed"), svc.duration
-	case stateStarting:
+	case m.stopped > 0:
+		return m.theme.StatusStoppedStyle.Render("○"), label(m.theme.StatusStoppedStyle, "Stopped"), m.stopped
+	case svc.state == stateStarting:
 		return m.spinner.View(), label(m.theme.StatusStartingStyle, "Starting"), elapsed
 	default:
 		return m.spinner.View(), label(m.theme.StatusPendingStyle, "Waiting"), elapsed

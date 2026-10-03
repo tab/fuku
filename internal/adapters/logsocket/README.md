@@ -15,6 +15,7 @@ The status frame echoes the replay options on purpose. A bounded read (`--tail`,
 If the first frame is not a status frame with the exact options requested, the client fails with `ErrBoundedReadNotSupported`.
 An older server ignored the options and would stream forever.
 `pid` is the server's process ID, which `fuku stop` signals. An older server omits it.
+`fuku stop` ends with `Client.Remove`. It deletes the project socket a dead instance left behind and keeps one that still answers.
 
 ## The server
 

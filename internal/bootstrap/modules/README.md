@@ -26,7 +26,7 @@ The blocks are `var`s and functions in `base.go`, `runtime.go` and `run.go`. Eac
 | `api`          | the REST server. Only when `server.listen` is set                                                                               |
 | `headless`     | `cli.Run` as the command                                                                                                        |
 | `view`         | `tui.Program` as the command, the environment store and `tui.Bridge` as consumers. The log writer stays off for the whole run  |
-| `child`        | `cli.Run` as the command and `detach.Progress` as the last consumer, for the detached child                                    |
+| `child`        | `cli.Run` as the command and `detach.Progress` as the last consumer, for the detached child. The log writer stays off          |
 
 | Composition                        | Blocks                                                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -46,7 +46,8 @@ The participants of a command, in order:
 - the socket server and the watcher precede the runtime. They are open before a service becomes ready and stop after the runtime published its final events
 - the guard is `instance.Guard`. The command is `tui.Program`, or `cli.Run` with `--no-ui`
 - `detach.go` has no guard; its child takes the lock. The writer stays off, and a signal exits 130
-- the stop budget is Fx's default plus one `process.ShutdownTimeout` per service, so a stop never outruns the children's shutdown
+- the stop budget is Fx's default plus one `process.ShutdownTimeout` per service, so a stop never outruns the children's shutdown.
+  The detached parent adds one more default budget, so the child's stop ends first
 
 What the order guarantees is in [`bootstrap/lifecycle/README.md`](../lifecycle/README.md).
 
@@ -69,5 +70,5 @@ The wiring rules are in [`CLAUDE.md`](../../../CLAUDE.md#dependency-injection-wi
   No package checks the command type or a listen address
 - the order in a participant slice is a guarantee. Fx value groups are shuffled and cannot carry it
 - building the graph queries no terminal and loads no `.env` file. The theme is a function that detects the terminal on its first call, not at construction
-- `view` turns the log writer off with `fx.Decorate` for the whole run. A failed run still prints `Error: <cause>` on stderr through the arbiter.
+- `view` and `child` turn the log writer off with `fx.Decorate` for the whole run. A failed run still prints `Error: <cause>` on stderr through the arbiter.
   A decorator reaches only its own `fx.Module`. The blocks are `fx.Options`, so it reaches the logger too. `Test_Run_Writer` proves it

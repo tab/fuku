@@ -5,12 +5,33 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
 	"fuku/internal/adapters/detach"
 	"fuku/internal/adapters/terminal"
 	"fuku/internal/adapters/tui"
+	"fuku/internal/model"
+	"fuku/internal/platform/logging"
 )
+
+func Test_Detach_StopTimeout(t *testing.T) {
+	project := model.Project{
+		Logging:     model.Logging{Level: logging.LevelInfo, Format: logging.FormatJSON},
+		Concurrency: model.Concurrency{Workers: 5},
+		Services:    []model.Service{{Name: "api"}, {Name: "db"}},
+	}
+	cmd := &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, Detached: true}
+	child := &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true, DetachedChild: true}
+
+	parent := fx.New(Detach(cmd, project), fx.Supply(SentryDSN("")))
+	run := fx.New(Run(child, project), fx.Supply(SentryDSN("")))
+
+	require.NoError(t, parent.Err())
+	require.NoError(t, run.Err())
+	assert.Greater(t, parent.StopTimeout(), run.StopTimeout())
+}
 
 func Test_newView(t *testing.T) {
 	plain := detach.NewPlain(io.Discard)

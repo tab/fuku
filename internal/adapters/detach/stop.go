@@ -47,7 +47,7 @@ func (s *Stopper) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	if status.PID == 0 {
+	if status.PID <= 1 {
 		fmt.Fprintln(s.stdout, "The running fuku reports no process ID; restart it with this version to stop it")
 
 		return nil
@@ -57,7 +57,14 @@ func (s *Stopper) Stop(ctx context.Context) error {
 
 	started := time.Now()
 
-	if err := syscall.Kill(status.PID, syscall.SIGTERM); err != nil {
+	err = syscall.Kill(status.PID, syscall.SIGTERM)
+	if errors.Is(err, syscall.ESRCH) {
+		fmt.Fprintf(s.stdout, "stopped in %s\n", seconds(time.Since(started)))
+
+		return nil
+	}
+
+	if err != nil {
 		fmt.Fprintln(s.stdout, "failed")
 
 		return fmt.Errorf("failed to stop fuku (pid %d): %w", status.PID, err)

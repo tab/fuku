@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -551,6 +552,61 @@ func Test_Client_status(t *testing.T) {
 
 			require.ErrorIs(t, err, tt.expectedErr)
 			assert.Equal(t, tt.expected, status)
+		})
+	}
+}
+
+func Test_Client_Remove(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
+
+	require.NoError(t, NewClient(model.Instance{Fingerprint: fingerprint}).Remove())
+}
+
+func Test_Client_removeAt(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/remove")
+
+	tests := []struct {
+		name           string
+		before         func(t *testing.T, socketPath string)
+		expectedExists bool
+	}{
+		{
+			name:   "an absent socket is nothing to remove",
+			before: func(*testing.T, string) {},
+		},
+		{
+			name: "a socket that still answers is kept",
+			before: func(t *testing.T, socketPath string) {
+				t.Helper()
+
+				listener, err := net.Listen("unix", socketPath)
+				require.NoError(t, err)
+
+				t.Cleanup(func() { listener.Close() })
+			},
+			expectedExists: true,
+		},
+		{
+			name: "a dead socket is removed",
+			before: func(t *testing.T, socketPath string) {
+				t.Helper()
+
+				createStaleSocket(t, socketPath)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := testSocketDir(t)
+			socketPath := instance.SocketPath(dir, fingerprint)
+
+			tt.before(t, socketPath)
+
+			require.NoError(t, NewClient(model.Instance{Fingerprint: fingerprint}).removeAt(dir))
+
+			_, err := os.Lstat(socketPath)
+			assert.Equal(t, tt.expectedExists, err == nil)
 		})
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os/exec"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -98,12 +97,25 @@ func Test_Stopper_Stop(t *testing.T) {
 			expectedOutput: `^Stopping fuku · pid \d+ · profile core \.\.\. stopped in \d+\.\ds\n$`,
 		},
 		{
-			name: "a process that cannot be signalled fails the stop",
+			name: "init is never signalled",
 			before: func() {
 				mockSource.EXPECT().Status().Return(contracts.LogStatus{Profile: "core", PID: 1}, nil)
 			},
-			expectedErr:    syscall.EPERM,
-			expectedOutput: `^Stopping fuku · pid 1 · profile core \.\.\. failed\n$`,
+			expectedOutput: `^The running fuku reports no process ID; restart it with this version to stop it\n$`,
+		},
+		{
+			name: "a negative process ID never signals a process group",
+			before: func() {
+				mockSource.EXPECT().Status().Return(contracts.LogStatus{Profile: "core", PID: -99999999}, nil)
+			},
+			expectedOutput: `^The running fuku reports no process ID; restart it with this version to stop it\n$`,
+		},
+		{
+			name: "an instance that exits before the signal is stopped",
+			before: func() {
+				mockSource.EXPECT().Status().Return(contracts.LogStatus{Profile: "core", PID: 99999999}, nil)
+			},
+			expectedOutput: `^Stopping fuku · pid \d+ · profile core \.\.\. stopped in \d+\.\ds\n$`,
 		},
 		{
 			name: "an interrupted wait leaves the instance to the caller",

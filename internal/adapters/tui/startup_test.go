@@ -32,7 +32,7 @@ func Test_startupModel_Update(t *testing.T) {
 		{
 			name:     "lists every service as waiting once the profile resolves",
 			records:  []detach.Record{profile},
-			expected: []string{"[+] run core 0/3", "postgres  Waiting", "api       Waiting", "worker    Waiting"},
+			expected: []string{"[+] fuku run core -d 0/3", "postgres  Waiting", "api       Waiting", "worker    Waiting"},
 		},
 		{
 			name: "moves each service through its states",
@@ -40,15 +40,47 @@ func Test_startupModel_Update(t *testing.T) {
 				profile,
 				{Kind: detach.KindReady, Service: "postgres", Duration: 1200 * time.Millisecond},
 				{Kind: detach.KindStarting, Service: "api"},
-				{Kind: detach.KindFailed, Service: "worker", Error: "max retries exceeded"},
 				{Kind: detach.KindRunning, PID: 42},
 			},
 			expected: []string{
-				"[+] run core 1/3",
+				"[+] fuku run core -d 1/3",
 				" ✔ postgres  Ready      1.2s",
 				"api       Starting",
+				"worker    Waiting",
+			},
+		},
+		{
+			name: "a failure stops every service still waiting",
+			records: []detach.Record{
+				profile,
+				{Kind: detach.KindReady, Service: "postgres", Duration: 1200 * time.Millisecond},
+				{Kind: detach.KindFailed, Service: "worker", Error: "max retries exceeded"},
+			},
+			expected: []string{
+				"[+] fuku run core -d 1/3",
+				" ✔ postgres  Ready      1.2s",
+				" ○ api       Stopped    3.0s",
 				" ✗ worker    Failed     3.0s",
 			},
+		},
+		{
+			name: "a failure freezes a starting service as stopped",
+			records: []detach.Record{
+				profile,
+				{Kind: detach.KindStarting, Service: "api"},
+				{Kind: detach.KindFailed, Service: "worker", Error: "max retries exceeded"},
+			},
+			expected: []string{
+				"[+] fuku run core -d 0/3",
+				" ○ postgres  Stopped    3.0s",
+				" ○ api       Stopped    3.0s",
+				" ✗ worker    Failed     3.0s",
+			},
+		},
+		{
+			name:     "aligns the columns by the display width of non-ASCII names",
+			records:  []detach.Record{{Kind: detach.KindProfile, Services: []string{"café", "東京", "api"}}},
+			expected: []string{" café  Waiting", " 東京  Waiting", " api   Waiting"},
 		},
 	}
 
@@ -60,7 +92,12 @@ func Test_startupModel_Update(t *testing.T) {
 				current, _ = current.Update(record)
 			}
 
-			view := ansi.Strip(current.View().Content)
+			model, ok := current.(startupModel)
+			require.True(t, ok)
+
+			model.opened = model.opened.Add(-time.Minute)
+
+			view := ansi.Strip(model.View().Content)
 
 			for _, line := range tt.expected {
 				assert.Contains(t, view, line)

@@ -174,6 +174,12 @@ func Test_Run_Writer(t *testing.T) {
 			written: false,
 		},
 		{
+			name:    "the detached child drops the line",
+			before:  stdout.Reset,
+			cmd:     &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true, DetachedChild: true},
+			written: false,
+		},
+		{
 			name:    "without a UI the writer prints the line",
 			before:  stdout.Reset,
 			cmd:     &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true},

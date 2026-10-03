@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"syscall"
 	"time"
 
@@ -170,6 +171,29 @@ func (c *Client) status() (contracts.LogStatus, error) {
 	}
 
 	return notification(status), nil
+}
+
+// Remove deletes the project socket a dead instance left behind and keeps one that still answers
+func (c *Client) Remove() error {
+	return c.removeAt(instance.SocketDir)
+}
+
+// removeAt deletes the dead project socket inside socketDir
+func (c *Client) removeAt(socketDir string) error {
+	socketPath, err := findSocket(socketDir, c.fingerprint)
+	if errors.Is(err, contracts.ErrNoInstanceRunning) {
+		return nil
+	}
+
+	if instance.ProbeSocket(socketPath) == nil {
+		return nil
+	}
+
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove the stale socket: %w", err)
+	}
+
+	return nil
 }
 
 // notAcknowledged returns the compatibility error for a server that did not confirm the request

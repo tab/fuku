@@ -90,6 +90,7 @@ var child = fx.Options(
 		func(r *cli.Run) lifecycle.Command { return r },
 		newChildParticipants,
 	),
+	fx.Decorate(disableWriter),
 	detach.Module,
 )
 
@@ -174,7 +175,7 @@ func newChildParticipants(observers observerParams, p runParams, progress *detac
 	return participants
 }
 
-// disableWriter keeps the log writer off for the whole run under the TUI
+// disableWriter keeps the log writer off for a run whose output no one reads as log lines
 func disableWriter(writer *output.Writer) *output.Writer {
 	writer.SetEnabled(false)
 

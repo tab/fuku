@@ -19,7 +19,7 @@ const exitInterrupted = 130
 // Detach composes the parent of a detached run: it launches the child and renders its startup
 func Detach(cmd *cli.Options, project model.Project) fx.Option {
 	return fx.Options(
-		fx.StopTimeout(stopTimeout(project)),
+		fx.StopTimeout(stopTimeout(project)+fx.DefaultTimeout),
 		base,
 		configured(cmd, project),
 		fx.Provide(

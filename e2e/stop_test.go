@@ -66,6 +66,7 @@ func Test_Stop_CleansUpOrphans(t *testing.T) {
 
 	require.NoError(t, WaitForGroupExit(authPID, 10*time.Second))
 	require.NoError(t, WaitForGroupExit(userPID, 10*time.Second))
+	assert.NoFileExists(t, SocketPath(t, "testdata/default-tier"), "stop removes the socket the killed instance left")
 }
 
 func Test_Stop_NothingRunning(t *testing.T) {
