@@ -14,6 +14,8 @@ import (
 
 // Run starts the container, waits for the first terminal outcome, stops it and returns the exit code
 func Run(app *fx.App, arbiter *Arbiter, stderr io.Writer) int {
+	wait := app.Wait()
+
 	startCtx, cancelStart := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancelStart()
 
@@ -29,7 +31,7 @@ func Run(app *fx.App, arbiter *Arbiter, stderr io.Writer) int {
 		return 1
 	}
 
-	sig := <-app.Wait()
+	sig := <-wait
 	arbiter.observe(sig.Signal)
 
 	stopCtx, cancelStop := context.WithTimeout(context.Background(), app.StopTimeout())

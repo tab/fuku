@@ -50,6 +50,8 @@ type Server struct {
 	fingerprint string
 	halt        context.CancelFunc
 	done        chan struct{}
+	bound       chan struct{}
+	bindErr     error
 	socketPath  string
 	profile     string
 	services    []string
@@ -68,6 +70,7 @@ func NewServer(hub Hub, registry Registry, identity model.Instance, log Logger) 
 		instanceID:  identity.ID,
 		fingerprint: identity.Fingerprint,
 		done:        make(chan struct{}),
+		bound:       make(chan struct{}),
 		socketPath:  instance.SocketPath(instance.SocketDir, identity.Fingerprint),
 		log:         log,
 	}
@@ -103,6 +106,16 @@ func (s *Server) Stop(ctx context.Context) error {
 	return err
 }
 
+// Bound waits for the bind attempt and returns its failure, or the error of ctx when it ends first
+func (s *Server) Bound(ctx context.Context) error {
+	select {
+	case <-s.bound:
+		return s.bindErr
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // run binds the socket once the profile resolves (a bind failure is logged and the run continues without the server)
 func (s *Server) run(ctx context.Context) {
 	s.registry.WaitResolved(ctx)
@@ -126,9 +139,13 @@ func (s *Server) run(ctx context.Context) {
 		s.log.Warn("Socket cleanup failed, continuing startup", "error", err)
 	}
 
-	if err := s.start(ctx); err != nil {
+	err := s.start(ctx)
+	if err != nil {
 		s.log.Warn("Failed to start logs server, continuing without it", "error", err)
 	}
+
+	s.bindErr = err
+	close(s.bound)
 }
 
 func (s *Server) start(ctx context.Context) error {

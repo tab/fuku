@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"fuku/internal/adapters/instance"
 	"fuku/internal/contracts"
@@ -15,6 +16,11 @@ func findSocket(socketDir, fingerprint string) (string, error) {
 
 	info, err := os.Lstat(socketPath)
 	if err != nil || info.Mode()&os.ModeSocket == 0 {
+		return "", contracts.ErrNoInstanceRunning
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || int(stat.Uid) != os.Geteuid() {
 		return "", contracts.ErrNoInstanceRunning
 	}
 

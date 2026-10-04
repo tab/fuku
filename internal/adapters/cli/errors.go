@@ -6,4 +6,5 @@ import "errors"
 var (
 	ErrConfigFlagNotSupported = errors.New("--config flag is not supported for this command")
 	ErrInvalidTail            = errors.New("--tail must be greater than zero")
+	ErrDetachedNotSupported   = errors.New("--detached flag is supported only by the run command")
 )

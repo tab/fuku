@@ -20,6 +20,7 @@
 - **Hot-Reload** - Automatic service restart on file changes
 - **Single-Instance Guard** - A second `fuku run` of the same project is refused while the first one holds the project lock.
   A fuku older than this release running the same project holds no lock, so it is not detected during the upgrade
+- **Detached Mode** - `fuku run -d` returns once every service is running, for scripts and AI agents
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 - **Diagnostics** - Check your config, environment, topology, and runtime with `fuku doctor`
 - **REST API** - Control and monitor services via HTTP with token authentication
@@ -64,7 +65,11 @@ fuku --no-ui run core           # Flags work in any position
 # Use short aliases
 fuku r core                     # Same as 'fuku run core'
 
-# Stop services for a profile (kills processes in service directories)
+# Run in the background and return once every service is running
+fuku run -d                     # Default profile
+fuku run core -d                # Specific profile, plain lines when piped or with --no-ui
+
+# Stop the running fuku gracefully, then kill what is left in the service directories
 fuku stop                       # Default profile
 fuku stop core                  # Specific profile
 

@@ -1,0 +1,46 @@
+version: 1
+
+services:
+  api:
+    dir: api
+    readiness:
+      type: log
+      pattern: Service ready
+  worker:
+    dir: api
+    command: sleep 601
+  cache:
+    dir: api
+    command: sleep 602
+  broken:
+    dir: api
+    command: sleep 603
+    readiness:
+      type: log
+      pattern: never printed
+      timeout: 1s
+  hang:
+    dir: api
+    command: sleep 604
+    readiness:
+      type: log
+      pattern: never printed
+      timeout: 60s
+
+profiles:
+  default: [api, worker]
+  broken: [api, cache, broken]
+  hang: [cache, hang]
+
+server:
+  listen: "127.0.0.1:19890"
+  auth:
+    token: "test-token"
+
+retry:
+  attempts: 1
+  backoff: 100ms
+
+logging:
+  format: console
+  level: debug

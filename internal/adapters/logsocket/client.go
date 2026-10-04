@@ -8,12 +8,18 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"syscall"
+	"time"
 
 	"fuku/internal/adapters/instance"
 	"fuku/internal/app/logs"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
+
+// statusTimeout bounds the wait for the status frame of a running instance
+const statusTimeout = 2 * time.Second
 
 // Client connects to the log socket of the project and streams its frames as typed notifications
 type Client struct {
@@ -123,6 +129,73 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
+// Status connects to the running instance, reads its status frame and disconnects
+func (c *Client) Status() (contracts.LogStatus, error) {
+	return c.statusAt(instance.SocketDir)
+}
+
+// statusAt reads the status from the project socket inside socketDir, where a dead socket means no instance
+func (c *Client) statusAt(socketDir string) (contracts.LogStatus, error) {
+	err := c.connect(socketDir)
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return contracts.LogStatus{}, contracts.ErrNoInstanceRunning
+	}
+
+	if err != nil {
+		return contracts.LogStatus{}, err
+	}
+
+	defer c.Close()
+
+	return c.status()
+}
+
+// status subscribes and reads the status frame the server sends first
+func (c *Client) status() (contracts.LogStatus, error) {
+	if err := c.conn.SetDeadline(time.Now().Add(statusTimeout)); err != nil {
+		return contracts.LogStatus{}, fmt.Errorf("failed to set the status deadline: %w", err)
+	}
+
+	if err := c.Subscribe(nil, model.ReplayOptions{}); err != nil {
+		return contracts.LogStatus{}, err
+	}
+
+	line, err := bufio.NewReader(c.conn).ReadBytes('\n')
+	if err != nil {
+		return contracts.LogStatus{}, fmt.Errorf("failed to read the status: %w", err)
+	}
+
+	status, ok := decodeStatus(line)
+	if !ok {
+		return contracts.LogStatus{}, errStatusMissing
+	}
+
+	return notification(status), nil
+}
+
+// Remove deletes the project socket a dead instance left behind and keeps one that still answers
+func (c *Client) Remove() error {
+	return c.removeAt(instance.SocketDir)
+}
+
+// removeAt deletes the dead project socket inside socketDir
+func (c *Client) removeAt(socketDir string) error {
+	socketPath, err := findSocket(socketDir, c.fingerprint)
+	if errors.Is(err, contracts.ErrNoInstanceRunning) {
+		return nil
+	}
+
+	if instance.ProbeSocket(socketPath) == nil {
+		return nil
+	}
+
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove the stale socket: %w", err)
+	}
+
+	return nil
+}
+
 // notAcknowledged returns the compatibility error for a server that did not confirm the request
 func notAcknowledged() error {
 	return fmt.Errorf("%w, restart the running profile with the current fuku version", contracts.ErrBoundedReadNotSupported)
@@ -167,6 +240,7 @@ func notification(status StatusMessage) contracts.LogStatus {
 		Version:  status.Version,
 		Profile:  status.Profile,
 		Services: status.Services,
+		PID:      status.PID,
 	}
 }
 

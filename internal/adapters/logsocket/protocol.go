@@ -37,6 +37,7 @@ type StatusMessage struct {
 	Fingerprint string      `json:"fingerprint"`
 	Profile     string      `json:"profile"`
 	Services    []string    `json:"services"`
+	PID         int         `json:"pid,omitempty"`
 	model.ReplayOptions
 }
 

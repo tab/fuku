@@ -41,6 +41,11 @@ func Test_Announcer_Start(t *testing.T) {
 			},
 			options: &Options{Type: CommandStop, Profile: "core", NoUI: true},
 		},
+		{
+			name:    "the detached child leaves the announcement to its parent",
+			before:  func() {},
+			options: &Options{Type: CommandRun, Profile: "core", NoUI: true, DetachedChild: true},
+		},
 	}
 
 	for _, tt := range tests {

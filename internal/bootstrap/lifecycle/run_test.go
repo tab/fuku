@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,6 +80,17 @@ func Test_Run(t *testing.T) {
 				})
 			},
 			expectedCode: 1,
+		},
+		{
+			name: "a signal during the start stops the run",
+			option: func() fx.Option {
+				return fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{OnStart: func(context.Context) error {
+						return syscall.Kill(os.Getpid(), syscall.SIGTERM)
+					}})
+				})
+			},
+			expectedCode: 0,
 		},
 		{
 			name: "a stop error exits 1 with the error",

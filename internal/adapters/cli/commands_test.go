@@ -12,9 +12,11 @@ import (
 
 // Flag arguments repeated across the parser tests
 const (
-	tailArg     = "--" + string(FlagTail)
-	noUIArg     = "--" + string(FlagNoUI)
-	noFollowArg = "--" + string(FlagNoFollow)
+	tailArg          = "--" + string(FlagTail)
+	noUIArg          = "--" + string(FlagNoUI)
+	noFollowArg      = "--" + string(FlagNoFollow)
+	detachedArg      = "--" + string(FlagDetached)
+	detachedChildArg = "--" + string(FlagDetachedChild)
 )
 
 func Test_Parse(t *testing.T) {
@@ -28,10 +30,70 @@ func Test_Parse(t *testing.T) {
 		expectedServices   []string
 		expectedTail       *int
 		expectedNoUI       bool
+		expectedDetached   bool
+		expectedChild      bool
 		expectedNoFollow   bool
 		expectedConfigFile string
 		expectedFormat     Format
 	}{
+		{
+			name:             "--detached on the root command",
+			args:             []string{detachedArg},
+			expectedType:     CommandRun,
+			expectedProfile:  model.ProfileDefault,
+			expectedDetached: true,
+		},
+		{
+			name:             "-d on the root command",
+			args:             []string{"-d"},
+			expectedType:     CommandRun,
+			expectedProfile:  model.ProfileDefault,
+			expectedDetached: true,
+		},
+		{
+			name:             "run --detached",
+			args:             []string{"run", detachedArg},
+			expectedType:     CommandRun,
+			expectedProfile:  model.ProfileDefault,
+			expectedDetached: true,
+		},
+		{
+			name:             "run -d",
+			args:             []string{"run", "-d"},
+			expectedType:     CommandRun,
+			expectedProfile:  model.ProfileDefault,
+			expectedDetached: true,
+		},
+		{
+			name:             "run with profile and -d",
+			args:             []string{"run", "core", "-d"},
+			expectedType:     CommandRun,
+			expectedProfile:  "core",
+			expectedDetached: true,
+		},
+		{
+			name:             "-r with profile and -d",
+			args:             []string{"-r", "core", "-d"},
+			expectedType:     CommandRun,
+			expectedProfile:  "core",
+			expectedDetached: true,
+		},
+		{
+			name:             "run -d with --no-ui",
+			args:             []string{"run", "-d", noUIArg},
+			expectedType:     CommandRun,
+			expectedProfile:  model.ProfileDefault,
+			expectedNoUI:     true,
+			expectedDetached: true,
+		},
+		{
+			name:            "run as the detached child",
+			args:            []string{"run", "core", noUIArg, detachedChildArg},
+			expectedType:    CommandRun,
+			expectedProfile: "core",
+			expectedNoUI:    true,
+			expectedChild:   true,
+		},
 		{
 			name:            "no args - default profile",
 			args:            []string{},
@@ -389,6 +451,8 @@ func Test_Parse(t *testing.T) {
 			assert.Equal(t, tt.expectedServices, result.Services)
 			assert.Equal(t, tt.expectedTail, result.Tail)
 			assert.Equal(t, tt.expectedNoUI, result.NoUI)
+			assert.Equal(t, tt.expectedDetached, result.Detached)
+			assert.Equal(t, tt.expectedChild, result.DetachedChild)
 			assert.Equal(t, tt.expectedNoFollow, result.NoFollow)
 			assert.Equal(t, tt.expectedConfigFile, result.ConfigFile)
 			assert.Equal(t, tt.expectedFormat, result.DoctorFormat)
@@ -412,6 +476,51 @@ func Test_Parse_StopWithTooManyArgs(t *testing.T) {
 	result, err := Parse([]string{"stop", "profile1", "profile2"})
 	require.Error(t, err)
 	assert.Nil(t, result)
+}
+
+func Test_Parse_DetachedOnOtherCommands(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectedError error
+	}{
+		{
+			name: "stop subcommand",
+			args: []string{"stop", "-d"},
+		},
+		{
+			name: "logs subcommand",
+			args: []string{"logs", detachedArg},
+		},
+		{
+			name:          "--stop flag",
+			args:          []string{"--stop", "core", "-d"},
+			expectedError: ErrDetachedNotSupported,
+		},
+		{
+			name:          "--logs flag",
+			args:          []string{"--logs", "-d"},
+			expectedError: ErrDetachedNotSupported,
+		},
+		{
+			name:          "--version flag",
+			args:          []string{"-v", "-d"},
+			expectedError: ErrDetachedNotSupported,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Parse(tt.args)
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+
+			if tt.expectedError != nil {
+				require.ErrorIs(t, err, tt.expectedError)
+			}
+		})
+	}
 }
 
 func Test_Parse_ConflictingFlags(t *testing.T) {

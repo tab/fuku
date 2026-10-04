@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
+	"fuku/internal/adapters/detach"
 	"fuku/internal/adapters/eventlog"
 	"fuku/internal/adapters/instance"
 	"fuku/internal/adapters/logsocket"
@@ -126,6 +127,33 @@ func Test_stopTimeout(t *testing.T) {
 	}
 }
 
+func Test_newChildAPI(t *testing.T) {
+	server := &rest.Server{}
+
+	tests := []struct {
+		name     string
+		params   childAPI
+		expected detach.API
+	}{
+		{
+			name:     "a project without a listen address reports no API",
+			params:   childAPI{},
+			expected: nil,
+		},
+		{
+			name:     "a project that serves the API reports its server",
+			params:   childAPI{Server: server},
+			expected: server,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, newChildAPI(tt.params))
+		})
+	}
+}
+
 func Test_disableWriter(t *testing.T) {
 	theme := func() terminal.Theme { return terminal.NewTheme(terminal.AppearanceLight) }
 	log := terminal.NewLog(terminal.Options{Format: logging.FormatConsole}, theme)
@@ -171,6 +199,12 @@ func Test_Run_Writer(t *testing.T) {
 			name:    "with the TUI the writer drops the line",
 			before:  stdout.Reset,
 			cmd:     &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault},
+			written: false,
+		},
+		{
+			name:    "the detached child drops the line",
+			before:  stdout.Reset,
+			cmd:     &cli.Options{Type: cli.CommandRun, Profile: model.ProfileDefault, NoUI: true, DetachedChild: true},
 			written: false,
 		},
 		{

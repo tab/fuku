@@ -16,9 +16,10 @@ const (
   fuku run <profile>              Run services with specified profile
   fuku --run <profile>            Same as above (--run, -r, run, r)
   fuku run <profile> --no-ui      Run services without TUI
+  fuku run <profile> -d           Run in the background, return once every service runs (--detached, -d)
 
-  fuku stop                       Stop services with default profile
-  fuku stop <profile>             Stop services with specified profile
+  fuku stop                       Stop the running fuku, then services with default profile
+  fuku stop <profile>             Stop the running fuku, then services with specified profile
   fuku --stop <profile>           Same as above (--stop, -s, stop, s)
 
   fuku logs [service...]          Stream logs from running services
@@ -42,6 +43,7 @@ Examples:
   fuku init                       Generate fuku.yaml in current directory
   fuku run core --no-ui           Run core services without TUI
   fuku -r core --no-ui            Same as above using flag
+  fuku run core -d                Start core services in the background and return
   fuku stop                       Stop all services (default profile)
   fuku stop backend               Stop backend services
   fuku logs                       Stream all logs from running fuku

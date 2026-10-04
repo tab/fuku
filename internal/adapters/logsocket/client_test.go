@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -131,7 +132,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 
 	mockHandler := NewMockHandler(ctrl)
 
-	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}})
+	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321})
 	line := marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
 	c := &Client{conn: startScriptedServer(t, status, line)}
 
@@ -140,7 +141,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 	require.NoError(t, c.Subscribe(nil, model.ReplayOptions{}))
 
 	gomock.InOrder(
-		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}}).Return(nil),
+		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321}).Return(nil),
 		mockHandler.EXPECT().HandleLog(model.LogLine{Service: "api", Message: "hello from api"}),
 	)
 
@@ -492,4 +493,204 @@ func marshalLine(t *testing.T, msg any) string {
 	require.NoError(t, err)
 
 	return string(data)
+}
+
+func Test_Client_Status(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
+
+	_, err := NewClient(model.Instance{Fingerprint: fingerprint}).Status()
+
+	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
+}
+
+func Test_Client_statusAt_DeadSocket(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/dead-status")
+	dir := testSocketDir(t)
+
+	createStaleSocket(t, instance.SocketPath(dir, fingerprint))
+
+	_, err := NewClient(model.Instance{Fingerprint: fingerprint}).statusAt(dir)
+
+	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
+}
+
+func Test_Client_statusAt_LiveSocket(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/live-status")
+	dir := testSocketDir(t)
+
+	listener, err := net.Listen("unix", instance.SocketPath(dir, fingerprint))
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	frame := marshalLine(t, StatusMessage{Type: MessageStatus, Profile: "core", PID: 4242})
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+
+		defer conn.Close()
+
+		if _, err := bufio.NewReader(conn).ReadBytes('\n'); err != nil {
+			return
+		}
+
+		conn.Write([]byte(frame + "\n"))
+	}()
+
+	status, err := NewClient(model.Instance{Fingerprint: fingerprint}).statusAt(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, contracts.LogStatus{Profile: "core", PID: 4242}, status)
+}
+
+func Test_Client_status_ClosedConnection(t *testing.T) {
+	client, server := net.Pipe()
+
+	defer server.Close()
+
+	require.NoError(t, client.Close())
+
+	closed := &Client{conn: client}
+
+	_, err := closed.status()
+
+	assert.ErrorContains(t, err, "failed to set the status deadline")
+}
+
+func Test_Client_status_WriteFails(t *testing.T) {
+	listener, err := net.Listen("unix", instance.SocketPath(testSocketDir(t), "write-fails"))
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	conn, err := net.Dial("unix", listener.Addr().String())
+	require.NoError(t, err)
+
+	defer conn.Close()
+
+	unixConn, ok := conn.(*net.UnixConn)
+	require.True(t, ok)
+	require.NoError(t, unixConn.CloseWrite())
+
+	halfClosed := &Client{conn: conn}
+
+	_, err = halfClosed.status()
+
+	assert.ErrorContains(t, err, "failed to write to socket")
+}
+
+func Test_Client_status(t *testing.T) {
+	tests := []struct {
+		name        string
+		lines       []string
+		expected    contracts.LogStatus
+		expectedErr error
+		errContains string
+	}{
+		{
+			name:     "reads the status frame the server sends first",
+			lines:    []string{marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.21.0", Profile: "core", Services: []string{"api"}, PID: 4242})},
+			expected: contracts.LogStatus{Version: "0.21.0", Profile: "core", Services: []string{"api"}, PID: 4242},
+		},
+		{
+			name:        "a first frame that is not a status fails",
+			lines:       []string{marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello"})},
+			expectedErr: errStatusMissing,
+		},
+		{
+			name:        "a server that closes without a frame fails",
+			errContains: "failed to read the status",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Client{conn: startScriptedServer(t, tt.lines...)}
+
+			status, err := c.status()
+
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
+
+				return
+			}
+
+			require.ErrorIs(t, err, tt.expectedErr)
+			assert.Equal(t, tt.expected, status)
+		})
+	}
+}
+
+func Test_Client_Remove(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
+
+	require.NoError(t, NewClient(model.Instance{Fingerprint: fingerprint}).Remove())
+}
+
+func Test_Client_removeAt(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/remove")
+
+	tests := []struct {
+		name           string
+		before         func(t *testing.T, socketPath string)
+		expectedExists bool
+	}{
+		{
+			name:   "an absent socket is nothing to remove",
+			before: func(*testing.T, string) {},
+		},
+		{
+			name: "a socket that still answers is kept",
+			before: func(t *testing.T, socketPath string) {
+				t.Helper()
+
+				listener, err := net.Listen("unix", socketPath)
+				require.NoError(t, err)
+
+				t.Cleanup(func() { listener.Close() })
+			},
+			expectedExists: true,
+		},
+		{
+			name: "a dead socket is removed",
+			before: func(t *testing.T, socketPath string) {
+				t.Helper()
+
+				createStaleSocket(t, socketPath)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := testSocketDir(t)
+			socketPath := instance.SocketPath(dir, fingerprint)
+
+			tt.before(t, socketPath)
+
+			require.NoError(t, NewClient(model.Instance{Fingerprint: fingerprint}).removeAt(dir))
+
+			_, err := os.Lstat(socketPath)
+			assert.Equal(t, tt.expectedExists, err == nil)
+		})
+	}
+}
+
+func Test_Client_removeAt_ReadOnlyDirectory(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/remove-read-only")
+	dir := testSocketDir(t)
+	socketPath := instance.SocketPath(dir, fingerprint)
+	client := NewClient(model.Instance{Fingerprint: fingerprint})
+
+	createStaleSocket(t, socketPath)
+	require.NoError(t, os.Chmod(dir, 0o500))
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	err := client.removeAt(dir)
+
+	require.ErrorContains(t, err, "failed to remove the stale socket")
+	assert.FileExists(t, socketPath)
 }

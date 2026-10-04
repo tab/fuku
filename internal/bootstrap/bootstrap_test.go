@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"fuku/internal/adapters/cli"
+	"fuku/internal/adapters/detach"
 	"fuku/internal/bootstrap/modules"
 	"fuku/internal/model"
 )
@@ -174,4 +175,23 @@ func Test_compose_DoctorWithABrokenConfig(t *testing.T) {
 
 	require.NoError(t, app.Err())
 	assert.Equal(t, expected, telemetry)
+}
+
+func Test_compose_Detached(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("FUKU_TELEMETRY_DISABLED", "1")
+	require.NoError(t, os.WriteFile("fuku.yaml", []byte("version: 1\n\nservices:\n  api:\n    dir: api\n"), 0o600))
+
+	cmd := &cli.Options{Type: cli.CommandRun, Profile: "default", Detached: true}
+	buildDSN := fx.Supply(modules.SentryDSN(""))
+
+	var starter detach.Starter
+
+	option, err := compose(cmd)
+	require.NoError(t, err)
+
+	app := fx.New(option, buildDSN, fx.Populate(&starter))
+
+	require.NoError(t, app.Err())
+	assert.IsType(t, &detach.Launcher{}, starter)
 }

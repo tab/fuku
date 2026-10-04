@@ -108,6 +108,20 @@ func Test_Arbiter_FirstOutcomeWins(t *testing.T) {
 			},
 			expectedSig: syscall.SIGINT,
 		},
+		{
+			name: "a signal ends the run with the signal code of the composition",
+			before: func() *Arbiter {
+				arbiter := NewArbiter(mockShutdowner)
+				arbiter.SetSignalCode(130)
+
+				arbiter.observe(syscall.SIGINT)
+				arbiter.decide(0, nil)
+
+				return arbiter
+			},
+			expectedCode: 130,
+			expectedSig:  syscall.SIGINT,
+		},
 	}
 
 	for _, tt := range tests {
