@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"testing"
@@ -514,6 +515,20 @@ func Test_Client_statusAt_DeadSocket(t *testing.T) {
 	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
 }
 
+func Test_Client_statusAt_UnsearchableDirectory(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/unsearchable-status")
+	dir := testSocketDir(t)
+
+	createStaleSocket(t, instance.SocketPath(dir, fingerprint))
+	require.NoError(t, os.Chmod(dir, 0o600))
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	_, err := NewClient(model.Instance{Fingerprint: fingerprint}).statusAt(dir)
+
+	require.ErrorIs(t, err, fs.ErrPermission)
+	assert.NotErrorIs(t, err, contracts.ErrNoInstanceRunning)
+}
+
 func Test_Client_statusAt_LiveSocket(t *testing.T) {
 	fingerprint := instance.Fingerprint("/Users/dev/projects/live-status")
 	dir := testSocketDir(t)
@@ -624,6 +639,77 @@ func Test_Client_status(t *testing.T) {
 	}
 }
 
+func Test_Client_RequestStop(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
+
+	err := NewClient(model.Instance{Fingerprint: fingerprint}).RequestStop()
+
+	require.ErrorIs(t, err, contracts.ErrNoInstanceRunning)
+}
+
+func Test_Client_requestStopAt(t *testing.T) {
+	tests := []struct {
+		name        string
+		reply       string
+		expectedErr error
+		errContains string
+	}{
+		{
+			name:  "an instance that acknowledges the stop is stopping",
+			reply: `{"type":"stop"}` + "\n",
+		},
+		{
+			name:        "an older instance that closes without a frame fails",
+			errContains: "failed to read the stop acknowledgement",
+		},
+		{
+			name:        "an answer that is not the stop frame fails",
+			reply:       marshalLine(t, StatusMessage{Type: MessageStatus, Profile: "core"}) + "\n",
+			expectedErr: errStopNotAcknowledged,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fingerprint := instance.Fingerprint("/Users/dev/projects/stop")
+			dir := testSocketDir(t)
+
+			listener, err := net.Listen("unix", instance.SocketPath(dir, fingerprint))
+			require.NoError(t, err)
+
+			defer listener.Close()
+
+			received := make(chan string, 1)
+
+			go func() {
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+
+				defer conn.Close()
+
+				request, _ := bufio.NewReader(conn).ReadString('\n')
+				received <- request
+
+				conn.Write([]byte(tt.reply))
+			}()
+
+			err = NewClient(model.Instance{Fingerprint: fingerprint}).requestStopAt(dir)
+
+			assert.JSONEq(t, `{"type":"stop"}`, <-received)
+
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
+
+				return
+			}
+
+			require.ErrorIs(t, err, tt.expectedErr)
+		})
+	}
+}
+
 func Test_Client_Remove(t *testing.T) {
 	fingerprint := instance.Fingerprint("/Users/dev/projects/" + t.Name())
 
@@ -692,5 +778,21 @@ func Test_Client_removeAt_ReadOnlyDirectory(t *testing.T) {
 	err := client.removeAt(dir)
 
 	require.ErrorContains(t, err, "failed to remove the stale socket")
+	assert.FileExists(t, socketPath)
+}
+
+func Test_Client_removeAt_UnsearchableDirectory(t *testing.T) {
+	fingerprint := instance.Fingerprint("/Users/dev/projects/remove-unsearchable")
+	dir := testSocketDir(t)
+	socketPath := instance.SocketPath(dir, fingerprint)
+	client := NewClient(model.Instance{Fingerprint: fingerprint})
+
+	createStaleSocket(t, socketPath)
+	require.NoError(t, os.Chmod(dir, 0o600))
+
+	err := client.removeAt(dir)
+
+	require.NoError(t, os.Chmod(dir, 0o700))
+	require.ErrorIs(t, err, fs.ErrPermission)
 	assert.FileExists(t, socketPath)
 }

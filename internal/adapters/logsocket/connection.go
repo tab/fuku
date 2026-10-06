@@ -39,6 +39,12 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
+	if req.Type == MessageStop {
+		s.stop(conn, clientID)
+
+		return
+	}
+
 	if req.Type != MessageSubscribe {
 		s.log.Error(fmt.Sprintf("Expected subscribe message from %s, got %s", clientID, req.Type))
 
@@ -86,6 +92,30 @@ func (s *Server) writePump(ctx context.Context, conn net.Conn, clientID string, 
 				return
 			}
 		}
+	}
+}
+
+// stop asks the core to stop every service and echoes the stop frame once it accepted, so the client knows to wait
+func (s *Server) stop(conn net.Conn, clientID string) {
+	s.log.Info(fmt.Sprintf("Client %s requested a stop", clientID))
+
+	if err := s.control.StopAll(); err != nil {
+		s.log.Error("Failed to stop on the request of "+clientID, "error", err)
+
+		return
+	}
+
+	data, _ := json.Marshal(MessageEnvelope{Type: MessageStop})
+	data = append(data, '\n')
+
+	if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		s.log.Debug("Failed to set write deadline for "+clientID, "error", err)
+
+		return
+	}
+
+	if _, err := conn.Write(data); err != nil {
+		s.log.Debug("Failed to acknowledge the stop to "+clientID, "error", err)
 	}
 }
 

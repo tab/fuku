@@ -145,9 +145,9 @@ Runs a profile. Admits start, stop and restart from every frontend.
 
 - core: `app/services` (`Runtime` runs, `Control` admits, `Guard` holds the phase and tokens, `Cleaner` cleans up for `stop`), `app/profiles`
 - adapters: `process` launches and tracks, `readiness` probes, `watch` reports file changes
-- frontends: the `s`, `r` and `ctrl+r` keys in `tui`; `POST /api/v1/services/{id}/{start,stop,restart}` in `rest`; `Run` and `Stop` in `cli` for `--no-ui` and `stop`
+- frontends: the `s`, `r` and `ctrl+r` keys in `tui`; `POST /api/v1/services/{id}/{start,stop,restart}` in `rest`; `Run` and `Stop` in `cli` for `--no-ui` and `stop`; the `stop` frame in `logsocket` calls `StopAll` for `fuku stop`
 - bus: consumes the four commands and `WatchTriggered`; publishes `ProfileResolved`, the phase, tier and service events
-- wired in `runtime.go`, blocks `processes` and `profile`; `Control` in `run.go` (`view`, `api`); `Cleaner` in `stop.go`
+- wired in `runtime.go`, blocks `processes` and `profile`; `Control` in `run.go` (`view`, `api`) and `runtime.go` (`runtime`, for `logsocket`); `Cleaner` in `stop.go`
 - details: [`internal/app/services/README.md`](internal/app/services/README.md)
 
 ### Registry

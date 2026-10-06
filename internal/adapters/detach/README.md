@@ -30,8 +30,10 @@ sequenceDiagram
   A failed release fails the run
 - `Stderr.Release` points the child's standard error at `/dev/null`. That closes the pipe, so the parent sees EOF after the running record
 - `Plain` writes one line per record for a pipe or `--no-ui`. The terminal view is `tui.Startup`
-- `Stopper` reads the instance PID from the socket status, sends `SIGTERM`, waits for the exit and sends `SIGKILL` after the stop timeout.
-  A zombie counts as exited, since its parent may reap it late
+- `Stopper` reads the instance PID from the socket status and sends the stop frame. An instance that does not echo it gets `SIGTERM`.
+  It waits for the exit and sends `SIGKILL` after the stop timeout.
+  The stop frame needs no permission to signal, so a sandboxed agent stops a fuku started outside its sandbox.
+  The wait polls `kill(pid, 0)`. `ESRCH` is gone. `EPERM` means the process exists. A zombie counts as exited, since its parent may reap it late
 
 `Command` traps `SIGINT` and `SIGTERM` itself, because the coordinator cancels its context only after the drain.
 A signal, or a context that ended, makes it send `SIGTERM` to the child, drain the pipe and wait. It never releases a child after either. The exit is 130.

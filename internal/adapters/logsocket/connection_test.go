@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/app/logs"
+	"fuku/internal/contracts"
 	"fuku/internal/model"
 	"fuku/internal/platform/buildinfo"
 )
@@ -23,6 +24,7 @@ func Test_Server_handleConnection(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockHub := NewMockHub(ctrl)
+	mockControl := NewMockControl(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
 
@@ -31,7 +33,7 @@ func Test_Server_handleConnection(t *testing.T) {
 	replay := model.ReplayOptions{Tail: &tail, NoFollow: true}
 	sub := &logs.Subscription{}
 
-	srv := NewServer(mockHub, nil, identity, log)
+	srv := NewServer(mockHub, nil, mockControl, identity, log)
 	srv.profile = testProfile
 	srv.services = []string{"api", "web"}
 
@@ -81,6 +83,23 @@ func Test_Server_handleConnection(t *testing.T) {
 			expected: status,
 		},
 		{
+			name: "stops every service and acknowledges a stop request",
+			before: func() (net.Conn, <-chan string) {
+				mockControl.EXPECT().StopAll().Return(nil)
+
+				return dial(`{"type":"stop"}` + "\n")
+			},
+			expected: `{"type":"stop"}` + "\n",
+		},
+		{
+			name: "leaves a stop request the core refuses unacknowledged",
+			before: func() (net.Conn, <-chan string) {
+				mockControl.EXPECT().StopAll().Return(contracts.ErrBusOverloaded)
+
+				return dial(`{"type":"stop"}` + "\n")
+			},
+		},
+		{
 			name: "rejects invalid JSON",
 			before: func() (net.Conn, <-chan string) {
 				return dial("not valid json\n")
@@ -127,7 +146,7 @@ func Test_Server_handleConnection_DisconnectsBeforeSubscribing(t *testing.T) {
 	client, conn := net.Pipe()
 	client.Close()
 
-	srv := NewServer(mockHub, nil, model.Instance{}, mockLog)
+	srv := NewServer(mockHub, nil, nil, model.Instance{}, mockLog)
 
 	mockLog.EXPECT().Debug("Client connected: client-1")
 	mockLog.EXPECT().Debug("Client client-1 disconnected before subscribing", "error", io.EOF)
@@ -141,7 +160,7 @@ func Test_Server_writePump(t *testing.T) {
 
 	mockLog := NewMockLogger(ctrl)
 
-	srv := NewServer(nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(nil, nil, nil, model.Instance{}, mockLog)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -241,7 +260,7 @@ func Test_Server_writePump_WriteError(t *testing.T) {
 	lines := make(chan model.LogLine, 1)
 	lines <- model.LogLine{Service: "api", Message: "hello"}
 
-	srv := NewServer(nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(nil, nil, nil, model.Instance{}, mockLog)
 
 	mockLog.EXPECT().Debug("Client client-1 disconnected", "error", gomock.Any())
 
@@ -269,7 +288,7 @@ func Test_Server_hello(t *testing.T) {
 
 	defer hungUp.Close()
 
-	srv := NewServer(nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(nil, nil, nil, model.Instance{}, mockLog)
 
 	tests := []struct {
 		name   string

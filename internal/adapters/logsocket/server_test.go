@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"testing/synctest"
@@ -62,6 +63,7 @@ func Test_NewServer(t *testing.T) {
 
 	mockHub := NewMockHub(ctrl)
 	mockRegistry := NewMockRegistry(ctrl)
+	mockControl := NewMockControl(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
 
@@ -71,11 +73,12 @@ func Test_NewServer(t *testing.T) {
 		Fingerprint: instance.Fingerprint("/Users/dev/projects/shop"),
 	}
 
-	s := NewServer(mockHub, mockRegistry, identity, log)
+	s := NewServer(mockHub, mockRegistry, mockControl, identity, log)
 
 	require.NotNil(t, s)
 	assert.Equal(t, mockHub, s.hub)
 	assert.Equal(t, mockRegistry, s.registry)
+	assert.Equal(t, mockControl, s.control)
 	assert.Equal(t, identity.ID, s.instanceID)
 	assert.Equal(t, identity.Fingerprint, s.fingerprint)
 	assert.Equal(t, instance.SocketPath(instance.SocketDir, identity.Fingerprint), s.socketPath)
@@ -140,7 +143,7 @@ func Test_Server_run(t *testing.T) {
 
 			tt.before(cancel)
 
-			s := NewServer(nil, mockRegistry, testIdentity(t), log)
+			s := NewServer(nil, mockRegistry, nil, testIdentity(t), log)
 			s.socketPath = instance.SocketPath(dir, s.fingerprint)
 
 			s.run(ctx)
@@ -161,12 +164,12 @@ func Test_Server_run_StartFails(t *testing.T) {
 	mockRegistry := NewMockRegistry(ctrl)
 	mockLog := NewMockLogger(ctrl)
 
-	identity := model.Instance{Fingerprint: "nonexistent/fingerprint"}
+	identity := model.Instance{Fingerprint: strings.Repeat("f", 120)}
 	snapshot := &model.Snapshot{Profile: testProfile}
 
 	resolved := func(context.Context) {}
 
-	s := NewServer(nil, mockRegistry, identity, mockLog)
+	s := NewServer(nil, mockRegistry, nil, identity, mockLog)
 	s.socketPath = instance.SocketPath(testSocketDir(t), identity.Fingerprint)
 
 	mockRegistry.EXPECT().WaitResolved(gomock.Any()).Do(resolved)
@@ -206,7 +209,7 @@ func Test_Server_run_CleanupFails(t *testing.T) {
 
 	resolved := func(context.Context) {}
 
-	s := NewServer(nil, mockRegistry, identity, mockLog)
+	s := NewServer(nil, mockRegistry, nil, identity, mockLog)
 	s.socketPath = instance.SocketPath(dir, identity.Fingerprint)
 
 	mockRegistry.EXPECT().WaitResolved(gomock.Any()).Do(resolved)
@@ -226,11 +229,20 @@ func Test_Server_StartStop(t *testing.T) {
 	identity := testIdentity(t)
 	socketPath := instance.SocketPath(testSocketDir(t), identity.Fingerprint)
 
-	srv := NewServer(nil, nil, identity, log)
+	srv := NewServer(nil, nil, nil, identity, log)
 	srv.socketPath = socketPath
+
+	umask := syscall.Umask(0)
+	defer syscall.Umask(umask)
 
 	require.NoError(t, srv.start(t.Context()))
 	assert.FileExists(t, socketPath)
+	assert.NoDirExists(t, socketPath+privateDirSuffix)
+
+	info, err := os.Stat(socketPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "only the owner may connect")
+	require.NoError(t, instance.ProbeSocket(socketPath))
 
 	srv.close()
 
@@ -248,7 +260,7 @@ func Test_Server_Start_ActiveSocket_ReturnsError(t *testing.T) {
 
 	defer listener.Close()
 
-	srv := NewServer(nil, nil, identity, log)
+	srv := NewServer(nil, nil, nil, identity, log)
 	srv.socketPath = socketPath
 
 	err = srv.start(t.Context())
@@ -266,7 +278,7 @@ func Test_Server_Start_StaleDirectory_ReturnsError(t *testing.T) {
 	require.NoError(t, os.Mkdir(socketPath, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(socketPath, "child"), []byte("keep"), 0o600))
 
-	srv := NewServer(nil, nil, identity, log)
+	srv := NewServer(nil, nil, nil, identity, log)
 	srv.socketPath = socketPath
 
 	err := srv.start(t.Context())
@@ -283,7 +295,7 @@ func Test_Server_Start_RecoverFromStaleSocket(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(socketPath, []byte("stale"), 0600))
 
-	srv := NewServer(nil, nil, identity, log)
+	srv := NewServer(nil, nil, nil, identity, log)
 	srv.socketPath = socketPath
 
 	err := srv.start(t.Context())
@@ -297,18 +309,83 @@ func Test_Server_Start_RecoverFromStaleSocket(t *testing.T) {
 	assert.True(t, srv.running.Load())
 }
 
-func Test_Server_Start_ListenError(t *testing.T) {
+func Test_Server_Start_PrivateDirError(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 
 	identity := model.Instance{Fingerprint: "nonexistent/fingerprint"}
 
-	srv := NewServer(nil, nil, identity, log)
+	srv := NewServer(nil, nil, nil, identity, log)
+	srv.socketPath = instance.SocketPath(testSocketDir(t), identity.Fingerprint)
+
+	err := srv.start(t.Context())
+
+	require.ErrorContains(t, err, "failed to create private socket directory")
+	assert.False(t, srv.running.Load())
+}
+
+func Test_Server_Start_ListenError(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+
+	identity := model.Instance{Fingerprint: strings.Repeat("f", 120)}
+
+	srv := NewServer(nil, nil, nil, identity, log)
 	srv.socketPath = instance.SocketPath(testSocketDir(t), identity.Fingerprint)
 
 	err := srv.start(t.Context())
 
 	require.ErrorContains(t, err, "failed to listen on socket")
 	assert.False(t, srv.running.Load())
+	assert.NoDirExists(t, srv.socketPath+privateDirSuffix)
+}
+
+func Test_Server_listen_RenameError(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+
+	identity := testIdentity(t)
+	socketPath := instance.SocketPath(testSocketDir(t), identity.Fingerprint)
+
+	require.NoError(t, os.Mkdir(socketPath, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(socketPath, "child"), []byte("keep"), 0o600))
+
+	srv := NewServer(nil, nil, nil, identity, log)
+	srv.socketPath = socketPath
+
+	listener, err := srv.listen()
+
+	require.ErrorContains(t, err, "failed to move socket into place")
+	assert.Nil(t, listener)
+	assert.NoDirExists(t, socketPath+privateDirSuffix)
+	assert.FileExists(t, filepath.Join(socketPath, "child"))
+}
+
+func Test_bind_PrivateWindow(t *testing.T) {
+	socketDir := testSocketDir(t)
+	private := filepath.Join(socketDir, "fuku-window.sock"+privateDirSuffix)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(private, "leftover"), 0o777))
+
+	umask := syscall.Umask(0)
+	defer syscall.Umask(umask)
+
+	listener, bindPath, err := bind(private)
+	require.NoError(t, err)
+
+	defer listener.Close()
+
+	entries, err := os.ReadDir(socketDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "the socket directory holds only the private directory while the socket is unrestricted")
+
+	info, err := os.Lstat(private)
+	require.NoError(t, err)
+	assert.Equal(t, os.ModeDir|0o700, info.Mode(), "no other user can reach the socket inside")
+	assert.Equal(t, filepath.Join(private, privateSocketName), bindPath)
+	assert.NoDirExists(t, filepath.Join(private, "leftover"))
+	require.NoError(t, instance.ProbeSocket(bindPath))
+
+	info, err = os.Lstat(bindPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.ModeSocket|0o600, info.Mode(), "the socket is restricted before it leaves the private directory")
 }
 
 func Test_Server_close_RemoveSocketError(t *testing.T) {
@@ -320,7 +397,7 @@ func Test_Server_close_RemoveSocketError(t *testing.T) {
 	socketPath := t.TempDir()
 	require.NoError(t, os.WriteFile(socketPath+"/child", []byte("keep"), 0600))
 
-	srv := NewServer(nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(nil, nil, nil, model.Instance{}, mockLog)
 	srv.socketPath = socketPath
 	srv.running.Store(true)
 
@@ -451,7 +528,7 @@ func Test_Server_Start_Producer(t *testing.T) {
 		{
 			name: "stop ends a start still waiting for the profile",
 			before: func() *Server {
-				s := NewServer(nil, mockRegistry, testIdentity(t), log)
+				s := NewServer(nil, mockRegistry, nil, testIdentity(t), log)
 				s.socketPath = instance.SocketPath(dir, s.fingerprint)
 
 				mockRegistry.EXPECT().WaitResolved(gomock.Any()).Do(waiting)
@@ -464,7 +541,7 @@ func Test_Server_Start_Producer(t *testing.T) {
 		{
 			name: "stop closes a bound server and removes its socket",
 			before: func() *Server {
-				s := NewServer(nil, mockRegistry, testIdentity(t), log)
+				s := NewServer(nil, mockRegistry, nil, testIdentity(t), log)
 				s.socketPath = instance.SocketPath(dir, s.fingerprint)
 				bound := make(chan struct{})
 				readThenSignal := func(fn func(*model.Snapshot)) {
@@ -513,7 +590,7 @@ func Test_Server_Stop_ContextDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	s := NewServer(nil, mockRegistry, testIdentity(t), log)
+	s := NewServer(nil, mockRegistry, nil, testIdentity(t), log)
 
 	mockRegistry.EXPECT().WaitResolved(gomock.Any()).Do(held)
 
@@ -538,7 +615,7 @@ func Test_Server_Stop_ContextDone_ClosesABoundServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	srv := NewServer(nil, nil, identity, log)
+	srv := NewServer(nil, nil, nil, identity, log)
 	srv.socketPath = socketPath
 	srv.halt = halt
 
@@ -557,7 +634,7 @@ func Test_Server_close_DisconnectsAClientThatNeverSubscribed(t *testing.T) {
 	identity := testIdentity(t)
 	socketPath := instance.SocketPath(testSocketDir(t), identity.Fingerprint)
 
-	srv := NewServer(nil, nil, identity, log)
+	srv := NewServer(nil, nil, nil, identity, log)
 	srv.socketPath = socketPath
 
 	ctx, cancel := context.WithCancel(t.Context())
