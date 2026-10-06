@@ -1,0 +1,19 @@
+{
+  "name": "fuku",
+  "version": "0.1.0",
+  "description": "Run, inspect, debug and stop local services with fuku from Claude Code.",
+  "author": {
+    "name": "tab",
+    "url": "https://github.com/tab"
+  },
+  "homepage": "https://getfuku.sh/plugins/agents/",
+  "repository": "https://github.com/tab/fuku",
+  "license": "MIT",
+  "keywords": [
+    "fuku",
+    "local development",
+    "service orchestration",
+    "logs",
+    "agent skills"
+  ]
+}

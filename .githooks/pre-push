@@ -35,6 +35,7 @@ run() {
 # The plugin and the site have their own toolchains, so neither pays for the Go loop
 grep -qE '^(cmd|internal|e2e|spec)/|^go\.(mod|sum)$|^Makefile$' <<<"$changed" && run "go verification loop" . make check
 grep -q '^plugins/jetbrains/' <<<"$changed" && run "plugin lint" . make lint:plugin
+grep -qE '^(plugins/agents|\.claude-plugin|\.agents)/' <<<"$changed" && run "agents plugin tests" . make test:agents-plugin
 grep -q '^docs/' <<<"$changed" && run "docs build" docs npm run build
 grep -qE '^(ARCHITECTURE\.md|docs/features/backlog\.md|internal/.*/README\.md)$' <<<"$changed" && run "docs links" . make docs
 

@@ -41,6 +41,11 @@ test\:race:
 	@echo "Running tests with race detector..."
 	GO_ENV=test go test -race -cover -coverprofile=coverage.out -covermode=atomic $$(go list ./... | grep -v /e2e)
 
+.PHONY: test\:agents-plugin
+test\:agents-plugin:
+	@echo "Running agents plugin tests..."
+	python3 -m unittest discover -s plugins/agents/tests -p 'test_*.py'
+
 .PHONY: coverage
 coverage:
 	@echo "Generating test coverage report..."

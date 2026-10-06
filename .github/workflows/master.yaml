@@ -63,6 +63,15 @@ jobs:
         run: make build
       - name: Run e2e tests
         run: make test:e2e
+  agents-plugin:
+    name: Agents Plugin
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run tests
+        run: make test:agents-plugin
   coverage:
     name: Codecov
     needs: [linter, tests, e2e]

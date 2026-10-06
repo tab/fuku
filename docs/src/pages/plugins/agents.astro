@@ -1,0 +1,119 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+import { getPluginsNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}plugins/agents/`;
+const nav = getPluginsNav(base);
+---
+
+<DocsLayout
+  title="AI Agents Plugin - fuku"
+  description="fuku plugin for Claude Code and Codex: run, inspect, debug and stop local services from an agent."
+  current={current}
+  nav={nav}
+  section="plugins"
+  breadcrumb={[{ label: "Plugins", href: `${base}plugins/` }, { label: "AI agents", href: current }]}
+>
+  <span class="kicker">// plugins &middot; agents</span>
+  <h1>AI Agents Plugin</h1>
+  <p class="lead">Let Claude Code or Codex run, inspect, debug and stop your local services with fuku.</p>
+
+  <p>The plugin holds one Agent Skill named <code>fuku</code>. Both hosts load the same skill.</p>
+  <p>It tells the agent how to use the fuku CLI and the REST API. It adds no slash command, no hook and no MCP server.</p>
+
+  <div class="section-eyebrow">Requirements</div>
+  <h2>Before you install</h2>
+
+  <ul>
+    <li><strong>fuku</strong> on <code>PATH</code>, in a version that has <code>fuku run -d</code></li>
+    <li><strong>A project</strong> with a <code>fuku.yaml</code> at its root</li>
+    <li><strong>The REST API</strong>, only for the state of one service and for actions on one service. Set <code>server.listen</code> and <code>server.auth.token</code>. See <a href={`${base}docs/api/`}>REST API</a></li>
+  </ul>
+
+  <p>Run, logs, stop and doctor work without the API.</p>
+
+  <div class="section-eyebrow">Installation</div>
+  <h2>Claude Code</h2>
+
+  <p>In a Claude Code session, add the marketplace, then install the plugin:</p>
+
+  <CodeTerminal code={`/plugin marketplace add tab/fuku
+/plugin install fuku@fuku`} />
+
+  <p><code>/plugin install</code> opens the plugin's details. Pick a scope there to install it.</p>
+  <p>From your shell, the same steps are:</p>
+
+  <CodeTerminal code={`claude plugin marketplace add tab/fuku
+claude plugin install fuku@fuku`} />
+
+  <p>A shell install loads in the next session, or after <code>/reload-plugins</code>.</p>
+
+  <h2>Codex</h2>
+
+  <p>From your shell, add the marketplace, then install the plugin:</p>
+
+  <CodeTerminal code={`codex plugin marketplace add tab/fuku
+codex plugin add fuku@fuku`} />
+
+  <p>You can also install it from the plugin browser. Enter <code>/plugins</code> in the Codex CLI to open it.</p>
+  <p>The skill becomes available when you start a new chat or CLI session.</p>
+
+  <div class="section-eyebrow">How it works</div>
+  <h2>What the skill does</h2>
+
+  <p>The skill loads when a task involves <code>fuku.yaml</code> or the project's local services.</p>
+
+  <h3>Attach before starting</h3>
+  <p>Only one fuku runs per project. The developer may already run it.</p>
+  <p>The agent runs <code>fuku doctor &lt;profile&gt; --json</code> first and reads <code>runtime.instance</code>.</p>
+  <ul>
+    <li><code>idle</code>: no fuku runs. The agent may start one</li>
+    <li><code>note</code>: fuku already runs. The agent attaches to it and never starts a second one</li>
+    <li><code>warn</code>: the socket did not answer. The agent asks for access before it acts</li>
+  </ul>
+
+  <h3>Run in the background</h3>
+  <p>The agent starts fuku only with <code>fuku run &lt;profile&gt; -d</code>. It never keeps a foreground <code>fuku run</code> alive.</p>
+  <p>The command returns once every service runs, or once the start fails. The agent reads the exit code and the summary.</p>
+  <p>The summary lists each ready service. The agent learns which services run from it. It does not read the logs for that.</p>
+
+  <h3>Bounded logs</h3>
+  <p>The agent reads logs and exits:</p>
+
+  <CodeTerminal code={`fuku logs --tail 100 --no-follow --no-ui api`} />
+
+  <p>It never starts a log follower. Logs come over the project socket and need no token.</p>
+
+  <h3>One-service actions through the API</h3>
+  <p>For the state of one service, or to start, stop or restart it, the agent calls the REST API.</p>
+  <p>Without the API, the agent restarts a service by restarting the whole profile: <code>fuku stop &lt;profile&gt;</code>, then <code>fuku run &lt;profile&gt; -d</code>. It does not ask first. For the state of one service it reads the logs and the doctor report, and it tells you that a one-service start or stop needs <code>server.listen</code>.</p>
+  <p>It sends each authenticated request with <code>scripts/api.sh</code> from the skill folder, run from the project root.</p>
+  <p>Below, <code>&lt;skill&gt;</code> is the folder that holds the skill's <code>SKILL.md</code>.</p>
+
+  <CodeTerminal code={`<skill>/scripts/api.sh GET http://127.0.0.1:9876/api/v1/services
+<skill>/scripts/api.sh POST http://127.0.0.1:9876/api/v1/services/<id>/restart`} />
+
+  <p>The script reads <code>server.auth.token</code> from the config itself. The token reaches no command line, environment variable or output.</p>
+  <p>It sends requests only to <code>127.0.0.1</code>, <code>localhost</code> or <code>[::1]</code>.</p>
+
+  <h3>Config changes need a full restart</h3>
+  <p>fuku reads its config once, when it starts. A service restart through the API does not apply a config change.</p>
+  <p>After a change to <code>fuku.yaml</code> or the override, the agent runs <code>fuku stop &lt;profile&gt;</code>, then <code>fuku run &lt;profile&gt; -d</code>.</p>
+
+  <h3>Stop rules</h3>
+  <p>The agent stops or restarts fuku when the task needs it, whoever started fuku: a config change, a profile switch or your request.</p>
+  <p>When fuku already serves the wanted profile and nothing needs a restart, the agent uses it as it is.</p>
+  <p>When <code>fuku stop</code> cannot reach the running fuku, it exits 1 and stops nothing. The agent reports that and asks for socket access.</p>
+
+  <div class="section-eyebrow">Sandbox</div>
+  <h2>Socket and network access</h2>
+
+  <p>An agent sandbox may block the Unix socket and loopback HTTP.</p>
+  <p>A failed socket or API call does not mean fuku is down. The agent asks you for local socket or network access, then retries.</p>
+  <p>It does not start a second fuku and does not delete the socket because a check failed.</p>
+
+  <GetStartedCTA />
+</DocsLayout>

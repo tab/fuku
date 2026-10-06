@@ -36,6 +36,10 @@ fuku.override.yml
 .env
 .env.*.local
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Docs
 docs/node_modules/
 docs/dist/

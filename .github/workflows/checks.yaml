@@ -74,6 +74,15 @@ jobs:
       - name: Build
         working-directory: plugins/jetbrains
         run: ./gradlew buildPlugin
+  agents-plugin:
+    name: Agents Plugin
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run tests
+        run: make test:agents-plugin
   coverage:
     name: Codecov
     needs: [linter, tests, e2e]

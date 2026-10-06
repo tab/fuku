@@ -1,0 +1,15 @@
+{
+  "name": "fuku",
+  "description": "Use fuku with AI agents to run, inspect, debug and stop local services.",
+  "owner": {
+    "name": "tab"
+  },
+  "plugins": [
+    {
+      "name": "fuku",
+      "source": "./plugins/agents",
+      "description": "Run, inspect, debug and stop local services with fuku from Claude Code.",
+      "category": "Developer Tools"
+    }
+  ]
+}

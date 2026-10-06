@@ -41,7 +41,7 @@ git config core.hooksPath .githooks
 
 - `commit-msg` rejects a subject that is not a scoped Conventional Commit.
   The form is `feat(ui): Add the aside panel`: imperative, capitalized, no trailing period. It also rejects any AI attribution
-- `pre-push` runs `make check` when Go moved, `make lint:plugin` when the plugin moved, the Astro build when `docs/` moved, `make docs` when `ARCHITECTURE.md`, the backlog or a package README moved, then the spec drift check.
+- `pre-push` runs `make check` when Go moved, `make lint:plugin` when the JetBrains plugin moved, `make test:agents-plugin` when `plugins/agents/`, `.claude-plugin/` or `.agents/` moved, the Astro build when `docs/` moved, `make docs` when `ARCHITECTURE.md`, the backlog or a package README moved, then the spec drift check.
   The hook skips the race detector and the e2e suite. `verify` and CI run them
 - push with `--no-verify`, or set `SKIP_VERIFY=1`, to skip it on purpose
 - `Conventions` in `conventions.yaml` and `Spec` in `checks.yaml` repeat the checks on the pull request.

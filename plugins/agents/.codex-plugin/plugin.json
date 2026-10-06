@@ -1,0 +1,42 @@
+{
+  "name": "fuku",
+  "version": "0.1.0",
+  "description": "Run, inspect, debug and stop local services with fuku from Codex.",
+  "author": {
+    "name": "tab",
+    "url": "https://github.com/tab"
+  },
+  "homepage": "https://getfuku.sh/plugins/agents/",
+  "repository": "https://github.com/tab/fuku",
+  "license": "MIT",
+  "keywords": [
+    "fuku",
+    "local development",
+    "service orchestration",
+    "logs",
+    "agent skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "fuku",
+    "shortDescription": "Run, inspect, debug and stop local services with fuku",
+    "longDescription": "Let Codex drive fuku for local development: start a profile in the background, attach to a running fuku, read bounded logs, check and restart one service through the API and stop fuku.",
+    "developerName": "tab",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://getfuku.sh/",
+    "privacyPolicyURL": "https://getfuku.sh/docs/privacy/",
+    "defaultPrompt": [
+      "Start the default fuku profile in the background and report failed services",
+      "Read the recent logs of a fuku service and explain why it failed",
+      "Restart one fuku service and confirm that it runs"
+    ],
+    "brandColor": "#7D56F4",
+    "composerIcon": "./assets/logo.svg",
+    "logo": "./assets/logo.svg"
+  }
+}
