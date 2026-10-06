@@ -151,6 +151,7 @@ var runtime = fx.Options(
 		func(c *github.Client) updater.ReleaseSource { return c },
 		func(h *logs.Hub) logsocket.Hub { return h },
 		func(s *registry.Store) logsocket.Registry { return s },
+		func(c *services.Control) logsocket.Control { return c },
 		func(s *registry.Store) resources.Registry { return s },
 		fx.Annotate(
 			func(m *resources.ProcessMonitor) resources.Monitor { return m },

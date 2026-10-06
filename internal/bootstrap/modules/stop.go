@@ -12,7 +12,7 @@ import (
 	"fuku/internal/model"
 )
 
-// Stop composes the stop of a profile: the instance is signalled, the cleaner kills what it left, the stale socket goes
+// Stop composes the stop of a profile: the instance is asked to stop, the cleaner kills the rest, the stale socket goes
 func Stop(cmd *cli.Options, project model.Project) fx.Option {
 	return fx.Options(
 		base,
@@ -20,7 +20,7 @@ func Stop(cmd *cli.Options, project model.Project) fx.Option {
 		processes,
 		fx.Provide(
 			func(p model.Project) detach.StopOptions { return detach.StopOptions{Timeout: stopTimeout(p)} },
-			func(c *logsocket.Client) detach.StatusSource { return c },
+			func(c *logsocket.Client) detach.Socket { return c },
 			func(s *detach.Stopper) cli.Instance { return s },
 			func(c *services.Cleaner) cli.Cleaner { return c },
 			func(c *logsocket.Client) cli.Socket { return c },

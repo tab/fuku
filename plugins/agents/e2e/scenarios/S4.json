@@ -1,0 +1,21 @@
+{
+  "prompt": "restart service api and check the logs",
+  "profile": "default",
+  "setup": [
+    "override:api",
+    "start_fuku"
+  ],
+  "checks": [
+    "service_log_read:api",
+    "service_pid_changed:api",
+    "other_service_pids_same:api",
+    "same_fuku_pid",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 18,
+    "input_tokens": 325000,
+    "seconds": 90,
+    "usd": 0.8
+  }
+}

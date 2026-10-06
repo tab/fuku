@@ -173,6 +173,42 @@ func (c *Client) status() (contracts.LogStatus, error) {
 	return notification(status), nil
 }
 
+// RequestStop asks the running instance to stop and fails when it does not acknowledge, as an older instance does not
+func (c *Client) RequestStop() error {
+	return c.requestStopAt(instance.SocketDir)
+}
+
+// requestStopAt sends the stop frame to the project socket inside socketDir and reads the acknowledgement
+func (c *Client) requestStopAt(socketDir string) error {
+	if err := c.connect(socketDir); err != nil {
+		return err
+	}
+
+	defer c.Close()
+
+	if err := c.conn.SetDeadline(time.Now().Add(statusTimeout)); err != nil {
+		return fmt.Errorf("failed to set the stop deadline: %w", err)
+	}
+
+	data, _ := json.Marshal(MessageEnvelope{Type: MessageStop})
+	data = append(data, '\n')
+
+	if _, err := c.conn.Write(data); err != nil {
+		return fmt.Errorf("failed to write to socket: %w", err)
+	}
+
+	line, err := bufio.NewReader(c.conn).ReadBytes('\n')
+	if err != nil {
+		return fmt.Errorf("failed to read the stop acknowledgement: %w", err)
+	}
+
+	if messageType(line) != MessageStop {
+		return errStopNotAcknowledged
+	}
+
+	return nil
+}
+
 // Remove deletes the project socket a dead instance left behind and keeps one that still answers
 func (c *Client) Remove() error {
 	return c.removeAt(instance.SocketDir)
@@ -183,6 +219,10 @@ func (c *Client) removeAt(socketDir string) error {
 	socketPath, err := findSocket(socketDir, c.fingerprint)
 	if errors.Is(err, contracts.ErrNoInstanceRunning) {
 		return nil
+	}
+
+	if err != nil {
+		return err
 	}
 
 	if instance.ProbeSocket(socketPath) == nil {

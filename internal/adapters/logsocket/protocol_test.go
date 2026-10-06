@@ -31,6 +31,11 @@ func Test_MessageType_Constants(t *testing.T) {
 			msgType:  MessageStatus,
 			expected: "status",
 		},
+		{
+			name:     "stop",
+			msgType:  MessageStop,
+			expected: "stop",
+		},
 	}
 
 	for _, tt := range tests {

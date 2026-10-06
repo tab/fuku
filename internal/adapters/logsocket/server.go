@@ -22,6 +22,12 @@ const (
 	acceptDelayMax = time.Second
 )
 
+// The private directory beside the project socket and the socket name inside it, where start binds before the rename
+const (
+	privateDirSuffix  = ".d"
+	privateSocketName = "s"
+)
+
 // Hub hands out the subscriptions the server streams to its clients
 type Hub interface {
 	Subscribe(services []string, replay model.ReplayOptions) *logs.Subscription
@@ -32,6 +38,11 @@ type Hub interface {
 type Registry interface {
 	WaitResolved(ctx context.Context)
 	Read(fn func(*model.Snapshot))
+}
+
+// Control stops every service of the run, which ends the instance
+type Control interface {
+	StopAll() error
 }
 
 // Logger is the logging surface the server writes through
@@ -46,6 +57,7 @@ type Logger interface {
 type Server struct {
 	hub         Hub
 	registry    Registry
+	control     Control
 	instanceID  string
 	fingerprint string
 	halt        context.CancelFunc
@@ -63,10 +75,11 @@ type Server struct {
 }
 
 // NewServer creates a new log streaming server
-func NewServer(hub Hub, registry Registry, identity model.Instance, log Logger) *Server {
+func NewServer(hub Hub, registry Registry, control Control, identity model.Instance, log Logger) *Server {
 	return &Server{
 		hub:         hub,
 		registry:    registry,
+		control:     control,
 		instanceID:  identity.ID,
 		fingerprint: identity.Fingerprint,
 		done:        make(chan struct{}),
@@ -157,9 +170,9 @@ func (s *Server) start(ctx context.Context) error {
 		return fmt.Errorf("failed to cleanup stale socket: %w", err)
 	}
 
-	listener, err := net.Listen("unix", s.socketPath)
+	listener, err := s.listen()
 	if err != nil {
-		return fmt.Errorf("failed to listen on socket %s: %w", s.socketPath, err)
+		return err
 	}
 
 	s.listener = listener
@@ -171,6 +184,52 @@ func (s *Server) start(ctx context.Context) error {
 	})
 
 	return nil
+}
+
+// listen binds the restricted socket in a private directory and renames it into place, so no other user reaches it
+func (s *Server) listen() (*net.UnixListener, error) {
+	private := s.socketPath + privateDirSuffix
+
+	listener, bindPath, err := bind(private)
+	defer os.RemoveAll(private)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.Rename(bindPath, s.socketPath); err != nil {
+		listener.Close()
+
+		return nil, fmt.Errorf("failed to move socket into place %s: %w", s.socketPath, err)
+	}
+
+	return listener, nil
+}
+
+// bind replaces the private directory left by a crashed start with a fresh 0700 one and listens on a 0600 socket inside
+func bind(private string) (*net.UnixListener, string, error) {
+	if err := os.RemoveAll(private); err != nil {
+		return nil, "", fmt.Errorf("failed to cleanup private socket directory %s: %w", private, err)
+	}
+
+	if err := os.Mkdir(private, 0o700); err != nil {
+		return nil, "", fmt.Errorf("failed to create private socket directory %s: %w", private, err)
+	}
+
+	bindPath := filepath.Join(private, privateSocketName)
+
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: bindPath, Net: "unix"})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to listen on socket %s: %w", bindPath, err)
+	}
+
+	if err := os.Chmod(bindPath, 0o600); err != nil {
+		listener.Close()
+
+		return nil, "", fmt.Errorf("failed to restrict socket %s: %w", bindPath, err)
+	}
+
+	return listener, bindPath, nil
 }
 
 // close closes the listener, waits for connections to drain, and removes the socket file

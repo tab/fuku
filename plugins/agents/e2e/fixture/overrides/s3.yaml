@@ -1,0 +1,3 @@
+services:
+  worker:
+    command: echo "worker ready"; sleep 1; echo "E2E-MARKER-{{MARKER}} worker lost its queue connection"; exit 3

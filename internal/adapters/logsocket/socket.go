@@ -1,7 +1,9 @@
 package logsocket
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -15,7 +17,15 @@ func findSocket(socketDir, fingerprint string) (string, error) {
 	socketPath := instance.SocketPath(socketDir, fingerprint)
 
 	info, err := os.Lstat(socketPath)
-	if err != nil || info.Mode()&os.ModeSocket == 0 {
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", contracts.ErrNoInstanceRunning
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("failed to find the socket: %w", err)
+	}
+
+	if info.Mode().Type() != os.ModeSocket {
 		return "", contracts.ErrNoInstanceRunning
 	}
 
@@ -45,7 +55,7 @@ func cleanup(socketDir, fingerprint string) error {
 		}
 
 		info, err := os.Lstat(socketPath)
-		if err != nil || info.Mode()&os.ModeSocket == 0 {
+		if err != nil || info.Mode().Type() != os.ModeSocket {
 			continue
 		}
 

@@ -9,13 +9,13 @@ const nav = getPluginsNav(base);
 
 <DocsLayout
   title="Plugins - fuku"
-  description="IDE plugins for fuku service orchestrator."
+  description="IDE and AI agent plugins for fuku service orchestrator."
   current={current}
   nav={nav}
   section="plugins"
 >
   <h1>Plugins</h1>
-  <p class="lead">Bring fuku into your IDE. Monitor services, stream logs, and control your stack without leaving the editor.</p>
+  <p class="lead">Bring fuku into your IDE or your AI agent. Monitor services, read logs, and control your stack from the tools you already use.</p>
 
   <div class="plugin-grid">
     <a href={`${base}plugins/jetbrains/`} class="plugin-card">
@@ -31,8 +31,21 @@ const nav = getPluginsNav(base);
       <span class="card-link">Learn more &rarr;</span>
     </a>
 
-    <div class="plugin-card coming-soon">
+    <a href={`${base}plugins/agents/`} class="plugin-card">
       <div class="card-num">02</div>
+      <div class="card-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="5" fill="var(--text)"/>
+          <text x="4" y="21" font-family="var(--heading)" font-size="14" font-weight="700" fill="var(--bg)">AI</text>
+        </svg>
+      </div>
+      <h3>AI Agents</h3>
+      <p>Claude Code and Codex. One skill that lets the agent run a profile in the background, read bounded logs, and restart one service through the API.</p>
+      <span class="card-link">Learn more &rarr;</span>
+    </a>
+
+    <div class="plugin-card coming-soon">
+      <div class="card-num">03</div>
       <h3>VS Code</h3>
       <p>Coming soon. Service panel, log viewer, and command palette integration for Visual Studio Code.</p>
       <span class="card-badge">Planned</span>

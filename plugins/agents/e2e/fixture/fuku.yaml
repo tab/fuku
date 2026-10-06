@@ -1,0 +1,25 @@
+version: 1
+
+services:
+  api:
+    dir: api
+    command: echo "api ready"; exec sleep 3601
+    readiness:
+      type: log
+      pattern: api ready
+      timeout: 10s
+  worker:
+    dir: worker
+    command: echo "worker ready"; exec sleep 3602
+    readiness:
+      type: log
+      pattern: worker ready
+      timeout: 10s
+
+profiles:
+  default: [api, worker]
+  core: [api]
+
+logging:
+  format: console
+  level: info

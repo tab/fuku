@@ -1,0 +1,19 @@
+{
+  "prompt": "run core profile with fuku",
+  "profile": "core",
+  "setup": [],
+  "checks": [
+    "run_detached_once",
+    "no_default_run",
+    "fuku_running",
+    "services_running",
+    "service_stopped:worker",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 8,
+    "input_tokens": 150000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}

@@ -1,6 +1,7 @@
 package logsocket
 
 import (
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -71,6 +72,17 @@ func Test_findSocket(t *testing.T) {
 				return func() { os.Remove(socketPath) }
 			},
 			wantErr: contracts.ErrNoInstanceRunning,
+		},
+		{
+			name: "unsearchable directory",
+			before: func(t *testing.T) func() {
+				t.Helper()
+
+				require.NoError(t, os.Chmod(tmpDir, 0o600))
+
+				return func() { os.Chmod(tmpDir, 0o700) }
+			},
+			wantErr: fs.ErrPermission,
 		},
 	}
 

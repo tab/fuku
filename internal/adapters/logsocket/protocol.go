@@ -13,6 +13,8 @@ const (
 	MessageLog MessageType = "log"
 	// MessageStatus is sent from server to client after subscribe with connection metadata
 	MessageStatus MessageType = "status"
+	// MessageStop is sent from client to server to stop the instance, and echoed back once the stop is accepted
+	MessageStop MessageType = "stop"
 )
 
 // SubscribeRequest is sent from client to server to subscribe to log streams

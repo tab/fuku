@@ -1,0 +1,21 @@
+{
+  "prompt": "start services in fuku",
+  "profile": "default",
+  "setup": [
+    "start_fuku"
+  ],
+  "checks": [
+    "no_fuku_stop",
+    "no_kill",
+    "fuku_running",
+    "same_fuku_pid",
+    "same_service_pids",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 8,
+    "input_tokens": 150000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}

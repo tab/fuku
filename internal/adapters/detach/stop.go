@@ -17,34 +17,33 @@ import (
 // stopPollInterval is how often the stop checks whether the instance has exited
 const stopPollInterval = 100 * time.Millisecond
 
-// StatusSource reads the status of the running instance
-type StatusSource interface {
+// Socket reads the status of the running instance and asks it to stop
+type Socket interface {
 	Status() (contracts.LogStatus, error)
+	RequestStop() error
 }
 
-// Stopper stops the running instance of the project: SIGTERM, a bounded wait, then SIGKILL
+// Stopper stops the running instance of the project: a stop request or SIGTERM, a bounded wait, then SIGKILL
 type Stopper struct {
-	source  StatusSource
+	socket  Socket
 	options StopOptions
 	stdout  io.Writer
 }
 
 // NewStopper creates the stopper of the running instance
-func NewStopper(source StatusSource, options StopOptions, stdout io.Writer) *Stopper {
-	return &Stopper{source: source, options: options, stdout: stdout}
+func NewStopper(socket Socket, options StopOptions, stdout io.Writer) *Stopper {
+	return &Stopper{socket: socket, options: options, stdout: stdout}
 }
 
-// Stop signals the running instance and waits for it to exit; it returns nil when no instance answers
+// Stop asks the running instance to stop and waits for its exit; nil when none runs, an error when it cannot be reached
 func (s *Stopper) Stop(ctx context.Context) error {
-	status, err := s.source.Status()
+	status, err := s.socket.Status()
 	if errors.Is(err, contracts.ErrNoInstanceRunning) {
 		return nil
 	}
 
 	if err != nil {
-		fmt.Fprintf(s.stdout, "Cannot reach the running fuku: %v\n", err)
-
-		return nil
+		return fmt.Errorf("cannot reach the running fuku, nothing was stopped: %w", err)
 	}
 
 	if status.PID <= 1 {
@@ -57,7 +56,7 @@ func (s *Stopper) Stop(ctx context.Context) error {
 
 	started := time.Now()
 
-	err = syscall.Kill(status.PID, syscall.SIGTERM)
+	err = s.request(status.PID)
 	if errors.Is(err, syscall.ESRCH) {
 		fmt.Fprintf(s.stdout, "stopped in %s\n", seconds(time.Since(started)))
 
@@ -92,6 +91,21 @@ func (s *Stopper) Stop(ctx context.Context) error {
 	fmt.Fprintf(s.stdout, "killed after %s\n", seconds(s.options.Timeout))
 
 	return nil
+}
+
+// request asks the instance to stop over the socket and sends SIGTERM to one that does not acknowledge, as an old fuku
+func (s *Stopper) request(pid int) error {
+	requestErr := s.socket.RequestStop()
+	if requestErr == nil {
+		return nil
+	}
+
+	err := syscall.Kill(pid, syscall.SIGTERM)
+	if err == nil || errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+
+	return fmt.Errorf("%w, and the stop request failed: %w", err, requestErr)
 }
 
 // wait polls until the process is gone, returning false when the timeout passes first and an error when ctx ends

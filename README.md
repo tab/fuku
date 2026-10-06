@@ -222,9 +222,11 @@ Full documentation is available at **[getfuku.sh](https://getfuku.sh)**:
 - [Examples](https://getfuku.sh/docs/examples/) - Real-world configuration patterns
 - [Troubleshooting](https://getfuku.sh/docs/troubleshooting/) - Common issues and solutions
 
-## IDE Plugins
+## Plugins
 
 A [JetBrains plugin](https://getfuku.sh/plugins/jetbrains/) is available for GoLand, IntelliJ IDEA, WebStorm, and all JetBrains IDEs.
+
+An [AI agents plugin](https://getfuku.sh/plugins/agents/) lets Claude Code and Codex run, inspect, debug and stop local services with fuku.
 
 ## Architecture
 
