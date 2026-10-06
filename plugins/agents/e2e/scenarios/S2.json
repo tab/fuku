@@ -1,0 +1,22 @@
+{
+  "prompt": "Which services are running right now?",
+  "profile": "default",
+  "setup": [
+    "start_fuku"
+  ],
+  "checks": [
+    "status_read",
+    "no_fuku_run",
+    "no_fuku_stop",
+    "fuku_running",
+    "same_fuku_pid",
+    "same_service_pids",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 8,
+    "input_tokens": 150000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}

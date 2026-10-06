@@ -1,0 +1,23 @@
+{
+  "prompt": "I changed the api command in fuku.yaml. Apply the change.",
+  "profile": "default",
+  "setup": [
+    "override:api",
+    "start_fuku",
+    "edit_service_command:api"
+  ],
+  "checks": [
+    "fuku_pid_changed",
+    "service_command_is:api",
+    "no_api_restart",
+    "fuku_running",
+    "services_running",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 14,
+    "input_tokens": 230000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}

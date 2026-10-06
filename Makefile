@@ -46,6 +46,11 @@ test\:agents-plugin:
 	@echo "Running agents plugin tests..."
 	python3 -m unittest discover -s plugins/agents/tests -p 'test_*.py'
 
+.PHONY: test\:agents-e2e
+test\:agents-e2e:
+	@echo "Running agents e2e sweep..."
+	FUKU_BIN=$(PWD)/cmd/fuku HOST=$(HOST) SCENARIO=$(SCENARIO) REPEATS=$(REPEATS) python3 plugins/agents/e2e/runner.py
+
 .PHONY: coverage
 coverage:
 	@echo "Generating test coverage report..."

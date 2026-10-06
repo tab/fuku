@@ -1,0 +1,22 @@
+{
+  "prompt": "The worker service stopped. Find out why.",
+  "profile": "default",
+  "setup": [
+    "override:s3",
+    "start_fuku",
+    "wait_service_exited:worker"
+  ],
+  "checks": [
+    "log_read_with_marker",
+    "fuku_running",
+    "same_fuku_pid",
+    "same_service_pids",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 12,
+    "input_tokens": 200000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}
