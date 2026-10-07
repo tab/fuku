@@ -23,7 +23,7 @@
 - **Detached Mode** - `fuku run -d` returns once every service is running, for scripts and AI agents
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 - **Diagnostics** - Check your config, environment, topology, and runtime with `fuku doctor`
-- **REST API** - Control and monitor services via HTTP with token authentication
+- **REST API** - Control and monitor services via HTTP on `127.0.0.1:3858`, with an optional token
 
 ## Installation
 
@@ -204,10 +204,15 @@ logging:
   level: info
 
 server:
-  listen: "127.0.0.1:9876"
+  listen: "127.0.0.1:3858"
   auth:
     token: "dev-token"
 ```
+
+The REST API runs on `127.0.0.1:3858` by default. The `server` block is optional.
+A token is optional. Set `server.auth.token` to require `Authorization: Bearer <token>`.
+The API binds a loopback address only and answers `403` to any request with an `Origin` header, which turns away a browser.
+Set `server.listen` to `""` or `none`, or `FUKU_API_DISABLED=1`, to turn it off.
 
 The full reference is in the [documentation](https://getfuku.sh/docs/configuration/).
 

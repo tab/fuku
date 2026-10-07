@@ -174,13 +174,13 @@ const nav = getDocsNav(base);
   <h2>Server</h2>
 
   <p>
-    Built-in REST API for external control. Disabled by default. When <code>server.listen</code> is set, <code>server.auth.token</code> is required. Probes (<code>/api/v1/live</code>, <code>/api/v1/ready</code>) are unauthenticated; all other endpoints require a bearer token.
+    Built-in REST API for external control. It listens on <code>127.0.0.1:3858</code> by default. Set <code>server.listen</code> to <code>""</code> or <code>none</code>, or <code>FUKU_API_DISABLED=1</code>, to turn it off. A missing <code>listen</code> keeps the default. The token is optional. When <code>server.auth.token</code> is set, every endpoint except the probes (<code>/api/v1/live</code>, <code>/api/v1/ready</code>) requires a bearer token.
   </p>
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`server:
-  listen: "127.0.0.1:9876"        # TCP address to bind (must be loopback)
+  listen: "127.0.0.1:3858"        # loopback address, default; "" or none turns the API off
   auth:
-    token: "my-dev-token"          # Bearer token for authentication`} />
+    token: "my-dev-token"          # optional, requires a bearer token when set`} />
 
   <hr />
 
@@ -370,7 +370,7 @@ logging:
   level: info
 
 server:
-  listen: "127.0.0.1:9876"
+  listen: "127.0.0.1:3858"
   auth:
     token: "my-dev-token"`} />
 </DocsLayout>
