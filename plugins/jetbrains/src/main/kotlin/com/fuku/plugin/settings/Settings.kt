@@ -14,7 +14,7 @@ import com.intellij.openapi.components.Storage
 class Settings : PersistentStateComponent<Settings.State> {
   data class State(
     var host: String = "127.0.0.1",
-    var port: Int = 9876,
+    var port: Int = 3858,
     var token: String = "",
     var pollInterval: Int = 2000,
     var fukuBinaryPath: String = "fuku",
