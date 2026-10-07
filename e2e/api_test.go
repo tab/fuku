@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -528,4 +530,90 @@ func Test_API_NoCORSHeaders(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Methods"))
+}
+
+func Test_API_DefaultAddressWithoutToken(t *testing.T) {
+	result := RunOnce(t, "testdata/api-default", "run", "-d")
+
+	pid := detachedPID(t, result.Stdout)
+	defer endDetached(pid)
+
+	require.Equal(t, 0, result.ExitCode)
+
+	match := regexp.MustCompile(`(?m)^API (127\.0\.0\.1:(\d+))$`).FindStringSubmatch(result.Stdout)
+	require.Len(t, match, 3, "no API line in:\n%s", result.Stdout)
+
+	port, err := strconv.Atoi(match[2])
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, port, 3858)
+	assert.LessOrEqual(t, port, 3867)
+
+	base := "http://" + match[1]
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	statusResp, err := client.Get(base + "/api/v1/status")
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, statusResp.StatusCode)
+	assert.Equal(t, "running", apiJSON(t, statusResp)["phase"])
+
+	listResp, err := client.Get(base + "/api/v1/services")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, listResp.StatusCode)
+
+	services := apiJSON(t, listResp)["services"].([]any)
+	serviceID := services[0].(map[string]any)["id"].(string)
+
+	restartResp, err := client.Post(base+"/api/v1/services/"+serviceID+"/restart", "", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusAccepted, restartResp.StatusCode)
+	assert.Equal(t, "restart", apiJSON(t, restartResp)["action"])
+
+	stop := RunOnce(t, "testdata/api-default", "stop")
+
+	assert.Equal(t, 0, stop.ExitCode)
+	require.NoError(t, WaitForGroupExit(pid, 10*time.Second))
+}
+
+func Test_API_BrowserGuard(t *testing.T) {
+	runner := startAPIRunner(t)
+	defer runner.Stop()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	tests := []struct {
+		name   string
+		host   string
+		header http.Header
+	}{
+		{
+			name:   "origin with a loopback host",
+			host:   "127.0.0.1:19876",
+			header: http.Header{"Origin": {"http://localhost:3858"}},
+		},
+		{
+			name:   "host that is not loopback",
+			host:   "example.com:19876",
+			header: http.Header{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, apiBase+"/api/v1/status", nil)
+			require.NoError(t, err)
+
+			req.Host = tt.host
+			req.Header = tt.header
+			req.Header.Set("Authorization", "Bearer "+apiToken)
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+			assert.Equal(t, "forbidden", apiJSON(t, resp)["error"])
+		})
+	}
 }

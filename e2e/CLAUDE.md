@@ -16,6 +16,8 @@ make build && make test:e2e
 A test names a directory under `testdata/`. It holds a `fuku.yaml` and what that config points at.
 The services are the stubs in `services/`, one per readiness type: `log.go`, `http.go`, `tcp.go`.
 
+`testdata/api-default` is the one fixture whose API a test calls on the default address: it walks from 3858 instead of a pinned port, and the test reads it from the summary.
+
 `examples/bookstore` is not a fixture. No test reads it.
 
 ## Writing a test
