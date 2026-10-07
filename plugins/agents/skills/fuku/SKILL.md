@@ -83,30 +83,28 @@ Never start a log follower. A log read without `--no-follow` stays attached unti
 ## Service state and service actions
 
 The REST API serves the state of one service and the actions on it
-It runs only when the config sets `server.listen`. `fuku doctor --json` does not report that key
-Learn whether it is set in one of two ways:
+It is on by default. Without `server.listen`, it binds `127.0.0.1:3858` or the next free port up to 3867
+The `API <host:port>` line of the `fuku run <profile> -d` summary names the bound address
+No `API` line means the API is off
+When fuku already runs, find the address as the control API reference shows
 
-- the `API <host:port>` line of the `fuku run <profile> -d` summary
-- one bounded read of that key, which prints no secret: `grep -n '^ *listen:' fuku*.y*ml`. With `--config`, name that file instead
-
-The grep misses a `server` block written on one line, so the summary's `API` line is the reliable sign
-
-When `server.listen` is not set, do not open the control API reference
-When it is set, read [references/control-api.md](references/control-api.md) before any API call
+When the API is off, do not open the control API reference
+When it is on, read [references/control-api.md](references/control-api.md) before any API call
 
 - `GET /status` gives the profile, the phase and the service counts
 - `GET /services` lists the services with their `id`, `name` and `status`
 - `GET /services/{id}` gives one service
 - `POST /services/{id}/start`, `/services/{id}/stop` and `/services/{id}/restart` act on one service
 
-The paths sit under `/api/v1` on the `server.listen` address
+The paths sit under `/api/v1` on the bound address
 An action takes the service UUID, never its name. Map the name to the `id` with `GET /services` first
 An action returns at once. Poll `GET /services/{id}` until the service settles
 
-The API needs `server.auth.token`, and the token never reaches output
+The token is optional. When the effective config sets `server.auth.token`, the API needs it
+The token never reaches output
 Never print, echo or export it, and never put its value in a command line
-Send every authenticated request with `scripts/api.sh` from this skill's folder, as the control API reference shows
-It reads the token itself and keeps it out of every command line and output
+Send every request except the `/live` probe with `scripts/api.sh` from this skill's folder, as the control API reference shows
+It reads the token itself and keeps it out of every command line and output. Without a token, it sends no header
 
 When the service's `watch` config covers the changed files, fuku restarts the service on its own
 Otherwise restart only the affected service through the API
@@ -115,7 +113,9 @@ Do not restart unrelated services to collect more evidence
 
 ## What works without the API
 
-Without `server.listen`, these still work:
+The API is off when the effective config sets `server.listen` to `""` or `none`, or when `FUKU_API_DISABLED=1` is set
+It is also off when its port and the next 9 are all busy
+Without it, these still work:
 
 - `fuku run <profile> -d` starts the profile
 - `fuku logs --tail <n> --no-follow --no-ui` reads the logs
@@ -123,8 +123,8 @@ Without `server.listen`, these still work:
 - `fuku doctor <profile> --json` reports the setup and whether fuku runs
 
 The state of one service and the start or stop of one service need the API
-When it is off, do not edit the config to turn it on unless the user asks
-Report that these need `server.listen`, let the user decide, and use the logs and the doctor report meanwhile
+When it is off, do not edit the config or the environment to turn it on unless the user asks
+Report that these need the API, let the user decide, and use the logs and the doctor report meanwhile
 
 ## Change configuration
 
