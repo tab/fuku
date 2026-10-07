@@ -119,6 +119,7 @@ func initConfig() *Config {
 	cfg.AppEnv = telemetry.Environment
 	cfg.SentryDSN = telemetry.DSN
 	cfg.Telemetry = telemetry.Enabled
+	cfg.API = os.Getenv("FUKU_API_DISABLED") != "1"
 	cfg.Updater = os.Getenv("FUKU_UPDATER_DISABLED") != "1"
 
 	return cfg

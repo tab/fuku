@@ -8,17 +8,19 @@ info:
     name: MIT
 
 servers:
-  - url: http://127.0.0.1:9876/api/v1
+  - url: http://127.0.0.1:3858/api/v1
     description: Local loopback development
 
 security:
   - bearerAuth: []
+  - {}
 
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+      description: Required only when the config sets server.auth.token. Without a token, every operation works without it
 
   schemas:
     ServiceStatus:
@@ -213,13 +215,22 @@ components:
 
   responses:
     Unauthorized:
-      description: Missing or invalid bearer token
+      description: The config sets a token and the request lacks it or sends a wrong one
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
           example:
             error: unauthorized
+
+    Forbidden:
+      description: The Host header is not loopback or the request carries an Origin header
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: forbidden
 
     NotFound:
       description: Service not found in the active profile
@@ -277,6 +288,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Live"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /ready:
     get:
@@ -297,6 +310,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Probe"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /status:
     get:
@@ -311,6 +326,8 @@ paths:
                 $ref: "#/components/schemas/Status"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /services:
     get:
@@ -325,6 +342,8 @@ paths:
                 $ref: "#/components/schemas/ServiceList"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /services/{id}:
     get:
@@ -348,6 +367,8 @@ paths:
                 $ref: "#/components/schemas/Service"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -379,6 +400,8 @@ paths:
                 status: starting
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -414,6 +437,8 @@ paths:
                 status: stopping
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -449,6 +474,8 @@ paths:
                 status: restarting
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":

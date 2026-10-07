@@ -67,6 +67,12 @@ const (
 	SocketLogsHistorySize = 5000
 )
 
+// API server defaults
+const (
+	DefaultAPIListen = "127.0.0.1:3858"
+	APIListenNone    = "none"
+)
+
 // Loopback hostnames (not available as stdlib constants)
 const (
 	LoopbackHostname     = "localhost"

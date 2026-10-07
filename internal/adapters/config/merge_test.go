@@ -52,6 +52,12 @@ func Test_MergeYAML(t *testing.T) {
 			expected: "profiles:\n  default: \"*\"\n",
 		},
 		{
+			name:     "empty string override is kept",
+			base:     "server:\n  listen: 127.0.0.1:9000\n",
+			override: "server:\n  listen: \"\"\n",
+			expected: "server:\n  listen: \"\"\n",
+		},
+		{
 			name:     "mismatched kinds override wins",
 			base:     "logging:\n  level: info\n  format: console\n",
 			override: "logging: minimal\n",

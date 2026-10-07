@@ -1,8 +1,10 @@
 package rest
 
 import (
+	"bufio"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -238,4 +240,199 @@ func Test_ResponseWriter_WriteHeader(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, rw.status)
 	assert.Equal(t, http.StatusCreated, w.Code)
+}
+
+func Test_GuardMiddleware(t *testing.T) {
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := guardMiddleware(next)
+
+	forbidden := `{"error":"forbidden"}` + "\n"
+
+	tests := []struct {
+		name         string
+		host         string
+		origin       []string
+		expectStatus int
+		expectNext   bool
+		expectBody   string
+	}{
+		{
+			name:         "localhost with a port",
+			host:         "localhost:3858",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "localhost without a port",
+			host:         "localhost",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "ip6-localhost with a port",
+			host:         "ip6-localhost:3858",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "ip6-localhost without a port",
+			host:         "ip6-localhost",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "127.0.0.1 with a port",
+			host:         "127.0.0.1:3858",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "127.0.0.1 without a port",
+			host:         "127.0.0.1",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "127.0.0.2 with a port",
+			host:         "127.0.0.2:3858",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "127.0.0.2 without a port",
+			host:         "127.0.0.2",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "IPv6 loopback with a port",
+			host:         "[::1]:3858",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "IPv6 loopback without a port",
+			host:         "[::1]",
+			expectStatus: http.StatusOK,
+			expectNext:   true,
+		},
+		{
+			name:         "a domain is forbidden",
+			host:         "example.com:3858",
+			expectStatus: http.StatusForbidden,
+			expectNext:   false,
+			expectBody:   forbidden,
+		},
+		{
+			name:         "a private address is forbidden",
+			host:         "10.0.0.1:3858",
+			expectStatus: http.StatusForbidden,
+			expectNext:   false,
+			expectBody:   forbidden,
+		},
+		{
+			name:         "a missing host is forbidden",
+			host:         "",
+			expectStatus: http.StatusForbidden,
+			expectNext:   false,
+			expectBody:   forbidden,
+		},
+		{
+			name:         "a localhost subdomain is forbidden",
+			host:         "localhost.example.com:3858",
+			expectStatus: http.StatusForbidden,
+			expectNext:   false,
+			expectBody:   forbidden,
+		},
+		{
+			name:         "a loopback origin is forbidden",
+			host:         "127.0.0.1:3858",
+			origin:       []string{"http://localhost:3858"},
+			expectStatus: http.StatusForbidden,
+			expectNext:   false,
+			expectBody:   forbidden,
+		},
+		{
+			name:         "a null origin is forbidden",
+			host:         "127.0.0.1:3858",
+			origin:       []string{"null"},
+			expectStatus: http.StatusForbidden,
+			expectNext:   false,
+			expectBody:   forbidden,
+		},
+		{
+			name:         "an empty origin is forbidden",
+			host:         "127.0.0.1:3858",
+			origin:       []string{""},
+			expectStatus: http.StatusForbidden,
+			expectNext:   false,
+			expectBody:   forbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled = false
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+			req.Host = tt.host
+			req.Header["Origin"] = tt.origin
+
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectStatus, w.Code)
+			assert.Equal(t, tt.expectNext, nextCalled)
+			assert.Equal(t, tt.expectBody, w.Body.String())
+		})
+	}
+}
+
+func Test_GuardMiddleware_AbsoluteTarget(t *testing.T) {
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := guardMiddleware(next)
+
+	forbidden := `{"error":"forbidden"}` + "\n"
+
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "an absolute target without a Host header is forbidden",
+			raw:  "GET http://127.0.0.1:3858/api/v1/status HTTP/1.0\r\n\r\n",
+		},
+		{
+			name: "an absolute target with a loopback Host header is forbidden",
+			raw:  "GET http://127.0.0.1:3858/api/v1/status HTTP/1.0\r\nHost: 127.0.0.1:3858\r\n\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled = false
+
+			req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(tt.raw)))
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusForbidden, w.Code)
+			assert.False(t, nextCalled)
+			assert.Equal(t, forbidden, w.Body.String())
+		})
+	}
 }

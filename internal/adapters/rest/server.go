@@ -61,8 +61,12 @@ func (s *Server) Start(context.Context) error {
 	authedMux.HandleFunc("POST /api/v1/services/{id}/stop", h.handleStopService)
 	authedMux.HandleFunc("POST /api/v1/services/{id}/restart", h.handleRestartService)
 
-	token := s.options.Token
-	mux.Handle("/api/v1/", authMiddleware(token, authedMux))
+	var authed http.Handler = authedMux
+	if s.options.Token != "" {
+		authed = authMiddleware(s.options.Token, authedMux)
+	}
+
+	mux.Handle("/api/v1/", authed)
 
 	ln, addr := s.listen()
 
@@ -74,7 +78,7 @@ func (s *Server) Start(context.Context) error {
 	}
 
 	s.httpServer = &http.Server{
-		Handler:           telemetryMiddleware(s.publisher, mux),
+		Handler:           telemetryMiddleware(s.publisher, guardMiddleware(mux)),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 

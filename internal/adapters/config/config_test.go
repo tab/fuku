@@ -21,6 +21,7 @@ func Test_defaultConfig(t *testing.T) {
 	assert.Equal(t, RetryBackoff, cfg.Retry.Backoff)
 	assert.Equal(t, SocketLogsBufferSize, cfg.Logs.Buffer)
 	assert.Equal(t, SocketLogsHistorySize, cfg.Logs.History)
+	assert.Equal(t, DefaultAPIListen, cfg.Server.Listen)
 }
 
 func Test_applyDefaults(t *testing.T) {
