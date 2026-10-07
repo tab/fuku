@@ -18,6 +18,13 @@
   - Added: 20261005
   - Source: [Agent skill](20261004-agent-skill/feature.md)
 
+- [ ] **BL-031 – Make the JetBrains plugin verify that the connected fuku serves the open project**
+  - Why: the plugin is one application-level connection to one `host:port`, and the API now runs by default on 3858; with two projects open, the second fuku walks to 3859 while both IDE windows connect to the first, show its services and send it the actions
+  - Fix: decode `project` from `/status`, compare it with the IDE project path, disable the controls and name the mismatch, and let the user pick the bound port
+  - Boundary: a plugin change with no test suite (BL-005); the REST API and the fuku defaults stay as they are
+  - Added: 20261007
+  - Source: [REST API defaults code review](20261006-rest-api-defaults/code-review.md)
+
 ## Medium
 
 - [ ] **BL-001 – Define and enforce the package-level variable policy**
@@ -107,13 +114,6 @@
   - Added: 20261004
   - Source: [Agent skill end-to-end tests](20261004-agent-skill-e2e/feature.md), spike
 
-- [ ] **BL-017 – Make the API token optional behind `Host` and `Origin` checks**
-  - Why: the token cannot stop a local process, which can read `fuku.yaml`, and it forces every API client to handle a secret; it is still the only defence against a browser page, because `adapters/rest` checks neither header
-  - Fix: reject a request whose `Host` is not a loopback name and any request that carries an `Origin`, then let `server.listen` work without `server.auth.token`
-  - Boundary: a config contract change; the JetBrains plugin and the agent skill both send the token today
-  - Added: 20261004
-  - Source: [Agent skill](20261004-agent-skill/feature.md)
-
 - [ ] **BL-026 – Restore the phase when the stop of every service cannot be published**
   - Why: `services.Control.StopAll` closes admission before it publishes. When the critical publish fails with bus overload, the phase stays `stopping` with no command in flight. A later stop is acknowledged and does nothing
   - Fix: put the phase back when the publish fails, as `admit` releases its reservation
@@ -160,6 +160,13 @@
   - Source: [Agent skill end-to-end tests](20261004-agent-skill-e2e/feature.md)
 
 ## Done
+
+- [x] **BL-017 – Make the API token optional behind `Host` and `Origin` checks**
+  - Why: the token cannot stop a local process, which can read `fuku.yaml`, and it forces every API client to handle a secret; it is still the only defence against a browser page, because `adapters/rest` checks neither header
+  - Fix: reject a request whose `Host` is not a loopback name and any request that carries an `Origin`, then let `server.listen` work without `server.auth.token`
+  - Boundary: a config contract change; the JetBrains plugin and the agent skill both send the token today
+  - Added: 20261004
+  - Source: [Agent skill](20261004-agent-skill/feature.md)
 
 - [x] **BL-018 – Do not clean up when `fuku stop` cannot reach the running fuku**
   - Why: a dial error other than `ECONNREFUSED`, such as `EPERM` in an agent sandbox, prints `Cannot reach the running fuku` and returns nil; `fuku stop` then kills the processes in the service directories under a live fuku, removes its socket and exits 0
