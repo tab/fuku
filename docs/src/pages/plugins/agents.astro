@@ -61,6 +61,25 @@ codex plugin add fuku@fuku`} />
   <p>You can also install it from the plugin browser. Enter <code>/plugins</code> in the Codex CLI to open it.</p>
   <p>The skill becomes available when you start a new chat or CLI session.</p>
 
+  <div class="section-eyebrow">Upgrade</div>
+  <h2>Claude Code</h2>
+
+  <p>From your shell, refresh the marketplace, then update the plugin:</p>
+
+  <CodeTerminal code={`claude plugin marketplace update fuku
+claude plugin update fuku@fuku`} />
+
+  <p>Start a new session after the upgrade.</p>
+
+  <h2>Codex</h2>
+
+  <p>From your shell, upgrade the marketplace, then add the plugin again:</p>
+
+  <CodeTerminal code={`codex plugin marketplace upgrade fuku
+codex plugin add fuku@fuku`} />
+
+  <p>Start a new session after the upgrade.</p>
+
   <div class="section-eyebrow">How it works</div>
   <h2>What the skill does</h2>
 
