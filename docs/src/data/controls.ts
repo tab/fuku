@@ -14,6 +14,7 @@ export function getKeyboardControls(): KeyboardControl[] {
     { keys: [["s"]], action: "Stop or start the selected service" },
     { keys: [["r"]], action: "Restart the selected service" },
     { keys: [["ctrl+r"]], action: "Restart all failed services" },
+    { keys: [["t"]], action: "Show or hide the rotating tips" },
     { keys: [["/"]], action: "Filter services by name" },
     { keys: [["Esc"]], action: "Close the service info aside, or clear filter when it is already closed" },
     { keys: [["q"]], action: "Quit and stop all services" },
