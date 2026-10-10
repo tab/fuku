@@ -35,5 +35,6 @@ export function getFeaturesNav(base: string): NavItem[] {
     { label: "Hot-Reload", href: `${base}features/hot-reload/` },
     { label: "Log Streaming", href: `${base}features/log-streaming/` },
     { label: "Lifecycle", href: `${base}features/lifecycle/` },
+    { label: "AI Agents", href: `${base}features/agents/` },
   ];
 }

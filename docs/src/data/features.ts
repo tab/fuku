@@ -49,5 +49,12 @@ export function getFeatures(base: string): Feature[] {
       icon: "shield",
       href: `${base}features/lifecycle/`,
     },
+    {
+      title: "AI Agents",
+      description:
+        "Claude Code and Codex plugin: the agent runs a profile in the background, reads bounded logs, and manages services through the API.",
+      icon: "bot",
+      href: `${base}features/agents/`,
+    },
   ];
 }

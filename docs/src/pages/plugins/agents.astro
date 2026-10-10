@@ -23,17 +23,7 @@ const nav = getPluginsNav(base);
 
   <p>The plugin holds one Agent Skill named <code>fuku</code>. Both hosts load the same skill.</p>
   <p>It tells the agent how to use the fuku CLI and the REST API. It adds no slash command, no hook and no MCP server.</p>
-
-  <div class="section-eyebrow">Requirements</div>
-  <h2>Before you install</h2>
-
-  <ul>
-    <li><strong>fuku</strong> on <code>PATH</code>, in a version that has <code>fuku run -d</code></li>
-    <li><strong>A project</strong> with a <code>fuku.yaml</code> at its root</li>
-    <li><strong>The REST API</strong>, only for the state of one service and for actions on one service. It is on by default. A token is optional. See <a href={`${base}docs/api/`}>REST API</a></li>
-  </ul>
-
-  <p>Run, logs, stop and doctor work without the API.</p>
+  <p>It needs fuku 0.22.0 or later on <code>PATH</code>, and a project with a <code>fuku.yaml</code>.</p>
 
   <div class="section-eyebrow">Installation</div>
   <h2>Claude Code</h2>

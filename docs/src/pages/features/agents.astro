@@ -1,0 +1,56 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeTerminal from "../../components/CodeTerminal.astro";
+import AgentDemo from "../../components/demos/AgentDemo.astro";
+import { getFeaturesNav } from "../../data/nav";
+import GetStartedCTA from "../../components/GetStartedCTA.astro";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}features/agents/`;
+const nav = getFeaturesNav(base);
+---
+
+<DocsLayout
+  title="AI Agents - fuku"
+  description="Let Claude Code or Codex run, inspect, debug and stop your local services with fuku."
+  current={current}
+  nav={nav}
+  section="features"
+  breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "AI Agents", href: current }]}
+>
+  <h1>AI Agents</h1>
+  <p class="lead">Let Claude Code or Codex run, inspect, debug and stop your local services with fuku.</p>
+
+  <p>The fuku plugin holds one Agent Skill. It teaches the agent to use the fuku CLI and the REST API.</p>
+
+  <AgentDemo />
+
+  <div class="section-eyebrow">How it works</div>
+  <h2>What the agent does</h2>
+
+  <ul>
+    <li><strong>Runs fuku in detached mode.</strong> <code>fuku run &lt;profile&gt; -d</code> starts the profile in the background and returns once every service runs. The summary names each ready service, the PID and the API address</li>
+    <li><strong>Checks the status.</strong> <code>fuku doctor &lt;profile&gt; --json</code> reports whether fuku already runs, config errors, missing directories and busy ports. When fuku already runs, the agent attaches to it and never starts a second one</li>
+    <li><strong>Manages services.</strong> It lists, starts, stops and restarts services through the <a href={`${base}docs/api/`} target="_blank" rel="noopener">REST API</a>. The API token never reaches the agent's output</li>
+    <li><strong>Reads logs.</strong> <code>fuku logs --tail 100 --no-follow --no-ui</code> reads the recent output and exits. No log follower is left behind</li>
+    <li><strong>Helps with configuration.</strong> Shared changes go to <code>fuku.yaml</code>, local-only ones to <code>fuku.override.yaml</code>. The agent validates the result with <code>fuku doctor</code> and restarts the profile to apply it</li>
+  </ul>
+
+  <div class="section-eyebrow">Installation</div>
+  <h2>Claude Code</h2>
+
+  <CodeTerminal code={`claude plugin marketplace add tab/fuku
+claude plugin install fuku@fuku`} />
+
+  <h2>Codex</h2>
+
+  <CodeTerminal code={`codex plugin marketplace add tab/fuku
+codex plugin add fuku@fuku`} />
+
+  <p>
+    The <a href={`${base}plugins/agents/`}>AI Agents plugin</a> page has the requirements, the in-session install,
+    the upgrade commands and every rule the skill follows.
+  </p>
+
+  <GetStartedCTA />
+</DocsLayout>
