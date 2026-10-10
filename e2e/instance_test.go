@@ -56,6 +56,8 @@ func Test_Instance_RefusesSecondRun(t *testing.T) {
 }
 
 func Test_Instance_RefusesSecondRunWithoutAPI(t *testing.T) {
+	t.Setenv("FUKU_API_DISABLED", "1")
+
 	runner := NewRunner(t, "testdata/default-tier")
 	defer runner.Stop()
 

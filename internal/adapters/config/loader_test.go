@@ -257,10 +257,11 @@ func Test_loadDefault_EnvironmentFieldsIgnoreTheConfigFile(t *testing.T) {
 	t.Chdir(dir)
 	t.Setenv("FUKU_TELEMETRY_DISABLED", "1")
 	t.Setenv("FUKU_UPDATER_DISABLED", "1")
+	t.Setenv("FUKU_API_DISABLED", "1")
 	t.Setenv("SENTRY_DSN", "")
 	t.Setenv("GO_ENV", "")
 
-	content := "version: 2\nappenv: development\nsentrydsn: https://yaml@sentry.io/1\ntelemetry: true\nupdater: true\nservices:\n  api:\n    dir: ./api\n"
+	content := "version: 2\nappenv: development\nsentrydsn: https://yaml@sentry.io/1\ntelemetry: true\nupdater: true\napi: true\nservices:\n  api:\n    dir: ./api\n"
 
 	err := os.WriteFile(ConfigFile, []byte(content), 0644)
 	require.NoError(t, err)
@@ -269,6 +270,7 @@ func Test_loadDefault_EnvironmentFieldsIgnoreTheConfigFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, cfg.Telemetry)
 	assert.False(t, cfg.Updater)
+	assert.False(t, cfg.API)
 	assert.Empty(t, cfg.SentryDSN)
 	assert.Equal(t, EnvProduction, cfg.AppEnv)
 }
@@ -455,6 +457,136 @@ logs:
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedBuffer, cfg.Logs.Buffer)
 			assert.Equal(t, tt.expectedHistory, cfg.Logs.History)
+		})
+	}
+}
+
+func Test_loadDefault_ServerConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		yaml     string
+		env      string
+		expected model.Server
+	}{
+		{
+			name:     "default address without a server block",
+			yaml:     "version: 1\n",
+			expected: model.Server{Listen: DefaultAPIListen},
+		},
+		{
+			name:     "default address with only a token",
+			yaml:     "version: 1\nserver:\n  auth:\n    token: secret\n",
+			expected: model.Server{Listen: DefaultAPIListen, Token: "secret"},
+		},
+		{
+			name:     "default address with a null listen",
+			yaml:     "version: 1\nserver:\n  listen:\n",
+			expected: model.Server{Listen: DefaultAPIListen},
+		},
+		{
+			name:     "default address with a tilde listen",
+			yaml:     "version: 1\nserver:\n  listen: ~\n",
+			expected: model.Server{Listen: DefaultAPIListen},
+		},
+		{
+			name:     "loopback listen replaces the default",
+			yaml:     "version: 1\nserver:\n  listen: localhost:9000\n",
+			expected: model.Server{Listen: "localhost:9000"},
+		},
+		{
+			name:     "empty listen turns the API off",
+			yaml:     "version: 1\nserver:\n  listen: \"\"\n",
+			expected: model.Server{},
+		},
+		{
+			name:     "unquoted none turns the API off",
+			yaml:     "version: 1\nserver:\n  listen: none\n",
+			expected: model.Server{},
+		},
+		{
+			name:     "quoted none turns the API off",
+			yaml:     "version: 1\nserver:\n  listen: \"none\"\n",
+			expected: model.Server{},
+		},
+		{
+			name:     "FUKU_API_DISABLED=1 turns the API off over a set address",
+			yaml:     "version: 1\nserver:\n  listen: 127.0.0.1:9000\n  auth:\n    token: secret\n",
+			env:      "1",
+			expected: model.Server{Token: "secret"},
+		},
+		{
+			name:     "FUKU_API_DISABLED=0 leaves the API on",
+			yaml:     "version: 1\nserver:\n  listen: 127.0.0.1:9000\n",
+			env:      "0",
+			expected: model.Server{Listen: "127.0.0.1:9000"},
+		},
+		{
+			name:     "FUKU_API_DISABLED=true leaves the API on",
+			yaml:     "version: 1\nserver:\n  listen: 127.0.0.1:9000\n",
+			env:      "true",
+			expected: model.Server{Listen: "127.0.0.1:9000"},
+		},
+		{
+			name:     "FUKU_API_DISABLED with an arbitrary string leaves the API on",
+			yaml:     "version: 1\n",
+			env:      "anything",
+			expected: model.Server{Listen: DefaultAPIListen},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("FUKU_API_DISABLED", tt.env)
+
+			require.NoError(t, os.WriteFile(ConfigFile, []byte(tt.yaml), 0644))
+
+			cfg, topology, _, err := loadDefault()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, Project(cfg, topology).Server)
+		})
+	}
+}
+
+func Test_loadDefault_ServerConfig_InvalidListen(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		env  string
+	}{
+		{
+			name: "capitalized None",
+			yaml: "version: 1\nserver:\n  listen: None\n",
+		},
+		{
+			name: "unquoted off",
+			yaml: "version: 1\nserver:\n  listen: off\n",
+		},
+		{
+			name: "unquoted false",
+			yaml: "version: 1\nserver:\n  listen: false\n",
+		},
+		{
+			name: "quoted false",
+			yaml: "version: 1\nserver:\n  listen: \"false\"\n",
+		},
+		{
+			name: "invalid listen with FUKU_API_DISABLED=1",
+			yaml: "version: 1\nserver:\n  listen: off\n",
+			env:  "1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("FUKU_API_DISABLED", tt.env)
+
+			require.NoError(t, os.WriteFile(ConfigFile, []byte(tt.yaml), 0644))
+
+			cfg, _, _, err := loadDefault()
+			require.ErrorIs(t, err, ErrAPIInvalidListen)
+			assert.Nil(t, cfg)
 		})
 	}
 }
@@ -906,6 +1038,60 @@ func Test_loadDefault_Override_NullRespectedByRuntimeDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
 	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
+}
+
+func Test_loadDefault_Override_ServerListen(t *testing.T) {
+	tests := []struct {
+		name         string
+		override     string
+		overrideFile string
+		expected     string
+	}{
+		{
+			name:         "empty listen in fuku.override.yaml turns the API off",
+			override:     "server:\n  listen: \"\"\n",
+			overrideFile: OverrideConfigFile,
+			expected:     "",
+		},
+		{
+			name:         "empty listen in fuku.override.yml turns the API off",
+			override:     "server:\n  listen: \"\"\n",
+			overrideFile: OverrideConfigFileAlt,
+			expected:     "",
+		},
+		{
+			name:         "none in fuku.override.yaml turns the API off",
+			override:     "server:\n  listen: none\n",
+			overrideFile: OverrideConfigFile,
+			expected:     "",
+		},
+		{
+			name:         "none in fuku.override.yml turns the API off",
+			override:     "server:\n  listen: none\n",
+			overrideFile: OverrideConfigFileAlt,
+			expected:     "",
+		},
+		{
+			name:         "null listen in the override brings the default back",
+			override:     "server:\n  listen:\n",
+			overrideFile: OverrideConfigFile,
+			expected:     DefaultAPIListen,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("FUKU_API_DISABLED", "")
+
+			require.NoError(t, os.WriteFile(ConfigFile, []byte("version: 1\nserver:\n  listen: 127.0.0.1:9000\n"), 0644))
+			require.NoError(t, os.WriteFile(tt.overrideFile, []byte(tt.override), 0644))
+
+			cfg, topology, _, err := loadDefault()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, Project(cfg, topology).Server.Listen)
+		})
+	}
 }
 
 func Test_loadDefault_Override_AffectsDefaultsTierTopology(t *testing.T) {

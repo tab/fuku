@@ -61,9 +61,9 @@ logs:
   history: 5000                     # default: 5000
 
 server:
-  listen: "127.0.0.1:9876"          # default: empty, the server is off
+  listen: "127.0.0.1:3858"          # default: 127.0.0.1:3858; "" or none turns the API off
   auth:
-    token: "my-dev-token"           # required with listen
+    token: "my-dev-token"           # optional; when set, the API requires the bearer
 ```
 
 ## `services`
@@ -130,11 +130,15 @@ server:
 
 ## `server`
 
-- an empty `listen` disables the REST API.
-- a set `listen` requires `auth.token`. It must be `host:port` with a loopback host (`127.0.0.1`, `::1`, `localhost`, `ip6-localhost`) and a port in 1–65535.
+- the REST API is on by default at `127.0.0.1:3858`. A missing or null `listen` keeps the default.
+- `listen: ""` or `listen: none` turns it off. `none` is lowercase only. An override's `""` turns it off too. An override's `null` deletes the key, so the default returns.
+- any other `listen` must be `host:port` with a loopback host (`127.0.0.1`, `::1`, `localhost`, `ip6-localhost` or any loopback IP) and a port in 1–65535. It is validated even when `FUKU_API_DISABLED=1`.
+- `auth.token` is optional. When set, every route except `/api/v1/live` and `/api/v1/ready` requires `Authorization: Bearer <token>`.
+- the API answers `403` to a non-loopback `Host` or any `Origin` header, probes included.
 
 ## Environment flags
 
+- `FUKU_API_DISABLED=1` turns the REST API off.
 - `FUKU_UPDATER_DISABLED=1` turns the update check off.
 - `FUKU_TELEMETRY_DISABLED=1` turns telemetry off.
 

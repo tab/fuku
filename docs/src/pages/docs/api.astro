@@ -238,12 +238,14 @@ const endpoints: Endpoint[] = [
         <p>Observe and control services from IDE plugins, desktop apps, and CLI tools.</p>
         <div class="two-col">
           <div class="col-doc">
-            <p>The API server is embedded in the fuku process and available during <code>fuku run</code>. Disabled by default. All endpoints except <code>/api/v1/live</code> and <code>/api/v1/ready</code> require <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
+            <p>The API server is embedded in the fuku process and available during <code>fuku run</code>. It listens on <code>127.0.0.1:3858</code> by default. 3858 spells F-U-K-U on a phone keypad.</p>
+            <p>The API answers only a loopback <code>Host</code>. It answers <code>403</code> to any request with an <code>Origin</code> header, probes included. That turns away a browser. The playground below copies a <code>curl</code> command and sends nothing itself.</p>
+            <p>The token is optional. When <code>server.auth.token</code> is set, every endpoint except <code>/api/v1/live</code> and <code>/api/v1/ready</code> requires an <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
             <table>
               <thead><tr><th>Field</th><th>Description</th></tr></thead>
               <tbody>
-                <tr><td><code>server.listen</code></td><td>TCP address to bind (must be loopback)</td></tr>
-                <tr><td><code>server.auth.token</code></td><td>Bearer token for authentication</td></tr>
+                <tr><td><code>server.listen</code></td><td>Loopback TCP address to bind. Default <code>127.0.0.1:3858</code>. <code>""</code> or <code>none</code> turns the API off, as does <code>FUKU_API_DISABLED=1</code></td></tr>
+                <tr><td><code>server.auth.token</code></td><td>Optional. When set, the bearer token every endpoint except the probes requires</td></tr>
               </tbody>
             </table>
           </div>
@@ -251,14 +253,14 @@ const endpoints: Endpoint[] = [
             <div class="config-block">
               <div class="config-title">fuku.yaml</div>
               <pre><code><span class="hl-key">server</span><span class="hl-punct">:</span>
-  <span class="hl-key">listen</span><span class="hl-punct">:</span> <span class="hl-str">"127.0.0.1:9876"</span>
+  <span class="hl-key">listen</span><span class="hl-punct">:</span> <span class="hl-str">"127.0.0.1:3858"</span>
   <span class="hl-key">auth</span><span class="hl-punct">:</span>
     <span class="hl-key">token</span><span class="hl-punct">:</span> <span class="hl-str">"my-dev-token"</span></code></pre>
             </div>
             <div class="connection-fields">
               <div class="input-row">
                 <label class="input-label">Base URL</label>
-                <input type="text" id="pg-base" value="http://127.0.0.1:9876" class="pg-input" />
+                <input type="text" id="pg-base" value="http://127.0.0.1:3858" class="pg-input" />
               </div>
               <div class="input-row">
                 <label class="input-label">Token</label>
@@ -320,7 +322,8 @@ const endpoints: Endpoint[] = [
             <table>
               <thead><tr><th>Status</th><th>Error</th><th>When</th></tr></thead>
               <tbody>
-                <tr><td><code>401</code></td><td>unauthorized</td><td>Missing or invalid bearer token</td></tr>
+                <tr><td><code>401</code></td><td>unauthorized</td><td>The config sets a token and the request lacks it or sends a wrong one</td></tr>
+                <tr><td><code>403</code></td><td>forbidden</td><td>The <code>Host</code> is not loopback or the request carries an <code>Origin</code> header</td></tr>
                 <tr><td><code>404</code></td><td>service not found</td><td>Unknown UUID</td></tr>
                 <tr><td><code>409</code></td><td>service cannot be started</td><td>Start on a running or pending service, or one busy with another action</td></tr>
                 <tr><td><code>409</code></td><td>service is not running</td><td>Stop on a service that is not running, or one busy with another action</td></tr>

@@ -30,7 +30,7 @@ const nav = getPluginsNav(base);
   <ul>
     <li><strong>fuku</strong> on <code>PATH</code>, in a version that has <code>fuku run -d</code></li>
     <li><strong>A project</strong> with a <code>fuku.yaml</code> at its root</li>
-    <li><strong>The REST API</strong>, only for the state of one service and for actions on one service. Set <code>server.listen</code> and <code>server.auth.token</code>. See <a href={`${base}docs/api/`}>REST API</a></li>
+    <li><strong>The REST API</strong>, only for the state of one service and for actions on one service. It is on by default. A token is optional. See <a href={`${base}docs/api/`}>REST API</a></li>
   </ul>
 
   <p>Run, logs, stop and doctor work without the API.</p>
@@ -89,12 +89,12 @@ codex plugin add fuku@fuku`} />
 
   <h3>One-service actions through the API</h3>
   <p>For the state of one service, or to start, stop or restart it, the agent calls the REST API.</p>
-  <p>Without the API, the agent restarts a service by restarting the whole profile: <code>fuku stop &lt;profile&gt;</code>, then <code>fuku run &lt;profile&gt; -d</code>. It does not ask first. For the state of one service it reads the logs and the doctor report, and it tells you that a one-service start or stop needs <code>server.listen</code>.</p>
-  <p>It sends each authenticated request with <code>scripts/api.sh</code> from the skill folder, run from the project root.</p>
+  <p>The API is off when <code>server.listen</code> is <code>""</code> or <code>none</code>, when <code>FUKU_API_DISABLED=1</code> is set, or when its port and the next 9 are all busy. Then the agent restarts a service by restarting the whole profile: <code>fuku stop &lt;profile&gt;</code>, then <code>fuku run &lt;profile&gt; -d</code>. It does not ask first. For the state of one service it reads the logs and the doctor report, and it tells you that a one-service start or stop needs the API.</p>
+  <p>It sends every request except the <code>/live</code> probe with <code>scripts/api.sh</code> from the skill folder, run from the project root.</p>
   <p>Below, <code>&lt;skill&gt;</code> is the folder that holds the skill's <code>SKILL.md</code>.</p>
 
-  <CodeTerminal code={`<skill>/scripts/api.sh GET http://127.0.0.1:9876/api/v1/services
-<skill>/scripts/api.sh POST http://127.0.0.1:9876/api/v1/services/<id>/restart`} />
+  <CodeTerminal code={`<skill>/scripts/api.sh GET http://127.0.0.1:3858/api/v1/services
+<skill>/scripts/api.sh POST http://127.0.0.1:3858/api/v1/services/<id>/restart`} />
 
   <p>The script reads <code>server.auth.token</code> from the config itself. The token reaches no command line, environment variable or output.</p>
   <p>It sends requests only to <code>127.0.0.1</code>, <code>localhost</code> or <code>[::1]</code>.</p>

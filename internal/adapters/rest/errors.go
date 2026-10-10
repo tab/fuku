@@ -5,6 +5,7 @@ import "errors"
 // Sentinels local to the rest adapter
 var (
 	ErrAPIUnauthorized    = errors.New("unauthorized")
+	ErrAPIForbidden       = errors.New("forbidden")
 	ErrAPIServiceNotFound = errors.New("service not found")
 	ErrAPINotStartable    = errors.New("service cannot be started")
 	ErrAPINotRunning      = errors.New("service is not running")

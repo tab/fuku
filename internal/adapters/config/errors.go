@@ -24,5 +24,4 @@ var (
 	ErrInvalidLogsOutput         = errors.New("invalid service logs output value (must be 'stdout' or 'stderr')")
 	ErrAPIInvalidListen          = errors.New("server.listen must be a valid host:port address")
 	ErrAPINotLoopback            = errors.New("server.listen must bind to a loopback address")
-	ErrAPITokenRequired          = errors.New("server.auth.token is required when server.listen is set")
 )

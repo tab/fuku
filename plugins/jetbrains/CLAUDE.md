@@ -34,4 +34,4 @@ make clean:plugin
 - ktlint owns the formatting and skips `*.kts`. Run `make lint:plugin:fix` instead of fixing by hand
 - wire models are `@Serializable` data classes and enums in `api/Models.kt`.
   They decode with `ignoreUnknownKeys`, so a new API field does not break an older plugin
-- `ApiClient` defaults to `127.0.0.1:9876` and talks to `/api/v1` over `java.net.http`. It keeps no copy of fuku's state. It asks
+- `ApiClient` defaults to `127.0.0.1:3858` and talks to `/api/v1` over `java.net.http`. It keeps no copy of fuku's state. It asks

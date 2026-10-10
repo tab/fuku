@@ -300,7 +300,7 @@ func Test_validate(t *testing.T) {
 			}(),
 		},
 		{
-			name:   "server without listen address is disabled",
+			name:   "server with the default listen address",
 			config: defaultConfig(),
 		},
 		{
@@ -321,7 +321,54 @@ func Test_validate(t *testing.T) {
 
 				return cfg
 			}(),
-			expectedErr: ErrAPITokenRequired,
+		},
+		{
+			name: "server with an empty listen is off",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Server.Listen = ""
+
+				return cfg
+			}(),
+		},
+		{
+			name: "server with listen none is off",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Server.Listen = APIListenNone
+
+				return cfg
+			}(),
+		},
+		{
+			name: "server with listen None",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Server.Listen = "None"
+
+				return cfg
+			}(),
+			expectedErr: ErrAPIInvalidListen,
+		},
+		{
+			name: "server with listen off",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Server.Listen = "off"
+
+				return cfg
+			}(),
+			expectedErr: ErrAPIInvalidListen,
+		},
+		{
+			name: "server with listen false",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Server.Listen = "false"
+
+				return cfg
+			}(),
+			expectedErr: ErrAPIInvalidListen,
 		},
 		{
 			name: "server with non-loopback address",
@@ -329,6 +376,16 @@ func Test_validate(t *testing.T) {
 				cfg := defaultConfig()
 				cfg.Server.Listen = "0.0.0.0:9876"
 				cfg.Server.Auth.Token = token
+
+				return cfg
+			}(),
+			expectedErr: ErrAPINotLoopback,
+		},
+		{
+			name: "server with non-loopback address and no token",
+			config: func() *Config {
+				cfg := defaultConfig()
+				cfg.Server.Listen = "0.0.0.0:9876"
 
 				return cfg
 			}(),

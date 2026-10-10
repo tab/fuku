@@ -2,11 +2,11 @@
 
 Feature: [feature.md](feature.md)
 
-Status: in progress
+Status: implemented
 
-Phase: code review
+Phase: pr review
 
-Current step: step 8, the human's manual install and session in Claude Code and Codex; then prepare the PR
+Current step: the PR.
 
 ## Done when
 
@@ -30,7 +30,7 @@ Current step: step 8, the human's manual install and session in Claude Code and 
 - [x] 5. Add the Claude Code and Codex plugin manifests, the logo and the two marketplace files
 - [x] 6. Add the structure check with the script fixtures, `make test:agents-plugin` and the CI job in `checks.yaml` and `master.yaml`
 - [x] 7. Add the docs page, the plugins index link, the nav entry and the `README.md` section
-- [ ] 8. Run the manual install and the manual session in both hosts
+- [x] 8. Run the manual install and the manual session in both hosts
 - [x] 9. Let the agent stop or restart fuku whoever started it, approved by the human after the code gate
   - Restart the whole profile without asking when the API is off, and treat a request to apply a config change as the ask
   - Checks: `make test:agents-plugin`

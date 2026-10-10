@@ -155,12 +155,8 @@ func (c *Config) validateLogs() error {
 
 // validateServer validates the built-in HTTP API server configuration
 func (c *Config) validateServer() error {
-	if c.Server.Listen == "" {
+	if c.Server.Listen == "" || c.Server.Listen == APIListenNone {
 		return nil
-	}
-
-	if c.Server.Auth.Token == "" {
-		return ErrAPITokenRequired
 	}
 
 	host, portStr, err := net.SplitHostPort(c.Server.Listen)

@@ -2,6 +2,7 @@ package rest
 
 import (
 	"crypto/subtle"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -73,4 +74,28 @@ func authMiddleware(token string, next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func guardMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.IsAbs() || len(r.Header.Values("Origin")) > 0 || !isLoopbackHost(r.Host) {
+			writeError(w, http.StatusForbidden, ErrAPIForbidden)
+
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// isLoopbackHost reports whether a Host header names this machine, with or without a port
+func isLoopbackHost(hostport string) bool {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		host = hostport
+	}
+
+	host = strings.Trim(host, "[]")
+
+	return host == "localhost" || host == "ip6-localhost" || net.ParseIP(host).IsLoopback()
 }

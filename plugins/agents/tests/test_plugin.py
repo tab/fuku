@@ -353,17 +353,39 @@ class ScriptTests(unittest.TestCase):
                 self.assertTrue(result.stdout.endswith("\n200\n"))
                 self.assertNotIn("fake-", result.stdout + result.stderr)
 
-    def test_sends_nothing_without_a_readable_token(self):
+    def test_sends_no_header_without_a_token(self):
         cases = [
+            ("no server block", {"fuku.yaml": "services:\n  api:\n    token: fake-decoy-service\n"}),
+            ("server with only listen", {"fuku.yaml": 'server:\n  listen: "127.0.0.1:3858"\n'}),
+            ("null auth", {"fuku.yaml": "server:\n  auth: null\n"}),
+            ("empty quoted token", {"fuku.yaml": 'server:\n  auth:\n    token: ""\n'}),
+            ("override empties token with quotes", {"fuku.yaml": BASE, "fuku.override.yaml": "server:\n  auth:\n    token: ''\n"}),
             ("override nulls token", {"fuku.yaml": BASE, "fuku.override.yaml": "server:\n  auth:\n    token: null\n"}),
             ("override empties token", {"fuku.yaml": BASE, "fuku.override.yaml": "server:\n  auth:\n    token: # unset\n"}),
             ("override nulls auth", {"fuku.yaml": BASE, "fuku.override.yaml": "server:\n  auth:\n  listen: x\n"}),
             ("override nulls server", {"fuku.yaml": BASE, "fuku.override.yaml": "server: ~\n"}),
+            ("crlf override nulls token", {"fuku.yaml": BASE, "fuku.override.yaml": "server:\r\n  auth:\r\n    token: ~\r\n"}),
+        ]
+
+        for name, files in cases:
+            with self.subTest(case=name):
+                Listener.requests.clear()
+
+                result = self.run_script(files, ["GET", "{url}/api/v1/status"])
+
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual([("GET", "/api/v1/status", None)], Listener.requests)
+                self.assertEqual('{"ok":true}\n200\n', result.stdout)
+                self.assertNotIn("fake-", result.stdout + result.stderr)
+
+    def test_sends_nothing_without_a_readable_token(self):
+        cases = [
             ("no config", {"fuku.override.yaml": "server:\n  auth:\n    token: fake-orphan\n"}),
-            ("no token", {"fuku.yaml": 'server:\n  listen: "127.0.0.1:9876"\n'}),
             ("block scalar", {"fuku.yaml": "server:\n  auth:\n    token: |\n      fake-block\n"}),
             ("escaped double quote", {"fuku.yaml": 'server:\n  auth:\n    token: "fake\\"esc"\n'}),
-            ("crlf override nulls token", {"fuku.yaml": BASE, "fuku.override.yaml": "server:\r\n  auth:\r\n    token: ~\r\n"}),
+            ("anchor on the token", {"fuku.yaml": "server:\n  auth:\n    token: &t fake-anchor\n"}),
+            ("alias on the token", {"fuku.yaml": "x: &t fake-alias\nserver:\n  auth:\n    token: *t\n"}),
+            ("tag on the token", {"fuku.yaml": "server:\n  auth:\n    token: !!str fake-tag\n"}),
         ]
 
         for name, files in cases:

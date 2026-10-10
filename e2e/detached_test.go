@@ -134,3 +134,22 @@ func Test_Detached_InterruptStopsEverything(t *testing.T) {
 
 	assert.NotEqual(t, 0, logs.ExitCode, "an aborted detached start must leave no instance running")
 }
+
+func Test_Detached_APIDisabled(t *testing.T) {
+	t.Setenv("FUKU_API_DISABLED", "1")
+
+	result := RunOnce(t, detachedDir, "run", "-d")
+
+	pid := detachedPID(t, result.Stdout)
+	defer endDetached(pid)
+
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Regexp(t, `Running detached · pid \d+ · 2 services`, result.Stdout)
+	assert.NotRegexp(t, `(?m)^API `, result.Stdout)
+
+	stop := RunOnce(t, detachedDir, "stop")
+
+	assert.Equal(t, 0, stop.ExitCode)
+	require.NoError(t, WaitForGroupExit(pid, 10*time.Second))
+	assert.NoError(t, WaitForNoProcess("sleep 601", 10*time.Second))
+}

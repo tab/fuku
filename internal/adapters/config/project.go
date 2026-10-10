@@ -18,7 +18,7 @@ func Project(cfg *Config, topology *model.Topology) model.Project {
 	project.Concurrency = model.Concurrency{Workers: cfg.Concurrency.Workers}
 	project.Retry = model.Retry{Attempts: cfg.Retry.Attempts, Backoff: cfg.Retry.Backoff}
 	project.Logs = model.Logs{Buffer: cfg.Logs.Buffer, History: cfg.Logs.History}
-	project.Server = model.Server{Listen: cfg.Server.Listen, Token: cfg.Server.Auth.Token}
+	project.Server = projectServer(cfg.Server, cfg.API)
 	project.Telemetry = model.Telemetry{Enabled: cfg.Telemetry, DSN: cfg.SentryDSN, Environment: cfg.AppEnv}
 	project.Updater = model.Updater{Enabled: cfg.Updater}
 
@@ -47,6 +47,16 @@ func Project(cfg *Config, topology *model.Topology) model.Project {
 	project.Exclude = append([]string(nil), cfg.Exclude...)
 
 	return project
+}
+
+// projectServer clears the listen address when the config spells the API off or the environment disables it
+func projectServer(server Server, enabled bool) model.Server {
+	listen := server.Listen
+	if !enabled || listen == APIListenNone {
+		listen = ""
+	}
+
+	return model.Server{Listen: listen, Token: server.Auth.Token}
 }
 
 func buildTierIndex(topology *model.Topology) map[string]int {

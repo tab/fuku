@@ -54,9 +54,11 @@ Use `exclude` to drop a service locally, or add a local profile with its own lis
 - `services.<name>.logs.output`: `stdout`, `stderr` or both
 - `profiles.<name>`: `"*"` for every service, or a list of service names that exist in `services`
 - `exclude`: service names dropped from every profile on this machine
-- `server.listen`: the API address, empty for no API, else `host:port` on a loopback IP such as `127.0.0.1` or `::1`, or on `localhost` or `ip6-localhost`
+- `server.listen`: the API address, `127.0.0.1:3858` when unset
+- `server.listen` set to `""` or `none` turns the API off
+- `server.listen` otherwise takes `host:port` on a loopback IP such as `127.0.0.1` or `::1`, or on `localhost` or `ip6-localhost`
 - `scripts/api.sh` reaches only `127.0.0.1`, `localhost` and `[::1]`, so another loopback IP such as `127.0.0.2` is out of its reach
-- `server.auth.token`: required whenever `server.listen` is set
+- `server.auth.token`: optional. When set, every API call except `/live` and `/ready` needs it
 
 A service with an empty body, such as `api:` alone, is invalid
 `env.files` only feeds the env tab of the terminal UI. Nothing in it reaches the service process

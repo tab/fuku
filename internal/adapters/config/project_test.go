@@ -61,6 +61,7 @@ func Test_Project(t *testing.T) {
 		Server:      Server{Listen: "127.0.0.1:9000"},
 		AppEnv:      "development",
 		SentryDSN:   "https://dsn",
+		API:         true,
 		Telemetry:   true,
 		Updater:     true,
 	}
@@ -144,4 +145,46 @@ func Test_Project(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, actual)
+}
+
+func Test_projectServer(t *testing.T) {
+	tests := []struct {
+		name     string
+		server   Server
+		enabled  bool
+		expected model.Server
+	}{
+		{
+			name:     "keeps a set address",
+			server:   Server{Listen: "127.0.0.1:9000"},
+			enabled:  true,
+			expected: model.Server{Listen: "127.0.0.1:9000"},
+		},
+		{
+			name:     "keeps an empty address off",
+			server:   Server{Listen: ""},
+			enabled:  true,
+			expected: model.Server{},
+		},
+		{
+			name:     "clears none",
+			server:   Server{Listen: APIListenNone},
+			enabled:  true,
+			expected: model.Server{},
+		},
+		{
+			name:     "clears a set address when the environment disables the API",
+			server:   Server{Listen: "127.0.0.1:9000"},
+			enabled:  false,
+			expected: model.Server{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := projectServer(tt.server, tt.enabled)
+
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
 }

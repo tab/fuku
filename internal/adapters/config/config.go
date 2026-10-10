@@ -21,6 +21,7 @@ type Config struct {
 	Retry       Retry               `yaml:"retry"`
 	Logs        LogStream           `yaml:"logs"`
 	Server      Server              `yaml:"server"`
+	API         bool                `mapstructure:"-"`
 	Updater     bool                `mapstructure:"-"`
 }
 
@@ -41,6 +42,8 @@ func defaultConfig() *Config {
 
 	cfg.Logs.Buffer = SocketLogsBufferSize
 	cfg.Logs.History = SocketLogsHistorySize
+
+	cfg.Server.Listen = DefaultAPIListen
 
 	cfg.Profiles[model.ProfileDefault] = "*"
 

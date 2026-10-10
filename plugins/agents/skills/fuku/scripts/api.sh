@@ -1,6 +1,7 @@
 #!/bin/sh
-# Sends one request to the fuku API with server.auth.token from the effective config.
+# Sends one request to the fuku API, with server.auth.token from the effective config when it sets one.
 # The header reaches curl on stdin, so the token is in no argv, environment variable, file or output.
+# Without a token, stdin is empty and curl sends no Authorization header.
 set -eu
 
 fail() { echo "api.sh: $1" >&2; exit "${2:-1}"; }
@@ -112,8 +113,7 @@ BEGIN {
 		S = ""; if (readable(o)) scan(o)
 		if (S == "") scan(b)
 	}
-	if (S != "set" || V == "") fail("no server.auth.token in the effective config")
-	if (emit) print "Authorization: Bearer " V
+	if (emit && S == "set" && V != "") print "Authorization: Bearer " V
 }'
 
 API_SH_CONFIG="$config" awk -v emit=0 "$prog"

@@ -1,0 +1,15 @@
+version: 1
+
+services:
+  api:
+    dir: api
+    readiness:
+      type: log
+      pattern: Service ready
+
+profiles:
+  default: "*"
+
+logging:
+  format: console
+  level: debug

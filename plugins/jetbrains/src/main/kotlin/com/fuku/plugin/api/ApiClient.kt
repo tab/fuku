@@ -9,7 +9,7 @@ import java.time.Duration
 
 class ApiClient(
   private val host: String = "127.0.0.1",
-  private val port: Int = 9876,
+  private val port: Int = 3858,
   private val token: String = "",
   connectTimeout: Duration = Duration.ofSeconds(5),
   private val readTimeout: Duration = Duration.ofSeconds(10),

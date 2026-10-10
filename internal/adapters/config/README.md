@@ -35,6 +35,14 @@ Normalizing trims and lowercases tier names and deduplicates the exclude list.
 Validation covers the logging level, concurrency, retry, logs, server, profile references and every service's command, readiness, logs and watch.
 It runs before the defaults. A service with no body (`api:` alone) fails it. Viper would drop that service silently.
 
+The `server` block has its own rules:
+
+- `listen` is pre-filled with `127.0.0.1:3858`. A missing or null `listen` keeps it. An explicit `""` clears it
+- an override's `""` replaces the base value and turns the API off. An override's `null` deletes the key, and the default returns
+- `""` and `none` pass validation. Any other value must be a loopback `host:port`, even with `FUKU_API_DISABLED=1`
+- the projection turns `none` and `FUKU_API_DISABLED=1` into an empty `Listen`, after validation. An empty `Listen` means no API
+- `auth.token` is optional and passes through as is
+
 A validation failure is `contracts.ErrInvalidConfig`. A read failure is `contracts.ErrFailedToReadConfig`.
 A parse failure is the local `ErrFailedToParseConfig`.
 
