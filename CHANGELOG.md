@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## v0.22.0
+
+### Features
+- **feat:** Run fuku in the background with `fuku run -d`; `fuku stop` stops it
+- **feat:** Serve the REST API by default on `127.0.0.1:3858` with an optional token
+- **feat:** Add the fuku skill for Claude Code and Codex
+- **feat:** Add bounded log replay with `fuku logs --tail` and `--no-follow`
+- **feat:** Refuse a second `fuku run` for the same project
+
+### Fixes
+- **fix:** Scope the log socket to the project
+- **fix:** Handle OS signals in one place
+
+### Refactor
+- **refactor:** Move to an event-driven architecture
+
+### Build
+- **build:** Bump Go to 1.26 and 1.27
+- **build:** Bump Go modules, bubbletea and gopsutil
+- **build:** Bump CI workflow actions
+
 ## v0.21.0
 
 ### Features

@@ -149,7 +149,7 @@ components:
       properties:
         version:
           type: string
-          example: "0.21.0"
+          example: "0.22.0"
         instance:
           type: string
           format: uuid
