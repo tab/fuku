@@ -18,7 +18,6 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Orchestration", href: current }]}
 >
-  <span class="kicker">// features &middot; orchestration</span>
   <h1>Orchestration</h1>
   <p class="lead">Foundation, then platform, then edge. Services in the same tier launch concurrently. The next tier waits for the previous to be ready.</p>
 
@@ -29,7 +28,7 @@ const nav = getFeaturesNav(base);
     Services are grouped into tiers. fuku starts all services in the first tier, waits for them to become ready (via readiness checks or process start), then moves to the next tier. Within each tier, services start concurrently up to the configured worker limit.
   </p>
 
-  <Terminal title="fuku run default">
+  <Terminal title="fuku · tiered startup">
     <pre><span class="dim">$</span> fuku run default
 <span class="dim">│</span>
 <span class="dim">│</span> <span class="muted">preflight</span>  cleaning up stale processes...
@@ -93,7 +92,7 @@ const nav = getFeaturesNav(base);
   backend: [auth, api]          # Just the backend stack
   full: [auth, api, web]`} />
 
-  <Terminal title="fuku">
+  <Terminal title="fuku · profile backend">
     <pre><span class="dim">$</span> fuku run backend
 <span class="dim">│</span> <span class="muted">profile</span>  backend <span class="dim">→</span> auth, api
 <span class="dim">│</span>

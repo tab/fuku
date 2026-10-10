@@ -6,6 +6,7 @@ import ReadinessDemo from "./demos/ReadinessDemo.astro";
 import HotReloadDemo from "./demos/HotReloadDemo.astro";
 import LogStreamingDemo from "./demos/LogStreamingDemo.astro";
 import LifecycleDemo from "./demos/LifecycleDemo.astro";
+import AgentDemo from "./demos/AgentDemo.astro";
 
 const base = import.meta.env.BASE_URL;
 const features = getFeatures(base);
@@ -17,13 +18,14 @@ const leads: Record<string, string> = {
   refresh: "Edit a file, save, and fuku restarts the affected service automatically. Debouncing prevents restart storms, and shared path support handles cross-service dependencies.",
   scroll: "Open a second terminal and run <code>fuku logs</code> to stream output from running services. Filter by service name, see color-coded prefixes, and keep your TUI clean.",
   shield: "<code>Ctrl+C</code> or press <code>q</code> and services stop in reverse tier order – edge first, then platform, then foundation. Each service receives <code>SIGTERM</code> with time to shut down gracefully.",
+  bot: "Install the plugin in Claude Code or Codex and let the agent drive fuku. It attaches to a running instance, starts a profile in the background with <code>fuku run -d</code>, reads bounded logs, and manages services through the REST API.",
 };
 ---
 
 <section class="features-showcase">
   <div class="container">
     <div class="section-eyebrow">// features</div>
-    <h2 class="section-title">One config. Six superpowers.<br/>Zero context-switching.</h2>
+    <h2 class="section-title">One config. Seven superpowers.<br/>Zero context-switching.</h2>
 
     {features.map((f, i) => (
       <div class:list={["feature-row", { reverse: i % 2 === 1 }]}>
@@ -39,6 +41,7 @@ const leads: Record<string, string> = {
           {f.icon === "refresh" && <HotReloadDemo />}
           {f.icon === "scroll" && <LogStreamingDemo />}
           {f.icon === "shield" && <LifecycleDemo />}
+          {f.icon === "bot" && <AgentDemo />}
         </div>
       </div>
     ))}

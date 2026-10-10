@@ -2,6 +2,7 @@ export interface NavItem {
   label: string;
   href: string;
   indent?: boolean;
+  external?: boolean;
 }
 
 export function getDocsNav(base: string): NavItem[] {
@@ -10,7 +11,7 @@ export function getDocsNav(base: string): NavItem[] {
     { label: "Getting Started", href: `${base}docs/getting-started/` },
     { label: "Configuration", href: `${base}docs/configuration/` },
     { label: "CLI Commands", href: `${base}docs/cli/` },
-    { label: "REST API", href: `${base}docs/api/` },
+    { label: "REST API", href: `${base}docs/api/`, external: true },
     { label: "Examples", href: `${base}docs/examples/` },
     { label: "Troubleshooting", href: `${base}docs/troubleshooting/` },
     { label: "Privacy", href: `${base}docs/privacy/` },
@@ -34,5 +35,6 @@ export function getFeaturesNav(base: string): NavItem[] {
     { label: "Hot-Reload", href: `${base}features/hot-reload/` },
     { label: "Log Streaming", href: `${base}features/log-streaming/` },
     { label: "Lifecycle", href: `${base}features/lifecycle/` },
+    { label: "AI Agents", href: `${base}features/agents/` },
   ];
 }

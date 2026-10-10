@@ -18,7 +18,6 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Readiness Checks", href: current }]}
 >
-  <span class="kicker">// features &middot; readiness</span>
   <h1>Readiness Checks</h1>
   <p class="lead">A started process is not a healthy service. fuku polls until your service actually accepts requests.</p>
 
@@ -29,7 +28,7 @@ const nav = getFeaturesNav(base);
     When a service has a readiness check configured, fuku waits for it to pass before marking the service as ready. The next tier only begins after all services in the current tier are ready.
   </p>
 
-  <Terminal title="fuku run default">
+  <Terminal title="fuku · readiness checks">
     <pre><span class="dim">│</span> <span class="purple bold">tier foundation</span>
 <span class="dim">│</span>   <span class="yellow">&#9675;</span> auth        <span class="yellow">checking</span> <span class="dim">http localhost:8081/health...</span>
 <span class="dim">│</span>   <span class="yellow">&#9675;</span> gateway     <span class="yellow">checking</span> <span class="dim">http localhost:8082/health...</span>

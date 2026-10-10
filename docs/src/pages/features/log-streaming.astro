@@ -19,7 +19,6 @@ const nav = getFeaturesNav(base);
   section="features"
   breadcrumb={[{ label: "Features", href: `${base}features/` }, { label: "Log Streaming", href: current }]}
 >
-  <span class="kicker">// features &middot; log streaming</span>
   <h1>Log Streaming</h1>
   <p class="lead">Run fuku logs in a second terminal. Filter by service. Color-coded prefixes. Your TUI stays clean.</p>
 
@@ -36,7 +35,7 @@ const nav = getFeaturesNav(base);
     even when another project runs a profile with the same name.
   </p>
 
-  <Terminal title="terminal – fuku logs">
+  <Terminal title="fuku · log streaming">
     <pre><span class="dim">$</span> fuku logs api auth
 <span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:01Z</span> <span class="blue">INF</span> server listening on :8080
 <span class="purple">api</span>    <span class="dim">│</span> <span class="muted">2024-03-15T10:23:05Z</span> <span class="blue">INF</span> GET /health 200 1ms
@@ -67,8 +66,8 @@ fuku l api worker`} />
   <h2>Bounded reads</h2>
 
   <p>
-    Scripts and AI agents need a log read that ends on its own. <code>--tail</code> limits the buffered replay,
-    <code>--no-follow</code> exits once that replay has been written, and <code>--no-ui</code> drops the logs panel
+    Scripts and AI agents need a log read that ends on its own. <code>--tail</code> limits the buffered replay, <code>--no-follow</code>
+    exits once that replay has been written, and <code>--no-ui</code> drops the logs panel
     and the <code>ctrl+c</code> footer while keeping the log lines and errors.
   </p>
 

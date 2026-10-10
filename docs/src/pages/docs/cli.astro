@@ -17,7 +17,6 @@ const nav = getDocsNav(base);
   section="docs"
   breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "CLI Commands", href: current }]}
 >
-  <span class="kicker">// docs &middot; cli</span>
   <h1>CLI Commands</h1>
   <p class="lead">Command reference, flags, TUI controls, and environment file loading.</p>
 
@@ -90,7 +89,7 @@ const nav = getDocsNav(base);
       </tr>
       <tr>
         <td><code>--no-ui</code></td>
-        <td>Run without the interactive TUI (log-only mode)</td>
+        <td>With <code>run</code>, run without the interactive TUI (log-only mode). With <code>logs</code>, hide the logs panel and the footer and keep the log lines</td>
       </tr>
       <tr>
         <td><code>--detached</code>, <code>-d</code></td>
@@ -99,6 +98,14 @@ const nav = getDocsNav(base);
       <tr>
         <td><code>--profile</code></td>
         <td>Profile the running instance must serve; <code>logs</code> exits with 1 on a mismatch</td>
+      </tr>
+      <tr>
+        <td><code>--tail</code></td>
+        <td>Replay at most the newest n buffered messages, in total across the named services. Must be greater than zero. Supported with <code>logs</code> only</td>
+      </tr>
+      <tr>
+        <td><code>--no-follow</code></td>
+        <td>Exit once the buffered replay is written instead of following new lines. Supported with <code>logs</code> only</td>
       </tr>
       <tr>
         <td><code>--summary</code></td>
@@ -166,13 +173,13 @@ fuku version`} />
 
   <hr />
 
-  <div class="section-eyebrow">Diagnostics</div>
+  <div class="section-eyebrow" id="diagnostics">Diagnostics</div>
   <h2>fuku doctor</h2>
 
   <p>
     <code>fuku doctor</code> runs a read-only health check and prints a sectioned
-    report &mdash; <strong>Environment</strong>, <strong>Configuration</strong>,
-    <strong>Services</strong>, <strong>Topology</strong>, and <strong>Runtime</strong>.
+    report &mdash; <strong>Environment</strong>, <strong>Configuration</strong>, <strong>Services</strong>,
+    <strong>Topology</strong>, and <strong>Runtime</strong>.
     It diagnoses a broken setup without starting any services, so it works even when
     the config fails to load. See <a href={`${base}docs/troubleshooting/#diagnostics`}>Troubleshooting</a> for what each section checks.
   </p>

@@ -7,7 +7,7 @@
         <span class="dot red"></span>
         <span class="dot yellow"></span>
         <span class="dot green"></span>
-        <span class="terminal-title">fuku</span>
+        <span class="terminal-title">fuku · dashboard</span>
       </div>
       <div class="terminal-body">
         <div class="panel">
@@ -89,7 +89,7 @@
 
             <!-- Bottom border labels -->
             <div class="border-bottom">
-              <span class="stats"><span class="api-dot">●</span> 127.0.0.1:9876 • cpu 6.2% • mem 25MB</span>
+              <span class="stats"><span class="api-dot">●</span> 127.0.0.1:3858 • cpu 6.2% • mem 25MB</span>
               <span class="border-spacer"></span>
               <span class="version">v0.22.0</span>
             </div>
@@ -107,8 +107,6 @@
               <span class="help-key">s</span> <span class="help-desc">stop/start</span>
               <span class="help-sep">•</span>
               <span class="help-key">r</span> <span class="help-desc">restart</span>
-              <span class="help-sep">•</span>
-              <span class="help-key">ctrl+r</span> <span class="help-desc">restart failed</span>
               <span class="help-sep">•</span>
               <span class="help-key">/</span> <span class="help-desc">filter</span>
               <span class="help-sep">•</span>
@@ -135,6 +133,7 @@
   }
 
   .terminal-header {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -154,8 +153,11 @@
   .green { background: #28c840; }
 
   .terminal-title {
-    flex: 1;
+    position: absolute;
+    left: 0;
+    right: 0;
     text-align: center;
+    pointer-events: none;
     font-size: 0.8rem;
     color: #6c7086;
     font-family: var(--mono);
@@ -337,7 +339,7 @@
 
   .help-key { color: #6c7086; }
   .help-desc { color: #a6adc8; }
-  .help-sep { color: #6c7086; margin: 0 2px; }
+  .help-sep { color: #6c7086; margin: 0 calc(1ch + 2px); }
 
   @media (max-width: 768px) {
     .terminal-body {

@@ -19,7 +19,6 @@ const installMethods = getInstallMethods();
   section="docs"
   breadcrumb={[{ label: "Docs", href: `${base}docs/` }, { label: "Getting Started", href: current }]}
 >
-  <span class="kicker">// docs &middot; getting started</span>
   <h1>Getting Started</h1>
   <p class="lead">Install fuku and get your services running in minutes.</p>
 
@@ -89,5 +88,27 @@ fuku run core --no-ui`} />
 
   <p>
     Check the <a href={`${base}docs/examples/`}>Examples</a> page for real-world configuration patterns.
+  </p>
+
+  <div class="section-eyebrow">AI agents</div>
+  <h2>Hand it to your agent</h2>
+
+  <p>
+    Claude Code and Codex can drive fuku for you: run a profile in the background, read bounded logs and manage services.
+    Install the plugin in Claude Code:
+  </p>
+
+  <CodeTerminal code={`claude plugin marketplace add tab/fuku
+claude plugin install fuku@fuku`} />
+
+  <p>
+    Or in Codex:
+  </p>
+
+  <CodeTerminal code={`codex plugin marketplace add tab/fuku
+codex plugin add fuku@fuku`} />
+
+  <p>
+    See the <a href={`${base}plugins/agents/`}>AI Agents plugin</a> page for the requirements and the rules the agent follows.
   </p>
 </DocsLayout>
