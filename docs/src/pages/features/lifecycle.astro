@@ -28,7 +28,7 @@ const nav = getFeaturesNav(base);
     When you press <code>q</code> in the TUI or send SIGINT/SIGTERM, fuku performs a graceful shutdown – stopping services in reverse tier order so that dependent services stop before their dependencies.
   </p>
 
-  <Terminal title="fuku">
+  <Terminal title="fuku · graceful shutdown">
     <pre><span class="dim">│</span> <span class="muted">received signal:</span> <span class="yellow">SIGINT</span>
 <span class="dim">│</span>
 <span class="dim">│</span> <span class="purple bold">stopping tier edge</span>
@@ -68,7 +68,7 @@ const nav = getFeaturesNav(base);
     Before starting services, fuku automatically checks for orphaned processes from previous runs. This prevents port conflicts and zombie processes – common issues when a previous fuku session crashed or was killed with <code>kill -9</code>.
   </p>
 
-  <Terminal title="fuku run default">
+  <Terminal title="fuku · preflight cleanup">
     <pre><span class="dim">$</span> fuku run default
 <span class="dim">│</span>
 <span class="dim">│</span> <span class="muted">preflight</span>  scanning service directories...
@@ -95,7 +95,7 @@ const nav = getFeaturesNav(base);
     A second <code>fuku run</code> of the same project is refused while the first instance holds an exclusive lock on the project's lock file. The second process exits before its pre-flight cleanup can touch the running services. An instance started by an older fuku holds no lock, so it is not detected.
   </p>
 
-  <Terminal title="fuku run">
+  <Terminal title="fuku · single instance">
     <pre><span class="dim">$</span> fuku run
 <span class="red">Error: fuku is already running for this project</span> <span class="dim">(socket /tmp/fuku-3f9a1c2b7d4e5f60.sock)</span>
 Run 'fuku logs' to follow it or stop that instance before starting another.

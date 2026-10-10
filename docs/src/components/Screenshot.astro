@@ -7,7 +7,7 @@
         <span class="dot red"></span>
         <span class="dot yellow"></span>
         <span class="dot green"></span>
-        <span class="terminal-title">fuku</span>
+        <span class="terminal-title">fuku · dashboard</span>
       </div>
       <div class="terminal-body">
         <div class="panel">
@@ -133,6 +133,7 @@
   }
 
   .terminal-header {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -152,8 +153,11 @@
   .green { background: #28c840; }
 
   .terminal-title {
-    flex: 1;
+    position: absolute;
+    left: 0;
+    right: 0;
     text-align: center;
+    pointer-events: none;
     font-size: 0.8rem;
     color: #6c7086;
     font-family: var(--mono);

@@ -29,7 +29,7 @@ const nav = getFeaturesNav(base);
     fuku watches file system events in your service directories and restarts the affected service when matching files change. A debounce timer prevents restart storms when multiple files change at once (e.g., during a <code>git checkout</code>).
   </p>
 
-  <Terminal title="fuku run default">
+  <Terminal title="fuku · hot-reload">
     <pre><span class="dim">│</span> <span class="green">&#10003;</span> api         <span class="muted">running</span>  <span class="dim">pid 76758</span>
 <span class="dim">│</span> <span class="green">&#10003;</span> worker      <span class="muted">running</span>  <span class="dim">pid 76759</span>
 <span class="dim">│</span>
@@ -103,7 +103,7 @@ const nav = getFeaturesNav(base);
       include: ["**/*.go"]
       shared: ["pkg/common"]`} />
 
-  <Terminal title="fuku run default">
+  <Terminal title="fuku · shared paths">
     <pre><span class="dim">│</span> <span class="blue">watch</span>  file changed: <span class="muted">pkg/common/auth.go</span>
 <span class="dim">│</span> <span class="blue">watch</span>  shared path match <span class="dim">→</span> api, worker
 <span class="dim">│</span>
