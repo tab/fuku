@@ -8,7 +8,7 @@ Replay, filtering and history rules live in `app/logs`.
 One JSON object per line.
 
 1. the client sends `subscribe {services, tail, noFollow}`
-2. the server answers `status {version, instance, fingerprint, profile, services, pid, tail, noFollow}`
+2. the server answers `status {version, instance, fingerprint, profile, services, pid, api, mode, tail, noFollow}`
 3. the server sends one `log {service, message}` per line until the queue closes or the client leaves
 
 `fuku stop` sends `stop` as the first frame instead. The server calls `Control.StopAll`, the same stop the TUI's `q` makes.
@@ -19,6 +19,10 @@ The status frame echoes the replay options on purpose. A bounded read (`--tail`,
 If the first frame is not a status frame with the exact options requested, the client fails with `ErrBoundedReadNotSupported`.
 An older server ignored the options and would stream forever.
 `pid` is the server's process ID. `fuku stop` waits on it and signals it when the stop frame is not echoed. An older server omits it.
+`api` is the bound REST API address, read from the registry snapshot when the frame is written. It is omitted when the API is off.
+A client treats a missing `api` as unknown. An older server omits it too.
+`mode` is how the run holds its terminal: `tui`, `foreground` or `detached`. The composition projects it as `Options.Mode`.
+A client treats a missing `mode` as unknown. An older server omits it.
 `fuku stop` ends with `Client.Remove`. It deletes the project socket a dead instance left behind and keeps one that still answers.
 
 ## The server

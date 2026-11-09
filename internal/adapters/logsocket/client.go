@@ -281,6 +281,8 @@ func notification(status StatusMessage) contracts.LogStatus {
 		Profile:  status.Profile,
 		Services: status.Services,
 		PID:      status.PID,
+		API:      status.API,
+		Mode:     status.Mode,
 	}
 }
 

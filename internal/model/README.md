@@ -14,3 +14,4 @@ The plain values every ring shares. It imports the standard library only.
 - a service crosses a package boundary by `ID`. `Project.Service(name)` is the one lookup by name.
   `LogLine` carries the name. It labels output and the `fuku logs` filter matches on it
 - `Status` and `Phase` values are in the REST API, so a shipped string is frozen
+- `RunMode` values are in the log socket status frame, so a shipped string is frozen too
