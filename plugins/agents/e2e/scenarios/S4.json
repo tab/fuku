@@ -13,7 +13,7 @@
     "served_by_built_fuku"
   ],
   "budget": {
-    "tool_calls": 18,
+    "tool_calls": 6,
     "input_tokens": 325000,
     "seconds": 90,
     "usd": 0.8

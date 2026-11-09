@@ -50,10 +50,13 @@ def fixture_profiles():
 
 PROFILES = fixture_profiles()
 SERVICE_PROGRAMS = re.findall(r"\bexec (.+)$", (FIXTURE / "fuku.yaml").read_text(encoding="utf-8"), re.M)
+FIXTURE_PROGRAMS = dict(re.findall(r"^  ([\w-]+):\n    dir: .*\n    command: .*\bexec (.+)$",
+                                   (FIXTURE / "fuku.yaml").read_text(encoding="utf-8"), re.M))
 
 KEYS = {"prompt", "profile", "setup", "checks", "budget"}
 BUDGET = {"tool_calls", "input_tokens", "seconds", "usd"}
-SETUP = {"start_fuku": False, "override": "template", "wait_service_exited": "service", "edit_service_command": "service"}
+SETUP = {"start_fuku": False, "start_fuku_foreground": False, "override": "template", "wait_service_exited": "service",
+         "edit_service_command": "service"}
 STATE_CHECKS = {
     "fuku_running": False,
     "services_running": False,
@@ -61,6 +64,9 @@ STATE_CHECKS = {
     "same_service_pids": False,
     "fuku_pid_changed": False,
     "served_by_built_fuku": False,
+    "project_e2e_passes": False,
+    "override_restored": False,
+    "config_unchanged": False,
     "service_pid_changed": "service",
     "other_service_pids_same": "service",
     "service_command_is": "service",
@@ -107,7 +113,10 @@ class Run:
     fingerprint: str
     values: dict = dataclasses.field(default_factory=dict)
     expected_commands: dict = dataclasses.field(default_factory=dict)
+    override: object = None
+    config_mtime: object = None
     seen_pids: set = dataclasses.field(default_factory=set)
+    foreground: object = None
     before: Snapshot = dataclasses.field(default_factory=Snapshot)
     after: Snapshot = dataclasses.field(default_factory=Snapshot)
 
@@ -356,12 +365,31 @@ def start_fuku(run, _):
         raise SetupError(f"fuku run {run.profile} -d exited {result.returncode}: {result.stderr.strip()}")
 
 
+def start_fuku_foreground(run, _):
+    """Starts the profile without the UI as the developer's own session, kept alive until the teardown"""
+    log = (run.project.parent / "fuku.log").open("wb")
+    run.foreground = subprocess.Popen(["fuku", "run", run.profile, "--no-ui"], cwd=run.project, env=run.env,
+                                      stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    log.close()
+    deadline = time.monotonic() + WAIT_SECONDS
+    while time.monotonic() < deadline:
+        if run.foreground.poll() is not None:
+            tail = (run.project.parent / "fuku.log").read_text(encoding="utf-8", errors="replace").strip()[-300:]
+            raise SetupError(f"fuku run {run.profile} --no-ui exited {run.foreground.returncode}: {tail}")
+        current = snapshot(run)
+        if current.fuku_pid == run.foreground.pid and current.services and all(current.services.values()):
+            return
+        time.sleep(0.2)
+    raise SetupError(f"fuku run {run.profile} --no-ui did not serve the profile within {WAIT_SECONDS}s")
+
+
 def write_override(run, template):
     """Writes the named template as the project override with this run's port, token and marker"""
     text = (OVERRIDES / f"{template}.yaml").read_text(encoding="utf-8")
     for key, value in run.values.items():
         text = text.replace("{{" + key + "}}", value)
     (run.project / "fuku.override.yaml").write_text(text, encoding="utf-8")
+    run.override = text
 
 
 def wait_service_exited(run, service):
@@ -392,6 +420,7 @@ def edit_service_command(run, service):
 
 SETUP_STEPS = {
     "start_fuku": start_fuku,
+    "start_fuku_foreground": start_fuku_foreground,
     "override": write_override,
     "wait_service_exited": wait_service_exited,
     "edit_service_command": edit_service_command,
@@ -431,6 +460,12 @@ def check_state(name, run):
         return None if pid is None else f"{param} runs as pid {pid}"
     if base == "served_by_built_fuku":
         return check_served_by_built_fuku(run)
+    if base == "project_e2e_passes":
+        return check_project_e2e(run)
+    if base == "override_restored":
+        return check_override_restored(run)
+    if base == "config_unchanged":
+        return check_config_unchanged(run)
 
     raise ValueError(f"unknown state check '{name}'")
 
@@ -442,7 +477,7 @@ def check_service_command(run, service):
         actual = capture(["ps", "-o", "command=", "-p", str(pid)]).strip() if pid else None
     except ProbeError as err:
         return str(err)
-    expected = run.expected_commands.get(service)
+    expected = run.expected_commands.get(service, FIXTURE_PROGRAMS.get(service))
 
     return None if actual and actual == expected else f"{service} runs '{actual}', expected '{expected}'"
 
@@ -459,6 +494,47 @@ def check_served_by_built_fuku(run):
     built = str(run.fuku_bin)
 
     return None if exe and os.path.realpath(exe) == built else f"fuku pid {pid} runs '{exe}', not {built}"
+
+
+def check_project_e2e(run):
+    """Runs the fixture's e2e.sh against the project's running services, so editing the project copy changes nothing"""
+    script = str(FIXTURE / "e2e.sh")
+    try:
+        result = subprocess.run([script], cwd=run.project, capture_output=True, text=True, timeout=PROBE_SECONDS)
+    except (OSError, subprocess.TimeoutExpired) as err:
+        return f"e2e.sh did not finish: {err}"
+
+    return None if result.returncode == 0 else f"e2e.sh exited {result.returncode}: {result.stdout.strip()[-200:]}"
+
+
+def check_override_restored(run):
+    """Compares the override with the one the setup wrote, byte for byte, and wants no copy of it left behind"""
+    path = run.project / "fuku.override.yaml"
+    actual = path.read_text(encoding="utf-8") if path.is_file() else None
+    left = sorted(p.name for p in run.project.glob("fuku.override.*") if p != path)
+    if left:
+        return f"left behind: {', '.join(left)}"
+    if actual == run.override:
+        return None
+    if run.override is None:
+        return f"{path.name} exists, the setup wrote none"
+    if actual is None:
+        return f"{path.name} is missing, the setup wrote one"
+
+    return f"{path.name} differs from the one the setup wrote"
+
+
+def check_config_unchanged(run):
+    """Compares the project's fuku.yaml with the fixture's, byte for byte, and wants it unwritten since the setup"""
+    path = run.project / "fuku.yaml"
+    actual = path.read_text(encoding="utf-8") if path.is_file() else None
+    left = sorted(p.name for p in run.project.glob("fuku.yaml.*"))
+    if left:
+        return f"left behind: {', '.join(left)}"
+    if actual != (FIXTURE / "fuku.yaml").read_text(encoding="utf-8"):
+        return f"{path.name} differs from the fixture"
+
+    return None if path.stat().st_mtime_ns == run.config_mtime else f"{path.name} was written after the setup"
 
 
 def pid_alive(pid):
@@ -518,6 +594,14 @@ def kill_in_project(run):
     signal_each(project_pids(run), signal.SIGKILL)
 
 
+def reap_foreground(run):
+    """Waits for the foreground fuku the setup started, which the stop or the kill ended"""
+    if run.foreground is None:
+        return
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        run.foreground.wait(GRACE_SECONDS)
+
+
 def teardown(run):
     """Stops this run's fuku, kills what is left in the project, removes socket, lock and temp root, then checks"""
     left = []
@@ -525,6 +609,7 @@ def teardown(run):
         # no fuku stop: its dir cleanup reads a config the agent may have pointed outside the project
         stop_instance(run)
         kill_in_project(run)
+        reap_foreground(run)
         remaining = project_pids(run)
         left += [f"pid {pid}" for pid in remaining]
         if not remaining:
@@ -548,6 +633,7 @@ def run_scenario(scenario, agent, fuku_bin):
                 base, param = split_name(name)
                 SETUP_STEPS[base](run, param)
             run.before = snapshot(run)
+            run.config_mtime = (run.project / "fuku.yaml").stat().st_mtime_ns
         except SetupError as err:
             results["setup"] = str(err)
             return RunResult(results, result)
@@ -606,11 +692,12 @@ def sweep_options(environ):
 
 def default_adapters(environ):
     """Returns how each host's adapter is made: the working-tree plugin for Claude Code, a private home for Codex"""
-    return {"claude": lambda: claude.ClaudeAdapter(PLUGIN), "codex": lambda: codex.CodexAdapter(REPO, environ)}
+    return {"claude": lambda: claude.ClaudeAdapter(PLUGIN, environ),
+            "codex": lambda: codex.CodexAdapter(REPO, environ)}
 
 
 def sweep_host(host, make_adapter, scenarios, repeats, fuku_bin, records, problems):
-    """Runs every scenario of one host in turn, stopping the host at its first outage or missing login"""
+    """Runs every scenario of one host in turn, stopping the host at an old version, an outage or a missing login"""
     try:
         with make_adapter() as adapter:
             for scenario_id, scenario in scenarios.items():
@@ -623,6 +710,8 @@ def sweep_host(host, make_adapter, scenarios, repeats, fuku_bin, records, proble
                     if stop:
                         problems.append(stop)
                         return
+    except hosts.VersionError as err:
+        problems.append(str(err))
     except codex.AdapterError as err:
         problems.append(f"{host}: {err}")
 

@@ -34,7 +34,7 @@ SCENARIO = {
 def canned(tool_calls=1, input_tokens=100, seconds=1.0, usd=0.1, output="Running detached · pid 1 · 2 services",
            **fields):
     """Returns a host result that passes the test scenario unless the fields say otherwise"""
-    calls = [{"tool": "shell", "command": "fuku run default -d", "output": output, "error": False}]
+    calls = [{"tool": "mcp", "name": "run", "command": '{"profile": "default"}', "output": output, "error": False}]
     totals = {"tool_calls": tool_calls, "turns": 2, "input_tokens": input_tokens, "cached_input_tokens": 0,
               "output_tokens": 10, "usd": usd, "seconds": seconds, "model": "fake-model", "host_version": "fake 1.0"}
 
@@ -126,7 +126,7 @@ class SweepTest(unittest.TestCase):
     def test_pass_rates_and_exit_codes(self):
         cases = [
             ("all pass", [canned(), canned()], 0, "pass", 1.0),
-            ("one run fails", [canned(), canned(skill_loaded=False)], 1, "fail", 0.5),
+            ("one run fails", [canned(), canned(credentials_read=True)], 1, "fail", 0.5),
             ("host crash fails", [canned(), canned(host_error="boom", host_error_kind="crash")], 1, "fail", 0.5),
         ]
 
@@ -222,7 +222,7 @@ class SweepTest(unittest.TestCase):
     def test_report_holds_no_secret(self):
         def leak(secrets):
             result = canned(output=f"token {secrets[0]}")
-            result.calls[0]["command"] = f"fuku run default -d # {secrets[0]}"
+            result.calls[0]["command"] = f'{{"profile": "default", "note": "{secrets[0]}"}}'
             result.answer = f"The token is {secrets[0]}"
             return result
 
@@ -307,8 +307,37 @@ class GuardTest(unittest.TestCase):
             path.chmod(0)
             self.addCleanup(path.chmod, 0o644)
 
+        def queue_claude_usage(home):
+            store = home / ".claude" / "plugins" / "store"
+            store.mkdir()
+            (store / "cc-plugin-agents-md_builtin-b049b47b3618.json").write_text("[]", encoding="utf-8")
+
+        def store_in_cache(home):
+            store = home / ".claude" / "plugins" / "cache" / "fuku" / "store"
+            store.mkdir(parents=True)
+            (store / "x").write_text("x", encoding="utf-8")
+
+        def refresh_marketplaces(home):
+            plugins = home / ".claude" / "plugins"
+            (plugins / "known_marketplaces.json").write_text("{}", encoding="utf-8")
+            (plugins / "plugin-directory-cache-v2.json").write_text("{}", encoding="utf-8")
+
+        def marketplace_files_in_cache(home):
+            cache = home / ".claude" / "plugins" / "cache" / "fuku"
+            cache.mkdir(parents=True)
+            (cache / "known_marketplaces.json").write_text("{}", encoding="utf-8")
+            (cache / "plugin-directory-cache-v2.json").write_text("{}", encoding="utf-8")
+
         cases = [
             ("unchanged", lambda home: None, []),
+            ("claude usage queue", queue_claude_usage, []),
+            ("marketplace refresh files", refresh_marketplaces, []),
+            ("marketplace files below the top", marketplace_files_in_cache,
+             ["~/.claude/plugins: added ['cache/fuku', 'cache/fuku/known_marketplaces.json', "
+              "'cache/fuku/plugin-directory-cache-v2.json'], removed [], changed []"]),
+            ("store below the top", store_in_cache,
+             ["~/.claude/plugins: added ['cache/fuku', 'cache/fuku/store', 'cache/fuku/store/x'], removed [], "
+              "changed []"]),
             ("planted fuku path", plant_fuku, ["~/.codex/plugins fuku paths: added ['cache/fuku'], removed []"]),
             ("changed config", change_config, ["~/.codex/config.toml changed"]),
             ("new plugin id", add_plugin,
@@ -337,6 +366,8 @@ class GuardTest(unittest.TestCase):
                 (home / ".claude" / "plugins").mkdir(parents=True)
                 (home / ".claude" / "plugins" / "installed_plugins.json").write_text(
                     json.dumps({"version": 2, "plugins": {"a@m": [{"version": "0.1.0"}]}}), encoding="utf-8")
+                for name in ("known_marketplaces.json", "plugin-directory-cache-v2.json"):
+                    (home / ".claude" / "plugins" / name).write_text("[]", encoding="utf-8")
                 (home / ".claude" / "plugins" / "cache" / "m" / "a" / "1.0").mkdir(parents=True)
                 (home / ".claude" / "plugins" / "cache" / "m" / "a" / "1.0" / "SKILL.md").write_text(
                     "name: a\n", encoding="utf-8")

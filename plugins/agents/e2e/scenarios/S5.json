@@ -10,12 +10,13 @@
     "fuku_pid_changed",
     "service_command_is:api",
     "no_api_restart",
+    "skill_loaded",
     "fuku_running",
     "services_running",
     "served_by_built_fuku"
   ],
   "budget": {
-    "tool_calls": 14,
+    "tool_calls": 10,
     "input_tokens": 230000,
     "seconds": 60,
     "usd": 0.75

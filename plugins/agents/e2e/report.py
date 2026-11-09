@@ -6,14 +6,13 @@ import os
 import pathlib
 import statistics
 
-import checks
-
 OUTAGE_KINDS = {"api"}
 STOPPING = {"outage", "login"}
 LOGIN_HINTS = {"codex": "run `codex login`", "claude": "run `claude` and log in with /login"}
 MEDIANS = ["tool_calls", "input_tokens", "output_tokens", "seconds", "usd"]
 LARGEST = 10
 ANSWER_CHARS = 4000
+CLAUDE_USAGE = {"store", "known_marketplaces.json", "plugin-directory-cache-v2.json"}
 
 
 def classify(host, scenario, number, result):
@@ -89,12 +88,12 @@ def summarize(records, hosts, scenario_ids):
 
 
 def largest_outputs(records, limit=LARGEST):
-    """Returns the largest fuku command outputs of the sweep, each tool call counted once"""
+    """Returns the largest fuku tool outputs of the sweep, each tool call counted once"""
     found = []
     for record in records:
         for call in record["calls"]:
-            if call["tool"] == "shell" and checks.fuku_invocations([call]):
-                found.append({"command": call["command"], "bytes": len(call["output"].encode()),
+            if call["tool"] == "mcp":
+                found.append({"command": f"{call['name']} {call['command']}", "bytes": len(call["output"].encode()),
                               "host": record["host"], "scenario": record["scenario"], "run": record["run"]})
 
     return sorted(found, key=lambda item: item["bytes"], reverse=True)[:limit]
@@ -110,15 +109,19 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
-def tree_fingerprint(root):
-    """Returns {relative path: content hash} of every file, link and directory under a directory, skipping none"""
+def tree_fingerprint(root, ignore=()):
+    """Returns {relative path: content hash} of every file, link and directory under a directory but the ignored"""
     found = {}
 
     def unreadable(err):
         found[os.path.relpath(err.filename, root)] = f"unreadable: {err.strerror}"
 
+    def kept(directory, names):
+        return [n for n in names if os.path.relpath(os.path.join(directory, n), root) not in ignore]
+
     for directory, dirs, files in os.walk(root, onerror=unreadable):
-        for name in dirs + files:
+        dirs[:] = kept(directory, dirs)
+        for name in dirs + kept(directory, files):
             path = pathlib.Path(directory, name)
             found[str(path.relative_to(root))] = entry_hash(path)
 
@@ -158,7 +161,7 @@ def guard_snapshot(home):
         "~/.codex/config.toml": sha256(home / ".codex" / "config.toml"),
         "~/.codex/plugins fuku paths": fuku_paths(home / ".codex" / "plugins"),
         "~/.claude/settings.json": sha256(home / ".claude" / "settings.json"),
-        "~/.claude/plugins": tree_fingerprint(home / ".claude" / "plugins"),
+        "~/.claude/plugins": tree_fingerprint(home / ".claude" / "plugins", ignore=CLAUDE_USAGE),
     }
 
 

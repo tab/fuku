@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fuku": {
+      "command": "fuku",
+      "args": ["mcp"]
+    }
+  }
+}

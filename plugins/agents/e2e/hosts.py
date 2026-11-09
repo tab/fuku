@@ -17,6 +17,7 @@ BASE_ENV = {"HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TERM"}
 PASS_ENV = "E2E_PASS_ENV"
 MIN_SECRET = 8
 REDACTED = "<redacted>"
+VERSION = re.compile(r"\d+\.\d+\.\d+")
 
 
 class ParseError(Exception):
@@ -32,6 +33,10 @@ class ParseError(Exception):
             return str(self)
 
         return f"{self}: {scrub(self.line, secret_values(values))[:120]!r}"
+
+
+class VersionError(Exception):
+    """A host older than the oldest version its adapter was verified on, or one whose version cannot be read"""
 
 
 @dataclasses.dataclass
@@ -76,6 +81,18 @@ def host_env(env, own):
     keep["PATH"] = env["PATH"]
 
     return keep, [env[name] for name in passed if name in env]
+
+
+def require_version(executable, text, minimum):
+    """Refuses a host whose `--version` text names no version or one older than the minimum"""
+    oldest = ".".join(str(part) for part in minimum)
+    match = VERSION.search(text)
+    if match is None:
+        raise VersionError(f"{executable} printed no version ({text.strip()[:80]!r}), the adapters need {oldest} "
+                           f"or newer; update {executable}")
+    if tuple(int(part) for part in match.group(0).split(".")) < minimum:
+        raise VersionError(f"{executable} {match.group(0)} is older than {oldest}, the oldest version the adapters "
+                           f"were verified on; update {executable}")
 
 
 def secret_values(values):

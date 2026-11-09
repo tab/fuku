@@ -13,11 +13,14 @@ import checks
 import hosts
 
 EXECUTABLE = "codex"
+MIN_VERSION = (0, 166, 0)
 INSTALL_SECONDS = 60
 EVENTS = {"thread.started", "turn.started", "turn.completed", "turn.failed", "item.started", "item.updated",
           "item.completed", "error"}
 TOOL_ITEMS = {"file_change", "mcp_tool_call", "web_search"}
 QUIET_ITEMS = {"agent_message", "reasoning", "todo_list", "error"}
+FUKU_SERVER = "fuku"
+APPROVE_FUKU_TOOLS = f'plugins.fuku@fuku.mcp_servers.{FUKU_SERVER}.default_tools_approval_mode="approve"'
 SKILL_READERS = checks.READERS | checks.BOUNDED | checks.SCRIPTED
 LINE_NUMBER = re.compile(r"^\s*(?:\d+[\t:]\s*)?")
 SKILL_FILE = pathlib.Path(__file__).resolve().parents[1] / "skills" / "fuku" / "SKILL.md"
@@ -34,6 +37,7 @@ def exec_command(project, prompt):
         "-s", "workspace-write",
         "-c", "sandbox_workspace_write.network_access=true",
         "-c", "allow_login_shell=false",
+        "-c", APPROVE_FUKU_TOOLS,
         prompt,
     ]
 
@@ -73,6 +77,11 @@ def parse(lines, codex_home):
                 "output": item.get("aggregated_output", ""),
                 "error": item.get("exit_code") not in (0, None) or item.get("status") == "failed",
             }
+        elif item_type == "mcp_tool_call" and item.get("server") == FUKU_SERVER:
+            call = {"tool": "mcp", "name": item.get("tool", ""),
+                    "command": json.dumps(item.get("arguments") or {}, sort_keys=True), "output": mcp_output(item),
+                    "error": item.get("status") == "failed" or bool(item.get("error"))
+                    or bool((item.get("result") or {}).get("is_error"))}
         elif item_type in TOOL_ITEMS:
             details = {k: v for k, v in item.items() if k not in ("id", "type")}
             call = {"tool": item_type, "command": json.dumps(details, sort_keys=True), "output": "",
@@ -91,8 +100,10 @@ def parse(lines, codex_home):
     kind = "api" if failure else None
     if failure is None and turns == 0:
         kind, failure = "crash", errors[-1] if errors else "no turn.completed event"
+    loaded = any(read_skill(c, skill_path) for c in calls)
+    own_read = any(read_skill(c, skill_path) and len(checks.commands(c["command"])) == 1 for c in calls)
     totals = {
-        "tool_calls": len(calls),
+        "tool_calls": len(calls) - int(own_read),
         "turns": turns,
         "input_tokens": usage.get("input_tokens", 0),
         "cached_input_tokens": usage.get("cached_input_tokens", 0),
@@ -101,13 +112,20 @@ def parse(lines, codex_home):
         "model": None,
         "host_version": None,
     }
-    loaded = any(read_skill(c, skill_path) for c in calls)
 
     result = hosts.AgentResult(calls, totals, loaded, answer=answer)
     if kind:
         result.fail(kind, failure)
 
     return result
+
+
+def mcp_output(item):
+    """Returns the text of an MCP call's result, or its error message when it has no result"""
+    content = (item.get("result") or {}).get("content") or []
+    text = "".join(block.get("text", "") for block in content if isinstance(block, dict))
+
+    return text or (item.get("error") or {}).get("message", "")
 
 
 def read_skill(call, skill_path):
@@ -173,6 +191,7 @@ def install(repo, home, environ):
     home.mkdir()
     env, _ = hosts.host_env(environ, {"CODEX_HOME": str(home)})
     version = codex(["--version"], env).strip()
+    hosts.require_version(EXECUTABLE, version, MIN_VERSION)
     codex(["plugin", "marketplace", "add", str(repo)], env)
     try:
         installed = pathlib.Path(json.loads(codex(["plugin", "add", "fuku@fuku", "--json"], env))["installedPath"])
