@@ -27,6 +27,18 @@
 
 ## Medium
 
+- [ ] **BL-032 – Return a result, not an error, from `status` when no fuku runs**
+  - Why: agents answer the error-shaped "no fuku instance is running" with an extra `doctor` before `run`; a `{running: false, profiles}` result may remove that call
+  - Fix: decide after the step 15 sweep shows whether the `doctor` reflex is gone; it changes the AC2 wording of the MCP feature
+  - Added: 20261108
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
+
+- [ ] **BL-035 – Let the `logs` tool read only the lines since a service's current start**
+  - Why: `logs` returns the newest lines with no restart boundary and no time, so after a restart an agent can read the old process's crash as the current state
+  - Fix: return the lines since the service's current start, or take a `since`; decide with the log buffer and `model.ReplayOptions`
+  - Added: 20261109
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
+
 - [ ] **BL-001 – Define and enforce the package-level variable policy**
   - Why: `gochecknoglobals` is not enabled, so implementation and review cannot reliably catch unwanted package-level variables
   - Added: 20260902
@@ -128,6 +140,12 @@
 
 ## Low
 
+- [ ] **BL-034 – Keep one command order across the CLI parser**
+  - Why: the `Command*` constants in `cli/options.go` follow the order they were added, while `Parse`, its builders in `cli/commands.go` and the help text each keep their own order
+  - Fix: a separate `refactor(cli)` change that puts the constants, the `AddCommand` list, the builders and the help text in one order; no behavior change
+  - Added: 20261109
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
+
 - [ ] **BL-005 – Add a test toolchain to the JetBrains plugin**
   - Why: the plugin has no test sources or test dependencies, so its API models and socket connection logic are verified
     only by ktlint and `buildPlugin`; a regression in either passes CI
@@ -160,6 +178,12 @@
   - Source: [Agent skill end-to-end tests](20261004-agent-skill-e2e/feature.md)
 
 ## Done
+
+- [x] **BL-033 – Find the skipped skill line in `test_codex_skill_read` instead of hard-coding it**
+  - Why: the "sed skipping a line" case skips a fixed line number of `SKILL.md`; every frontmatter change shifts it and the case silently turns into a full read
+  - Fix: pick the first non-blank body line from the working-tree `SKILL.md` at test time
+  - Added: 20261108
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
 
 - [x] **BL-017 – Make the API token optional behind `Host` and `Origin` checks**
   - Why: the token cannot stop a local process, which can read `fuku.yaml`, and it forces every API client to handle a secret; it is still the only defence against a browser page, because `adapters/rest` checks neither header
