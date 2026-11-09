@@ -77,12 +77,13 @@ internal/bootstrap
 internal/adapters
   cli                          cobra parsing; every command without the TUI; bare log lines; the JSON report
   tui                          the Bubble Tea program, the bus bridge, the services view, styled log lines and report
-  rest                         the HTTP API
+  rest                         the HTTP API: server and client
   process                      launches, tracks and stops child processes
   readiness                    http, tcp and log probes
   watch                        watches the files of a running service
   resources                    samples CPU and memory
   logsocket                    the project socket: server and client
+  mcp                          the `fuku mcp` stdio server for AI agents
   detach                       the detached run: launcher, startup pipe, plain view, stop of the running instance
   config                       loads fuku.yaml, builds model.Project
   config/template              the fuku.yaml init writes, embedded
@@ -113,6 +114,7 @@ internal/model                 plain values
 
 `bootstrap.Run` loads `fuku.yaml` for `run`, `stop` and `logs`. An invalid config ends them before any container exists.
 `doctor` gets the `model.Config` with the error inside and reports on it. The other commands load nothing.
+`mcp` loads nothing at start. Each tool call loads the config fresh.
 
 | Command    | Composition           | Command participant                        |
 |------------|-----------------------|--------------------------------------------|
@@ -124,6 +126,7 @@ internal/model                 plain values
 | `init`     | `modules/init.go`     | `cli.Init`                                 |
 | `help`     | `modules/help.go`     | `cli.Help`                                 |
 | `version`  | `modules/version.go`  | `cli.Version`                              |
+| `mcp`      | `modules/mcp.go`      | `mcp.Server`                               |
 
 `run -d` starts a second fuku in its own session as `run <profile> --no-ui --detached-child`, the run composition headless.
 The child writes its startup to the parent over its standard error and releases that pipe once every service runs.
@@ -145,7 +148,7 @@ Runs a profile. Admits start, stop and restart from every frontend.
 
 - core: `app/services` (`Runtime` runs, `Control` admits, `Guard` holds the phase and tokens, `Cleaner` cleans up for `stop`), `app/profiles`
 - adapters: `process` launches and tracks, `readiness` probes, `watch` reports file changes
-- frontends: the `s`, `r` and `ctrl+r` keys in `tui`; `POST /api/v1/services/{id}/{start,stop,restart}` in `rest`; `Run` and `Stop` in `cli` for `--no-ui` and `stop`; the `stop` frame in `logsocket` calls `StopAll` for `fuku stop`
+- frontends: the `s`, `r` and `ctrl+r` keys in `tui`; `POST /api/v1/services/{id}/{start,stop,restart}` in `rest`; `Run` and `Stop` in `cli` for `--no-ui` and `stop`; the `stop` frame in `logsocket` calls `StopAll` for `fuku stop`; the `service` tool in `mcp` calls the REST actions with a `wait` body through the `rest` client
 - bus: consumes the four commands and `WatchTriggered`; publishes `ProfileResolved`, the phase, tier and service events
 - wired in `runtime.go`, blocks `processes` and `profile`; `Control` in `run.go` (`view`, `api`) and `runtime.go` (`runtime`, for `logsocket`); `Cleaner` in `stop.go`
 - details: [`internal/app/services/README.md`](internal/app/services/README.md)
@@ -156,7 +159,7 @@ The read model. Every frontend reads the same `Snapshot` in place, under the sto
 
 - core: `app/registry` (`Store`: `Read`, `WaitResolved`)
 - adapters: `resources` collects the live PIDs inside `Read` and samples them outside it
-- frontends: `tui` handles each message and renders each frame inside `Read`, and calls `Control` from a command after it; `rest` serializes inside one `Read` per request; `logsocket` reads the profile and the service names
+- frontends: `tui` handles each message and renders each frame inside `Read`, and calls `Control` from a command after it; `rest` serializes inside one `Read` per request; `logsocket` reads the profile and the service names; the `status` and `service` tools in `mcp` read the services through the `rest` client
 - bus: consumes the lifecycle, watch, API and sample events; publishes `SnapshotChanged`
 - wired in `runtime.go`, block `runtime`; `run.go` (`view`) for the TUI, (`api`) for the REST API
 - details: [`internal/app/registry/README.md`](internal/app/registry/README.md)
@@ -167,7 +170,7 @@ Carries child output to the application log, socket clients and `fuku logs`. Raw
 
 - core: `app/logs` (`Hub` keeps history and fans out, `Session` runs `fuku logs`)
 - adapters: `process` writes each line to the hub; `logsocket` serves the hub and connects to it; `output` and `terminal` write and format the application log
-- frontends: `LogView` in `cli` prints bare lines; `LogView` in `tui` prints the banner and styled lines
+- frontends: `LogView` in `cli` prints bare lines; `LogView` in `tui` prints the banner and styled lines; the `logs` tool in `mcp` reads a bounded replay through the `logsocket` client
 - wired in `runtime.go`, block `configured` (the hub); `logs.go` (client, session, view)
 - details: [`internal/app/logs/README.md`](internal/app/logs/README.md), [`internal/adapters/logsocket/README.md`](internal/adapters/logsocket/README.md)
 
@@ -196,7 +199,7 @@ Checks the environment, config, services, topology and running instance. Renders
 
 - core: `app/doctor` (`Runner`)
 - adapters: `diagnostics` observes; `config` gives the `model.Config`; `instance` gives the fingerprint
-- frontends: `Doctor` in `cli` runs it and renders JSON; `tui` renders the styled report and summary
+- frontends: `Doctor` in `cli` runs it and renders JSON; `tui` renders the styled report and summary; the `doctor` tool in `mcp` runs `fuku doctor --json`
 - wired in `doctor.go`
 - details: [`internal/app/doctor/README.md`](internal/app/doctor/README.md)
 
