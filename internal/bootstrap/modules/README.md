@@ -35,6 +35,7 @@ The blocks are `var`s and functions in `base.go`, `runtime.go` and `run.go`. Eac
 | `stop.go`                          | `base`, `configured`, `processes`, `instance`, `logsocket`, `detach`                                     |
 | `logs.go`                          | `base`, `configured`, `instance`, `logsocket`; the inline view, or bare lines with `--no-ui`             |
 | `doctor.go`                        | `base`, `standalone`, `instance`, `diagnostics`, `profiles`, `doctor`                                    |
+| `mcp.go`                           | `base`, `standalone`; the MCP server as the command, a log socket and a REST client per call             |
 | `init.go`, `help.go`, `version.go` | `base`, `standalone`                                                                                     |
 
 The participants of a command, in order:

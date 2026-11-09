@@ -46,6 +46,8 @@ func compose(cmd *cli.Options) (fx.Option, error) {
 		return modules.Version(cmd, config.Telemetry()), nil
 	case cli.CommandInit:
 		return modules.Init(cmd, config.Telemetry()), nil
+	case cli.CommandMCP:
+		return modules.MCP(cmd, config.Telemetry()), nil
 	case cli.CommandDoctor:
 		loaded := config.LoadPath(cmd.ConfigFile)
 		if loaded.Error != nil {

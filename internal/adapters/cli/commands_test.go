@@ -438,6 +438,12 @@ func Test_Parse(t *testing.T) {
 			expectedProfile: model.ProfileDefault,
 			expectedFormat:  FormatJSON,
 		},
+		{
+			name:            "mcp command",
+			args:            []string{"mcp"},
+			expectedType:    CommandMCP,
+			expectedProfile: model.ProfileDefault,
+		},
 	}
 
 	for _, tt := range tests {
@@ -609,6 +615,10 @@ func Test_Parse_ConfigFlagNotSupported(t *testing.T) {
 		{
 			name: "-c with help flag",
 			args: []string{"-c", "custom.yaml", "-h"},
+		},
+		{
+			name: "--config with mcp command",
+			args: []string{"--config", "custom.yaml", "mcp"},
 		},
 	}
 
