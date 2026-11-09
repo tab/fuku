@@ -28,3 +28,12 @@ type Process struct {
 	Memory    uint64
 	StartedAt time.Time
 }
+
+// SettledSince returns true if an event at or after since ended the action, and a watched service is watching
+func (s *Service) SettledSince(since time.Time) bool {
+	if !s.Status.IsSettled() || s.LifecycleAt.Before(since) {
+		return false
+	}
+
+	return s.Status != StatusRunning || s.Watch == nil || s.Watching
+}

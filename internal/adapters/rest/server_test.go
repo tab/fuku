@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -348,6 +349,62 @@ func Test_Server_Start_WithoutToken(t *testing.T) {
 	}
 }
 
+func Test_Server_Stop_ReleasesWaitingRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPublisher := NewMockPublisher(ctrl)
+	mockRegistry := NewMockRegistry(ctrl)
+	mockControl := NewMockControl(ctrl)
+
+	api := model.Service{ID: "id-api", Name: "api"}
+	waiting := make(chan struct{})
+
+	mockPublisher.EXPECT().Publish(gomock.Any()).Return(nil).AnyTimes()
+	mockControl.EXPECT().Restart("id-api").Return(services.Admission{Service: api, Action: contracts.ActionRestart, Status: model.StatusRestarting}, nil)
+	mockControl.EXPECT().Wait(gomock.Any(), "id-api").DoAndReturn(func(ctx context.Context, _ string) error {
+		close(waiting)
+		<-ctx.Done()
+
+		return ctx.Err()
+	})
+
+	s := NewServer(Options{Listen: "127.0.0.1:0"}, mockRegistry, mockControl, mockPublisher, model.Instance{}, slog.New(slog.DiscardHandler))
+	s.Start(t.Context())
+
+	address := s.Address(t.Context())
+	status := make(chan int)
+
+	go func() {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+address+"/api/v1/services/id-api/restart", strings.NewReader(`{"wait":60}`))
+		if err != nil {
+			status <- 0
+
+			return
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			status <- 0
+
+			return
+		}
+
+		resp.Body.Close()
+
+		status <- resp.StatusCode
+	}()
+
+	<-waiting
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, s.Stop(ctx))
+	assert.NoError(t, ctx.Err())
+	assert.Equal(t, http.StatusAccepted, <-status)
+}
+
 func Test_Server_Shutdown_NilServer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -372,6 +429,7 @@ func Test_Server_Stop_PublishRejected(t *testing.T) {
 
 	s := NewServer(Options{}, nil, nil, mockPublisher, model.Instance{}, mockLog)
 	s.httpServer = &http.Server{}
+	s.cancel = func() {}
 
 	gomock.InOrder(
 		mockLog.EXPECT().Debug("API server shutting down"),

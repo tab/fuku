@@ -213,7 +213,45 @@ components:
           type: string
           example: service not found
 
+    ActionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        wait:
+          type: integer
+          minimum: 1
+          maximum: 60
+          description: Hold the request until the action ends, up to this many seconds. Without it, the action answers 202 at once
+          example: 45
+
+  requestBodies:
+    Action:
+      required: false
+      description: Optional. An empty body answers 202 at once
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ActionRequest"
+          example:
+            wait: 45
+
   responses:
+    Settled:
+      description: The action ended within the wait. The body is the service as it is now
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Service"
+
+    BadRequest:
+      description: The body is not a JSON object with an optional wait, or the wait is not whole seconds from 1 to 60
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: wait must be whole seconds from 1 to 60
+
     Unauthorized:
       description: The config sets a token and the request lacks it or sends a wrong one
       content:
@@ -375,7 +413,7 @@ paths:
   /services/{id}/start:
     post:
       summary: Start a stopped or failed service
-      description: Accepts the action while the instance starts up or runs and returns immediately. Poll GET /services/{id} for completion.
+      description: Accepts the action while the instance starts up or runs. Without wait, it returns at once with 202; poll GET /services/{id} for completion. With wait, it returns 200 once the action ends, or 202 when the wait ends first.
       operationId: startService
       parameters:
         - name: id
@@ -386,7 +424,11 @@ paths:
             type: string
             format: uuid
           example: 550e8400-e29b-41d4-a716-446655440000
+      requestBody:
+        $ref: "#/components/requestBodies/Action"
       responses:
+        "200":
+          $ref: "#/components/responses/Settled"
         "202":
           description: Start accepted
           content:
@@ -398,6 +440,8 @@ paths:
                 name: api-gateway
                 action: start
                 status: starting
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -412,7 +456,7 @@ paths:
   /services/{id}/stop:
     post:
       summary: Stop a running service
-      description: Accepts the action while the instance starts up or runs and returns immediately. Poll GET /services/{id} for completion.
+      description: Accepts the action while the instance starts up or runs. Without wait, it returns at once with 202; poll GET /services/{id} for completion. With wait, it returns 200 once the action ends, or 202 when the wait ends first.
       operationId: stopService
       parameters:
         - name: id
@@ -423,7 +467,11 @@ paths:
             type: string
             format: uuid
           example: 550e8400-e29b-41d4-a716-446655440000
+      requestBody:
+        $ref: "#/components/requestBodies/Action"
       responses:
+        "200":
+          $ref: "#/components/responses/Settled"
         "202":
           description: Stop accepted
           content:
@@ -435,6 +483,8 @@ paths:
                 name: api-gateway
                 action: stop
                 status: stopping
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -449,7 +499,7 @@ paths:
   /services/{id}/restart:
     post:
       summary: Restart a running, stopped, or failed service
-      description: Accepts the action while the instance starts up or runs and returns immediately. Poll GET /services/{id} for completion.
+      description: Accepts the action while the instance starts up or runs. Without wait, it returns at once with 202; poll GET /services/{id} for completion. With wait, it returns 200 once the action ends, or 202 when the wait ends first.
       operationId: restartService
       parameters:
         - name: id
@@ -460,7 +510,11 @@ paths:
             type: string
             format: uuid
           example: 550e8400-e29b-41d4-a716-446655440000
+      requestBody:
+        $ref: "#/components/requestBodies/Action"
       responses:
+        "200":
+          $ref: "#/components/responses/Settled"
         "202":
           description: Restart accepted
           content:
@@ -472,6 +526,8 @@ paths:
                 name: api-gateway
                 action: restart
                 status: restarting
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

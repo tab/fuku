@@ -58,6 +58,11 @@ type ActionSerializer struct {
 	Status model.Status     `json:"status"`
 }
 
+// ActionRequest is the optional body of a service action
+type ActionRequest struct {
+	Wait *int `json:"wait"`
+}
+
 // ErrorSerializer serializes an error response
 type ErrorSerializer struct {
 	Error string `json:"error"`

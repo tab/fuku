@@ -34,6 +34,7 @@ The rules worth knowing:
 
 - `Read(fn)` runs `fn` under the read lock
 - `WaitResolved(ctx)` blocks until the first `ProfileResolved`. The log socket server waits on it before it binds
+- `WaitSettled(ctx, id, since)` blocks until the service is running, failed or stopped by an event stamped at or after `since`. It returns `ErrServiceNotFound` for an unknown id
 
 Each consumer reads what it needs inside `Read` and does the slow part outside:
 

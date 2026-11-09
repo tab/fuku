@@ -70,7 +70,10 @@ A rejected publish releases the token and returns the bus error.
 An admitted stop marks the service as stopped on purpose. An admitted start or restart clears the mark, and so does tier startup.
 
 The `Admission` carries the predicted status. The REST `202` body and the TUI loader use it. `202` means admitted, not done.
+It also carries `At`, the time the guard reserved the service. The previous holder released the token before it, and every event of this action follows it.
 The lifecycle events say what happened.
+`Control.Wait(ctx, id)` blocks until the service holds no token, so a frontend can wait for an action to end.
+The token's release closes the service's idle channel. Every reservation opens a new one.
 
 A `WatchTriggered` restart takes the token with `reserve`. It is dropped when the token is held. A watch never queues.
 It is also dropped for a service stopped on purpose, so a change that arrives after the stop never restarts it.

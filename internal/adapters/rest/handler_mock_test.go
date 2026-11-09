@@ -10,9 +10,11 @@
 package rest
 
 import (
+	context "context"
 	services "fuku/internal/app/services"
 	model "fuku/internal/model"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -86,6 +88,20 @@ func (mr *MockControlMockRecorder) Stop(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockControl)(nil).Stop), id)
 }
 
+// Wait mocks base method.
+func (m *MockControl) Wait(ctx context.Context, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Wait", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Wait indicates an expected call of Wait.
+func (mr *MockControlMockRecorder) Wait(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wait", reflect.TypeOf((*MockControl)(nil).Wait), ctx, id)
+}
+
 // MockRegistry is a mock of Registry interface.
 type MockRegistry struct {
 	ctrl     *gomock.Controller
@@ -120,4 +136,18 @@ func (m *MockRegistry) Read(fn func(*model.Snapshot)) {
 func (mr *MockRegistryMockRecorder) Read(fn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockRegistry)(nil).Read), fn)
+}
+
+// WaitSettled mocks base method.
+func (m *MockRegistry) WaitSettled(ctx context.Context, id string, since time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WaitSettled", ctx, id, since)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WaitSettled indicates an expected call of WaitSettled.
+func (mr *MockRegistryMockRecorder) WaitSettled(ctx, id, since any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitSettled", reflect.TypeOf((*MockRegistry)(nil).WaitSettled), ctx, id, since)
 }

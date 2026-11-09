@@ -1,6 +1,9 @@
 package services
 
 import (
+	"context"
+	"time"
+
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
@@ -10,6 +13,7 @@ type Admission struct {
 	Service model.Service
 	Action  contracts.Action
 	Status  model.Status
+	At      time.Time
 }
 
 // Control validates and admits service actions for every frontend
@@ -36,6 +40,27 @@ func (c *Control) Stop(id string) (Admission, error) {
 // Restart admits a restart of a running, stopped or failed service
 func (c *Control) Restart(id string) (Admission, error) {
 	return c.admit(id, contracts.ActionRestart)
+}
+
+// Wait blocks until the service's action has ended or the context is done
+func (c *Control) Wait(ctx context.Context, id string) error {
+	idle, err := c.guard.idle(id)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-idle:
+		return nil
+	case <-ctx.Done():
+	}
+
+	select {
+	case <-idle:
+		return nil
+	default:
+		return ctx.Err()
+	}
 }
 
 // Toggle admits a stop of a service with a live child and a start of one without
