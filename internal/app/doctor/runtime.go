@@ -142,14 +142,7 @@ func (r *Runner) checkPorts(ctx context.Context, st *state) model.Result {
 	}
 
 	if len(busy) > 0 {
-		return model.Result{
-			ID:          model.CheckRuntimePorts,
-			Category:    model.CategoryRuntime,
-			Severity:    model.SeverityWarn,
-			Summary:     fmt.Sprintf("%d readiness port(s) already bound", len(busy)),
-			Details:     busy,
-			Remediation: "stop the conflicting process or change the readiness port",
-		}
+		return r.busyPorts(st, busy)
 	}
 
 	return model.Result{
@@ -157,5 +150,29 @@ func (r *Runner) checkPorts(ctx context.Context, st *state) model.Result {
 		Category: model.CategoryRuntime,
 		Severity: model.SeverityOK,
 		Summary:  fmt.Sprintf("%d readiness port(s) available", probed),
+	}
+}
+
+// busyPorts reports bound readiness ports as a note when this project's own fuku runs, as a warning otherwise
+func (r *Runner) busyPorts(st *state, busy []model.Detail) model.Result {
+	socket := r.runtime.Socket(st.Fingerprint)
+
+	if socket.Present && socket.Reachable {
+		return model.Result{
+			ID:       model.CheckRuntimePorts,
+			Category: model.CategoryRuntime,
+			Severity: model.SeverityNote,
+			Summary:  fmt.Sprintf("%d readiness port(s) in use while this project's fuku runs (likely its own services)", len(busy)),
+			Details:  busy,
+		}
+	}
+
+	return model.Result{
+		ID:          model.CheckRuntimePorts,
+		Category:    model.CategoryRuntime,
+		Severity:    model.SeverityWarn,
+		Summary:     fmt.Sprintf("%d readiness port(s) already bound", len(busy)),
+		Details:     busy,
+		Remediation: "stop the conflicting process or change the readiness port",
 	}
 }

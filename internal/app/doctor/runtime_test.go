@@ -185,6 +185,8 @@ func Test_Runner_checkPorts(t *testing.T) {
 		expectedSeverity model.Severity
 		expectedSummary  string
 		expectedDetails  []model.Detail
+
+		expectedRemediation string
 	}{
 		{
 			name:             "config did not load",
@@ -231,10 +233,35 @@ func Test_Runner_checkPorts(t *testing.T) {
 			before: func() {
 				mockRuntime.EXPECT().ProbePort(gomock.Any(), http).Return(model.Port{Address: "localhost:8080", InUse: true})
 				mockRuntime.EXPECT().ProbePort(gomock.Any(), tcp).Return(model.Port{Address: "localhost:5432"})
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock"})
 			},
-			state:            &state{services: []*model.Service{httpProbed, tcpProbed}},
-			expectedSeverity: model.SeverityWarn,
-			expectedSummary:  "1 readiness port(s) already bound",
+			state:               &state{Options: Options{Fingerprint: "0123456789abcdef"}, services: []*model.Service{httpProbed, tcpProbed}},
+			expectedSeverity:    model.SeverityWarn,
+			expectedSummary:     "1 readiness port(s) already bound",
+			expectedDetails:     []model.Detail{{Key: "http", Value: "localhost:8080 already LISTENING"}},
+			expectedRemediation: "stop the conflicting process or change the readiness port",
+		},
+		{
+			name: "port bound while own socket is unreachable",
+			before: func() {
+				mockRuntime.EXPECT().ProbePort(gomock.Any(), http).Return(model.Port{Address: "localhost:8080", InUse: true})
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock", Present: true, Error: assert.AnError})
+			},
+			state:               &state{Options: Options{Fingerprint: "0123456789abcdef"}, services: []*model.Service{httpProbed}},
+			expectedSeverity:    model.SeverityWarn,
+			expectedSummary:     "1 readiness port(s) already bound",
+			expectedDetails:     []model.Detail{{Key: "http", Value: "localhost:8080 already LISTENING"}},
+			expectedRemediation: "stop the conflicting process or change the readiness port",
+		},
+		{
+			name: "port bound while own fuku runs",
+			before: func() {
+				mockRuntime.EXPECT().ProbePort(gomock.Any(), http).Return(model.Port{Address: "localhost:8080", InUse: true})
+				mockRuntime.EXPECT().Socket("0123456789abcdef").Return(model.Socket{Path: "/tmp/fuku-0123456789abcdef.sock", Present: true, Reachable: true})
+			},
+			state:            &state{Options: Options{Fingerprint: "0123456789abcdef"}, services: []*model.Service{httpProbed}},
+			expectedSeverity: model.SeverityNote,
+			expectedSummary:  "1 readiness port(s) in use while this project's fuku runs (likely its own services)",
 			expectedDetails:  []model.Detail{{Key: "http", Value: "localhost:8080 already LISTENING"}},
 		},
 	}
@@ -249,6 +276,7 @@ func Test_Runner_checkPorts(t *testing.T) {
 			assert.Equal(t, tt.expectedSeverity, r.Severity)
 			assert.Equal(t, tt.expectedSummary, r.Summary)
 			assert.Equal(t, tt.expectedDetails, r.Details)
+			assert.Equal(t, tt.expectedRemediation, r.Remediation)
 		})
 	}
 }

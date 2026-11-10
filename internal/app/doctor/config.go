@@ -35,15 +35,20 @@ func checkConfigFile(st *state) model.Result {
 	}
 
 	if st.Error != nil && !errors.Is(st.Error, contracts.ErrInvalidConfig) {
+		summary := "failed to load " + st.Path
+		details := []model.Detail{{Key: "path", Value: st.Path}}
+
+		if st.OverridePath != "" && !st.ExplicitConfig {
+			summary += " with " + st.OverridePath
+			details = append(details, model.Detail{Key: "override", Value: st.OverridePath})
+		}
+
 		return model.Result{
-			ID:       model.CheckConfigFile,
-			Category: model.CategoryConfiguration,
-			Severity: model.SeverityFail,
-			Summary:  "failed to load " + st.Path,
-			Details: []model.Detail{
-				{Key: "path", Value: st.Path},
-				{Key: "error", Value: st.Error.Error()},
-			},
+			ID:          model.CheckConfigFile,
+			Category:    model.CategoryConfiguration,
+			Severity:    model.SeverityFail,
+			Summary:     summary,
+			Details:     append(details, model.Detail{Key: "error", Value: st.Error.Error()}),
 			Remediation: "check YAML syntax and required fields",
 		}
 	}

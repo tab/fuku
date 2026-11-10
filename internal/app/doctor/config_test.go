@@ -21,9 +21,11 @@ func Test_configSection(t *testing.T) {
 
 func Test_checkConfigFile(t *testing.T) {
 	tests := []struct {
-		name     string
-		state    *state
-		expected model.Severity
+		name            string
+		state           *state
+		expected        model.Severity
+		expectedSummary string
+		expectedDetails []model.Detail
 	}{
 		{
 			name:     "missing config",
@@ -31,9 +33,29 @@ func Test_checkConfigFile(t *testing.T) {
 			expected: model.SeverityFail,
 		},
 		{
-			name:     "read or parse error",
-			state:    &state{Config: model.Config{Path: "fuku.yaml", Error: assert.AnError}},
-			expected: model.SeverityFail,
+			name:            "read or parse error",
+			state:           &state{Config: model.Config{Path: "fuku.yaml", Error: assert.AnError}},
+			expected:        model.SeverityFail,
+			expectedSummary: "failed to load fuku.yaml",
+			expectedDetails: []model.Detail{{Key: "path", Value: "fuku.yaml"}, {Key: "error", Value: assert.AnError.Error()}},
+		},
+		{
+			name:            "load error with override names both files",
+			state:           &state{Config: model.Config{Path: "fuku.yaml", OverridePath: "fuku.override.yaml", Error: assert.AnError}},
+			expected:        model.SeverityFail,
+			expectedSummary: "failed to load fuku.yaml with fuku.override.yaml",
+			expectedDetails: []model.Detail{
+				{Key: "path", Value: "fuku.yaml"},
+				{Key: "override", Value: "fuku.override.yaml"},
+				{Key: "error", Value: assert.AnError.Error()},
+			},
+		},
+		{
+			name:            "load error with skipped override names the base file only",
+			state:           &state{Options: Options{ExplicitConfig: true}, Config: model.Config{Path: "fuku.yaml", OverridePath: "fuku.override.yaml", Error: assert.AnError}},
+			expected:        model.SeverityFail,
+			expectedSummary: "failed to load fuku.yaml",
+			expectedDetails: []model.Detail{{Key: "path", Value: "fuku.yaml"}, {Key: "error", Value: assert.AnError.Error()}},
 		},
 		{
 			name:     "validation error is not a load failure",
@@ -53,6 +75,13 @@ func Test_checkConfigFile(t *testing.T) {
 
 			assert.Equal(t, model.CheckConfigFile, r.ID)
 			assert.Equal(t, tt.expected, r.Severity)
+
+			if tt.expectedSummary == "" {
+				return
+			}
+
+			assert.Equal(t, tt.expectedSummary, r.Summary)
+			assert.Equal(t, tt.expectedDetails, r.Details)
 		})
 	}
 }
