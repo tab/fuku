@@ -516,6 +516,22 @@ func Test_Store_Watching(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "watch started again",
+			msg: contracts.Message{
+				Type: contracts.EventWatchStarted,
+				Data: contracts.WatchStarted{Service: api},
+			},
+			expected: true,
+		},
+		{
+			name: "service stopped clears watching",
+			msg: contracts.Message{
+				Type: contracts.EventServiceStopped,
+				Data: contracts.ServiceStopped{ServiceEvent: contracts.ServiceEvent{Service: api, Tier: "foundation"}},
+			},
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {

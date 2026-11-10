@@ -207,6 +207,7 @@ func applyServiceStopped(snapshot *model.Snapshot, msg contracts.Message) bool {
 	svc.Status = model.StatusStopped
 	svc.Process = model.Process{}
 	svc.Error = ""
+	svc.Watching = false
 
 	return true
 }
