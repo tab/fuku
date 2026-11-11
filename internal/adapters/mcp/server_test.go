@@ -16,32 +16,32 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"fuku/internal/adapters/terminal"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
 
 func Test_NewServer(t *testing.T) {
-	dial := func(model.Instance) Client { return nil }
+	newInstance := func(model.Instance) Instance { return nil }
 
-	var dialAPI APIDialer
+	var newClient func(string, string) (Client, error)
 
-	load := func(string) model.Config { return model.Config{} }
+	load := func(string, string) model.Config { return model.Config{} }
 	execute := NewBinary()
 	readOnly := &sdk.ToolAnnotations{ReadOnlyHint: true}
-	expectedNames := []string{toolDoctor, toolLogs, toolRun, toolService, toolStatus, toolStop}
+	expectedNames := []string{toolConfig, toolDoctor, toolLogs, toolRun, toolService, toolStatus, toolStop}
 	expectedAnnotations := map[string]*sdk.ToolAnnotations{
 		toolStatus:  readOnly,
 		toolLogs:    readOnly,
+		toolConfig:  readOnly,
 		toolDoctor:  readOnly,
-		toolRun:     {DestructiveHint: new(false)},
+		toolRun:     {DestructiveHint: new(true)},
 		toolStop:    {DestructiveHint: new(true)},
-		toolService: {DestructiveHint: new(false)},
+		toolService: {DestructiveHint: new(true)},
 	}
 	clientTransport, serverTransport := sdk.NewInMemoryTransports()
 	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil)
 
-	subject, err := NewServer(dial, dialAPI, load, execute, terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+	subject, err := NewServer(newInstance, newClient, load, execute, NewPlain(io.Discard))
 	require.NoError(t, err)
 
 	_, err = subject.server.Connect(t.Context(), serverTransport, nil)
@@ -60,26 +60,54 @@ func Test_NewServer(t *testing.T) {
 	descriptions := map[string]string{}
 	configured := map[string]bool{}
 
+	var actionSchema any
+
 	for _, tool := range result.Tools {
 		names = append(names, tool.Name)
 		annotations[tool.Name] = tool.Annotations
 		descriptions[tool.Name] = tool.Description
 		configured[tool.Name] = tool.InputSchema.(map[string]any)["properties"].(map[string]any)["config"] != nil
+
+		if tool.Name == toolService {
+			actionSchema = tool.InputSchema.(map[string]any)["properties"].(map[string]any)["action"]
+		}
 	}
 
 	assert.Equal(t, expectedNames, names)
 	assert.Equal(t, expectedAnnotations, annotations)
-	assert.Equal(t, map[string]bool{toolDoctor: true, toolLogs: true, toolRun: true, toolService: true, toolStatus: true, toolStop: true}, configured)
+	assert.Equal(t, map[string]bool{toolConfig: true, toolDoctor: true, toolLogs: true, toolRun: true, toolService: true, toolStatus: true, toolStop: true}, configured)
+	assert.Equal(t, map[string]any{
+		"type":        "string",
+		"enum":        []any{"start", "stop", "restart"},
+		"description": "what to do to the service",
+	}, actionSchema)
 	assert.Equal(t, instructions, session.InitializeResult().Instructions)
-	assert.LessOrEqual(t, len(instructions), 512)
-	assert.Contains(t, instructions, "Never read fuku.yaml or fuku.override.yaml whole; they may hold secrets.")
-	assert.Contains(t, instructions, "Call doctor only after a failed run or a config edit, never before a plain run.")
-	assert.Contains(t, instructions, "Omit config unless the user names a config file other than fuku.yaml.")
+	assert.LessOrEqual(t, len(instructions), 4096)
+	assert.Contains(t, instructions[:512], "If no tool fits the task, change nothing and tell the user which tool is missing.")
+	assert.Contains(t, instructions[:512], "Call doctor only after a failed run or a config edit.")
+	assert.Contains(t, instructions[:512], "Control fuku only through these tools: never the fuku CLI, curl, the REST API or a script, not even to probe.")
+	assert.Contains(t, instructions[:512], "Read config with the config tool; grep a config file only to edit one key; never read the API token.")
+	assert.Contains(t, instructions[:512], "One fuku per project: call status before run or stop, not service or logs; run only when nothing runs, stop only when the user asks.")
+	assert.Contains(t, instructions, "Tools: status shows each service")
+	assert.Contains(t, instructions, "Apply a config change with stop then run only when status reports mode detached. Otherwise tell the developer to restart their fuku.")
+	assert.Contains(t, instructions, "Leave fuku running when the task is done.")
+	assert.Contains(t, instructions, "Restart an edited service that is not watching.")
+	assert.Contains(t, instructions, "Control fuku only through these tools: never the fuku CLI, curl, the REST API or a script, not even to probe.")
+	assert.Contains(t, instructions, "If no tool fits the task, change nothing and tell the user which tool is missing.")
+	assert.Contains(t, instructions, "Read config with the config tool; grep a config file only to edit one key; never read the API token.")
+	assert.Contains(t, instructions, "Call doctor only after a failed run or a config edit.")
+
+	for _, tool := range []string{toolStatus, toolLogs, toolConfig, toolRun, toolStop, toolService} {
+		assert.Contains(t, descriptions[tool], noteOnlyTool, tool)
+	}
+
+	assert.Contains(t, descriptions[toolLogs], "no tool follows logs live: say so instead of a workaround")
 	assert.Contains(t, instructions, "run only when nothing runs, stop only when the user asks.")
+	assert.Contains(t, instructions, "call status before run or stop, not service or logs; run only when nothing runs")
 	assert.Contains(t, descriptions[toolStatus], "its mode")
 	assert.Contains(t, descriptions[toolStatus], noteMode)
 	assert.Contains(t, noteMode, "do not stop it to apply a config change, tell the developer the change needs their restart")
-	assert.Contains(t, noteWatching, "shows a new PID or failed, then test it; restart only a service that is not watching")
+	assert.Contains(t, noteWatching, "after a code edit restart the edited service when it is not watching; when it is watching, call status until it shows a new PID or failed, then test it, without restarting it yourself; restart any service the user asks you to")
 	assert.Contains(t, descriptions[toolStatus], noteWatching)
 	assert.Contains(t, descriptions[toolService], noteWatching)
 	assert.Contains(t, descriptions[toolStop], "leave fuku running after the task; stop only when the user asks, or to apply a config change when status reports mode detached")
@@ -91,18 +119,19 @@ func Test_Server_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := NewMockClient(ctrl)
+	mockConsole := NewMockConsole(ctrl)
+	mockInstance := NewMockInstance(ctrl)
 
-	dial := func(model.Instance) Client { return mockClient }
+	newInstance := func(model.Instance) Instance { return mockInstance }
 
-	var dialAPI APIDialer
+	var newClient func(string, string) (Client, error)
 
-	load := func(string) model.Config { return model.Config{} }
+	load := func(string, string) model.Config { return model.Config{} }
 	execute := NewBinary()
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	subject, err := NewServer(dial, dialAPI, load, execute, terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+	subject, err := NewServer(newInstance, newClient, load, execute, mockConsole)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -114,7 +143,12 @@ func Test_Server_Run(t *testing.T) {
 		{
 			name: "stdin closes",
 			before: func(t *testing.T) (*os.File, context.Context) {
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
+				gomock.InOrder(
+					mockConsole.EXPECT().Open(),
+					mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning),
+					mockConsole.EXPECT().Banner(gomock.Any()),
+					mockConsole.EXPECT().Close(),
+				)
 
 				reader, writer, err := os.Pipe()
 				require.NoError(t, err)
@@ -127,7 +161,12 @@ func Test_Server_Run(t *testing.T) {
 		{
 			name: "the run is cancelled",
 			before: func(t *testing.T) (*os.File, context.Context) {
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
+				gomock.InOrder(
+					mockConsole.EXPECT().Open(),
+					mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning),
+					mockConsole.EXPECT().Banner(gomock.Any()),
+					mockConsole.EXPECT().Close(),
+				)
 
 				reader, writer, err := os.Pipe()
 				require.NoError(t, err)
@@ -140,7 +179,12 @@ func Test_Server_Run(t *testing.T) {
 		{
 			name: "stdin cannot be read",
 			before: func(t *testing.T) (*os.File, context.Context) {
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
+				gomock.InOrder(
+					mockConsole.EXPECT().Open(),
+					mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning),
+					mockConsole.EXPECT().Banner(gomock.Any()),
+					mockConsole.EXPECT().Close(),
+				)
 
 				dir, err := os.Open(t.TempDir())
 				require.NoError(t, err)
@@ -199,19 +243,19 @@ func Test_Server_Run_EntersProjectRoot(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := NewMockClient(ctrl)
-	mockClient.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
+	mockInstance := NewMockInstance(ctrl)
+	mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
 
-	dial := func(model.Instance) Client { return mockClient }
+	newInstance := func(model.Instance) Instance { return mockInstance }
 
-	var dialAPI APIDialer
+	var newClient func(string, string) (Client, error)
 
-	load := func(string) model.Config { return model.Config{} }
+	load := func(string, string) model.Config { return model.Config{} }
 	execute := NewBinary()
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	subject, err := NewServer(dial, dialAPI, load, execute, terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+	subject, err := NewServer(newInstance, newClient, load, execute, NewPlain(io.Discard))
 	require.NoError(t, err)
 
 	exitCode, err := subject.Run(cancelled)
@@ -228,7 +272,7 @@ func Test_Server_Run_WritesOnlyProtocolToStdout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := NewMockClient(ctrl)
+	mockInstance := NewMockInstance(ctrl)
 
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -249,17 +293,17 @@ func Test_Server_Run_WritesOnlyProtocolToStdout(t *testing.T) {
 
 	t.Cleanup(func() { os.Stdin, os.Stdout = stdin, stdout })
 
-	mockClient.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning).Times(2)
+	mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning).Times(2)
 
-	dial := func(model.Instance) Client { return mockClient }
+	newInstance := func(model.Instance) Instance { return mockInstance }
 
-	var dialAPI APIDialer
+	var newClient func(string, string) (Client, error)
 
-	load := func(string) model.Config { return model.Config{} }
+	load := func(string, string) model.Config { return model.Config{} }
 
 	var stderr bytes.Buffer
 
-	subject, err := NewServer(dial, dialAPI, load, NewBinary(), terminal.NewTheme(terminal.AppearanceDark), &stderr)
+	subject, err := NewServer(newInstance, newClient, load, NewBinary(), NewPlain(&stderr))
 	require.NoError(t, err)
 
 	done := make(chan error, 1)
@@ -275,7 +319,7 @@ func Test_Server_Run_WritesOnlyProtocolToStdout(t *testing.T) {
 	requests := []string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"status","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"logs","arguments":{}}}`,
 	}
 
 	_, err = stdinWriter.WriteString(strings.Join(requests, "\n") + "\n")
@@ -306,5 +350,5 @@ func Test_Server_Run_WritesOnlyProtocolToStdout(t *testing.T) {
 
 	assert.Contains(t, stderr.String(), "[+] fuku mcp · stdio · protocol ")
 	assert.Contains(t, stderr.String(), " instance  not running · call run to start\n")
-	assert.Regexp(t, `\n ✘ status {25}no fuku instance is running in .+; call run first · \d+ms\n$`, stderr.String())
+	assert.Regexp(t, `\n ✘ logs {27}no fuku instance is running in .+; call run first · \d+ms\n$`, stderr.String())
 }

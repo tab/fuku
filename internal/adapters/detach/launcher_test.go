@@ -35,7 +35,7 @@ func Test_Launcher_Launch(t *testing.T) {
 	line, err := bufio.NewReader(child.Output()).ReadString('\n')
 
 	require.NoError(t, err)
-	assert.Equal(t, "run core --no-ui --detached-child --config fuku.ci.yaml leads=true\n", line)
+	assert.Equal(t, "run --no-ui --detached-child --config fuku.ci.yaml -- core leads=true\n", line)
 }
 
 func Test_Launcher_args(t *testing.T) {
@@ -47,12 +47,12 @@ func Test_Launcher_args(t *testing.T) {
 		{
 			name:     "runs the profile headless as the child",
 			options:  Options{Profile: "core"},
-			expected: []string{"run", "core", "--no-ui", "--detached-child"},
+			expected: []string{"run", "--no-ui", "--detached-child", "--", "core"},
 		},
 		{
 			name:     "passes the config the parent loaded",
 			options:  Options{Profile: "default", ConfigFile: "fuku.ci.yaml"},
-			expected: []string{"run", "default", "--no-ui", "--detached-child", "--config", "fuku.ci.yaml"},
+			expected: []string{"run", "--no-ui", "--detached-child", "--config", "fuku.ci.yaml", "--", "default"},
 		},
 	}
 

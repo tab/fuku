@@ -5,31 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os/exec"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 
-	"charm.land/lipgloss/v2"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"fuku/internal/adapters/terminal"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
 
 // methodCallTool is the JSON-RPC method of a tool call
 const methodCallTool = "tools/call"
-
-// Widths of the banner labels and of the call line columns: the tool with its target, then the outcome
-const (
-	bannerLabelWidth = 9
-	callLabelWidth   = 20
-	callOutcomeWidth = 9
-)
 
 // invalidArguments prefixes every schema failure of the SDK, whose text quotes the rejected argument value
 const invalidArguments = `validating "arguments"`
@@ -38,36 +27,66 @@ const invalidArguments = `validating "arguments"`
 var commandTools = []string{toolRun, toolStop, toolDoctor}
 
 // toolNames lists the tools in the order tools/list returns them
-var toolNames = []string{toolDoctor, toolLogs, toolRun, toolService, toolStatus, toolStop}
+var toolNames = []string{toolConfig, toolDoctor, toolLogs, toolRun, toolService, toolStatus, toolStop}
 
-// console writes the banner and one line per tool call to stderr, one write at a time
-type console struct {
-	theme  terminal.Theme
-	stderr io.Writer
-	mu     sync.Mutex
+// InstanceState is the state of the project's instance the banner shows
+type InstanceState string
+
+// InstanceState values
+const (
+	InstanceStateRunning    InstanceState = "running"
+	InstanceStateNotRunning InstanceState = "not running"
+	InstanceStateUnknown    InstanceState = stateUnknown
+)
+
+// Banner is the startup record: the protocol, the project, the state of its instance and the tools
+type Banner struct {
+	Protocol    string
+	Project     string
+	Fingerprint string
+	State       InstanceState
+	Detail      string
+	Tools       []string
 }
 
-// write prints the lines in one write, with the styles stripped when stderr is no terminal
-func (c *console) write(lines ...string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	lipgloss.Fprint(c.stderr, strings.Join(lines, "\n")+"\n")
+// Call is the record of one tool call: its target, its settled state or why it failed, and its duration
+type Call struct {
+	Target   string
+	Outcome  string
+	Failure  string
+	Duration time.Duration
 }
 
-// banner writes the startup banner with the state of the running instance the log socket reports
+// Console shows the banner and one line per tool call on stderr, between Open and Close
+type Console interface {
+	Open()
+	Banner(banner Banner)
+	Call(call Call)
+	Close()
+}
+
+// Elapsed formats the duration in milliseconds below a second, and in seconds with one decimal above
+func (c Call) Elapsed() string {
+	if c.Duration < time.Second {
+		return fmt.Sprintf("%dms", c.Duration.Milliseconds())
+	}
+
+	return fmt.Sprintf("%.1fs", c.Duration.Seconds())
+}
+
+// banner shows the startup banner with the state of the running instance the log socket reports
 func (s *Server) banner() {
 	identity, err := identify("")
 
 	var status contracts.LogStatus
 	if err == nil {
-		status, err = s.dial(identity).Status()
+		status, err = s.instance(identity).Status()
 	}
 
-	s.console.write(bannerLines(s.console.theme, identity, status, err)...)
+	s.console.Banner(bannerRecord(identity, status, err))
 }
 
-// logCalls is the receiving middleware that writes one stderr line per tool call
+// logCalls is the receiving middleware that shows one line per tool call, with the API tokens redacted
 func (s *Server) logCalls(next sdk.MethodHandler) sdk.MethodHandler {
 	return func(ctx context.Context, method string, req sdk.Request) (sdk.Result, error) {
 		params, ok := req.GetParams().(*sdk.CallToolParamsRaw)
@@ -78,46 +97,41 @@ func (s *Server) logCalls(next sdk.MethodHandler) sdk.MethodHandler {
 		started := time.Now()
 		result, err := next(ctx, method, req)
 
-		s.console.write(callLine(s.console.theme, params, result, err, time.Since(started)))
+		call := callRecord(params, result, err, time.Since(started))
+		tokens := s.tokens(params.Arguments)
+		call.Target, call.Outcome, call.Failure = redact(call.Target, tokens), redact(call.Outcome, tokens), redact(call.Failure, tokens)
+
+		s.console.Call(call)
 
 		return result, err
 	}
 }
 
-// bannerLines renders the banner: the protocol, the project, the instance state, the tools and how to stop
-func bannerLines(theme terminal.Theme, identity model.Instance, status contracts.LogStatus, err error) []string {
-	label := func(name string) string {
-		return theme.PanelMutedStyle.Render(terminal.PadRight(name, bannerLabelWidth))
+// bannerRecord returns the banner: the protocol, the project, the instance state and the tools
+func bannerRecord(identity model.Instance, status contracts.LogStatus, err error) Banner {
+	banner := Banner{
+		Protocol:    sdk.SupportedProtocolVersions()[0],
+		Project:     identity.Project,
+		Fingerprint: identity.Fingerprint,
+		Tools:       toolNames,
 	}
 
-	return []string{
-		fmt.Sprintf("%s fuku mcp · stdio · protocol %s", terminal.BoldStyle.Render("[+]"), sdk.SupportedProtocolVersions()[0]),
-		fmt.Sprintf(" %s %s · %s", label("project"), identity.Project, identity.Fingerprint),
-		fmt.Sprintf(" %s %s", label("instance"), instanceState(theme, status, err)),
-		fmt.Sprintf(" %s %s", label("tools"), strings.Join(toolNames, " ")),
-		"Serving MCP · close stdin or Ctrl+C to stop",
-	}
-}
-
-// instanceState renders the running instance, its absence, or a short reason its state is unknown
-func instanceState(theme terminal.Theme, status contracts.LogStatus, err error) string {
 	switch {
 	case errors.Is(err, contracts.ErrNoInstanceRunning):
-		return theme.StatusStoppedStyle.Render("not running") + " · call run to start"
+		banner.State, banner.Detail = InstanceStateNotRunning, "call run to start"
 	case err != nil:
-		return theme.StatusStartingStyle.Render(stateUnknown) + " · " + oneLine(err.Error())
+		banner.State, banner.Detail = InstanceStateUnknown, oneLine(err.Error())
+	case status.API == "":
+		banner.State, banner.Detail = InstanceStateRunning, fmt.Sprintf("profile %s · pid %d", status.Profile, status.PID)
+	default:
+		banner.State, banner.Detail = InstanceStateRunning, fmt.Sprintf("profile %s · http://%s · pid %d", status.Profile, status.API, status.PID)
 	}
 
-	state := fmt.Sprintf("%s · profile %s · pid %d", theme.StatusRunningStyle.Render("running"), status.Profile, status.PID)
-	if status.API == "" {
-		return state
-	}
-
-	return state + " · API " + status.API
+	return banner
 }
 
-// callLine renders one tool call: the tool, the service and action of a service call, the outcome and the duration
-func callLine(theme terminal.Theme, params *sdk.CallToolParamsRaw, result sdk.Result, err error, duration time.Duration) string {
+// callRecord returns one tool call: the tool, the service and action of a service call, the outcome and the duration
+func callRecord(params *sdk.CallToolParamsRaw, result sdk.Result, err error, duration time.Duration) Call {
 	called := toolResult(result)
 	target, state := params.Name, ""
 
@@ -125,18 +139,12 @@ func callLine(theme terminal.Theme, params *sdk.CallToolParamsRaw, result sdk.Re
 		target, state = serviceCall(params.Arguments, called)
 	}
 
-	target = terminal.PadRight(oneLine(target), callLabelWidth) + " "
-
 	reason := failure(params.Name, called, err)
 	if reason != "" {
-		blank := strings.Repeat(" ", callOutcomeWidth+1)
-
-		return fmt.Sprintf(" %s %s%s%s · %s", theme.StatusFailedStyle.Render("✘"), target, blank, theme.ErrorStyle.Render(reason), elapsed(duration))
+		return Call{Target: oneLine(target), Failure: reason, Duration: duration}
 	}
 
-	outcome := terminal.PadRight(oneLine(state), callOutcomeWidth) + " "
-
-	return fmt.Sprintf(" %s %s%s%s", theme.StatusRunningStyle.Render("✔"), target, outcome, theme.PanelMutedStyle.Render(elapsed(duration)))
+	return Call{Target: oneLine(target), Outcome: oneLine(state), Duration: duration}
 }
 
 // toolResult returns the tool result of a call, or an empty one when the call failed before it had one
@@ -225,13 +233,4 @@ func oneLine(text string) string {
 
 		return r
 	}, line)
-}
-
-// elapsed formats a call duration in milliseconds below a second, and in seconds with one decimal above
-func elapsed(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-
-	return fmt.Sprintf("%.1fs", d.Seconds())
 }

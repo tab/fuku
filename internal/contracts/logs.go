@@ -7,7 +7,7 @@ type LogStatus struct {
 	Version  string
 	Profile  string
 	Services []string
-	PID      int
 	API      string
+	PID      int
 	Mode     model.RunMode
 }

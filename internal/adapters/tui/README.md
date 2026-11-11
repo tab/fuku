@@ -1,13 +1,12 @@
 # adapters/tui
 
-The Bubble Tea frontends: the services view of `fuku run`, the startup view of `fuku run -d`,
-plus the inline doctor report and log view that render without a program.
+The Bubble Tea frontends: the services view of `fuku run`, the startup view of `fuku run -d`, the console of `fuku mcp`, plus the inline doctor report and log view that render without a program.
 
 The view owns interaction, animation and history. Every shared fact comes from the registry snapshot.
 Every action goes through `Control`. The view never decides what a service may do.
 
-Every style comes from `adapters/terminal`. No `lipgloss.NewStyle()` is called here.
-`Program` resolves the injected theme in `Run` and hands it to the model. The model rebuilds it when the terminal reports its background color.
+Every style comes from `adapters/terminal`. `Program` resolves the injected theme in `Run` and hands it to the model.
+The model rebuilds it when the terminal reports its background color.
 The inline doctor report and log view resolve the theme when they write. The log banner reads the terminal width then too.
 
 ## How messages reach the view
@@ -18,15 +17,16 @@ Its handler blocks until the program exists. A message published before the view
 
 `Program` is the command of the composition.
 It builds the model, attaches the program to the bridge and runs it with `tea.WithoutSignalHandler()`. Fx owns the OS signals.
-A signal reaches the view as its cancelled context.
-The application log writer stays off for the whole run. A failed run still prints `Error: <cause>` on stderr through the arbiter.
+A signal reaches the view as its cancelled context. The application log writer stays off for the whole run.
+A failed run still prints `Error: <cause>` on stderr through the arbiter.
 The program's exit code is the exit code of the run, unless the arbiter recorded a failure first.
 
 ## The read model
 
 The view keeps no copy of the registry. `Update` handles each message inside one `registry.Read`. `View` renders inside another.
-Both set the model's `snapshot` inside the callback. `Update` clears it before it returns the model.
-So the model Bubble Tea keeps never points into the registry. A read outside a callback panics instead of racing.
+Both set the model's `snapshot` inside the callback.
+`Update` clears it before it returns the model, so the model Bubble Tea keeps never points into the registry.
+A read outside a callback panics instead of racing.
 
 `serviceView` holds two kinds of fields and nothing else:
 
@@ -41,13 +41,7 @@ A field the view only displays is never copied. It is read from the snapshot's `
 - then every service goes through `applyService`
 - the stopped phase clears the loader and quits
 
-`applyService` records what it saw. It runs effects only on a status change or a new attempt:
-
-- `starting` opens the attempt and starts the loader
-- `running` and `failed` settle the attempt and stop the loader
-- `stopped` settles and keeps the loader while a restart is in flight
-- `stopping` starts the loader
-- `restarting` flags the restart and starts the loader
+`applyService` records what it saw. It runs effects, such as the loader, only on a status change or a new attempt.
 
 ## Actions
 
@@ -56,8 +50,9 @@ A field the view only displays is never copied. It is read from the snapshot's `
 - `ctrl+r` restarts every failed service
 - `q` stops everything
 
-A key handler reads the target's ID, name and `LifecycleAt` inside `Read` and returns a command. It never calls `Control` under the lock.
-The command calls `Control`. It captures those three values and a `Control` method, never a `*model.Service` or the model.
+A key handler reads the target's ID, name and `LifecycleAt` inside `Read` and returns a command.
+It never calls `Control` under the lock.
+The command captures those three values and a `Control` method, never a `*model.Service` or the model.
 It answers with `admissionMsg`, or with `stopAllMsg` for `q`. The view reacts to that answer:
 
 - the loader starts only when the core admitted the action and the service's `LifecycleAt` is still the one the key saw.
@@ -70,11 +65,20 @@ It answers with `admissionMsg`, or with `stopAllMsg` for `q`. The view reacts to
 - a new fact the view shows is read from the snapshot inside `Read`. The view subscribes to no lifecycle event
 - a new transition the view reacts to keeps the last seen value of the compared field in `serviceView`. Nothing else goes there
 - a new action goes through `Control`. The view never checks eligibility
-- a new style is a field on `terminal.Theme` or a `var` in `terminal/styles.go`
 
 ## The startup view
 
-`Startup` implements `detach.View` for a detached start on a terminal. It draws one line per service, the way `docker compose up -d` does.
+`Startup` implements `detach.View` for a detached start on a terminal.
+It draws one line per service, the way `docker compose up -d` does.
 It runs inline and reads the terminal, so the replies to Bubble Tea's mode queries never leak into the shell.
 In raw mode `Ctrl-C` is a key press. The model turns it into a `SIGINT` to its own process, the one abort path of the parent.
 `Close` sends the final frame and waits for the program. The frame stays on screen above the summary.
+
+## The MCP console
+
+`MCPConsole` implements `mcp.Console` when the stderr of `fuku mcp` is a terminal.
+It keeps the banner in place and prints each tool call above it with `tea.Println`, so every call stays in the scrollback.
+`Close` quits only after every call line it was sent is printed, so a stop during a call drops no line. `mcp` keeps every decision.
+The view only lays the records out, in the columns of `mcp.Plain`.
+The program has no input and writes to stderr only, because stdin and stdout carry the protocol.
+With no input, Bubble Tea sends no terminal query and reads no reply. It keeps no raw mode, so `Ctrl-C` stays the terminal's `SIGINT`.

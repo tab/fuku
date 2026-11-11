@@ -18,7 +18,7 @@ import (
 )
 
 // mcpTools lists the tools in the order tools/list returns them
-var mcpTools = []string{"doctor", "logs", "run", "service", "status", "stop"}
+var mcpTools = []string{"config", "doctor", "logs", "run", "service", "status", "stop"}
 
 // mcpCallLine matches the one stderr line the server writes per tool call
 var mcpCallLine = regexp.MustCompile(`(?m)^ [✔✘] .*$`)
@@ -234,11 +234,24 @@ func Test_MCP_ServesWithoutConfig(t *testing.T) {
 
 	assert.Equal(t, mcpTools, client.tools())
 
-	status := client.call("status", map[string]any{}, 10*time.Second)
+	var status struct {
+		Running  bool              `json:"running"`
+		Services []json.RawMessage `json:"services"`
+		Note     string            `json:"note"`
+	}
 
-	assert.True(t, status.IsError)
-	require.NotEmpty(t, status.Content)
-	assert.Contains(t, status.Content[0].Text, "no fuku instance is running")
+	structured(t, client.call("status", map[string]any{}, 10*time.Second), &status)
+
+	assert.False(t, status.Running)
+	assert.NotNil(t, status.Services)
+	assert.Empty(t, status.Services)
+	assert.Contains(t, status.Note, "no fuku runs in")
+
+	logs := client.call("logs", map[string]any{}, 10*time.Second)
+
+	assert.True(t, logs.IsError)
+	require.NotEmpty(t, logs.Content)
+	assert.Contains(t, logs.Content[0].Text, "no fuku instance is running")
 	assert.Equal(t, mcpTools, client.tools(), "the server must keep serving after a tool error")
 
 	assert.Equal(t, 0, client.close())
@@ -247,11 +260,12 @@ func Test_MCP_ServesWithoutConfig(t *testing.T) {
 	stderr := client.stderr.String()
 	assert.Contains(t, stderr, "fuku mcp · stdio · protocol")
 	assert.Contains(t, stderr, "not running")
-	assert.Contains(t, stderr, "doctor logs run service status stop")
+	assert.Contains(t, stderr, "config doctor logs run service status stop")
 
 	calls := mcpCallLine.FindAllString(stderr, -1)
-	require.Len(t, calls, 1, "one line per tool call in:\n%s", stderr)
-	assert.Regexp(t, `^ ✘ status .*no fuku instance is running.* · \d+ms$`, calls[0])
+	require.Len(t, calls, 2, "one line per tool call in:\n%s", stderr)
+	assert.Regexp(t, `^ ✔ status `, calls[0])
+	assert.Regexp(t, `^ ✘ logs .*no fuku instance is running.* · \d+ms$`, calls[1])
 }
 
 func Test_MCP_ControlsARunningProfile(t *testing.T) {
@@ -268,7 +282,7 @@ func Test_MCP_ControlsARunningProfile(t *testing.T) {
 	defer endDetached(pid)
 
 	assert.Equal(t, 0, run.ExitCode)
-	assert.Contains(t, run.Summary, "API 127.0.0.1:19890")
+	assert.Contains(t, run.Summary, "http://127.0.0.1:19890")
 
 	type serviceState struct {
 		Name  string `json:"name"`
@@ -348,6 +362,20 @@ func Test_MCP_ControlsARunningProfile(t *testing.T) {
 
 func Test_MCP_RejectsWhatTheProfileCannotDo(t *testing.T) {
 	client := startMCP(t, detachedDir)
+
+	var config struct {
+		Profiles map[string][]string `json:"profiles"`
+		API      struct {
+			Enabled bool   `json:"enabled"`
+			Listen  string `json:"listen"`
+		} `json:"api"`
+	}
+
+	structured(t, client.call("config", map[string]any{}, 10*time.Second), &config)
+
+	assert.Equal(t, []string{"api", "worker"}, config.Profiles["default"])
+	assert.True(t, config.API.Enabled)
+	assert.Equal(t, "127.0.0.1:19890", config.API.Listen)
 
 	var run struct {
 		Summary string `json:"summary"`

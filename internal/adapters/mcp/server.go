@@ -4,29 +4,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"fuku/internal/adapters/terminal"
 	"fuku/internal/app/logs"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 	"fuku/internal/platform/buildinfo"
 )
 
-// instructions tell the agent how to drive fuku; the first 512 characters stand alone
-const instructions = "fuku runs the local services of this project. " +
-	"Control fuku only through these tools. " +
-	"Never run `fuku`, `curl` or the REST API from the shell, and never read the API token. " +
-	"Never read fuku.yaml or fuku.override.yaml whole; they may hold secrets. Grep one key. " +
-	"One fuku runs per project: call status first, run only when nothing runs, stop only when the user asks. " +
-	"Call doctor only after a failed run or a config edit, never before a plain run. " +
-	"Omit config unless the user names a config file other than fuku.yaml."
+// instructions tell the agent how to drive fuku; the first 512 characters stand alone, Claude Code reads up to 4096
+const instructions = `Control fuku only through these tools: never the fuku CLI, curl, the REST API or a script, not even to probe.
+If no tool fits the task, change nothing and tell the user which tool is missing.
+Read config with the config tool; grep a config file only to edit one key; never read the API token.
+One fuku per project: call status before run or stop, not service or logs; run only when nothing runs, stop only when the user asks.
+Call doctor only after a failed run or a config edit.
 
-// Client reads the status frame and a bounded log read of the running instance of one project
-type Client interface {
+Tools: status shows each service, or running false and the profiles to run.
+config shows the effective config of a service or profile.
+logs reads the newest lines and never follows.
+run starts a profile in the background.
+stop stops fuku.
+service starts, stops or restarts one service.
+doctor diagnoses a failed run or a config edit.
+After a code edit, a watching service restarts itself: wait in status for its new PID, then test.
+Restart an edited service that is not watching.
+Apply a config change with stop then run only when status reports mode detached. Otherwise tell the developer to restart their fuku.
+Leave fuku running when the task is done.`
+
+// Instance reads the status frame and a bounded log read of the running instance of one project
+type Instance interface {
 	Status() (contracts.LogStatus, error)
 	Connect() error
 	Subscribe(services []string, replay model.ReplayOptions) error
@@ -34,11 +42,8 @@ type Client interface {
 	Close() error
 }
 
-// Dialer returns the log client of the project the identity names
-type Dialer func(identity model.Instance) Client
-
-// Loader loads the config at path, or the default fuku.yaml and its override of the working directory when empty
-type Loader func(path string) model.Config
+// Loader loads the config of a project directory: the default lookup with its override, or the file path names alone
+type Loader func(dir, path string) model.Config
 
 // Executor runs the fuku binary in a project directory and returns its stdout, also when it exits non-zero
 type Executor interface {
@@ -47,42 +52,45 @@ type Executor interface {
 
 // Server serves the fuku tools over stdio until stdin closes or the run ends
 type Server struct {
-	dial    Dialer
-	dialAPI APIDialer
-	load    Loader
-	execute Executor
-	server  *sdk.Server
-	console *console
+	instance func(identity model.Instance) Instance
+	client   func(address, token string) (Client, error)
+	load     Loader
+	execute  Executor
+	server   *sdk.Server
+	console  Console
 }
 
-// NewServer creates the MCP server with its six tools, writing its banner and one line per tool call to stderr
-func NewServer(dial Dialer, dialAPI APIDialer, load Loader, execute Executor, theme terminal.Theme, stderr io.Writer) (*Server, error) {
+// NewServer creates the MCP server with its seven tools, showing its banner and one line per tool call on the console
+func NewServer(instance func(identity model.Instance) Instance, client func(address, token string) (Client, error), load Loader, execute Executor, console Console) (*Server, error) {
 	s := &Server{
-		dial:    dial,
-		dialAPI: dialAPI,
-		load:    load,
-		execute: execute,
+		instance: instance,
+		client:   client,
+		load:     load,
+		execute:  execute,
 		server: sdk.NewServer(
 			&sdk.Implementation{Name: buildinfo.AppName, Version: buildinfo.Version},
 			&sdk.ServerOptions{Instructions: instructions, Capabilities: &sdk.ServerCapabilities{}},
 		),
-		console: &console{theme: theme, stderr: stderr},
+		console: console,
 	}
 
 	if err := s.register(); err != nil {
 		return nil, fmt.Errorf("failed to register the MCP tools: %w", err)
 	}
 
-	s.server.AddReceivingMiddleware(s.logCalls)
+	s.server.AddReceivingMiddleware(s.redactCalls, s.logCalls)
 
 	return s, nil
 }
 
-// Run enters the project root, so the default config lookup reads it, writes the banner, then serves stdin and stdout
+// Run enters the project root, so the env files load from it, opens the console with the banner, then serves stdio
 func (s *Server) Run(ctx context.Context) (int, error) {
 	if err := os.Chdir(root()); err != nil {
 		return 1, fmt.Errorf("failed to enter the project root: %w", err)
 	}
+
+	s.console.Open()
+	defer s.console.Close()
 
 	s.banner()
 

@@ -10,8 +10,8 @@ import (
 	"fuku/internal/model"
 )
 
-// API calls the REST API of the running instance
-type API interface {
+// Client calls the REST API of the running instance
+type Client interface {
 	Live(ctx context.Context) (model.Instance, error)
 	Status(ctx context.Context) (model.Snapshot, error)
 	Services(ctx context.Context) ([]model.Service, error)
@@ -19,20 +19,17 @@ type API interface {
 	Act(ctx context.Context, id string, action contracts.Action, wait time.Duration) (model.Service, bool, error)
 }
 
-// APIDialer returns the API client of a loopback address, sending the token when it is set
-type APIDialer func(address, token string) (API, error)
-
-// findAPI returns the API the status frame announces, or the configured one once its liveness answer names this project
-func (s *Server) findAPI(ctx context.Context, status contracts.LogStatus, server model.Server, fingerprint string) (API, error) {
+// find returns the client of the announced API, or of the configured one once its liveness names this project
+func (s *Server) find(ctx context.Context, status contracts.LogStatus, server model.Server, fingerprint string) (Client, error) {
 	if status.API != "" {
-		return s.dialAPI(status.API, server.Token)
+		return s.client(status.API, server.Token)
 	}
 
 	if server.Listen == "" {
 		return nil, contracts.ErrAPIUnreachable
 	}
 
-	candidate, err := s.dialAPI(server.Listen, "")
+	candidate, err := s.client(server.Listen, "")
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +39,7 @@ func (s *Server) findAPI(ctx context.Context, status contracts.LogStatus, server
 		return nil, contracts.ErrAPIUnreachable
 	}
 
-	return s.dialAPI(server.Listen, server.Token)
+	return s.client(server.Listen, server.Token)
 }
 
 // explain adds what the agent can do next to an error of the API

@@ -9,17 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"fuku/internal/adapters/terminal"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
 
-func Test_Server_findAPI(t *testing.T) {
+func Test_Server_find(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockAPI := NewMockAPI(ctrl)
-	mockCandidate := NewMockAPI(ctrl)
+	mockClient := NewMockClient(ctrl)
+	mockCandidate := NewMockClient(ctrl)
 
 	token := "secret-token"
 	fingerprint := "this-project"
@@ -32,11 +31,11 @@ func Test_Server_findAPI(t *testing.T) {
 
 	var (
 		dials   []dialed
-		answers []API
+		answers []Client
 		failure error
 	)
 
-	dialAPI := func(address, token string) (API, error) {
+	newClient := func(address, token string) (Client, error) {
 		dials = append(dials, dialed{address: address, token: token})
 
 		if failure != nil {
@@ -48,10 +47,10 @@ func Test_Server_findAPI(t *testing.T) {
 
 		return answer, nil
 	}
-	dial := func(model.Instance) Client { return nil }
-	load := func(string) model.Config { return model.Config{} }
+	newInstance := func(model.Instance) Instance { return nil }
+	load := func(string, string) model.Config { return model.Config{} }
 
-	subject, err := NewServer(dial, dialAPI, load, NewBinary(), terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+	subject, err := NewServer(newInstance, newClient, load, NewBinary(), NewPlain(io.Discard))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -59,35 +58,35 @@ func Test_Server_findAPI(t *testing.T) {
 		before        func()
 		status        contracts.LogStatus
 		server        model.Server
-		expected      API
+		expected      Client
 		expectedDials []dialed
 		expectedError error
 	}{
 		{
 			name: "the address the status frame announces",
 			before: func() {
-				answers = []API{mockAPI}
+				answers = []Client{mockClient}
 			},
 			status:        contracts.LogStatus{API: "localhost:3858"},
 			server:        model.Server{Listen: "127.0.0.1:4000", Token: token},
-			expected:      mockAPI,
+			expected:      mockClient,
 			expectedDials: []dialed{{address: "localhost:3858", token: token}},
 		},
 		{
 			name: "the configured address whose liveness names this project",
 			before: func() {
-				answers = []API{mockCandidate, mockAPI}
+				answers = []Client{mockCandidate, mockClient}
 
 				mockCandidate.EXPECT().Live(gomock.Any()).Return(model.Instance{Fingerprint: fingerprint}, nil)
 			},
 			server:        model.Server{Listen: "127.0.0.1:4000", Token: token},
-			expected:      mockAPI,
+			expected:      mockClient,
 			expectedDials: []dialed{{address: "127.0.0.1:4000"}, {address: "127.0.0.1:4000", token: token}},
 		},
 		{
 			name: "the configured address of another project",
 			before: func() {
-				answers = []API{mockCandidate}
+				answers = []Client{mockCandidate}
 
 				mockCandidate.EXPECT().Live(gomock.Any()).Return(model.Instance{Fingerprint: "another-project"}, nil)
 			},
@@ -98,7 +97,7 @@ func Test_Server_findAPI(t *testing.T) {
 		{
 			name: "the configured address without a fuku liveness answer",
 			before: func() {
-				answers = []API{mockCandidate}
+				answers = []Client{mockCandidate}
 
 				mockCandidate.EXPECT().Live(gomock.Any()).Return(model.Instance{}, errors.New("the address does not serve the fuku REST API: other"))
 			},
@@ -139,7 +138,7 @@ func Test_Server_findAPI(t *testing.T) {
 
 			tt.before()
 
-			result, err := subject.findAPI(t.Context(), tt.status, tt.server, fingerprint)
+			result, err := subject.find(t.Context(), tt.status, tt.server, fingerprint)
 
 			require.ErrorIs(t, err, tt.expectedError)
 			assert.Equal(t, tt.expected, result)

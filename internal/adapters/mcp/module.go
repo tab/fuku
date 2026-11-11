@@ -2,10 +2,11 @@ package mcp
 
 import "go.uber.org/fx"
 
-// Module provides the MCP server and the fuku binary runner for dependency injection
+// Module provides the MCP server, the fuku binary runner and the plain console for dependency injection
 var Module = fx.Options(
 	fx.Provide(
-		fx.Annotate(NewServer, fx.ParamTags(``, ``, ``, ``, ``, `name:"stderr"`)),
+		NewServer,
 		NewBinary,
+		fx.Annotate(NewPlain, fx.ParamTags(`name:"stderr"`)),
 	),
 )

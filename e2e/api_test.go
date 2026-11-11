@@ -540,7 +540,7 @@ func Test_API_DefaultAddressWithoutToken(t *testing.T) {
 
 	require.Equal(t, 0, result.ExitCode)
 
-	match := regexp.MustCompile(`(?m)^API (127\.0\.0\.1:(\d+))$`).FindStringSubmatch(result.Stdout)
+	match := regexp.MustCompile(`(?m)^(http://127\.0\.0\.1:(\d+))$`).FindStringSubmatch(result.Stdout)
 	require.Len(t, match, 3, "no API line in:\n%s", result.Stdout)
 
 	port, err := strconv.Atoi(match[2])
@@ -549,7 +549,7 @@ func Test_API_DefaultAddressWithoutToken(t *testing.T) {
 	assert.GreaterOrEqual(t, port, 3858)
 	assert.LessOrEqual(t, port, 3867)
 
-	base := "http://" + match[1]
+	base := match[1]
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	statusResp, err := client.Get(base + "/api/v1/status")

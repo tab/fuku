@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,24 +12,26 @@ import (
 	"fuku/internal/adapters/logsocket"
 	"fuku/internal/adapters/mcp"
 	"fuku/internal/adapters/rest"
+	"fuku/internal/adapters/terminal"
+	"fuku/internal/adapters/tui"
 	"fuku/internal/model"
 )
 
-func Test_MCP_Dialer(t *testing.T) {
-	var dial mcp.Dialer
+func Test_MCP_Instance(t *testing.T) {
+	var instance func(model.Instance) mcp.Instance
 
 	identity := model.Instance{Project: t.TempDir(), Fingerprint: "this-project"}
 
-	app := fx.New(MCP(&cli.Options{Type: cli.CommandMCP}, model.Telemetry{}), fx.Supply(SentryDSN("")), fx.Populate(&dial))
+	app := fx.New(MCP(&cli.Options{Type: cli.CommandMCP}, model.Telemetry{}), fx.Supply(SentryDSN("")), fx.Populate(&instance))
 
 	require.NoError(t, app.Err())
-	assert.IsType(t, &logsocket.Client{}, dial(identity))
+	assert.IsType(t, &logsocket.Client{}, instance(identity))
 }
 
-func Test_MCP_APIDialer(t *testing.T) {
-	var dial mcp.APIDialer
+func Test_MCP_Client(t *testing.T) {
+	var client func(address, token string) (mcp.Client, error)
 
-	app := fx.New(MCP(&cli.Options{Type: cli.CommandMCP}, model.Telemetry{}), fx.Supply(SentryDSN("")), fx.Populate(&dial))
+	app := fx.New(MCP(&cli.Options{Type: cli.CommandMCP}, model.Telemetry{}), fx.Supply(SentryDSN("")), fx.Populate(&client))
 
 	require.NoError(t, app.Err())
 
@@ -43,18 +46,52 @@ func Test_MCP_APIDialer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api, err := dial(tt.address, "")
+			result, err := client(tt.address, "")
 
 			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
-				assert.Nil(t, api)
-				assert.Equal(t, mcp.API(nil), api)
+				assert.Nil(t, result)
+				assert.Equal(t, mcp.Client(nil), result)
 
 				return
 			}
 
 			require.NoError(t, err)
-			assert.NotNil(t, api)
+			assert.NotNil(t, result)
+		})
+	}
+}
+
+func Test_pickConsole(t *testing.T) {
+	plain := mcp.NewPlain(io.Discard)
+	live := tui.NewMCPConsole(terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+
+	tests := []struct {
+		name       string
+		noUI       bool
+		isTerminal bool
+		expected   mcp.Console
+	}{
+		{
+			name:       "--no-ui on a terminal prints plain lines",
+			noUI:       true,
+			isTerminal: true,
+			expected:   plain,
+		},
+		{
+			name:     "a stderr that is not a terminal prints plain lines",
+			expected: plain,
+		},
+		{
+			name:       "a terminal stderr gets the live console",
+			isTerminal: true,
+			expected:   live,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Same(t, tt.expected, pickConsole(tt.noUI, tt.isTerminal, plain, live))
 		})
 	}
 }

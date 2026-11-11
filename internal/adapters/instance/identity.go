@@ -30,14 +30,9 @@ const (
 
 // NewInstance builds the identity of the fuku instance serving the current working directory
 func NewInstance() (model.Instance, error) {
-	wd, err := os.Getwd()
+	project, err := Project(".")
 	if err != nil {
-		return model.Instance{}, fmt.Errorf("%w: %w", ErrFailedToResolveProject, err)
-	}
-
-	project, err := filepath.EvalSymlinks(wd)
-	if err != nil {
-		return model.Instance{}, fmt.Errorf("%w: %w", ErrFailedToResolveProject, err)
+		return model.Instance{}, err
 	}
 
 	return model.Instance{
@@ -45,6 +40,21 @@ func NewInstance() (model.Instance, error) {
 		Project:     project,
 		Fingerprint: Fingerprint(project),
 	}, nil
+}
+
+// Project resolves a directory to the absolute path without symlinks that names its project
+func Project(dir string) (string, error) {
+	absolute, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFailedToResolveProject, err)
+	}
+
+	project, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFailedToResolveProject, err)
+	}
+
+	return project, nil
 }
 
 // Fingerprint reduces a project directory to a stable identifier that does not disclose the path

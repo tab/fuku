@@ -60,8 +60,8 @@ func Test_Server_handleConnection(t *testing.T) {
 		Fingerprint:   identity.Fingerprint,
 		Profile:       testProfile,
 		Services:      []string{"api", "web"},
-		PID:           os.Getpid(),
 		API:           "127.0.0.1:9876",
+		PID:           os.Getpid(),
 		Mode:          model.RunModeForeground,
 		ReplayOptions: replay,
 	}) + "\n"

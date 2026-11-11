@@ -87,7 +87,7 @@ func (s *Server) Start(context.Context) error {
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
-	s.log.Info("API server listening on " + addr)
+	s.log.Info("API server listening on http://" + addr)
 
 	s.publish(contracts.Message{
 		Type: contracts.EventAPIStarted,

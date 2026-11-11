@@ -1,28 +1,25 @@
 # Architecture
 
 Every run of fuku executes one command, and every command gets its own Fx container and its own bus.
+Every feature has the same shape: one core package with the rules, and adapters around it for the IO.
+When something happens, the package that did it publishes an event on the bus, and every package that cares reacts to it.
 
-The packages sit in rings. The inner rings hold values and rules, while the outer rings do the IO and wire everything together.
-An inner ring never knows about an outer one. When something happens, the package that did it publishes an event on the bus,
-and every package that cares reacts to it. Every feature has the same shape: one core package with the rules, and adapters around it for the IO.
-
-This file is the map. It shows the rings, tree, commands, features and bus messages.
-The coding rules are in `CLAUDE.md`. The details of a package are in its README.
+This file is the map: the rings, the tree, the commands, the features and the bus messages. The coding rules are in `CLAUDE.md`.
+The details of a package are in its README.
 
 ## Rings
 
 The packages form five rings, numbered from the inside. A ring may import the rings inside it, but never the ones outside.
 The innermost ring holds plain values and changes least. The outermost ring wires everything together and runs the command.
-The OS sits outside all of them.
 
-| Ring | Path                                | Holds                                                                       |
-| ---- | ----------------------------------- | --------------------------------------------------------------------------- |
-| 0    | `internal/model`                    | plain values: `Project`, `Service`, `Tier`, `Snapshot`, `Report`            |
-| 1    | `internal/contracts`                | bus messages, `Publisher`, `Subscriber`, `Run`/`Loop`, `Process`, errors    |
-| 2    | `internal/app/*`                    | the rules; one core package per feature                                     |
-| 2    | `internal/platform/*`               | bus, log handler, worker pool, build info                                   |
-| 3    | `internal/adapters/*`               | IO: terminal, HTTP, sockets, files, OS, observers                           |
-| 4    | `internal/bootstrap`, `cmd/main.go` | one composition per command; the application lifetime                       |
+| Ring | Path                                | Holds                                                                    |
+| ---- | ----------------------------------- | ------------------------------------------------------------------------ |
+| 0    | `internal/model`                    | plain values: `Project`, `Service`, `Tier`, `Snapshot`, `Report`         |
+| 1    | `internal/contracts`                | bus messages, `Publisher`, `Subscriber`, `Run`/`Loop`, `Process`, errors |
+| 2    | `internal/app/*`                    | the rules; one core package per feature                                  |
+| 2    | `internal/platform/*`               | bus, log handler, worker pool, build info                                |
+| 3    | `internal/adapters/*`               | IO: terminal, HTTP, sockets, files, OS, observers                        |
+| 4    | `internal/bootstrap`, `cmd/main.go` | one composition per command; the application lifetime                    |
 
 `app` and `platform` share ring 2 but never import each other. `depguard` in `.golangci.yaml` enforces the import rule.
 
@@ -54,14 +51,14 @@ Traffic crosses the rings in three ways:
   The view uses the answer to start its loader
 - **The core reaches out through an interface it owns.** `services.Runtime` starts a child by calling `Launcher.Start`.
   `Launcher` is an interface declared in ring 2, `adapters/process` implements it in ring 3, and `bootstrap/modules` binds the two.
-  This is where fuku differs from OS rings: a kernel never calls user code, but the core does, through an interface it declares
+  Unlike a kernel, which never calls user code, the core calls outward through the interfaces it declares
 - **An event goes in and comes out somewhere else.** `Runtime` publishes `ServiceStarting` and moves on.
-  The bus carries the event to `registry`, which applies it and publishes `SnapshotChanged`. `tui.Bridge` forwards that to the view,
-  and the terminal repaints. The publisher knows none of them
+  The bus carries the event to `registry`, which applies it and publishes `SnapshotChanged`.
+  `tui.Bridge` forwards that to the view, and the terminal repaints. The publisher knows none of them
 
 Ring 4 runs once per invocation. The shell starts `cmd/main.go`, which calls `bootstrap.Run`.
 `bootstrap.Run` parses the command, loads the config when the command needs it and picks one composition.
-The composition builds the container, and `lifecycle.Coordinator` starts the guard, telemetry, consumers, producers and command, in that order.
+The composition builds the container, and `lifecycle.Coordinator` starts the participants.
 Then ring 4 waits for the command to finish and hands the exit code to `os.Exit`. No request ever passes through it.
 
 ## The tree
@@ -83,7 +80,7 @@ internal/adapters
   watch                        watches the files of a running service
   resources                    samples CPU and memory
   logsocket                    the project socket: server and client
-  mcp                          the `fuku mcp` stdio server for AI agents
+  mcp                          the `fuku mcp` stdio server for AI agents and its plain console
   detach                       the detached run: launcher, startup pipe, plain view, stop of the running instance
   config                       loads fuku.yaml, builds model.Project
   config/template              the fuku.yaml init writes, embedded
@@ -116,24 +113,25 @@ internal/model                 plain values
 `doctor` gets the `model.Config` with the error inside and reports on it. The other commands load nothing.
 `mcp` loads nothing at start. Each tool call loads the config fresh.
 
-| Command    | Composition           | Command participant                        |
-|------------|-----------------------|--------------------------------------------|
-| `run`      | `modules/run.go`      | `tui.Program`, or `cli.Run` with `--no-ui` |
-| `run -d`   | `modules/detach.go`   | `detach.Command`                           |
-| `stop`     | `modules/stop.go`     | `cli.Stop`                                 |
-| `logs`     | `modules/logs.go`     | `cli.Logs`                                 |
-| `doctor`   | `modules/doctor.go`   | `cli.Doctor`                               |
-| `init`     | `modules/init.go`     | `cli.Init`                                 |
-| `help`     | `modules/help.go`     | `cli.Help`                                 |
-| `version`  | `modules/version.go`  | `cli.Version`                              |
-| `mcp`      | `modules/mcp.go`      | `mcp.Server`                               |
+| Command   | Composition          | Command participant                        |
+| --------- | -------------------- | ------------------------------------------ |
+| `run`     | `modules/run.go`     | `tui.Program`, or `cli.Run` with `--no-ui` |
+| `run -d`  | `modules/detach.go`  | `detach.Command`                           |
+| `stop`    | `modules/stop.go`    | `cli.Stop`                                 |
+| `logs`    | `modules/logs.go`    | `cli.Logs`                                 |
+| `doctor`  | `modules/doctor.go`  | `cli.Doctor`                               |
+| `init`    | `modules/init.go`    | `cli.Init`                                 |
+| `help`    | `modules/help.go`    | `cli.Help`                                 |
+| `version` | `modules/version.go` | `cli.Version`                              |
+| `mcp`     | `modules/mcp.go`     | `mcp.Server`                               |
 
 `run -d` starts a second fuku in its own session as `run <profile> --no-ui --detached-child`, the run composition headless.
 The child writes its startup to the parent over its standard error and releases that pipe once every service runs.
 
 A composition gives the coordinator ordered lists of participants. A `Consumer` has `Subscribe` and `Drain`.
 A `Producer` has `Start` and `Stop`. The one `Command` has `Run`. Start order: guard, telemetry, consumers, producers, command.
-Stop is the reverse. Telemetry is a coordinator stage, not a participant. It stops after the command is joined, just before the bus closes.
+Stop is the reverse. Telemetry is a coordinator stage, not a participant.
+It stops after the command is joined, just before the bus closes.
 `lifecycle.Arbiter` records the first exit cause and derives the exit code.
 The blocks a composition stacks are in [`internal/bootstrap/modules/README.md`](internal/bootstrap/modules/README.md).
 The lifetime is in [`internal/bootstrap/lifecycle/README.md`](internal/bootstrap/lifecycle/README.md).
@@ -157,7 +155,7 @@ Runs a profile. Admits start, stop and restart from every frontend.
 
 The read model. Every frontend reads the same `Snapshot` in place, under the store's read lock. Nothing copies it.
 
-- core: `app/registry` (`Store`: `Read`, `WaitResolved`)
+- core: `app/registry` (`Store`: `Read`, `WaitResolved`, `WaitSettled`)
 - adapters: `resources` collects the live PIDs inside `Read` and samples them outside it
 - frontends: `tui` handles each message and renders each frame inside `Read`, and calls `Control` from a command after it; `rest` serializes inside one `Read` per request; `logsocket` reads the profile and the service names; the `status` and `service` tools in `mcp` read the services through the `rest` client
 - bus: consumes the lifecycle, watch, API and sample events; publishes `SnapshotChanged`
@@ -222,7 +220,7 @@ These run next to every feature. They decide nothing about services.
 | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `eventlog`  | writes every event but `SnapshotChanged` and `ServiceResourcesSampled` to the debug log and log clients as `fuku` lines |
 | `telemetry` | one metric per event, one trace per `run`; off without a DSN or with `FUKU_TELEMETRY_DISABLED`                          |
-| `instance`  | refuses a second `run` of the same project; gives `run`, `logs` and `doctor` one socket path                            |
+| `instance`  | refuses a second `run` of the same project; gives every command one socket path                                         |
 | `cli`       | parses the command line; publishes `CommandStarted`; every command that runs without the TUI                            |
 | `output`    | writes the application log; off while the TUI owns the terminal                                                         |
 | `terminal`  | theme, every style, layout helpers                                                                                      |
@@ -232,16 +230,16 @@ These run next to every feature. They decide nothing about services.
 A critical message needs a free slot in every required subscription. Otherwise the publish fails and the run ends with exit 1.
 A message that is not critical is dropped where a queue is full.
 
-| Message                                                                                                            | Critical | Subscribers                                                    |
-| ------------------------------------------------------------------------------------------------------------------ | -------- | -------------------------------------------------------------- |
-| the four service commands, `WatchTriggered`                                                                        | yes      | `services`                                                     |
-| `ProfileResolved`, `PhaseChanged`, tier and service events                                                         | yes      | `registry`; `watch` (subset); `environment` (optional, subset) |
-| `APIStarted`, `APIStopped`                                                                                         | yes      | `registry`                                                     |
-| `PreflightStarted`, `PreflightKilled`, `PreflightComplete`, `SignalReceived`, `UpdateAvailable`, `SnapshotChanged` | no       | `tui` (optional)                                               |
-| `WatchStarted`, `WatchStopped`, `ServiceResourcesSampled`                                                          | no       | `registry`                                                     |
-| `CommandStarted`, `ReadinessComplete`, `ResourceSampled`, `APIRequested`                                           | no       | –                                                              |
+| Message                                                                                                            | Critical | Subscribers                                                              |
+| ------------------------------------------------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------ |
+| the four service commands, `WatchTriggered`                                                                        | yes      | `services`                                                               |
+| `ProfileResolved`, `PhaseChanged`, tier and service events                                                         | yes      | `registry`; `watch`, `detach` (subset); `environment` (optional, subset) |
+| `APIStarted`, `APIStopped`                                                                                         | yes      | `registry`                                                               |
+| `PreflightStarted`, `PreflightKilled`, `PreflightComplete`, `SignalReceived`, `UpdateAvailable`, `SnapshotChanged` | no       | `tui` (optional)                                                         |
+| `WatchStarted`, `WatchStopped`, `ServiceResourcesSampled`                                                          | no       | `registry`                                                               |
+| `CommandStarted`, `ReadinessComplete`, `ResourceSampled`, `APIRequested`                                           | no       | –                                                                        |
 
 A subscriber is required unless marked optional. `eventlog` holds an optional, unfiltered subscription and sees every message.
-`telemetry` holds two optional, filtered ones when it is enabled.
-`contracts.MessageType.Critical()` is the exact table. The message rules are in [`internal/contracts/README.md`](internal/contracts/README.md).
+`telemetry` holds two optional, filtered ones when it is enabled. `contracts.MessageType.Critical()` is the exact table.
+The message rules are in [`internal/contracts/README.md`](internal/contracts/README.md).
 Details are in [`internal/platform/bus/README.md`](internal/platform/bus/README.md).

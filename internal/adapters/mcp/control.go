@@ -20,7 +20,7 @@ func (s *Server) handleRun(ctx context.Context, _ *sdk.CallToolRequest, in runIn
 		return nil, runOutput{}, err
 	}
 
-	args := withConfig([]string{cli.CommandRun.String(), string(in.Profile), "--" + cli.FlagDetached.String()}, in.Config, dir)
+	args := append(s.withConfig([]string{cli.CommandRun.String(), "--" + cli.FlagDetached.String()}, in.Config, dir), "--", string(in.Profile))
 
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
@@ -49,7 +49,7 @@ func (s *Server) handleStop(ctx context.Context, _ *sdk.CallToolRequest, in stop
 		return nil, commandOutput{}, err
 	}
 
-	args := withConfig([]string{cli.CommandStop.String(), status.Profile}, in.Config, identity.Project)
+	args := append(s.withConfig([]string{cli.CommandStop.String()}, in.Config, identity.Project), "--", status.Profile)
 
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
@@ -82,7 +82,7 @@ func (s *Server) handleService(ctx context.Context, _ *sdk.CallToolRequest, in s
 		return nil, serviceOutput{}, err
 	}
 
-	api, err := s.findAPI(ctx, status, project.Server, identity.Fingerprint)
+	client, err := s.find(ctx, status, project.Server, identity.Fingerprint)
 	if errors.Is(err, contracts.ErrAPIUnreachable) {
 		return nil, serviceOutput{}, errAPIOff
 	}
@@ -91,7 +91,7 @@ func (s *Server) handleService(ctx context.Context, _ *sdk.CallToolRequest, in s
 		return nil, serviceOutput{}, err
 	}
 
-	services, err := api.Services(ctx)
+	services, err := client.Services(ctx)
 	if err != nil {
 		return nil, serviceOutput{}, explain(err)
 	}
@@ -101,7 +101,7 @@ func (s *Server) handleService(ctx context.Context, _ *sdk.CallToolRequest, in s
 		return nil, serviceOutput{}, err
 	}
 
-	out, err := s.apply(ctx, api, identity, id, in.Action)
+	out, err := s.apply(ctx, client, identity, id, in.Action)
 	if err != nil {
 		return nil, serviceOutput{}, fmt.Errorf("failed to %s %s: %w", in.Action, in.Name, explain(err))
 	}
@@ -135,14 +135,14 @@ func (s *Server) serviceStates(ctx context.Context, config string) []serviceStat
 }
 
 // apply runs the action and reports the settled state with the recent lines of a failed service, or the current state
-func (s *Server) apply(ctx context.Context, api API, identity model.Instance, id string, act action) (serviceOutput, error) {
-	settled, done, err := api.Act(ctx, id, contracts.Action(act), serviceWait)
+func (s *Server) apply(ctx context.Context, client Client, identity model.Instance, id string, act contracts.Action) (serviceOutput, error) {
+	settled, done, err := client.Act(ctx, id, act, serviceWait)
 	if err != nil {
 		return serviceOutput{}, err
 	}
 
 	if !done {
-		current, err := api.Service(ctx, id)
+		current, err := client.Service(ctx, id)
 		if err != nil {
 			return serviceOutput{}, err
 		}

@@ -135,8 +135,8 @@ func (s *Server) hello(conn net.Conn, clientID string, replay model.ReplayOption
 		Fingerprint:   s.fingerprint,
 		Profile:       s.profile,
 		Services:      s.services,
-		PID:           os.Getpid(),
 		API:           api,
+		PID:           os.Getpid(),
 		Mode:          s.mode,
 		ReplayOptions: replay,
 	}

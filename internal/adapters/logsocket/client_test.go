@@ -133,7 +133,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 
 	mockHandler := NewMockHandler(ctrl)
 
-	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321, API: "127.0.0.1:9876"})
+	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, API: "127.0.0.1:9876", PID: 4321})
 	line := marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
 	c := &Client{conn: startScriptedServer(t, status, line)}
 
@@ -142,7 +142,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 	require.NoError(t, c.Subscribe(nil, model.ReplayOptions{}))
 
 	gomock.InOrder(
-		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321, API: "127.0.0.1:9876"}).Return(nil),
+		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, API: "127.0.0.1:9876", PID: 4321}).Return(nil),
 		mockHandler.EXPECT().HandleLog(model.LogLine{Service: "api", Message: "hello from api"}),
 	)
 

@@ -85,3 +85,9 @@ const (
 	keyServices = "services"
 	keyTier     = "tier"
 )
+
+// Viper keys the loader reads from a config it cannot decode
+const (
+	//nolint:gosec // a config key path, not a credential
+	keyServerToken = "server.auth.token"
+)

@@ -18,13 +18,12 @@
 - **Readiness Checks** - HTTP, TCP, and log-pattern based health checks
 - **Pre-flight Cleanup** - Automatic detection and termination of orphaned processes before starting services
 - **Hot-Reload** - Automatic service restart on file changes
-- **Single-Instance Guard** - A second `fuku run` of the same project is refused while the first one holds the project lock.
-  A fuku older than this release running the same project holds no lock, so it is not detected during the upgrade
+- **Single-Instance Guard** - A second `fuku run` of the same project is refused while the first one holds the project lock
 - **Detached Mode** - `fuku run -d` returns once every service is running, for scripts and AI agents
 - **Log Streaming** - Stream logs from running instances via `fuku logs`
 - **Diagnostics** - Check your config, environment, topology, and runtime with `fuku doctor`
 - **REST API** - Control and monitor services via HTTP on `127.0.0.1:3858`, with an optional token
-- **MCP Server** - `fuku mcp` gives AI agents six typed tools over stdio
+- **MCP Server** - `fuku mcp` gives AI agents seven typed tools over stdio
 
 ## Installation
 
@@ -155,21 +154,18 @@ logging:
   level: debug
 ```
 
-The override is merged when fuku finds the config itself. An explicit `--config` skips it. Maps are deep-merged.
-Arrays are concatenated. A key set to `null` is removed.
+The override is merged when fuku finds the config itself. An explicit `--config` skips it.
+Maps are deep-merged, arrays are concatenated, and a key set to `null` is removed.
 
 ### Excluding Services
 
-The top-level `exclude` list skips services at startup.
-They keep their definitions in `services:`, so profiles that name them still validate.
-This is the way to disable a service locally in `fuku.override.yaml`.
+The top-level `exclude` list skips services at startup. Use it in `fuku.override.yaml` to disable a service locally.
+The services keep their definitions in `services:`, so profiles that name them still validate.
 
 ```yaml
 exclude:
   - heavy-worker
 ```
-
-See the [documentation](https://getfuku.sh/docs/configuration/) for full details.
 
 ### Example Configuration
 
@@ -213,8 +209,8 @@ server:
     token: "dev-token"
 ```
 
-The REST API runs on `127.0.0.1:3858` by default. The `server` block is optional.
-A token is optional. Set `server.auth.token` to require `Authorization: Bearer <token>`.
+The REST API runs on `127.0.0.1:3858` by default. The `server` block is optional. A token is optional.
+Set `server.auth.token` to require `Authorization: Bearer <token>`.
 The API binds a loopback address only and answers `403` to any request with an `Origin` header, which turns away a browser.
 Set `server.listen` to `""` or `none`, or `FUKU_API_DISABLED=1`, to turn it off.
 

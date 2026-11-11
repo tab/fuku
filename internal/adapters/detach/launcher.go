@@ -67,7 +67,7 @@ func (l *Launcher) Launch() (Process, error) {
 // args are the arguments of the child command
 func (l *Launcher) args() []string {
 	args := []string{
-		cli.CommandRun.String(), l.options.Profile,
+		cli.CommandRun.String(),
 		"--" + cli.FlagNoUI.String(),
 		"--" + cli.FlagDetachedChild.String(),
 	}
@@ -76,7 +76,7 @@ func (l *Launcher) args() []string {
 		args = append(args, "--"+cli.FlagConfig.String(), l.options.ConfigFile)
 	}
 
-	return args
+	return append(args, "--", l.options.Profile)
 }
 
 // Child is a started detached child

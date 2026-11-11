@@ -129,7 +129,7 @@ func (m Model) renderAppStats() string {
 	var parts []string
 
 	if !m.asideVisible() && m.snapshot.API.Address != "" {
-		parts = append(parts, m.renderAPIDot()+" "+m.theme.PanelMutedStyle.Render(m.snapshot.API.Address))
+		parts = append(parts, m.renderAPIDot()+" "+m.theme.PanelMutedStyle.Render("http://"+m.snapshot.API.Address))
 	}
 
 	if m.state.appCPU != 0 || m.state.appMEM != 0 {

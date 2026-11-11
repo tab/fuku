@@ -58,6 +58,13 @@ func Test_Parse(t *testing.T) {
 			expectedDetached: true,
 		},
 		{
+			name:             "a profile after -- stays a profile",
+			args:             []string{"run", detachedArg, "--", "--config=/other/fuku.yaml"},
+			expectedType:     CommandRun,
+			expectedProfile:  "--config=/other/fuku.yaml",
+			expectedDetached: true,
+		},
+		{
 			name:             "run -d",
 			args:             []string{"run", "-d"},
 			expectedType:     CommandRun,

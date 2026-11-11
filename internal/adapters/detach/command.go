@@ -156,7 +156,7 @@ func (c *Command) summary(running Record) {
 	fmt.Fprintf(c.stdout, "Running detached · pid %d · %d services · %s\n", running.PID, running.Count, seconds(running.Duration))
 
 	if running.Address != "" {
-		fmt.Fprintf(c.stdout, "API %s\n", running.Address)
+		fmt.Fprintf(c.stdout, "http://%s\n", running.Address)
 	}
 }
 

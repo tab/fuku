@@ -18,7 +18,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"fuku/internal/adapters/instance"
-	"fuku/internal/adapters/terminal"
 	"fuku/internal/app/logs"
 	"fuku/internal/contracts"
 	"fuku/internal/model"
@@ -28,9 +27,9 @@ func Test_Server_handleRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := NewMockClient(ctrl)
+	mockInstance := NewMockInstance(ctrl)
 	mockExecutor := NewMockExecutor(ctrl)
-	mockAPI := NewMockAPI(ctrl)
+	mockClient := NewMockClient(ctrl)
 
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -40,6 +39,7 @@ func Test_Server_handleRun(t *testing.T) {
 	expired, cancel := context.WithDeadline(t.Context(), time.Time{})
 	defer cancel()
 
+	gone := filepath.Join(dir, "gone")
 	token := "secret-token"
 	address := "127.0.0.1:3858"
 	startedAt := time.Now().Add(-3*time.Second - 500*time.Millisecond)
@@ -52,28 +52,35 @@ func Test_Server_handleRun(t *testing.T) {
 	states := []serviceState{{Name: "api", State: "running", PID: 42, Uptime: 3}, {Name: "db", State: "running", PID: 43, Uptime: 3}}
 	readsState := func() {
 		gomock.InOrder(
-			mockAPI.EXPECT().Status(gomock.Any()).Return(model.Snapshot{Profile: "default", Phase: model.PhaseRunning}, nil),
-			mockAPI.EXPECT().Services(gomock.Any()).Return(services, nil),
+			mockClient.EXPECT().Status(gomock.Any()).Return(model.Snapshot{Profile: "default", Phase: model.PhaseRunning}, nil),
+			mockClient.EXPECT().Services(gomock.Any()).Return(services, nil),
 		)
 	}
-	dial := func(model.Instance) Client { return mockClient }
-	dialAPI := func(dialedAddress, dialedToken string) (API, error) {
+	newInstance := func(model.Instance) Instance { return mockInstance }
+	newClient := func(dialedAddress, dialedToken string) (Client, error) {
 		assert.Equal(t, address, dialedAddress)
 		assert.Equal(t, token, dialedToken)
 
-		return mockAPI, nil
-	}
-	load := func(string) model.Config {
-		return model.Config{Project: model.Project{Server: model.Server{Token: token}}}
+		return mockClient, nil
 	}
 
-	subject, err := NewServer(dial, dialAPI, load, mockExecutor, terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+	var (
+		defaultFile string
+		loadErr     error
+	)
+
+	load := func(string, string) model.Config {
+		return model.Config{Path: defaultFile, Project: model.Project{Server: model.Server{Token: token}}, Error: loadErr}
+	}
+
+	subject, err := NewServer(newInstance, newClient, load, mockExecutor, NewPlain(io.Discard))
 	require.NoError(t, err)
 
 	tests := []struct {
 		name          string
 		before        func() context.Context
-		files         []string
+		defaultFile   string
+		loadErr       error
 		in            runInput
 		expected      runOutput
 		expectedError string
@@ -81,8 +88,8 @@ func Test_Server_handleRun(t *testing.T) {
 		{
 			name: "the profile starts",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return([]byte(" • api Starting\n"+summary+"\n"), nil)
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return([]byte(" • api Starting\n"+summary+"\n"), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				readsState()
 
 				return t.Context()
@@ -93,9 +100,9 @@ func Test_Server_handleRun(t *testing.T) {
 		{
 			name: "the profile starts and its state cannot be read",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return([]byte(summary), nil)
-				mockClient.EXPECT().Status().Return(frame, nil)
-				mockAPI.EXPECT().Status(gomock.Any()).Return(model.Snapshot{}, fmt.Errorf("%w: connection refused", contracts.ErrAPIUnreachable))
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
+				mockClient.EXPECT().Status(gomock.Any()).Return(model.Snapshot{}, fmt.Errorf("%w: connection refused", contracts.ErrAPIUnreachable))
 
 				return t.Context()
 			},
@@ -105,8 +112,8 @@ func Test_Server_handleRun(t *testing.T) {
 		{
 			name: "the profile starts and its status frame cannot be read",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return([]byte(summary), nil)
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{}, errors.New("timeout"))
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, errors.New("timeout"))
 
 				return t.Context()
 			},
@@ -114,10 +121,35 @@ func Test_Server_handleRun(t *testing.T) {
 			expected: runOutput{Summary: summary},
 		},
 		{
+			name: "the profile starts and its project directory goes away",
+			before: func() context.Context {
+				require.NoError(t, os.Mkdir(gone, 0o755))
+				mockExecutor.EXPECT().Execute(gomock.Any(), gone, "run", "--detached", "--config", filepath.Join(gone, "fuku.yaml"), "--", "default").DoAndReturn(func(context.Context, string, ...string) ([]byte, error) {
+					return []byte(summary), os.Remove(gone)
+				})
+
+				return t.Context()
+			},
+			in:       runInput{target: target{Config: "gone/fuku.yaml"}, Profile: "default"},
+			expected: runOutput{Summary: summary},
+		},
+		{
+			name: "the profile starts and its config no longer loads",
+			before: func() context.Context {
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
+
+				return t.Context()
+			},
+			loadErr:  contracts.ErrInvalidConfig,
+			in:       runInput{Profile: "default"},
+			expected: runOutput{Summary: summary},
+		},
+		{
 			name: "a config file the call names",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "backend", "--detached", "--config", filepath.Join(dir, "custom.yaml")).Return([]byte(summary), nil)
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--config", filepath.Join(dir, "custom.yaml"), "--", "backend").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				readsState()
 
 				return t.Context()
@@ -128,59 +160,59 @@ func Test_Server_handleRun(t *testing.T) {
 		{
 			name: "the root fuku.yaml the call names",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return([]byte(summary), nil)
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				readsState()
 
 				return t.Context()
 			},
-			files:    []string{"fuku.yaml"},
-			in:       runInput{target: target{Config: "fuku.yaml"}, Profile: "default"},
-			expected: runOutput{Summary: summary, Services: states},
+			defaultFile: filepath.Join(dir, "fuku.yaml"),
+			in:          runInput{target: target{Config: "fuku.yaml"}, Profile: "default"},
+			expected:    runOutput{Summary: summary, Services: states},
 		},
 		{
 			name: "the root fuku.yml the call names without a fuku.yaml",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return([]byte(summary), nil)
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				readsState()
 
 				return t.Context()
 			},
-			files:    []string{"fuku.yml"},
-			in:       runInput{target: target{Config: "./fuku.yml"}, Profile: "default"},
-			expected: runOutput{Summary: summary, Services: states},
+			defaultFile: filepath.Join(dir, "fuku.yml"),
+			in:          runInput{target: target{Config: "./fuku.yml"}, Profile: "default"},
+			expected:    runOutput{Summary: summary, Services: states},
 		},
 		{
 			name: "the root fuku.yml the call names beside a fuku.yaml",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached", "--config", filepath.Join(dir, "fuku.yml")).Return([]byte(summary), nil)
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--config", filepath.Join(dir, "fuku.yml"), "--", "default").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				readsState()
 
 				return t.Context()
 			},
-			files:    []string{"fuku.yaml", "fuku.yml"},
-			in:       runInput{target: target{Config: "fuku.yml"}, Profile: "default"},
-			expected: runOutput{Summary: summary, Services: states},
+			defaultFile: filepath.Join(dir, "fuku.yaml"),
+			in:          runInput{target: target{Config: "fuku.yml"}, Profile: "default"},
+			expected:    runOutput{Summary: summary, Services: states},
 		},
 		{
 			name: "the root fuku.yaml the call names beside a fuku.yml",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return([]byte(summary), nil)
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return([]byte(summary), nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				readsState()
 
 				return t.Context()
 			},
-			files:    []string{"fuku.yaml", "fuku.yml"},
-			in:       runInput{target: target{Config: "fuku.yaml"}, Profile: "default"},
-			expected: runOutput{Summary: summary, Services: states},
+			defaultFile: filepath.Join(dir, "fuku.yaml"),
+			in:          runInput{target: target{Config: "fuku.yaml"}, Profile: "default"},
+			expected:    runOutput{Summary: summary, Services: states},
 		},
 		{
 			name: "fuku already runs",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return(nil, errors.New("fuku run default --detached failed: exit status 1: fuku is already running in "+dir))
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return(nil, errors.New("fuku run default --detached failed: exit status 1: fuku is already running in "+dir))
 
 				return t.Context()
 			},
@@ -190,7 +222,7 @@ func Test_Server_handleRun(t *testing.T) {
 		{
 			name: "the start outlives the tool",
 			before: func() context.Context {
-				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "default", "--detached").Return(nil, errors.New("fuku run default --detached failed: signal: killed"))
+				mockExecutor.EXPECT().Execute(gomock.Any(), dir, "run", "--detached", "--", "default").Return(nil, errors.New("fuku run default --detached failed: signal: killed"))
 
 				return expired
 			},
@@ -207,11 +239,7 @@ func Test_Server_handleRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for _, file := range tt.files {
-				path := filepath.Join(dir, file)
-				require.NoError(t, os.WriteFile(path, nil, 0o600))
-				t.Cleanup(func() { require.NoError(t, os.Remove(path)) })
-			}
+			defaultFile, loadErr = tt.defaultFile, tt.loadErr
 
 			ctx := tt.before()
 
@@ -238,7 +266,7 @@ func Test_Server_handleStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := NewMockClient(ctrl)
+	mockInstance := NewMockInstance(ctrl)
 	mockExecutor := NewMockExecutor(ctrl)
 
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -264,16 +292,18 @@ func Test_Server_handleStop(t *testing.T) {
 
 	tail.WriteString("Stopping fuku · pid 42 · profile backend ... failed\nfuku stop backend failed: exit status 1: cannot reach the running fuku, nothing was stopped")
 
-	dial := func(model.Instance) Client { return mockClient }
+	newInstance := func(model.Instance) Instance { return mockInstance }
 
-	var dialAPI APIDialer
+	var newClient func(string, string) (Client, error)
 
-	load := func(string) model.Config { return model.Config{} }
+	var defaultFile string
+
+	load := func(string, string) model.Config { return model.Config{Path: defaultFile} }
 	timeout := 5 * time.Second
 	clientTransport, serverTransport := sdk.NewInMemoryTransports()
 	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil)
 
-	subject, err := NewServer(dial, dialAPI, load, mockExecutor, terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+	subject, err := NewServer(newInstance, newClient, load, mockExecutor, NewPlain(io.Discard))
 	require.NoError(t, err)
 
 	_, err = subject.server.Connect(t.Context(), serverTransport, nil)
@@ -287,7 +317,7 @@ func Test_Server_handleStop(t *testing.T) {
 	tests := []struct {
 		name            string
 		before          func()
-		files           []string
+		defaultFile     string
 		arguments       map[string]any
 		expected        string
 		expectedIsError bool
@@ -296,8 +326,8 @@ func Test_Server_handleStop(t *testing.T) {
 			name: "the running profile stops",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend").Return(stopped, nil),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--", "backend").Return(stopped, nil),
 				)
 			},
 			expected: `{"exitCode":0,"summary":"stopped profile backend"}`,
@@ -306,8 +336,8 @@ func Test_Server_handleStop(t *testing.T) {
 			name: "a config file the call names",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend", "--config", filepath.Join(dir, "custom.yaml")).Return(stopped, nil),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--config", filepath.Join(dir, "custom.yaml"), "--", "backend").Return(stopped, nil),
 				)
 			},
 			arguments: map[string]any{"config": "custom.yaml"},
@@ -317,61 +347,61 @@ func Test_Server_handleStop(t *testing.T) {
 			name: "the root fuku.yaml the call names",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend").Return(stopped, nil),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--", "backend").Return(stopped, nil),
 				)
 			},
-			files:     []string{"fuku.yaml"},
-			arguments: map[string]any{"config": "fuku.yaml"},
-			expected:  `{"exitCode":0,"summary":"stopped profile backend"}`,
+			defaultFile: filepath.Join(dir, "fuku.yaml"),
+			arguments:   map[string]any{"config": "fuku.yaml"},
+			expected:    `{"exitCode":0,"summary":"stopped profile backend"}`,
 		},
 		{
 			name: "an absolute path to the root fuku.yaml",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend").Return(stopped, nil),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--", "backend").Return(stopped, nil),
 				)
 			},
-			files:     []string{"fuku.yaml"},
-			arguments: map[string]any{"config": filepath.Join(dir, "fuku.yaml")},
-			expected:  `{"exitCode":0,"summary":"stopped profile backend"}`,
+			defaultFile: filepath.Join(dir, "fuku.yaml"),
+			arguments:   map[string]any{"config": filepath.Join(dir, "fuku.yaml")},
+			expected:    `{"exitCode":0,"summary":"stopped profile backend"}`,
 		},
 		{
 			name: "the root fuku.yml the call names without a fuku.yaml",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend").Return(stopped, nil),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--", "backend").Return(stopped, nil),
 				)
 			},
-			files:     []string{"fuku.yml"},
-			arguments: map[string]any{"config": "fuku.yml"},
-			expected:  `{"exitCode":0,"summary":"stopped profile backend"}`,
+			defaultFile: filepath.Join(dir, "fuku.yml"),
+			arguments:   map[string]any{"config": "fuku.yml"},
+			expected:    `{"exitCode":0,"summary":"stopped profile backend"}`,
 		},
 		{
 			name: "the root fuku.yml the call names beside a fuku.yaml",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend", "--config", filepath.Join(dir, "fuku.yml")).Return(stopped, nil),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--config", filepath.Join(dir, "fuku.yml"), "--", "backend").Return(stopped, nil),
 				)
 			},
-			files:     []string{"fuku.yaml", "fuku.yml"},
-			arguments: map[string]any{"config": "fuku.yml"},
-			expected:  `{"exitCode":0,"summary":"stopped profile backend"}`,
+			defaultFile: filepath.Join(dir, "fuku.yaml"),
+			arguments:   map[string]any{"config": "fuku.yml"},
+			expected:    `{"exitCode":0,"summary":"stopped profile backend"}`,
 		},
 		{
 			name: "the root fuku.yaml the call names beside a fuku.yml",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend").Return(stopped, nil),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--", "backend").Return(stopped, nil),
 				)
 			},
-			files:     []string{"fuku.yaml", "fuku.yml"},
-			arguments: map[string]any{"config": "fuku.yaml"},
-			expected:  `{"exitCode":0,"summary":"stopped profile backend"}`,
+			defaultFile: filepath.Join(dir, "fuku.yaml"),
+			arguments:   map[string]any{"config": "fuku.yaml"},
+			expected:    `{"exitCode":0,"summary":"stopped profile backend"}`,
 		},
 		{
 			name:            "a missing config directory",
@@ -383,7 +413,7 @@ func Test_Server_handleStop(t *testing.T) {
 		{
 			name: "no running fuku",
 			before: func() {
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
+				mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
 			},
 			expected:        "no fuku instance is running in " + dir + "; call run first",
 			expectedIsError: true,
@@ -392,8 +422,8 @@ func Test_Server_handleStop(t *testing.T) {
 			name: "fuku stop fails",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend").Return(nil, errors.New("fuku stop backend failed: exit status 1: cannot reach the running fuku, nothing was stopped")),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--", "backend").Return(nil, errors.New("fuku stop backend failed: exit status 1: cannot reach the running fuku, nothing was stopped")),
 				)
 			},
 			expected:        "fuku stop backend failed: exit status 1: cannot reach the running fuku, nothing was stopped",
@@ -403,8 +433,8 @@ func Test_Server_handleStop(t *testing.T) {
 			name: "fuku stop fails after a long output",
 			before: func() {
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "backend").Return([]byte(noisy.String()), errors.New("fuku stop backend failed: exit status 1: cannot reach the running fuku, nothing was stopped")),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockExecutor.EXPECT().Execute(gomock.Any(), dir, "stop", "--", "backend").Return([]byte(noisy.String()), errors.New("fuku stop backend failed: exit status 1: cannot reach the running fuku, nothing was stopped")),
 				)
 			},
 			expected:        tail.String(),
@@ -414,11 +444,7 @@ func Test_Server_handleStop(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for _, file := range tt.files {
-				path := filepath.Join(dir, file)
-				require.NoError(t, os.WriteFile(path, nil, 0o600))
-				t.Cleanup(func() { require.NoError(t, os.Remove(path)) })
-			}
+			defaultFile = tt.defaultFile
 
 			tt.before()
 
@@ -439,10 +465,10 @@ func Test_Server_handleService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := NewMockClient(ctrl)
+	mockInstance := NewMockInstance(ctrl)
 	mockExecutor := NewMockExecutor(ctrl)
-	mockAPI := NewMockAPI(ctrl)
-	mockCandidate := NewMockAPI(ctrl)
+	mockClient := NewMockClient(ctrl)
+	mockCandidate := NewMockClient(ctrl)
 
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -469,15 +495,15 @@ func Test_Server_handleService(t *testing.T) {
 	}
 	acts := func(act contracts.Action, settled model.Service, done bool, err error) {
 		gomock.InOrder(
-			mockAPI.EXPECT().Services(gomock.Any()).Return(services, nil),
-			mockAPI.EXPECT().Act(gomock.Any(), apiID, act, serviceWait).Return(settled, done, err),
+			mockClient.EXPECT().Services(gomock.Any()).Return(services, nil),
+			mockClient.EXPECT().Act(gomock.Any(), apiID, act, serviceWait).Return(settled, done, err),
 		)
 	}
 
 	var loaded model.Config
 
-	dial := func(model.Instance) Client { return mockClient }
-	dialAPI := func(address, dialedToken string) (API, error) {
+	newInstance := func(model.Instance) Instance { return mockInstance }
+	newClient := func(address, dialedToken string) (Client, error) {
 		if address == refusedAddress {
 			return nil, errNotLoopback
 		}
@@ -491,14 +517,14 @@ func Test_Server_handleService(t *testing.T) {
 		assert.Contains(t, []string{announcedAddress, configuredAddress}, address)
 		assert.Equal(t, token, dialedToken)
 
-		return mockAPI, nil
+		return mockClient, nil
 	}
-	load := func(string) model.Config { return loaded }
+	load := func(string, string) model.Config { return loaded }
 	timeout := 5 * time.Second
 	clientTransport, serverTransport := sdk.NewInMemoryTransports()
 	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil)
 
-	subject, err := NewServer(dial, dialAPI, load, mockExecutor, terminal.NewTheme(terminal.AppearanceDark), io.Discard)
+	subject, err := NewServer(newInstance, newClient, load, mockExecutor, NewPlain(io.Discard))
 	require.NoError(t, err)
 
 	_, err = subject.server.Connect(t.Context(), serverTransport, nil)
@@ -521,7 +547,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				acts(contracts.ActionRestart, model.Service{ID: apiID, Name: "api", Status: model.StatusRunning, Watching: true, Process: model.Process{PID: 77}}, true, nil)
 			},
 			arguments: map[string]any{"name": "api", "action": "restart"},
@@ -532,7 +558,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Listen: configuredAddress, Token: token}}}
 
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{Profile: "default", Services: []string{"api", "db"}}, nil)
+				mockInstance.EXPECT().Status().Return(contracts.LogStatus{Profile: "default", Services: []string{"api", "db"}}, nil)
 				mockCandidate.EXPECT().Live(gomock.Any()).Return(model.Instance{Fingerprint: fingerprint}, nil)
 				acts(contracts.ActionRestart, model.Service{ID: apiID, Name: "api", Status: model.StatusRunning, Watching: true, Process: model.Process{PID: 77}}, true, nil)
 			},
@@ -545,19 +571,19 @@ func Test_Server_handleService(t *testing.T) {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockAPI.EXPECT().Services(gomock.Any()).Return(services, nil),
-					mockAPI.EXPECT().Act(gomock.Any(), apiID, contracts.ActionStart, serviceWait).Return(model.Service{ID: apiID, Name: "api", Status: model.StatusFailed, Error: "exit status 1"}, true, nil),
-					mockClient.EXPECT().Connect().Return(nil),
-					mockClient.EXPECT().Subscribe([]string{"api"}, model.ReplayOptions{Tail: &tailLines, NoFollow: true}).Return(nil),
-					mockClient.EXPECT().Stream(gomock.Any(), gomock.Any()).Do(func(ctx context.Context, handler logs.Handler) {
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockClient.EXPECT().Services(gomock.Any()).Return(services, nil),
+					mockClient.EXPECT().Act(gomock.Any(), apiID, contracts.ActionStart, serviceWait).Return(model.Service{ID: apiID, Name: "api", Status: model.StatusFailed, Error: "exit status 1"}, true, nil),
+					mockInstance.EXPECT().Connect().Return(nil),
+					mockInstance.EXPECT().Subscribe([]string{"api"}, model.ReplayOptions{Tail: &tailLines, NoFollow: true}).Return(nil),
+					mockInstance.EXPECT().Stream(gomock.Any(), gomock.Any()).Do(func(ctx context.Context, handler logs.Handler) {
 						deadline, bounded := ctx.Deadline()
 						assert.True(t, bounded, "the log read must run under the call deadline")
 						assert.False(t, deadline.After(time.Now().Add(serviceTimeout)), "the log read must end with the call")
 
 						stream(ctx, handler)
 					}).Return(nil),
-					mockClient.EXPECT().Close().Return(nil),
+					mockInstance.EXPECT().Close().Return(nil),
 				)
 			},
 			arguments: map[string]any{"name": "api", "action": "start"},
@@ -569,10 +595,10 @@ func Test_Server_handleService(t *testing.T) {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
 				gomock.InOrder(
-					mockClient.EXPECT().Status().Return(frame, nil),
-					mockAPI.EXPECT().Services(gomock.Any()).Return(services, nil),
-					mockAPI.EXPECT().Act(gomock.Any(), apiID, contracts.ActionStart, serviceWait).Return(model.Service{ID: apiID, Name: "api", Status: model.StatusFailed}, true, nil),
-					mockClient.EXPECT().Connect().Return(errors.New("connection refused")),
+					mockInstance.EXPECT().Status().Return(frame, nil),
+					mockClient.EXPECT().Services(gomock.Any()).Return(services, nil),
+					mockClient.EXPECT().Act(gomock.Any(), apiID, contracts.ActionStart, serviceWait).Return(model.Service{ID: apiID, Name: "api", Status: model.StatusFailed}, true, nil),
+					mockInstance.EXPECT().Connect().Return(errors.New("connection refused")),
 				)
 			},
 			arguments:       map[string]any{"name": "api", "action": "start"},
@@ -584,9 +610,9 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				acts(contracts.ActionRestart, model.Service{}, false, nil)
-				mockAPI.EXPECT().Service(gomock.Any(), apiID).Return(model.Service{ID: apiID, Name: "api", Status: model.StatusRestarting, Watching: true}, nil)
+				mockClient.EXPECT().Service(gomock.Any(), apiID).Return(model.Service{ID: apiID, Name: "api", Status: model.StatusRestarting, Watching: true}, nil)
 			},
 			arguments: map[string]any{"name": "api", "action": "restart"},
 			expected:  `{"inProgress":true,"name":"api","pid":0,"state":"restarting","watching":true}`,
@@ -596,9 +622,9 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				acts(contracts.ActionRestart, model.Service{}, false, nil)
-				mockAPI.EXPECT().Service(gomock.Any(), apiID).Return(model.Service{}, fmt.Errorf("%w: service not found", contracts.ErrAPIRejected))
+				mockClient.EXPECT().Service(gomock.Any(), apiID).Return(model.Service{}, fmt.Errorf("%w: service not found", contracts.ErrAPIRejected))
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
 			expected:        "failed to restart api: fuku rejected the action: service not found; call status to see the service state",
@@ -609,8 +635,8 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
-				mockAPI.EXPECT().Services(gomock.Any()).Return(services, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
+				mockClient.EXPECT().Services(gomock.Any()).Return(services, nil)
 			},
 			arguments:       map[string]any{"name": "nope", "action": "restart"},
 			expected:        "unknown service nope; the running profile has api, db",
@@ -621,7 +647,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{Profile: "default", Services: []string{"api", "db"}}, nil)
+				mockInstance.EXPECT().Status().Return(contracts.LogStatus{Profile: "default", Services: []string{"api", "db"}}, nil)
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
 			expected:        errAPIOff.Error(),
@@ -632,7 +658,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				acts(contracts.ActionStop, model.Service{}, false, fmt.Errorf("%w: service is not running", contracts.ErrAPIRejected))
 			},
 			arguments:       map[string]any{"name": "api", "action": "stop"},
@@ -644,7 +670,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				acts(contracts.ActionRestart, model.Service{}, false, contracts.ErrAPIOverloaded)
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
@@ -656,7 +682,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				acts(contracts.ActionRestart, model.Service{}, false, contracts.ErrAPIUnauthorized)
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
@@ -668,8 +694,8 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
-				mockAPI.EXPECT().Services(gomock.Any()).Return(nil, contracts.ErrAPIUnauthorized)
+				mockInstance.EXPECT().Status().Return(frame, nil)
+				mockClient.EXPECT().Services(gomock.Any()).Return(nil, contracts.ErrAPIUnauthorized)
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
 			expected:        errAPIUnauthorized.Error(),
@@ -680,7 +706,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 				acts(contracts.ActionRestart, model.Service{}, false, fmt.Errorf("%w: EOF", contracts.ErrAPIUnreachable))
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
@@ -692,7 +718,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Project: model.Project{Server: model.Server{Token: token}}}
 
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{API: refusedAddress}, nil)
+				mockInstance.EXPECT().Status().Return(contracts.LogStatus{API: refusedAddress}, nil)
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
 			expected:        errNotLoopback.Error(),
@@ -710,7 +736,7 @@ func Test_Server_handleService(t *testing.T) {
 			before: func() {
 				loaded = model.Config{Error: errors.New("services.api.dir is required")}
 
-				mockClient.EXPECT().Status().Return(frame, nil)
+				mockInstance.EXPECT().Status().Return(frame, nil)
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
 			expected:        "failed to load the config in " + dir + ": services.api.dir is required",
@@ -719,7 +745,7 @@ func Test_Server_handleService(t *testing.T) {
 		{
 			name: "no running fuku",
 			before: func() {
-				mockClient.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
+				mockInstance.EXPECT().Status().Return(contracts.LogStatus{}, contracts.ErrNoInstanceRunning)
 			},
 			arguments:       map[string]any{"name": "api", "action": "restart"},
 			expected:        "no fuku instance is running in " + dir + "; call run first",

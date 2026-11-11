@@ -2,7 +2,7 @@ package mcp
 
 import "errors"
 
-// Errors a tool call reports to the agent
+// Sentinels local to the mcp adapter
 var (
 	errAPIUnauthorized = errors.New("the API rejected the token from the loaded config; it is missing or wrong. An explicit config skips fuku.override.yaml")
 	errUnknownService  = errors.New("unknown service")

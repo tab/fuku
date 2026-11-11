@@ -1,30 +1,50 @@
 package config
 
-import "fuku/internal/model"
+import (
+	"path/filepath"
 
-// LoadPath loads the config at path (the default file with its override when empty) and carries a failure in Error
+	"fuku/internal/model"
+)
+
+// LoadPath reads path alone, or the default file of the working directory with its override when path is empty
 func LoadPath(path string) model.Config {
-	cfg, topology, source, err := load(path)
-
-	result := model.Config{Path: source.path, OverridePath: source.override}
-
-	if err != nil {
-		result.Error = err
-
-		return result
+	if path == "" {
+		return modelConfig(loadDefault())
 	}
 
-	result.Project = Project(cfg, topology)
-	result.Topology = *topology
-
-	return result
+	return modelConfig(loadFromFile(path))
 }
 
-// load reads an explicit path without override merging, or the default file with its override when path is empty
-func load(path string) (*Config, *model.Topology, files, error) {
-	if path != "" {
-		return loadFromFile(path)
+// LoadDir reads the default file of dir with its override when path is empty or names it, and path alone otherwise
+func LoadDir(dir, path string) model.Config {
+	if path == "" {
+		return modelConfig(loadDefaultIn(dir))
 	}
 
-	return loadDefault()
+	file := path
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(dir, file)
+	}
+
+	defaultFile, err := resolveDefaultConfig(dir)
+	if err != nil || filepath.Clean(file) != defaultFile {
+		return modelConfig(loadFromFile(file))
+	}
+
+	return modelConfig(loadDefaultIn(dir))
+}
+
+// modelConfig builds the config result of a read, keeping the API token of a config that fails validation or decoding
+func modelConfig(cfg *Config, topology *model.Topology, source files, err error) model.Config {
+	result := model.Config{Path: source.path, OverridePath: source.override, Error: err}
+
+	switch {
+	case err == nil:
+		result.Project = Project(cfg, topology)
+		result.Topology = *topology
+	case cfg != nil:
+		result.Project.Server.Token = cfg.Server.Auth.Token
+	}
+
+	return result
 }

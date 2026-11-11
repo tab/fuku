@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -82,7 +83,8 @@ concurrency:
 
 				return func() { os.Remove("fuku.yaml") }
 			},
-			error: contracts.ErrInvalidConfig,
+			error:  contracts.ErrInvalidConfig,
+			loaded: true,
 		},
 		{
 			name: "invalid yaml structure for unmarshal",
@@ -586,7 +588,7 @@ func Test_loadDefault_ServerConfig_InvalidListen(t *testing.T) {
 
 			cfg, _, _, err := loadDefault()
 			require.ErrorIs(t, err, ErrAPIInvalidListen)
-			assert.Nil(t, cfg)
+			assert.NotNil(t, cfg)
 		})
 	}
 }
@@ -1269,8 +1271,8 @@ func Test_loadDefault_RejectsAnEmptyService(t *testing.T) {
 			require.ErrorIs(t, err, contracts.ErrInvalidConfig)
 			require.ErrorIs(t, err, ErrEmptyService)
 			require.ErrorContains(t, err, "service api")
-			assert.Nil(t, cfg)
-			assert.Nil(t, topology)
+			assert.NotNil(t, cfg)
+			assert.NotNil(t, topology)
 		})
 	}
 }
@@ -1477,16 +1479,20 @@ func Test_ResolveDefaultConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			t.Chdir(dir)
 
 			for _, f := range tt.files {
-				err := os.WriteFile(f, []byte("version: 1"), 0644)
+				err := os.WriteFile(filepath.Join(dir, f), []byte("version: 1"), 0644)
 				require.NoError(t, err)
 			}
 
-			result, err := resolveDefaultConfig()
+			expected := tt.expected
+			if expected != "" {
+				expected = filepath.Join(dir, expected)
+			}
+
+			result, err := resolveDefaultConfig(dir)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, expected, result)
 		})
 	}
 }

@@ -121,6 +121,55 @@ func Test_NewInstance_UnresolvableWorkingDir(t *testing.T) {
 	}
 }
 
+func Test_Project(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	project := filepath.Join(root, "project")
+	link := filepath.Join(root, "link")
+
+	require.NoError(t, os.Mkdir(project, 0o750))
+	require.NoError(t, os.Symlink(project, link))
+	t.Chdir(root)
+
+	tests := []struct {
+		name          string
+		dir           string
+		expected      string
+		expectedError error
+	}{
+		{
+			name:     "an absolute directory",
+			dir:      project,
+			expected: project,
+		},
+		{
+			name:     "a directory relative to the working directory",
+			dir:      "project",
+			expected: project,
+		},
+		{
+			name:     "a symlink to the directory",
+			dir:      link,
+			expected: project,
+		},
+		{
+			name:          "a missing directory",
+			dir:           filepath.Join(root, "missing"),
+			expectedError: ErrFailedToResolveProject,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Project(tt.dir)
+
+			require.ErrorIs(t, err, tt.expectedError)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func Test_Fingerprint(t *testing.T) {
 	tests := []struct {
 		name     string
