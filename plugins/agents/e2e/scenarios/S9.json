@@ -1,22 +1,19 @@
 {
-  "prompt": "I changed the api command in fuku.yaml. Apply the change.",
+  "prompt": "Stop fuku.",
   "profile": "default",
   "setup": [
-    "override:api",
-    "start_fuku_foreground",
-    "edit_service_command:api"
+    "start_fuku"
   ],
   "checks": [
-    "skill_loaded",
-    "no_fuku_stop",
+    "no_probe",
     "no_fuku_run",
+    "no_kill",
     "no_api_restart",
-    "same_fuku_pid",
-    "fuku_running"
+    "fuku_stopped"
   ],
   "budget": {
-    "tool_calls": 8,
-    "input_tokens": 230000,
+    "tool_calls": 6,
+    "input_tokens": 200000,
     "seconds": 60,
     "usd": 0.75
   }

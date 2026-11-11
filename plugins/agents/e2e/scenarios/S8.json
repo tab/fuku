@@ -1,23 +1,25 @@
 {
-  "prompt": "Start the services in fuku, then change the api greeting in api/greeting.txt to hello v2. Run ./e2e.sh, check the api logs and tell me the result. Leave fuku running when you are done.",
+  "prompt": "Stop the worker service in fuku. Keep api running.",
   "profile": "default",
   "setup": [
-    "override:s8"
+    "override:api",
+    "start_fuku"
   ],
   "checks": [
-    "run_detached_once",
-    "service_applied:api",
-    "service_log_read:api",
+    "no_probe",
+    "service_applied:worker",
+    "no_fuku_run",
     "no_fuku_stop",
-    "fuku_running",
-    "services_running",
-    "project_e2e_passes",
+    "no_kill",
+    "service_stopped:worker",
+    "other_service_pids_same:worker",
+    "same_fuku_pid",
     "served_by_built_fuku"
   ],
   "budget": {
-    "tool_calls": 12,
-    "input_tokens": 400000,
-    "seconds": 150,
-    "usd": 1.0
+    "tool_calls": 6,
+    "input_tokens": 200000,
+    "seconds": 60,
+    "usd": 0.75
   }
 }

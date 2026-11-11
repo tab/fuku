@@ -1,0 +1,3 @@
+interface:
+  display_name: "fuku config"
+  short_description: "Create or change fuku config"

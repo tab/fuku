@@ -23,7 +23,9 @@ FUKU_SERVER = "fuku"
 APPROVE_FUKU_TOOLS = f'plugins.fuku@fuku.mcp_servers.{FUKU_SERVER}.default_tools_approval_mode="approve"'
 SKILL_READERS = checks.READERS | checks.BOUNDED | checks.SCRIPTED
 LINE_NUMBER = re.compile(r"^\s*(?:\d+[\t:]\s*)?")
-SKILL_FILE = pathlib.Path(__file__).resolve().parents[1] / "skills" / "fuku" / "SKILL.md"
+SKILLS_DIR = pathlib.Path(__file__).resolve().parents[1] / "skills"
+SKILL = "fuku-config"
+SKILL_NAMES = ["fuku", SKILL]
 
 
 class AdapterError(Exception):
@@ -44,7 +46,7 @@ def exec_command(project, prompt):
 
 def parse(lines, codex_home):
     """Reads `codex exec --json` lines into the normalised result; the skill counts when its SKILL.md was read"""
-    skill_path = re.compile(re.escape(str(codex_home)) + r"/plugins/cache/fuku/[^\s'\"]*/skills/fuku/SKILL\.md")
+    paths = {name: skill_pattern(codex_home, name) for name in SKILL_NAMES}
     calls, started, usage, turns, failure, errors, answer = [], {}, {}, 0, None, [], ""
     for number, line in enumerate(lines, 1):
         if not line.strip():
@@ -100,10 +102,15 @@ def parse(lines, codex_home):
     kind = "api" if failure else None
     if failure is None and turns == 0:
         kind, failure = "crash", errors[-1] if errors else "no turn.completed event"
-    loaded = any(read_skill(c, skill_path) for c in calls)
-    own_read = any(read_skill(c, skill_path) and len(checks.commands(c["command"])) == 1 for c in calls)
+    loaded = any(read_skill(c, paths[SKILL], SKILL) for c in calls)
+    counted, own_reads = set(), 0
+    for call in calls:
+        names = {n for n in SKILL_NAMES if read_skill(call, paths[n], n)} - counted
+        if names and len(checks.commands(call["command"])) == 1:
+            counted |= names
+            own_reads += 1
     totals = {
-        "tool_calls": len(calls) - int(own_read),
+        "tool_calls": len(calls) - own_reads,
         "turns": turns,
         "input_tokens": usage.get("input_tokens", 0),
         "cached_input_tokens": usage.get("cached_input_tokens", 0),
@@ -128,9 +135,14 @@ def mcp_output(item):
     return text or (item.get("error") or {}).get("message", "")
 
 
-def read_skill(call, skill_path):
-    """Reports whether a successful shell call ran a reader on the installed SKILL.md and printed its every line"""
-    printed = printed_lines(call["output"]) >= printed_lines(SKILL_FILE.read_text(encoding="utf-8"))
+def skill_pattern(codex_home, name):
+    """Returns the pattern of the installed SKILL.md of the named fuku skill under the Codex home"""
+    return re.compile(re.escape(str(codex_home)) + r"/plugins/cache/fuku/[^\s'\"]*/skills/" + re.escape(name) + r"/SKILL\.md")
+
+
+def read_skill(call, skill_path, name):
+    """Reports whether a successful shell call ran a reader on the named installed SKILL.md and printed its every line"""
+    printed = printed_lines(call["output"]) >= printed_lines((SKILLS_DIR / name / "SKILL.md").read_text(encoding="utf-8"))
     if call["tool"] != "shell" or call["error"] or not printed:
         return False
 

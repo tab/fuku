@@ -9,6 +9,8 @@ import unittest
 PLUGIN = pathlib.Path(__file__).resolve().parents[1]
 ROOT = PLUGIN.parents[1]
 SKILL = PLUGIN / "skills" / "fuku"
+CONFIG_SKILL = PLUGIN / "skills" / "fuku-config"
+SKILLS = {"fuku": SKILL, "fuku-config": CONFIG_SKILL}
 VERSION = "0.2.0"
 
 CLAUDE_MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
@@ -117,35 +119,44 @@ class ManifestTests(unittest.TestCase):
 
 
 class SkillTests(unittest.TestCase):
-    def test_one_skill_ships(self):
+    def test_two_skills_ship(self):
         skills = sorted((ROOT / "plugins").rglob("SKILL.md"))
 
-        self.assertEqual([SKILL / "SKILL.md"], skills)
+        self.assertEqual([SKILL / "SKILL.md", CONFIG_SKILL / "SKILL.md"], skills)
 
     def test_frontmatter_names_the_skill(self):
-        fields = frontmatter((SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        for name, skill in SKILLS.items():
+            with self.subTest(skill=name):
+                fields = frontmatter((skill / "SKILL.md").read_text(encoding="utf-8"))
 
-        self.assertEqual("fuku", fields.get("name"))
-        self.assertTrue(fields.get("description"))
+                self.assertEqual(name, fields.get("name"))
+                self.assertTrue(fields.get("description"))
 
     def test_relative_links_resolve(self):
-        for markdown in [SKILL / "SKILL.md"] + sorted((SKILL / "references").glob("*.md")):
-            with self.subTest(file=markdown.name):
-                self.assertEqual([], broken_links(markdown))
+        for skill in SKILLS.values():
+            for markdown in [skill / "SKILL.md"] + sorted((skill / "references").glob("*.md")):
+                with self.subTest(file=str(markdown.relative_to(PLUGIN))):
+                    self.assertEqual([], broken_links(markdown))
 
-    def test_skill_ships_only_markdown(self):
-        files = sorted(str(path.relative_to(SKILL)) for path in SKILL.rglob("*") if path.is_file())
+    def test_skill_ships_only_its_files(self):
+        expected = {
+            "fuku": ["SKILL.md", "agents/openai.yaml"],
+            "fuku-config": ["SKILL.md", "agents/openai.yaml", "references/configuration.md"],
+        }
 
-        self.assertEqual(["SKILL.md", "references/configuration.md"], files)
+        for name, skill in SKILLS.items():
+            with self.subTest(skill=name):
+                files = sorted(str(path.relative_to(skill)) for path in skill.rglob("*") if path.is_file())
+
+                self.assertEqual(expected[name], files)
 
     def test_guard_words_absent(self):
-        files = [path for path in SKILL.rglob("*") if path.is_file()]
-
-        for path in files:
-            text = path.read_text(encoding="utf-8")
-            for word in GUARD_WORDS:
-                with self.subTest(file=str(path.relative_to(SKILL)), word=word):
-                    self.assertNotIn(word, text)
+        for skill in SKILLS.values():
+            for path in [path for path in skill.rglob("*") if path.is_file()]:
+                text = path.read_text(encoding="utf-8")
+                for word in GUARD_WORDS:
+                    with self.subTest(file=str(path.relative_to(PLUGIN)), word=word):
+                        self.assertNotIn(word, text)
 
     def test_skill_names_the_tools(self):
         text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
@@ -158,7 +169,17 @@ class SkillTests(unittest.TestCase):
         text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
 
         self.assertIn("only through the fuku MCP tools", text)
-        self.assertIn("Never run `fuku`, `curl` or the REST API from the shell", text)
+        self.assertIn("Never run `fuku`, `curl`, the REST API or a script from the shell, not even to probe", text)
+        self.assertIn("If no tool does what the task needs, change nothing in fuku and tell the user which tool is missing", text)
+
+    def test_skills_split_their_triggers(self):
+        control = frontmatter((SKILL / "SKILL.md").read_text(encoding="utf-8"))["description"]
+        config = frontmatter((CONFIG_SKILL / "SKILL.md").read_text(encoding="utf-8"))["description"]
+
+        self.assertIn("Use for every task about fuku", control)
+        self.assertIn("also use the fuku-config skill", control)
+        self.assertIn("Do not use to start, stop, restart or inspect services when no config changes", config)
+        self.assertIn("as the fuku skill says", (CONFIG_SKILL / "SKILL.md").read_text(encoding="utf-8"))
 
 
 class StructureCheckTests(unittest.TestCase):

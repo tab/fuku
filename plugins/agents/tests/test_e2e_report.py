@@ -107,7 +107,7 @@ class SweepTest(unittest.TestCase):
             ("unknown host", {"HOST": "gemini"}, "HOST must be one of"),
             ("zero repeats", {"REPEATS": "0"}, "REPEATS must be a whole number"),
             ("word repeats", {"REPEATS": "three"}, "REPEATS must be a whole number"),
-            ("unknown scenario", {"SCENARIO": "S9"}, "unknown scenario: S9"),
+            ("unknown scenario", {"SCENARIO": "S13"}, "unknown scenario: S13"),
         ]
 
         for name, environ, message in cases:

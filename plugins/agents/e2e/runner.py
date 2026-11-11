@@ -59,6 +59,7 @@ SETUP = {"start_fuku": False, "start_fuku_foreground": False, "override": "templ
          "edit_service_command": "service"}
 STATE_CHECKS = {
     "fuku_running": False,
+    "fuku_stopped": False,
     "services_running": False,
     "same_fuku_pid": False,
     "same_service_pids": False,
@@ -434,6 +435,8 @@ def check_state(name, run):
 
     if base == "fuku_running":
         return None if after.fuku_pid else "no fuku answers on the project socket"
+    if base == "fuku_stopped":
+        return check_fuku_stopped(run)
     if base == "services_running":
         stopped = sorted(n for n, pid in after.services.items() if pid is None)
         return None if after.fuku_pid and after.services and not stopped else f"not running: {stopped or 'fuku'}"
@@ -468,6 +471,18 @@ def check_state(name, run):
         return check_config_unchanged(run)
 
     raise ValueError(f"unknown state check '{name}'")
+
+
+def check_fuku_stopped(run):
+    """Checks that no fuku answers on the project socket and no process of the setup's fuku or services is left"""
+    if run.after.fuku_pid:
+        return f"fuku runs as pid {run.after.fuku_pid}"
+    try:
+        alive = processes()
+    except ProbeError as err:
+        return f"cannot list processes: {err}"
+    left = sorted(pid for pid in [run.before.fuku_pid, *run.before.services.values()] if pid and pid in alive)
+    return None if not left else f"still running: {left}"
 
 
 def check_service_command(run, service):

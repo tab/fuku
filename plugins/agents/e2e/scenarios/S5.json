@@ -1,23 +1,22 @@
 {
-  "prompt": "I changed the api command in fuku.yaml. Apply the change.",
+  "prompt": "The worker service stopped. Find out why.",
   "profile": "default",
   "setup": [
-    "override:api",
+    "override:worker-exits",
     "start_fuku",
-    "edit_service_command:api"
+    "wait_service_exited:worker"
   ],
   "checks": [
-    "fuku_pid_changed",
-    "service_command_is:api",
-    "no_api_restart",
-    "skill_loaded",
+    "no_probe",
+    "log_read_with_marker",
     "fuku_running",
-    "services_running",
+    "same_fuku_pid",
+    "same_service_pids",
     "served_by_built_fuku"
   ],
   "budget": {
-    "tool_calls": 10,
-    "input_tokens": 230000,
+    "tool_calls": 7,
+    "input_tokens": 200000,
     "seconds": 60,
     "usd": 0.75
   }

@@ -3,6 +3,7 @@
   "profile": "default",
   "setup": [],
   "checks": [
+    "no_probe",
     "run_detached_once",
     "fuku_running",
     "services_running",

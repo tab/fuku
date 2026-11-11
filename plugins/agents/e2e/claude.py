@@ -15,9 +15,11 @@ FUKU_SERVER = "mcp__plugin_fuku_fuku"
 FUKU_TOOL = FUKU_SERVER + "__"
 FUKU_SERVER_NAME = "plugin:fuku:fuku"
 NO_CONNECTORS = {"ENABLE_CLAUDEAI_MCP_SERVERS": "false"}
+UNAVAILABLE = {"failed", "needs-auth"}
 MAX_TURNS = 30
 EVENTS = {"system", "assistant", "user", "result", "rate_limit_event"}
-SKILL = "fuku:fuku"
+SKILL = "fuku:fuku-config"
+SKILLS = {"fuku:fuku", SKILL}
 LOGIN_SOURCES = [r"\.credentials\.json", r"\.claude\.json", r"find-generic-password", r"Claude Code-credentials"]
 
 
@@ -91,11 +93,12 @@ def parse(lines, plugin_dir):
     plugins = [p for p in init.get("plugins") or [] if p.get("name") == "fuku"]
     plugin = plugins[0] if len(plugins) == 1 else {}
     from_tree = plugin.get("path") == str(plugin_dir)
-    invoked = any(c["tool"] == "Skill" and json.loads(c["command"]).get("skill") == SKILL and c["error"] is False
-                  for c in calls)
+    loads = [c for c in calls if c["tool"] == "Skill" and json.loads(c["command"]).get("skill") in SKILLS
+             and c["error"] is False]
+    invoked = any(json.loads(c["command"]).get("skill") == SKILL for c in loads)
     usage = (final or {}).get("usage") or {}
     totals = {
-        "tool_calls": len(calls) - int(invoked),
+        "tool_calls": len(calls) - len({json.loads(c["command"]).get("skill") for c in loads}),
         "turns": (final or {}).get("num_turns"),
         "input_tokens": sum(usage.get(k, 0) for k in
                             ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")),
@@ -116,6 +119,10 @@ def parse(lines, plugin_dir):
     others = [s.get("name") for s in init.get("mcp_servers") or [] if s.get("name") != FUKU_SERVER_NAME]
     if others:
         result.fail("isolation", f"MCP servers other than fuku: {others}")
+    down = [s.get("status") for s in init.get("mcp_servers") or []
+            if s.get("name") == FUKU_SERVER_NAME and s.get("status") in UNAVAILABLE]
+    if down:
+        result.fail("mcp", f"the fuku MCP server is {down[0]}, so the agent never had its tools")
     kind, message = host_failure(final)
     if kind:
         result.fail(kind, message)

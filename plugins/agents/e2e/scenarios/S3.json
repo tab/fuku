@@ -1,21 +1,19 @@
 {
-  "prompt": "The worker service stopped. Find out why.",
-  "profile": "default",
-  "setup": [
-    "override:s3",
-    "start_fuku",
-    "wait_service_exited:worker"
-  ],
+  "prompt": "run core profile with fuku",
+  "profile": "core",
+  "setup": [],
   "checks": [
-    "log_read_with_marker",
+    "no_probe",
+    "run_detached_once",
+    "no_default_run",
     "fuku_running",
-    "same_fuku_pid",
-    "same_service_pids",
+    "services_running",
+    "service_stopped:worker",
     "served_by_built_fuku"
   ],
   "budget": {
-    "tool_calls": 7,
-    "input_tokens": 200000,
+    "tool_calls": 8,
+    "input_tokens": 150000,
     "seconds": 60,
     "usd": 0.75
   }

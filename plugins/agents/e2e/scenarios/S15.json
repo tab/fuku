@@ -1,0 +1,24 @@
+{
+  "prompt": "Follow the api logs in fuku live and show me new lines as they arrive.",
+  "profile": "default",
+  "setup": [
+    "start_fuku"
+  ],
+  "checks": [
+    "no_probe",
+    "no_fuku_run",
+    "no_fuku_stop",
+    "no_api_restart",
+    "no_kill",
+    "same_fuku_pid",
+    "same_service_pids",
+    "config_unchanged",
+    "override_restored"
+  ],
+  "budget": {
+    "tool_calls": 6,
+    "input_tokens": 200000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}

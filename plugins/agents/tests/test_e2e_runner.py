@@ -104,10 +104,10 @@ plugin)
   dest="$CODEX_HOME/plugins/cache/fuku/fuku/0.1.0"
   mkdir -p "$dest" && cp -R "$FAKE_SKILLS" "$dest/skills"
   case "$FAKE_TAMPER" in
-  edit) echo tampered >> "$dest/skills/fuku/SKILL.md" ;;
+  edit) echo tampered >> "$dest/skills/fuku-config/SKILL.md" ;;
   extra) echo extra > "$dest/skills/fuku/EXTRA.md" ;;
-  missing) rm "$dest/skills/fuku/references/configuration.md" ;;
-  mode) chmod +x "$dest/skills/fuku/SKILL.md" ;;
+  missing) rm "$dest/skills/fuku-config/references/configuration.md" ;;
+  mode) chmod +x "$dest/skills/fuku-config/SKILL.md" ;;
   esac
   printf '{"installedPath": "%s"}\n' "$dest" ;;
 exec)
@@ -208,6 +208,14 @@ class RestartFuku:
         return runner.AgentResult()
 
 
+class StopFuku:
+    """Stand-in agent that stops the running fuku"""
+
+    def run(self, project, prompt, env, **_):
+        subprocess.run(["fuku", "stop", "default"], cwd=project, env=env, capture_output=True, check=True)
+        return runner.AgentResult()
+
+
 class ReportedRestart(RestartFuku):
     """Stand-in agent that restarts fuku and reports a transcript that also kills the service program by name"""
 
@@ -287,7 +295,7 @@ class ScenarioTest(unittest.TestCase):
     def test_shipped_scenarios_validate(self):
         scenarios = runner.load_scenarios()
 
-        self.assertEqual(["S1", "S10", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"], sorted(scenarios))
+        self.assertEqual(["S1", "S10", "S11", "S12", "S13", "S14", "S15", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"], sorted(scenarios))
 
     def test_rejected_scenario(self):
         cases = [
@@ -310,7 +318,7 @@ class ScenarioTest(unittest.TestCase):
 
         for name, data, message in cases:
             with self.subTest(name), tempfile.TemporaryDirectory() as directory:
-                pathlib.Path(directory, "S9.json").write_text(json.dumps(data), encoding="utf-8")
+                pathlib.Path(directory, "S13.json").write_text(json.dumps(data), encoding="utf-8")
                 stderr = io.StringIO()
 
                 with contextlib.redirect_stderr(stderr):
@@ -324,7 +332,7 @@ class ScenarioTest(unittest.TestCase):
     def test_unreadable_scenario_directory(self):
         cases = [
             ("no scenario file", {}, "no scenario file in"),
-            ("not JSON", {"S9.json": "{not json"}, "S9.json: not valid JSON"),
+            ("not JSON", {"S13.json": "{not json"}, "S13.json: not valid JSON"),
         ]
 
         for name, files, message in cases:
@@ -514,6 +522,9 @@ class RunnerTest(unittest.TestCase):
         cases = [
             ("fuku_running", running, running, True),
             ("fuku_running", running, runner.Snapshot(), False),
+            ("fuku_stopped", runner.Snapshot(), runner.Snapshot(), True),
+            ("fuku_stopped", running, running, False),
+            ("fuku_stopped", runner.Snapshot(99999999, {"api": os.getpid()}), runner.Snapshot(), False),
             ("services_running", running, running, True),
             ("services_running", running, worker_stopped, False),
             ("services_running", running, runner.Snapshot(10, {}), False),
@@ -700,7 +711,7 @@ class RunnerTest(unittest.TestCase):
         agent = mock.Mock()
         roots_before = temp_roots()
 
-        result = runner.run_scenario(runner.load_scenarios(ids=["S2"])["S2"], agent, directory / "fuku")
+        result = runner.run_scenario(runner.load_scenarios(ids=["S4"])["S4"], agent, directory / "fuku")
 
         self.assertEqual({"setup": "fuku run default -d exited 1: Error: no config", "teardown": None}, result.checks)
         agent.run.assert_not_called()
@@ -802,37 +813,40 @@ class FukuBackedTest(unittest.TestCase):
                 "fuku_running": False, "services_running": False, "served_by_built_fuku": False}),
             ("S1 other fuku", "S1", StartOtherFuku(other), {
                 "fuku_running": True, "services_running": True, "served_by_built_fuku": False}),
-            ("S2 attached", "S2", Idle(), {
+            ("S4 attached", "S4", Idle(), {
                 "fuku_running": True, "same_fuku_pid": True, "same_service_pids": True, "served_by_built_fuku": True}),
-            ("S2 restarted", "S2", RestartFuku(), {
+            ("S4 restarted", "S4", RestartFuku(), {
                 "fuku_running": True, "same_fuku_pid": False, "same_service_pids": False}),
-            ("S3 worker exited", "S3", Idle(), {
+            ("S5 worker exited", "S5", Idle(), {
                 "fuku_running": True, "same_fuku_pid": True, "same_service_pids": True}),
-            ("S4 api restarted", "S4", RestartApiService(), {
+            ("S7 api restarted", "S7", RestartApiService(), {
                 "service_pid_changed:api": True, "other_service_pids_same:api": True, "same_fuku_pid": True}),
-            ("S4 idle", "S4", Idle(), {
+            ("S7 idle", "S7", Idle(), {
                 "service_pid_changed:api": False, "other_service_pids_same:api": True, "same_fuku_pid": True}),
-            ("S4 profile restarted", "S4", RestartFuku(), {
+            ("S7 profile restarted", "S7", RestartFuku(), {
                 "service_pid_changed:api": True, "other_service_pids_same:api": False, "same_fuku_pid": False}),
-            ("S5 restarted", "S5", RestartFuku(), {
+            ("S12 restarted", "S12", RestartFuku(), {
                 "fuku_pid_changed": True, "service_command_is:api": True, "services_running": True}),
-            ("S5 not restarted", "S5", Idle(), {
+            ("S12 not restarted", "S12", Idle(), {
                 "fuku_pid_changed": False, "service_command_is:api": False}),
-            ("S6 left alone", "S6", Idle(), {
+            ("S9 stopped", "S9", StopFuku(), {"fuku_stopped": True}),
+            ("S9 idle", "S9", Idle(), {"fuku_stopped": False}),
+            ("S9 restarted", "S9", RestartFuku(), {"fuku_stopped": False}),
+            ("S2 left alone", "S2", Idle(), {
                 "same_fuku_pid": True, "same_service_pids": True}),
-            ("S7 core started", "S7", StartFuku("core"), {
+            ("S3 core started", "S3", StartFuku("core"), {
                 "fuku_running": True, "services_running": True, "service_stopped:worker": True,
                 "served_by_built_fuku": True}),
-            ("S7 default started", "S7", StartFuku(), {
+            ("S3 default started", "S3", StartFuku(), {
                 "fuku_running": True, "services_running": True, "service_stopped:worker": False}),
-            ("S9 left alone", "S9", Idle(), {
+            ("S13 left alone", "S13", Idle(), {
                 "fuku_running": True, "same_fuku_pid": True, "no_fuku_stop": True, "no_fuku_run": True}),
-            ("S9 restarted", "S9", RestartFuku(), {
+            ("S13 restarted", "S13", RestartFuku(), {
                 "fuku_running": True, "same_fuku_pid": False}),
-            ("S10 restarted and restored", "S10", RestartFuku(), {
+            ("S14 restarted and restored", "S14", RestartFuku(), {
                 "fuku_pid_changed": True, "service_command_is:api": True, "override_restored": True,
                 "config_unchanged": True}),
-            ("S10 idle", "S10", Idle(), {
+            ("S14 idle", "S14", Idle(), {
                 "fuku_pid_changed": False, "service_command_is:api": True, "override_restored": True}),
         ]
 
@@ -852,7 +866,7 @@ class FukuBackedTest(unittest.TestCase):
                 self.assertEqual(roots_before, temp_roots())
 
     def test_broad_kill_fails_a_valid_restart(self):
-        scenario = runner.load_scenarios(ids=["S5"])["S5"]
+        scenario = runner.load_scenarios(ids=["S12"])["S12"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
 
         result = runner.run_scenario(scenario, ReportedRestart(), fuku_bin)
@@ -862,7 +876,7 @@ class FukuBackedTest(unittest.TestCase):
         self.assertEqual("", fixture_sleeps())
 
     def test_teardown_kills_an_unmanaged_process_in_the_project(self):
-        scenario = runner.load_scenarios(ids=["S2"])["S2"]
+        scenario = runner.load_scenarios(ids=["S4"])["S4"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
         agent = LeaveProcess(self)
         tmp_before = sorted(glob.glob("/tmp/fuku-*"))
@@ -901,7 +915,7 @@ class FukuBackedTest(unittest.TestCase):
         self.assertFalse(run.project.parent.exists())
 
     def test_teardown_spares_a_process_in_a_rewritten_service_dir(self):
-        scenario = runner.load_scenarios(ids=["S2"])["S2"]
+        scenario = runner.load_scenarios(ids=["S4"])["S4"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
         decoy_dir = tempfile.mkdtemp(prefix="fuku-decoy-")
         self.addCleanup(shutil.rmtree, decoy_dir)
@@ -918,7 +932,7 @@ class FukuBackedTest(unittest.TestCase):
         self.assertEqual(tmp_before, sorted(glob.glob("/tmp/fuku-*")))
 
     def test_teardown_after_an_agent_error(self):
-        scenario = runner.load_scenarios(ids=["S2"])["S2"]
+        scenario = runner.load_scenarios(ids=["S4"])["S4"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
         tmp_before = sorted(glob.glob("/tmp/fuku-*"))
         roots_before = temp_roots()
@@ -939,7 +953,7 @@ class ParseTest(unittest.TestCase):
     def test_claude_samples(self):
         cases = [
             ("claude-ok", "<REPO>/plugins/agents", {
-                "calls": [("Skill", '{"skill": "fuku:fuku"}', False),
+                "calls": [("Skill", '{"skill": "fuku:fuku-config"}', False),
                           ("shell", "ls; fuku version; fuku doctor default --json", False),
                           ("shell", 'fuku run default -d; echo "exit=$?"; fuku logs --tail 30 --no-follow', False)],
                 "skill_loaded": True, "host_error": None, "kind": None,
@@ -949,7 +963,7 @@ class ParseTest(unittest.TestCase):
                            "output_tokens": 401, "usd": 0.47510499999999994, "model": "claude-fable-5-1",
                            "host_version": "2.1.289"}}),
             ("claude-ok", "/elsewhere/plugins/agents", {
-                "calls": [("Skill", '{"skill": "fuku:fuku"}', False),
+                "calls": [("Skill", '{"skill": "fuku:fuku-config"}', False),
                           ("shell", "ls; fuku version; fuku doctor default --json", False),
                           ("shell", 'fuku run default -d; echo "exit=$?"; fuku logs --tail 30 --no-follow', False)],
                 "skill_loaded": False, "host_error": None, "kind": None,
@@ -1060,6 +1074,9 @@ class ParseTest(unittest.TestCase):
             ("none", [], None),
             ("an extra server", [{"name": "plugin:fuku:fuku", "status": "connected", "source": "plugin"},
                                  {"name": "sentry", "status": "connected", "source": "user"}], "isolation"),
+            ("fuku pending", [{"name": "plugin:fuku:fuku", "status": "pending", "source": "plugin"}], None),
+            ("fuku failed", [{"name": "plugin:fuku:fuku", "status": "failed", "source": "plugin"}], "mcp"),
+            ("fuku needs auth", [{"name": "plugin:fuku:fuku", "status": "needs-auth", "source": "plugin"}], "mcp"),
         ]
 
         for name, servers, kind in cases:
@@ -1072,8 +1089,10 @@ class ParseTest(unittest.TestCase):
                 result = claude.parse(lines, "<REPO>/plugins/agents")
 
                 self.assertEqual(kind, result.host_error_kind)
-                if kind:
+                if kind == "isolation":
                     self.assertIn("MCP servers other than fuku: ['sentry']", result.host_error)
+                if kind == "mcp":
+                    self.assertIn(f"the fuku MCP server is {servers[0]['status']}", result.host_error)
 
     def test_claude_tool_result_blocks(self):
         events = [json.loads(line) for line in sample("claude-ok")]
@@ -1112,7 +1131,7 @@ class ParseTest(unittest.TestCase):
     def test_codex_samples(self):
         cases = [
             ("codex-ok", {
-                "calls": [("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku/SKILL.md", False),
+                "calls": [("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku-config/SKILL.md", False),
                           ("shell", "fuku run default -d", False),
                           ("shell", "fuku logs --profile default --tail 30 --no-follow", False)],
                 "skill_loaded": True,
@@ -1184,12 +1203,12 @@ class ParseTest(unittest.TestCase):
         result = codex.parse(lines, "<CODEX_HOME>")
 
         calls = [(c["tool"], c["command"], c["error"]) for c in result.calls]
-        self.assertEqual([("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku/SKILL.md", False),
+        self.assertEqual([("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku-config/SKILL.md", False),
                           ("shell", "fuku run default", False)], calls)
 
     def test_codex_skill_read(self):
-        path = "<CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku/SKILL.md"
-        skill = (PLUGIN / "skills" / "fuku" / "SKILL.md").read_text(encoding="utf-8")
+        path = "<CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku-config/SKILL.md"
+        skill = (PLUGIN / "skills" / "fuku-config" / "SKILL.md").read_text(encoding="utf-8")
         numbered = "".join(f"{n:6}\t{line}\n" for n, line in enumerate(skill.splitlines(), 1))
         last = skill.rstrip().splitlines()[-1]
         body = skill.splitlines().index("---", 1) + 1
@@ -1225,31 +1244,41 @@ class ParseTest(unittest.TestCase):
                 self.assertEqual(loaded, result.skill_loaded)
 
     def test_codex_skill_read_count(self):
-        path = "<CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku/SKILL.md"
-        skill = (PLUGIN / "skills" / "fuku" / "SKILL.md").read_text(encoding="utf-8")
+        base = "<CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills"
+        path, control = f"{base}/fuku-config/SKILL.md", f"{base}/fuku/SKILL.md"
+        skill = (PLUGIN / "skills" / "fuku-config" / "SKILL.md").read_text(encoding="utf-8")
+        control_skill = (PLUGIN / "skills" / "fuku" / "SKILL.md").read_text(encoding="utf-8")
         compound = f"cat {path}; cat fuku.yaml; fuku status"
         cases = [
-            ("one read", [f"cat {path}"], 0),
-            ("a compound read", [compound], 1),
-            ("a repeat read", [f"cat {path}", f"sed -n 1,999p {path}"], 1),
-            ("a compound and a plain read", [compound, f"sed -n 1,999p {path}"], 1),
+            ("one read", [(f"cat {path}", skill)], 0, True),
+            ("a compound read", [(compound, skill)], 1, True),
+            ("a repeat read", [(f"cat {path}", skill), (f"sed -n 1,999p {path}", skill)], 1, True),
+            ("a compound and a plain read", [(compound, skill), (f"sed -n 1,999p {path}", skill)], 1, True),
+            ("the control skill alone", [(f"cat {control}", control_skill)], 0, False),
+            ("both skills in two calls", [(f"cat {control}", control_skill), (f"cat {path}", skill)], 0, True),
+            ("a repeat read of the control skill", [(f"cat {control}", control_skill)] * 2, 1, False),
+            ("both skills in one command", [(f"cat {control} {path}", control_skill + skill)], 0, True),
         ]
         completed = json.dumps({"type": "turn.completed", "usage": {}})
 
-        for name, commands, tool_calls in cases:
+        for name, reads, tool_calls, loaded in cases:
             with self.subTest(name):
                 items = [{"id": f"c{n}", "type": "command_execution", "command": f"/bin/zsh -lc {shlex.quote(c)}",
-                          "aggregated_output": skill, "exit_code": 0, "status": "completed"}
-                         for n, c in enumerate(commands)]
+                          "aggregated_output": output, "exit_code": 0, "status": "completed"}
+                         for n, (c, output) in enumerate(reads)]
                 lines = [json.dumps({"type": "item.completed", "item": item}) for item in items] + [completed]
 
                 result = codex.parse(lines, "<CODEX_HOME>")
 
-                self.assertEqual((tool_calls, True), (result.totals["tool_calls"], result.skill_loaded))
+                self.assertEqual((tool_calls, loaded), (result.totals["tool_calls"], result.skill_loaded))
 
     def test_claude_skill_read_count(self):
-        fuku, other = {"skill": "fuku:fuku"}, {"skill": "other:skill"}
+        fuku, other = {"skill": "fuku:fuku-config"}, {"skill": "other:skill"}
+        control = {"skill": "fuku:fuku"}
         cases = [
+            ("the control skill alone", [(control, False)], 0, False),
+            ("both skills", [(control, False), (fuku, False)], 0, True),
+            ("a repeat read of the control skill", [(control, False), (control, False)], 1, False),
             ("one read", [(fuku, False)], 0, True),
             ("another skill", [(other, False)], 1, False),
             ("a repeat read", [(fuku, False), (fuku, False)], 1, True),
@@ -1825,10 +1854,10 @@ class CodexAdapterTest(unittest.TestCase):
 
     def test_installed_skill_must_match_the_tree(self):
         cases = [
-            ("edit", "fuku/SKILL.md"),
+            ("edit", "fuku-config/SKILL.md"),
             ("extra", "fuku/EXTRA.md"),
-            ("missing", "fuku/references/configuration.md"),
-            ("mode", "fuku/SKILL.md"),
+            ("missing", "fuku-config/references/configuration.md"),
+            ("mode", "fuku-config/SKILL.md"),
         ]
         roots_before = set(glob.glob(os.path.join(tempfile.gettempdir(), "fuku-agents-codex-*")))
 

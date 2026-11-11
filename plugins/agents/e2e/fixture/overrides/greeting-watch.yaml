@@ -1,0 +1,9 @@
+server:
+  listen: "127.0.0.1:{{PORT}}"
+  auth:
+    token: "{{TOKEN}}"
+services:
+  api:
+    command: cp greeting.txt served.txt; echo "api ready, serving $(cat greeting.txt)"; exec sleep 3601
+    watch:
+      include: ["greeting.txt"]

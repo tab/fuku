@@ -21,8 +21,6 @@ SCRIPTED = {"sed", "awk", "yq", "jq"}
 SEARCHERS = {"grep", "egrep", "fgrep", "rg"}
 SEARCH_VALUES = {"-A", "-B", "-C", "-m", "-f", "-g", "-t", "-T", "-e", "--regexp", "--file", "--glob", "--type",
                  "--max-count", "--context", "--after-context", "--before-context"}
-SHORT_VALUES = "".join(flag[1] for flag in SEARCH_VALUES if len(flag) == 2)
-ATTACHED = re.compile(rf"^(--[a-z-]+=|-[^-]*?[{SHORT_VALUES}])(.+)$")
 EVERYTHING = {"", ".", "^", "$", ".*", "^.*$", "^.*", ".*$"}
 TIMEOUT_VALUES = {"-k", "-s", "--kill-after", "--signal"}
 XARGS_VALUES = {"-n", "-I", "-L", "-P", "-s", "-d", "-E", "-a", "--max-args", "--max-lines", "--max-procs",
@@ -33,6 +31,17 @@ SIGNAL_VALUES = {"-s", "-n"}
 REMOVERS = {"rm", "unlink", "rmdir", "trash"}
 API_CLIENTS = {"curl", "wget", "http", "xh"}
 API_PATH = "/api/v1"
+FINDERS = SEARCHERS | {"find", "fd", "ls"}
+SUBSTITUTED = re.compile(r"(\$\(|`)[^)`]*\bfuku\b")
+INTERPRETERS = {"python", "python3", "node", "ruby", "perl", "osascript", "deno", "bun"}
+SCRIPT_SUFFIXES = (".sh", ".bash", ".zsh", ".py", ".rb", ".pl", ".js", ".mjs", ".ts")
+LISTING = {
+    "rg": ({"--files", "--files-with-matches", "--files-without-match", "--count", "--count-matches"}, "lc"),
+    "grep": ({"--files-with-matches", "--files-without-match", "--count"}, "lLc"),
+}
+RG_GLOBS = {"-g", "--glob", "--iglob"}
+GLOBS = RG_GLOBS | {"--include", "--exclude"}
+RG_VALUES = {"-r", "--replace"}
 SCENARIO_CHECKS = {
     "run_detached_once": False,
     "run_detached_twice": False,
@@ -47,6 +56,9 @@ SCENARIO_CHECKS = {
     "service_applied": "service",
     "skill_loaded": False,
     "no_config_argument": False,
+    "no_probe": False,
+    "config_read": False,
+    "no_config_file": False,
 }
 DEFAULT_PROFILE = "default"
 ALWAYS = ["no_shell_control", "no_config_read", "no_fuku_kill", "no_socket_removal", "config_inside_project",
@@ -128,6 +140,114 @@ def unredirected(words):
     return kept
 
 
+def cli_probe(argv):
+    """Reports whether a command runs fuku or asks about it, as `which fuku` does; a file search for fuku is not a probe"""
+    return argv[0] == "fuku" or (argv[0] not in FINDERS and "fuku" in argv[1:])
+
+
+def runs_script(argv):
+    """Reports whether a command runs a script: through an interpreter or a shell, or as a file such as ./poll.sh"""
+    if argv[0] in INTERPRETERS or argv[0].endswith(SCRIPT_SUFFIXES):
+        return True
+
+    return argv[0] in WRAPPERS and any(not a.startswith("-") for a in argv[1:])
+
+
+def lists_names(argv):
+    """Reports whether a command prints only file names or counts, as ls, find, `rg --files` or `grep -l` do"""
+    if argv[0] in {"ls", "find", "fd"}:
+        return True
+    if argv[0] not in SEARCHERS:
+        return False
+    long, short = LISTING["rg" if argv[0] == "rg" else "grep"]
+    flags = [flag for flag, value in search_args(argv[0], argv[1:])[0] if value is None]
+
+    return bool(long & set(flags)) or any(re.match(r"^-[a-zA-Z]+$", f) and set(f[1:]) & set(short) for f in flags)
+
+
+def search_values(program):
+    """Returns the options of a grep or rg that take an operand; in rg -r is --replace, in grep it recurses"""
+    return SEARCH_VALUES | GLOBS | (RG_VALUES if program == "rg" else set())
+
+
+def search_args(program, args):
+    """Splits grep or rg arguments into options up to -- as (flag, value) and positionals, taking each value as written"""
+    values, flags, positional, index = search_values(program), [], [], 0
+    while index < len(args):
+        word, index = args[index], index + 1
+        if word == "--":
+            return flags, positional + args[index:]
+        if not word.startswith("-"):
+            positional.append(word)
+            continue
+        name, value = word, None
+        if word.startswith("--") and "=" in word and word.partition("=")[0] in values:
+            name, _, value = word.partition("=")
+        cut = None if word.startswith("--") else next((i for i in range(1, len(word)) if f"-{word[i]}" in values), None)
+        if cut is not None:
+            flags += [(word[:cut], None)] if cut > 1 else []
+            name, value = f"-{word[cut]}", word[cut + 1:] or None
+        if value is None and name in values and index < len(args):
+            value, index = args[index], index + 1
+        flags.append((name, value))
+
+    return flags, positional
+
+
+def search_globs(program, args):
+    """Returns the glob options of a grep or rg in command-line order as (flag, glob), lowering an --iglob"""
+    flags, _ = search_args(program, args)
+
+    return [(flag, value.lower() if flag == "--iglob" else value) for flag, value in flags if flag in GLOBS]
+
+
+def rg_glob(glob, name):
+    """Reports whether an rg glob matches a root file by its root-relative path, where **/ and a leading / match the root"""
+    glob = glob.removeprefix("/")
+    while glob.startswith("**/"):
+        glob = glob[3:]
+
+    return fnmatch.fnmatchcase(name, glob)
+
+
+def globbed(name, globs):
+    """Reports whether the globs search a root file: in rg the last matching glob wins, in grep --exclude beats --include"""
+    rg = [glob for flag, glob in globs if flag in RG_GLOBS and glob]
+    searched = all(glob.startswith("!") for glob in rg)
+    for glob in rg:
+        if rg_glob(glob.removeprefix("!"), name):
+            searched = not glob.startswith("!")
+    includes = [glob for flag, glob in globs if flag == "--include"]
+    excludes = [glob for flag, glob in globs if flag == "--exclude"]
+
+    return (searched and (not includes or any(fnmatch.fnmatchcase(name, g) for g in includes))
+            and not any(fnmatch.fnmatchcase(name, g) for g in excludes))
+
+
+def tree_search(argv):
+    """Reports whether a recursive grep or rg of the project root prints lines of a config file its globs do not filter"""
+    if argv[0] not in SEARCHERS:
+        return False
+    args = argv[1:]
+    flags = [flag for flag, _ in search_args(argv[0], args)[0]]
+    recursive = argv[0] == "rg" or any(f in ("--recursive", "-r", "-R") or re.match(r"^-[a-zA-Z]*[rR]", f) for f in flags)
+    if not recursive:
+        return False
+    _, files = search_words(argv[0], args)
+    if not any(f.rstrip("/") in ("", ".") for f in files or ["."]):
+        return False
+    globs = search_globs(argv[0], args)
+
+    return any(globbed(name, globs) for name in CONFIG_NAMES)
+
+
+def ps_probe(call):
+    """Reports whether a shell call lists processes and filters them for fuku, as `ps aux | grep fuku` does"""
+    argvs = commands(call["command"])
+
+    return any(a[0] == "ps" for a in argvs) and any("fuku" in a[1:] for a in argvs)
+
+
 def invocations(calls):
     """Returns (call, argv) for every simple command of every shell call"""
     return [(call, argv) for call in calls if call["tool"] == "shell" for argv in commands(call["command"])]
@@ -154,41 +274,19 @@ def config_read(argv, call):
         scripts = [a for a in args if not a.startswith("-") and not is_config(a)]
         return not any("/" in s or re.search(r"\.[A-Za-z_]", s) for s in scripts)
     if program in SEARCHERS:
-        args = list(search_options(args))
-        patterns, files = search_words(args)
-        return any(is_config(f) for f in files) and search_prints_all(args, patterns)
+        flags = [flag for flag, _ in search_args(program, args)[0]]
+        patterns, files = search_words(program, args)
+        return any(is_config(f) for f in files) and search_prints_all(flags, patterns)
 
     return False
 
 
-def search_options(args):
-    """Detaches an attached option value so --regexp=foo, -efoo and -vefoo read as the option then its value"""
-    for word in args:
-        attached = ATTACHED.match(word)
-        if attached and (not word.startswith("--") or attached.group(1)[:-1] in SEARCH_VALUES):
-            yield attached.group(1).rstrip("=")
-            yield attached.group(2)
-            continue
-        yield word
-
-
-def search_words(args):
+def search_words(program, args):
     """Splits grep or rg arguments into (patterns, files); the first positional is the pattern unless an option names one"""
-    patterns, positional, named, index = [], [], False, 0
-    while index < len(args):
-        word = args[index]
-        flag = f"-{word[-1]}" if re.match(r"^-[^-]", word) else word
-        if flag in SEARCH_VALUES and index + 1 < len(args):
-            if flag in ("-e", "--regexp"):
-                patterns.append(args[index + 1])
-            named = named or flag in ("-e", "--regexp", "-f", "--file")
-            index += 2
-            continue
-        if not word.startswith("-") or word == "":
-            positional.append(word)
-        index += 1
+    flags, positional = search_args(program, args)
+    named = [(flag, value) for flag, value in flags if flag in ("-e", "--regexp", "-f", "--file") and value is not None]
     if named:
-        return patterns, positional
+        return [value for flag, value in named if flag in ("-e", "--regexp")], positional
 
     return positional[:1], positional[1:]
 
@@ -309,6 +407,16 @@ def log_lines(call):
     return [line for line in lines if isinstance(line, dict)] if isinstance(lines, list) else []
 
 
+def grep_config(call):
+    """Reports whether a Grep tool call searches a fuku config file by its path or its glob"""
+    try:
+        query = json.loads(call["command"])
+    except (json.JSONDecodeError, TypeError):
+        return False
+
+    return any(is_config(str(query.get(key) or "")) for key in ("path", "glob"))
+
+
 def read_path(call):
     """Returns the file a Read tool call names"""
     try:
@@ -378,6 +486,19 @@ def scenario_check(name, calls, context):
     if name == "service_applied":
         acted = [c for c in tool_calls(calls, "service") if succeeded(c) and arguments(c).get("name") == param]
         return None if acted else f"no successful service call names {param}"
+    if name == "no_probe":
+        found = [" ".join(argv) for _, argv in invocations(calls) if cli_probe(argv) or runs_script(argv)]
+        found += [c["command"] for c in calls if c["tool"] == "shell" and (SUBSTITUTED.search(c["command"]) or ps_probe(c))]
+        return None if not found else f"shell probes the fuku CLI or runs a script: {found}"
+    if name == "config_read":
+        read = [c for c in tool_calls(calls, "config") if succeeded(c)]
+        return None if read else "no successful config call"
+    if name == "no_config_file":
+        touched = [" ".join(argv) for _, argv in invocations(calls) if not lists_names(argv)
+                   and (any(is_config(a) for flag, a in zip(argv, argv[1:]) if flag not in GLOBS) or tree_search(argv))]
+        touched += [f"Read {read_path(c)}" for c in calls if c["tool"] == "Read" and is_config(str(read_path(c)))]
+        touched += [f"Grep {c['command']}" for c in calls if c["tool"] == "Grep" and grep_config(c)]
+        return None if not touched else f"config file read instead of config: {touched}"
     if name == "skill_loaded":
         return None if context.get("skill_loaded") else "the host did not load the fuku skill"
     if name == "no_config_argument":
