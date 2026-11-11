@@ -27,16 +27,17 @@
 
 ## Medium
 
-- [ ] **BL-032 – Return a result, not an error, from `status` when no fuku runs**
-  - Why: agents answer the error-shaped "no fuku instance is running" with an extra `doctor` before `run`; a `{running: false, profiles}` result may remove that call
-  - Fix: decide after the step 15 sweep shows whether the `doctor` reflex is gone; it changes the AC2 wording of the MCP feature
-  - Added: 20261108
-  - Source: [MCP server plan](20261108-mcp-server/plan.md)
-
 - [ ] **BL-035 – Let the `logs` tool read only the lines since a service's current start**
   - Why: `logs` returns the newest lines with no restart boundary and no time, so after a restart an agent can read the old process's crash as the current state
   - Fix: return the lines since the service's current start, or take a `since`; decide with the log buffer and `model.ReplayOptions`
   - Added: 20261109
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
+
+- [ ] **BL-036 – Decide whether `server.auth.token` should exist**
+  - Why: the token is optional and rarely set. It does not stop a process running as the user, which can read the config. BL-017's `Host` and `Origin` checks already stop browsers. It only helps on a multi-user host, which BL-025 covers better. It costs a secret in every client, the JetBrains plugin and the MCP redaction middleware
+  - Fix: decide keep or remove. A removal is a breaking config change: deprecate the key with a `doctor` warning first, then remove the key, the REST client token path, the plugin's token handling and `redactCalls`
+  - Note: AC9 of the MCP feature was narrowed to the token of the named and default config
+  - Added: 20261110
   - Source: [MCP server plan](20261108-mcp-server/plan.md)
 
 - [ ] **BL-001 – Define and enforce the package-level variable policy**
@@ -140,6 +141,24 @@
 
 ## Low
 
+- [ ] **BL-037 – Close the remaining grader gaps in `no_config_file`**
+  - Why: brace globs are not expanded, so `-g '!{fuku.yaml,fuku.override.yaml}'` fails a compliant run and `-g '*.{yaml,yml}'` is missed. `--glob-case-insensitive` is ignored. BSD grep lets the last matching `--include` or `--exclude` win, which the grader does not model. rg type filters are not modelled, so `rg -n command --type go .` reads no config but fails in S6. A trailing `--iglob` with no value makes `search_globs` call `.lower()` on None, so the grader crashes instead of grading the run. None was seen in a real agent run
+  - Fix: extend `rg_glob`/`globbed`, one row each. Model `--type` and `-t` in `tree_search`, and skip a glob with no value in `search_globs`, one row each
+  - Added: 20261110
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
+
+- [ ] **BL-038 – Resolve a relative `CLAUDE_PROJECT_DIR` once**
+  - Why: `Server.Run` changes to `root()`, and `root()` resolves a relative `CLAUDE_PROJECT_DIR` again against the new working directory, so every tool then fails to resolve the project
+  - Fix: resolve the root to an absolute path once before the directory change, and test it
+  - Added: 20261110
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
+
+- [ ] **BL-039 – Report a slow `stop` as in progress in the MCP tool**
+  - Why: `fuku stop` may wait 15s plus 5s per service before its SIGKILL fallback, but the `stop` tool kills it at 50s and reports `signal: killed` while the stop goes on; `run` already answers `inProgress` in the same case
+  - Fix: handle `DeadlineExceeded` in `handleStop` as `handleRun` does, with one test row
+  - Added: 20261111
+  - Source: [MCP server code review](20261108-mcp-server/code-review.md) CODE-G3
+
 - [ ] **BL-034 – Keep one command order across the CLI parser**
   - Why: the `Command*` constants in `cli/options.go` follow the order they were added, while `Parse`, its builders in `cli/commands.go` and the help text each keep their own order
   - Fix: a separate `refactor(cli)` change that puts the constants, the `AddCommand` list, the builders and the help text in one order; no behavior change
@@ -178,6 +197,13 @@
   - Source: [Agent skill end-to-end tests](20261004-agent-skill-e2e/feature.md)
 
 ## Done
+
+- [x] **BL-032 – Return a result, not an error, from `status` when no fuku runs**
+  - Why: agents answer the error-shaped "no fuku instance is running" with an extra `doctor` before `run`; a `{running: false, profiles}` result may remove that call
+  - Fix: decide after the step 15 sweep shows whether the `doctor` reflex is gone; it changes the AC2 wording of the MCP feature
+  - Added: 20261108
+  - Source: [MCP server plan](20261108-mcp-server/plan.md)
+  - Done: `status` returns `running: false` with the profiles (MCP server plan, step 4)
 
 - [x] **BL-033 – Find the skipped skill line in `test_codex_skill_read` instead of hard-coding it**
   - Why: the "sed skipping a line" case skips a fixed line number of `SKILL.md`; every frontmatter change shifts it and the case silently turns into a full read
