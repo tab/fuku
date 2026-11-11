@@ -20,9 +20,9 @@ const nav = getPluginsNav(base);
   <h1>AI Agents Plugin</h1>
   <p class="lead">Let Claude Code or Codex run, inspect, debug and stop your local services with fuku.</p>
 
-  <p>The plugin starts <code>fuku mcp</code>, an MCP server with six fuku tools. It also holds one Agent Skill named <code>fuku</code>. Both hosts load the same plugin.</p>
-  <p>The server tells the agent how to run, inspect and stop services. The skill covers config edits: shared or local-only files, secrets, and applying a change. It tells the agent to use the tools and never run <code>fuku</code> or <code>curl</code> from the shell. It adds no slash command and no hook.</p>
-  <p>It needs a fuku that has the <code>fuku mcp</code> command on <code>PATH</code>, and a project with a <code>fuku.yaml</code>.</p>
+  <p>The plugin starts <code>fuku mcp</code>, an MCP server with seven fuku tools. It also holds two Agent Skills, <code>fuku</code> and <code>fuku-config</code>. Both hosts load the same plugin. It adds no slash command and no hook.</p>
+  <p>The short <code>fuku</code> skill is read before the first fuku action and names the tool for each job. The <code>fuku-config</code> skill is read only for a config change: shared or local-only files, secrets, and applying a change.</p>
+  <p>It needs a fuku with the <code>fuku mcp</code> command on <code>PATH</code>, and a project with a <code>fuku.yaml</code>.</p>
 
   <div class="section-eyebrow">Installation</div>
   <h2>Claude Code</h2>
@@ -73,10 +73,10 @@ codex plugin add fuku@fuku`} />
   <h2>The MCP server</h2>
 
   <p>The host starts <code>fuku mcp</code> over stdio when the agent session opens. It starts without a running fuku and without a valid <code>fuku.yaml</code>.</p>
-  <p>The project is <code>CLAUDE_PROJECT_DIR</code>, or the working directory. Every tool takes an optional <code>config</code> path, like <code>--config</code>.</p>
+  <p>The project is <code>CLAUDE_PROJECT_DIR</code>, or the working directory. Every tool takes an optional <code>config</code> path, and its directory is then the project. A <code>config</code> that names the project's default file loads it with its override. Any other file loads alone, like <code>--config</code>.</p>
   <p>Tools take and return service names. The server loads the config fresh on a call that needs it, so a config edit during the session counts.</p>
-  <p>Stdout carries only the protocol. Stderr carries a startup banner and one line per tool call: the tool, the outcome and the duration. The call line shows no arguments except a service name and action, and no results.</p>
-  <p>The agent never sees the API token. The server sends it only to a loopback address of this project's fuku.</p>
+  <p>Stdout carries only the protocol. Stderr carries a startup banner and one line per tool call: the tool, the outcome and the duration. A call line shows no result and no argument except a service name and action.</p>
+  <p>The API token of the default config, or of the config the call names, never reaches the agent through a tool. Tool results and errors show it as <code>[redacted]</code>. The server sends the token only to a loopback address of this project's fuku.</p>
 
   <h2>The tools</h2>
 
@@ -85,10 +85,11 @@ codex plugin add fuku@fuku`} />
       <tr><th>Tool</th><th>What it does</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>status</code></td><td>Reads the profile, the phase, the run mode and each service's state, PID, uptime and whether it watches files. Read-only</td></tr>
+      <tr><td><code>status</code></td><td>Reads the profile, the phase, the run mode and each service's state, PID, uptime and whether it watches files. With no running fuku it returns <code>running: false</code> and the profiles to run. Read-only</td></tr>
       <tr><td><code>logs</code></td><td>Reads recent log lines, 100 by default and 1000 at most, and never follows. Name services to narrow it. Read-only</td></tr>
+      <tr><td><code>config</code></td><td>Shows the effective config, <code>fuku.yaml</code> merged with <code>fuku.override.yaml</code>: each profile's services and each service's command, dir, tier, readiness, watch and env files, and whether the API is on. It needs no running fuku and never shows the API token. Read-only</td></tr>
       <tr><td><code>doctor</code></td><td>Runs the doctor report. It works while the agent fixes a broken <code>fuku.yaml</code>. Read-only</td></tr>
-      <tr><td><code>run</code></td><td>Starts a profile in the background, like <code>fuku run &lt;profile&gt; -d</code>, and returns its exit code and summary</td></tr>
+      <tr><td><code>run</code></td><td>Starts a profile in the background, like <code>fuku run &lt;profile&gt; -d</code>, and returns its exit code, its summary and each service's state</td></tr>
       <tr><td><code>stop</code></td><td>Stops the running profile, like <code>fuku stop</code>. It is marked destructive</td></tr>
       <tr><td><code>service</code></td><td>Starts, stops or restarts one service and returns once it settles</td></tr>
     </tbody>
@@ -96,7 +97,7 @@ codex plugin add fuku@fuku`} />
 
   <h3>Attach before starting</h3>
   <p>Only one fuku runs per project. The developer may already run it.</p>
-  <p>The agent calls <code>status</code> first. With no running fuku, <code>status</code> says so, and the agent may call <code>run</code>. With a running fuku, the agent attaches to it. A second <code>run</code> fails with the reason.</p>
+  <p>Before <code>run</code> or <code>stop</code>, the agent calls <code>status</code>. With no running fuku, <code>status</code> returns <code>running: false</code> with the profiles to run, and the agent may call <code>run</code>. With a running fuku, the agent uses it as it is. A second <code>run</code> fails with the reason.</p>
 
   <h3>Start and stop</h3>
   <p><code>run</code> returns once every service runs, or once the start fails. After 50 seconds it answers <code>inProgress</code>, and the agent calls <code>status</code> to follow the start.</p>
@@ -106,30 +107,28 @@ codex plugin add fuku@fuku`} />
   <h3>One-service actions</h3>
   <p><code>service</code> calls the <a href={`${base}docs/api/`}>REST API</a> with the body <code>{'{"wait": 45}'}</code>. It returns the state the service settled in: <code>running</code> with its PID, <code>stopped</code>, or <code>failed</code> with the last 20 log lines.</p>
   <p>When the wait ends first, it returns the current state with <code>inProgress: true</code>. The agent calls <code>status</code> to follow it.</p>
-  <p>A service with <code>watching: true</code> restarts itself after a file change. After a code edit, the agent calls <code>status</code> until the watching service whose files it edited shows a new PID or <code>failed</code>, then tests it. It restarts only the services that do not watch.</p>
+  <p>A service with <code>watching: true</code> restarts itself after a file change. After a code edit, the agent calls <code>status</code> until that service shows a new PID or <code>failed</code>, then tests it. It restarts an edited service only when the service does not watch. A restart you ask for works on any service.</p>
   <p>An unknown name is an error that lists the valid names.</p>
   <p>The API is off when <code>server.listen</code> is <code>""</code> or <code>none</code>, when <code>FUKU_API_DISABLED=1</code> is set, or when its port and the next 9 are all busy. Then <code>status</code> lists the services with state <code>unknown</code>, and <code>service</code> fails and says to use <code>stop</code> and <code>run</code>.</p>
 
   <h3>Config changes need a full restart</h3>
   <p>fuku reads its config once, when it starts. A <code>service</code> restart does not apply a config change.</p>
   <p><code>status</code> reports the <code>mode</code> of the running fuku: <code>tui</code>, <code>foreground</code> or <code>detached</code>. An older fuku reports <code>unknown</code>.</p>
-  <p>After a change to <code>fuku.yaml</code> or the override, the agent calls <code>stop</code>, then <code>run</code>, only when the mode is <code>detached</code>. Otherwise fuku runs in your terminal: the agent does not stop it and tells you the change needs a restart.</p>
   <p>Shared changes go to <code>fuku.yaml</code>, local-only ones to <code>fuku.override.yaml</code>. The agent calls <code>doctor</code> after every edit.</p>
-  <p>An experiment, a temporary config change to try something, goes only in <code>fuku.override.yaml</code>. The agent never creates a config file elsewhere. At the end it restores the override as it was, applies that like a config change and reports the keys it changed.</p>
+  <p>The agent applies a change with <code>stop</code>, then <code>run</code>, only when the mode is <code>detached</code>. In any other mode, fuku runs in your terminal. The agent does not stop it and tells you the change needs a restart.</p>
+  <p>An experiment is a temporary config change to try something. It goes only in <code>fuku.override.yaml</code>, and the agent starts one only when fuku runs detached or not at all. At the end, the agent restores the override, applies the restore like a config change and reports the keys it changed.</p>
+  <p>A stop you ask for wins in every mode.</p>
 
-  <h3>Stop rules</h3>
-  <p>The agent stops or restarts fuku on your request, in every mode, or to apply a config change to a detached fuku. It does not stop the fuku that runs in your terminal to apply a config change; it tells you the change needs a restart.</p>
-  <p>When fuku already serves the wanted profile and nothing needs a restart, the agent uses it as it is.</p>
-
-  <h3>Missing tools</h3>
-  <p>When the fuku tools are missing, the agent tells you to install fuku, put it on <code>PATH</code> and enable the plugin. It does not fall back to the shell.</p>
+  <h3>Tools only</h3>
+  <p>The agent controls fuku only through the tools. It never runs the <code>fuku</code> CLI, <code>curl</code>, the REST API or a script from the shell, not even to probe.</p>
+  <p>When no tool does what you ask, such as following logs live, the agent changes nothing and tells you which tool is missing.</p>
+  <p>When the fuku tools are not available at all, the agent tells you to install fuku, put it on <code>PATH</code> and enable the plugin.</p>
 
   <div class="section-eyebrow">Sandbox</div>
   <h2>Socket and network access</h2>
 
-  <p>An agent sandbox may block the Unix socket and loopback HTTP that <code>fuku mcp</code> uses.</p>
-  <p>A tool error about the socket or the API does not mean fuku is down. The agent asks you for local socket or network access, then retries.</p>
-  <p>It does not start a second fuku and does not delete the socket because a call failed.</p>
+  <p><code>fuku mcp</code> talks to the running fuku over its Unix socket and its loopback API. A sandbox that blocks either makes the tools fail while fuku runs.</p>
+  <p>Allow local socket and network access for the session. In Codex, set <code>sandbox_workspace_write.network_access=true</code>. See <a href={`${base}docs/troubleshooting/#agents`}>Troubleshooting</a>.</p>
 
   <GetStartedCTA />
 </DocsLayout>

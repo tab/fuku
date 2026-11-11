@@ -18,7 +18,7 @@ const leads: Record<string, string> = {
   refresh: "Edit a file, save, and fuku restarts the affected service automatically. Debouncing prevents restart storms, and shared path support handles cross-service dependencies.",
   scroll: "Open a second terminal and run <code>fuku logs</code> to stream output from running services. Filter by service name, see color-coded prefixes, and keep your TUI clean.",
   shield: "<code>Ctrl+C</code> or press <code>q</code> and services stop in reverse tier order – edge first, then platform, then foundation. Each service receives <code>SIGTERM</code> with time to shut down gracefully.",
-  bot: "Install the plugin in Claude Code or Codex and let the agent drive fuku. It attaches to a running instance, starts a profile in the background, reads bounded logs, and manages services through six MCP tools.",
+  bot: "Install the plugin in Claude Code or Codex and let the agent drive fuku through seven MCP tools. It checks <code>status</code> before it acts, reads logs and the effective config, waits for a watched service to restart after an edit, and leaves fuku running. It never drives fuku from the shell. When no tool fits, it names the missing one.",
 };
 ---
 

@@ -153,7 +153,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "start-service", method: "POST", path: "/api/v1/services/:id/start", apiPath: "/api/v1/services/:id/start",
-    description: "Starts a stopped or failed service while the instance starts up or runs. Answers 202 at once; poll GET /services/:id for completion. Send the JSON body { \"wait\": 45 } (whole seconds, 1 to 60) to hold the request until the action ends. It then answers 200 with the service, or 202 when the wait ends first.",
+    description: "Starts a stopped or failed service while the instance starts up or runs. Answers 202 at once. Poll GET /services/:id for completion. With the JSON body { \"wait\": 45 } (whole seconds, 1 to 60), the request waits for the action to end. It then answers 200 with the service, or 202 when the wait ends first.",
     hasId: true,
     responses: [
       { status: "success", code: "200 (with wait)", body: serviceJson },
@@ -168,7 +168,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "stop-service", method: "POST", path: "/api/v1/services/:id/stop", apiPath: "/api/v1/services/:id/stop",
-    description: "Stops a running service while the instance starts up or runs. Answers 202 at once; poll GET /services/:id for completion. Send the JSON body { \"wait\": 45 } (whole seconds, 1 to 60) to hold the request until the action ends. It then answers 200 with the service, or 202 when the wait ends first.",
+    description: "Stops a running service while the instance starts up or runs. Answers 202 at once. Poll GET /services/:id for completion. With the JSON body { \"wait\": 45 } (whole seconds, 1 to 60), the request waits for the action to end. It then answers 200 with the service, or 202 when the wait ends first.",
     hasId: true,
     responses: [
       { status: "success", code: "200 (with wait)", body: serviceJson },
@@ -183,7 +183,7 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "restart-service", method: "POST", path: "/api/v1/services/:id/restart", apiPath: "/api/v1/services/:id/restart",
-    description: "Restarts a running, stopped, or failed service while the instance starts up or runs. Answers 202 at once; poll GET /services/:id for completion. Send the JSON body { \"wait\": 45 } (whole seconds, 1 to 60) to hold the request until the action ends. It then answers 200 with the service, or 202 when the wait ends first.",
+    description: "Restarts a running, stopped, or failed service while the instance starts up or runs. Answers 202 at once. Poll GET /services/:id for completion. With the JSON body { \"wait\": 45 } (whole seconds, 1 to 60), the request waits for the action to end. It then answers 200 with the service, or 202 when the wait ends first.",
     hasId: true,
     responses: [
       { status: "success", code: "200 (with wait)", body: serviceJson },

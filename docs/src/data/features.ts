@@ -52,7 +52,7 @@ export function getFeatures(base: string): Feature[] {
     {
       title: "AI Agents",
       description:
-        "Claude Code and Codex plugin: the agent runs a profile in the background, reads bounded logs, and manages services through six MCP tools.",
+        "Claude Code and Codex plugin: seven MCP tools let the agent read the state, logs and config of your services, and start, restart and stop them.",
       icon: "bot",
       href: `${base}features/agents/`,
     },
