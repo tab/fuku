@@ -7,7 +7,8 @@ export function getInstallMethods(): InstallMethod[] {
   return [
     {
       title: "Homebrew",
-      code: "brew install tab/apps/fuku",
+      code: `brew trust --formula tab/apps/fuku
+brew install tab/apps/fuku`,
     },
     {
       title: "Install Script",
