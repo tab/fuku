@@ -9,9 +9,9 @@ feature branch → PR → Checks + Conventions (gate to master)
                         ↓ merge
                       master → Master (post-merge verification + coverage)
                         ↓ tag release
-                      release → Release (verify → build → publish)
+                      release → Release (verify → build → publish) + Pages (docs site)
 
-master, docs/** or spec/openapi.yaml changed → Pages (docs site)
+manual run → Pages (docs site)
 ```
 
 ## Workflows
@@ -74,9 +74,9 @@ If Verify fails, nothing is built or published.
 
 ### Pages (`pages.yaml`)
 
-**Trigger:** Push to master (only `docs/**`, `spec/openapi.yaml`, `assets/**`, `.github/workflows/pages.yaml`), workflow_dispatch
+**Trigger:** GitHub release (`released` event), workflow_dispatch
 
-Copies `spec/openapi.yaml` into `docs/public/`, builds the Astro site and deploys it. Independent of the Go CI.
+Copies `spec/openapi.yaml` into `docs/public/`, builds the Astro site and deploys it. A manual run from master redeploys between releases. Independent of the Go CI.
 
 ## Branch Protection
 
@@ -93,4 +93,4 @@ Configure branch protection on `master`:
 3. Review, green checks, merge
 4. Master re-verifies and uploads coverage
 5. Create a GitHub release with a `v*` tag
-6. Release verifies, builds and publishes
+6. Release verifies, builds and publishes. Pages deploys the docs site
