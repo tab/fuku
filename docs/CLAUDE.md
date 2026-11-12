@@ -14,7 +14,8 @@ There is no lint and no test suite here. `npm run build` is the whole check. `pr
 
 ## Deployment
 
-`pages.yaml` builds and deploys on a push to master that touches `docs/`, `spec/openapi.yaml` or `assets/`.
+`pages.yaml` builds and deploys when a release is published, from the release tag.
+A manual run (`workflow_dispatch`) from master redeploys between releases.
 It copies `spec/openapi.yaml` into `docs/public/` before the build. Leave `docs/public/openapi.yaml` uncommitted.
 
 `docs/dist/` and `docs/node_modules/` are gitignored. `astro.config.mjs` carries the site URL and the base path.

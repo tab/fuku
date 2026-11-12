@@ -1,13 +1,7 @@
 name: Deploy to GitHub Pages
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - "docs/**"
-      - "spec/openapi.yaml"
-      - "assets/**"
-      - ".github/workflows/pages.yaml"
+  release:
+    types: [ released ]
   workflow_dispatch:
 permissions:
   contents: read
