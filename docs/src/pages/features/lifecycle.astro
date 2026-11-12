@@ -2,6 +2,7 @@
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
 import { getFeaturesNav } from "../../data/nav";
+import FeatureDemos from "../../components/FeatureDemos.astro";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -100,6 +101,8 @@ const nav = getFeaturesNav(base);
 Run 'fuku logs' to follow it or stop that instance before starting another.
 </pre>
   </Terminal>
+
+  <FeatureDemos feature="lifecycle" />
 
   <GetStartedCTA />
 </DocsLayout>

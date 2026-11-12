@@ -1,5 +1,5 @@
 Output out/raw.mp4
-Set FontSize 16
+Set FontSize 32
 Source head.tape
 
 Type "Start the core profile"

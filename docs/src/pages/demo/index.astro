@@ -1,0 +1,32 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import DemoCard from "../../components/DemoCard.astro";
+import { getDemos } from "../../data/demos";
+import { getDemoNav } from "../../data/nav";
+
+const base = import.meta.env.BASE_URL;
+const current = `${base}demo/`;
+const demos = getDemos(base);
+const nav = getDemoNav(base);
+---
+
+<DocsLayout
+  title="Demo - fuku"
+  description="Short recordings of fuku and of an AI agent that controls fuku."
+  current={current}
+  nav={nav}
+  section="demo"
+>
+  <h1>Demo</h1>
+  <p class="lead">Short recordings of fuku on the bookstore example. Each demo shows one task from daily development work.</p>
+
+  <ul>
+    <li>In the AI agent demos, fuku runs on the left and Claude Code runs on the right.</li>
+    <li>The CLI demos show fuku alone.</li>
+    <li>Some parts play faster or slower than real time. No part is cut.</li>
+  </ul>
+
+  <div class="card-grid two">
+    {demos.map((demo) => <DemoCard demo={demo} />)}
+  </div>
+</DocsLayout>

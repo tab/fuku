@@ -3,6 +3,7 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
 import CodeTerminal from "../../components/CodeTerminal.astro";
 import AgentDemo from "../../components/demos/AgentDemo.astro";
 import { getFeaturesNav } from "../../data/nav";
+import FeatureDemos from "../../components/FeatureDemos.astro";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -66,6 +67,8 @@ codex plugin add fuku@fuku`} />
     The <a href={`${base}plugins/agents/`}>AI Agents plugin</a> page has the requirements, the in-session install
     and the details of each tool.
   </p>
+
+  <FeatureDemos feature="agents" />
 
   <GetStartedCTA />
 </DocsLayout>

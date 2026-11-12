@@ -21,10 +21,10 @@ import DocsLayout from "../layouts/DocsLayout.astro";
   <h2>Design philosophy</h2>
 
   <ul>
-    <li><strong>Simple over clever</strong> – a single YAML file, no plugins, no DSL. If you can read YAML, you can use fuku.</li>
+    <li><strong>Simple over clever</strong> – a single YAML file and no DSL. If you can read YAML, you can use fuku.</li>
     <li><strong>Fast startup</strong> – services start concurrently within tiers, with a bounded worker pool to avoid overwhelming your machine.</li>
     <li><strong>Zero config defaults</strong> – drop a <code>fuku.yaml</code> in your project and run <code>fuku</code>. Sensible defaults handle the rest.</li>
-    <li><strong>Transparent</strong> – everything fuku does is visible in the TUI or log output. No hidden background processes.</li>
+    <li><strong>Transparent</strong> – everything fuku does is visible in the TUI or log output. A detached run still answers <code>fuku logs</code> and <code>fuku stop</code>.</li>
   </ul>
 
   <div class="section-eyebrow">Name</div>

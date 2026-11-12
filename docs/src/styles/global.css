@@ -134,6 +134,12 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
+  overflow-x: clip;
+}
+
+p,
+li {
+  text-wrap: pretty;
 }
 
 h1,
@@ -141,6 +147,7 @@ h2,
 h3 {
   font-family: var(--heading);
   letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 a {
@@ -167,9 +174,96 @@ section {
   padding: 80px 0;
 }
 
+/* Card grid of the section index pages */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.card-grid.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card-grid .card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 28px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.card-grid a.card:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+
+.card-grid .card-num {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--blue);
+  letter-spacing: 0.15em;
+}
+
+.card-grid .card h3,
+.prose .card-grid .card h3 {
+  font-family: var(--heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+  color: var(--text);
+}
+
+.card-grid .card p,
+.prose .card-grid .card p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.card-grid .card-link {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--blue);
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .card-grid,
+  .card-grid.two {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
   }
 }
 

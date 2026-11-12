@@ -1,9 +1,10 @@
 ---
+import { version } from "../data/version";
 import ThemeToggle from "./ThemeToggle.astro";
 import type { NavItem } from "../data/nav";
 
 interface Props {
-  section?: "features" | "docs" | "plugins" | "about" | "why";
+  section?: "features" | "demo" | "docs" | "plugins" | "about" | "why";
   sectionNav?: NavItem[];
   current?: string;
   wide?: boolean;
@@ -14,11 +15,11 @@ const base = import.meta.env.BASE_URL;
 
 const mainLinks = [
   { label: "Home", href: `${base}`, key: undefined as string | undefined },
-  { label: "Why", href: `${base}why/`, key: "why" },
   { label: "Features", href: `${base}features/`, key: "features" },
+  { label: "Demo", href: `${base}demo/`, key: "demo" },
   { label: "Docs", href: `${base}docs/`, key: "docs" },
   { label: "Plugins", href: `${base}plugins/`, key: "plugins" },
-  { label: "About", href: `${base}about/`, key: "about" },
+  { label: "Why", href: `${base}why/`, key: "why" },
 ];
 ---
 
@@ -29,15 +30,15 @@ const mainLinks = [
     <div class="topbar-left">
       <a href={`${base}`} class="logo">
         <span class="brand-name">fuku</span>
-        <span class="brand-version">v0.22.0</span>
+        <span class="brand-version">v{version}</span>
       </a>
 
       <nav class="topbar-nav">
-        <a href={`${base}why/`} class:list={["nav-link", { active: section === "why" }]}>Why</a>
         <a href={`${base}features/`} class:list={["nav-link", { active: section === "features" }]}>Features</a>
+        <a href={`${base}demo/`} class:list={["nav-link", { active: section === "demo" }]}>Demo</a>
         <a href={`${base}docs/`} class:list={["nav-link", { active: section === "docs" }]}>Docs</a>
         <a href={`${base}plugins/`} class:list={["nav-link", { active: section === "plugins" }]}>Plugins</a>
-        <a href={`${base}about/`} class:list={["nav-link", { active: section === "about" }]}>About</a>
+        <a href={`${base}why/`} class:list={["nav-link", { active: section === "why" }]}>Why</a>
       </nav>
     </div>
     <div class="topbar-right">

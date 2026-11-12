@@ -1,4 +1,5 @@
 ---
+import { version } from "../../data/version";
 import Terminal from "../Terminal.astro";
 ---
 
@@ -58,7 +59,7 @@ import Terminal from "../Terminal.astro";
       <div class="border-bottom">
         <span class="stats"><span class="api-dot">&#9679;</span> http://127.0.0.1:3858 &bull; cpu 6.1% &bull; mem 204MB</span>
         <span class="border-spacer"></span>
-        <span class="version">v0.22.0</span>
+        <span class="version">v{version}</span>
       </div>
     </div>
 

@@ -1,5 +1,5 @@
 Output out/raw.mp4
-Set FontSize 20
+Set FontSize 32
 Source head.tape
 
 Type "curl -s localhost:8080/health && echo"

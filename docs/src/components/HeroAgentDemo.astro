@@ -1,0 +1,324 @@
+---
+import { version } from "../data/version";
+---
+
+<div class="had" data-hero-agent-demo>
+  <div class="had-window">
+    <div class="had-chrome">
+      <span class="dot" style="background:#ff5f57"></span>
+      <span class="dot" style="background:#febc2e"></span>
+      <span class="dot" style="background:#28c840"></span>
+      <span class="had-title">fuku · dashboard</span>
+      <span class="had-title had-title-right">claude · fuku plugin</span>
+    </div>
+    <div class="had-panes">
+      <div class="had-tui">
+        <div class="had-box">
+          <span class="had-label tl" data-head-left></span>
+          <span class="had-label tr" data-head-right></span>
+          <div class="had-row had-cols"><span></span><span></span><span></span><span>status</span><span class="opt">cpu</span><span class="opt">mem</span><span class="opt">pid</span><span class="r">up</span></div>
+          <div data-rows></div>
+          <span class="had-label bl"><span style="color:#67c7d8">●</span> http://127.0.0.1:3858 • cpu 3.1%</span>
+          <span class="had-label br">v{version}</span>
+        </div>
+        <div class="had-foot">↑/k up • ↓/j down • s stop/start • r restart • / filter • q quit</div>
+      </div>
+      <div class="had-agent">
+        <div class="had-prompt"><span class="dim">› </span><span data-prompt></span><span class="had-caret" data-caret></span></div>
+        <div data-lines></div>
+        <div class="had-spin" data-spin></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const LOOP = 170;
+  const C = { w: "#f2f1fa", t: "#d9d7e8", d: "#7d7b96", p: "#a78bfa", r: "#f07178", g: "#62d394", y: "#e9c46a" };
+  const BG_R = "rgba(240,113,120,.16)";
+  const BG_G = "rgba(98,211,148,.16)";
+  const PROMPT = "api keeps crashing, find the bug and fix it";
+  type Seg = [string, string, number?];
+  type Line = { at: number; gap: boolean; bg: string; segs: Seg[] };
+  const L = (at: number, gap: boolean, bg: string, ...segs: Seg[]): Line => ({ at, gap, bg, segs });
+  const LINES: Line[] = [
+    L(34, true, "", ["● ", "p"], ["fuku.status", "w", 600], ["()", "d"]),
+    L(37, false, "", ["  ✘ ", "r"], ["api", "t"], ["  failed · exit 2 · 3 restarts", "d"]),
+    L(46, true, "", ["● ", "p"], ["fuku.logs", "w", 600], ['({ services: ["api"], tail: 50 })', "d"]),
+    L(49, false, "", ["  api  ", "p"], ["ERR ", "r"], ["panic: index out of range [3] with length 3", "t"]),
+    L(50, false, "", ["       at main.go:29 refreshBestsellers()", "d"]),
+    L(62, true, "", ["● ", "p"], ["Edit ", "w", 600], ["api/src/main.go", "t"]),
+    L(65, false, BG_R, ["  29 - ", "r"], ["latest := books[len(books)]", "t"]),
+    L(65, false, BG_G, ["  29 + ", "g"], ["latest := books[len(books)", "t"], ["-1", "g", 600], ["]", "t"]),
+    L(96, true, "", ["● ", "p"], ["fuku.status", "w", 600], ["()", "d"]),
+    L(98, false, "", ["  ✔ ", "g"], ["api", "t"], ["  running · pid 28140  ← watch restarted it", "d"]),
+    L(108, true, "", ["✔ ", "g"], ["Fixed the off-by-one. api is back, 6/6 ready.", "w"]),
+  ];
+  const SPIN: [number, number, string][] = [
+    [30, 34, "Thinking…"],
+    [38, 46, "Reading logs…"],
+    [51, 62, "Reading main.go…"],
+    [67, 96, "Waiting for api to restart…"],
+    [99, 108, "Wrapping up…"],
+  ];
+  const SERVICES = [
+    ["foundation"],
+    ["auth", "26907", 252, "2MB"],
+    ["storage", "26906", 252, "2MB"],
+    ["platform"],
+    ["api", "28140", 0, "2MB"],
+    ["user", "27056", 249, "2MB"],
+    ["worker", "27055", 249, "3MB"],
+    ["edge"],
+    ["frontend-api", "27139", 248, "4MB"],
+  ] as const;
+  const BRAILLE = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
+  const fmt = (n: number) => String(Math.floor(n / 60)).padStart(2, "0") + ":" + String(n % 60).padStart(2, "0");
+  const span = (text: string, color: string, weight = 400) => `<span style="color:${color};font-weight:${weight}">${text}</span>`;
+  const bar = (on: number, color: string) => span("▮".repeat(on), color) + span("▮".repeat(12 - on), "#3d3b55");
+
+  function row(t: number, s: (typeof SERVICES)[number], i: number) {
+    if (s.length === 1) return `<div class="had-row had-tier${i ? "" : " first"}">${span(s[0], C.p, 600)}</div>`;
+    const [name, pid, up, mem] = s;
+    if (name !== "api") {
+      return `<div class="had-row">${span("◉", C.g)}${span(name, C.t)}<span class="bar">${bar(12, C.g)}</span>${span("running", C.g)}<span class="opt">0.1%</span><span class="opt">${mem}</span><span class="opt">${pid}</span><span class="r">${fmt(up + Math.floor(t / 10))}</span></div>`;
+    }
+    const touch = (t >= 34 && t < 40) || (t >= 46 && t < 52) || (t >= 96 && t < 102);
+    const bg = touch ? "rgba(167,139,250,.28)" : "rgba(255,255,255,.05)";
+    const open = `<div class="had-row sel" style="background:${bg}">`;
+    if (t < 76) {
+      return `${open}${span("✕", C.r)}${span(name, C.w)}<span class="bar">${span("▮".repeat(12), C.r)}</span>${span("failed", C.r)}<span class="opt">–</span><span class="opt">–</span><span class="opt">–</span><span class="r">–</span></div>`;
+    }
+    if (t < 92) {
+      const n = Math.round(((t - 76) / 16) * 12);
+      return `${open}${span("○", C.y)}${span(name, C.w)}<span class="bar">${bar(n, C.y)}</span>${span("starting", C.y)}<span class="opt"></span><span class="opt"></span><span class="opt"></span><span class="r"></span></div>`;
+    }
+    return `${open}${span("◉", C.g)}${span(name, C.w)}<span class="bar">${bar(12, C.g)}</span>${span("running", C.g)}<span class="opt">0.2%</span><span class="opt">${mem}</span><span class="opt">${pid}</span><span class="r">${fmt(Math.floor((t - 92) / 10))}</span></div>`;
+  }
+
+  function render(root: HTMLElement, t: number) {
+    const q = (sel: string) => root.querySelector<HTMLElement>(sel)!;
+    const restarting = t >= 70 && t < 92;
+    const ready = t >= 92;
+    q("[data-head-left]").innerHTML = restarting
+      ? span(BRAILLE[t % BRAILLE.length] + " restarting api…", C.y)
+      : span("profile • default", C.w, 600);
+    q("[data-head-right]").innerHTML = span("running", ready ? C.g : C.y) + (ready ? " 6/6 ready" : " 5/6 ready");
+    q("[data-rows]").innerHTML = SERVICES.map((s, i) => row(t, s, i)).join("");
+
+    const typed = Math.max(0, Math.min(PROMPT.length, Math.round((t - 8) * 2.2)));
+    q("[data-prompt]").textContent = PROMPT.slice(0, typed);
+    q("[data-caret]").style.opacity = t < 30 && (t % 6 < 3 || typed < PROMPT.length) ? "1" : "0";
+    q("[data-lines]").innerHTML = LINES.filter((l) => t >= l.at)
+      .map((l) => `<div class="had-line${l.gap ? " gap" : ""}" style="background:${l.bg || "transparent"}">${l.segs.map(([text, c, w]) => span(text, C[c as keyof typeof C], w)).join("")}</div>`)
+      .join("");
+    const spin = SPIN.find(([a, b]) => t >= a && t < b);
+    q("[data-spin]").textContent = spin ? "✻✶✳✢"[t % 4] + " " + spin[2] : "";
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-hero-agent-demo]").forEach((root) => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let t = reduce ? 120 : 0;
+    let visible = true;
+    render(root, t);
+    if (reduce) return;
+    new IntersectionObserver(([entry]) => (visible = entry.isIntersecting)).observe(root);
+    setInterval(() => {
+      if (!visible || document.hidden) return;
+      t = (t + 1) % LOOP;
+      render(root, t);
+    }, 100);
+  });
+</script>
+
+<style is:global>
+  .had {
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+
+  .had-window {
+    border-radius: 12px;
+    overflow: hidden;
+    background: #1f1e30;
+    box-shadow: 0 40px 80px -40px rgba(20, 18, 40, 0.55), 0 0 0 1px rgba(20, 20, 20, 0.06);
+  }
+
+  .had-chrome {
+    height: 38px;
+    background: #17162a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    font: 12px var(--mono);
+    color: #7d7b96;
+  }
+
+  .had-chrome .dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+
+  .had-title {
+    margin-left: 14px;
+  }
+
+  .had-title-right {
+    margin-left: auto;
+  }
+
+  .had-panes {
+    display: flex;
+    flex-wrap: wrap;
+    font: 13px/21px var(--mono);
+    color: #d9d7e8;
+  }
+
+  .had-tui {
+    flex: 1.15 1 600px;
+    min-width: 0;
+    height: 452px;
+    padding: 22px 18px 14px;
+    white-space: pre;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .had-box {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid rgba(140, 118, 240, 0.55);
+    border-radius: 6px;
+    padding: 16px 8px 18px;
+  }
+
+  .had-label {
+    position: absolute;
+    padding: 0 6px;
+    background: #1f1e30;
+  }
+
+  .had-label.tl { top: -11px; left: 10px; }
+  .had-label.tr { top: -11px; right: 10px; }
+  .had-label.bl { bottom: -11px; left: 10px; color: #7d7b96; }
+  .had-label.br { bottom: -11px; right: 10px; }
+
+  .had-row {
+    display: grid;
+    grid-template-columns: 16px minmax(96px, 1fr) 100px 92px 48px 40px 50px 44px;
+    padding: 0 4px;
+    border-radius: 3px;
+    transition: background 0.3s;
+  }
+
+  .had-row > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .had-cols {
+    color: #7d7b96;
+  }
+
+  .had-tier {
+    margin-top: 8px;
+  }
+
+  .had-tier.first {
+    margin-top: 2px;
+  }
+
+  .had-tier > span {
+    grid-column: 1 / -1;
+  }
+
+  .had-row .r {
+    text-align: right;
+  }
+
+  .had-row .bar {
+    font-size: 10px;
+    letter-spacing: 0.6px;
+  }
+
+  .had-foot {
+    padding-top: 20px;
+    color: #7d7b96;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .had-agent {
+    flex: 1 1 420px;
+    min-width: 0;
+    height: 452px;
+    padding: 18px 20px;
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+
+  .had-prompt {
+    background: #2a2940;
+    padding: 6px 10px;
+    border-radius: 4px;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #f2f1fa;
+  }
+
+  .had-prompt .dim {
+    color: #7d7b96;
+  }
+
+  .had-caret {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    vertical-align: -3px;
+    background: #d9d7e8;
+  }
+
+  .had-line {
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 6px;
+    border-radius: 2px;
+  }
+
+  .had-line.gap {
+    margin-top: 12px;
+  }
+
+  .had-spin {
+    margin-top: 12px;
+    padding: 0 6px;
+    color: #e8a27a;
+    white-space: pre;
+  }
+
+  @media (max-width: 700px) {
+    .had-row {
+      grid-template-columns: 16px minmax(0, 1fr) 92px 72px 44px;
+    }
+
+    .had-row .opt {
+      display: none;
+    }
+
+    .had-tui,
+    .had-agent {
+      height: 380px;
+    }
+
+    .had-title-right {
+      display: none;
+    }
+  }
+</style>

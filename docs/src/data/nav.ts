@@ -1,3 +1,5 @@
+import { getDemos } from "./demos";
+
 export interface NavItem {
   label: string;
   href: string;
@@ -36,5 +38,12 @@ export function getFeaturesNav(base: string): NavItem[] {
     { label: "Log Streaming", href: `${base}features/log-streaming/` },
     { label: "Lifecycle", href: `${base}features/lifecycle/` },
     { label: "AI Agents", href: `${base}features/agents/` },
+  ];
+}
+
+export function getDemoNav(base: string): NavItem[] {
+  return [
+    { label: "Overview", href: `${base}demo/` },
+    ...getDemos(base).map((demo) => ({ label: demo.title, href: `${base}demo/${demo.slug}/` })),
   ];
 }

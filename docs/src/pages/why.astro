@@ -32,7 +32,7 @@ const base = import.meta.env.BASE_URL;
       <div class="inner">
         <div class="stats-grid reveal">
           <div class="stat-cell">
-            <span class="stat-big" data-count="30" data-suffix="×">0×</span>
+            <span class="stat-big" data-count="30" data-suffix="×">30×</span>
             <span class="stat-label">less memory than Compose</span>
             <span class="stat-detail">~60 MB vs ~2 GB for 50 services</span>
           </div>
@@ -71,8 +71,8 @@ const base = import.meta.env.BASE_URL;
               <span class="mem-val-info"><span class="mem-val" id="mem-compose-val">~2 GB containers</span><span class="mem-val-dim" id="mem-compose-note">+ ~2 GB Docker Desktop VM</span></span>
             </div>
             <div class="mem-track">
-              <div class="mem-bar bar-compose-vm" id="mem-compose-vm" style="width: 0;" data-target-width="25%"><span class="bar-label">Docker Desktop VM</span></div>
-              <div class="mem-bar bar-compose-containers" id="mem-compose-bar" style="width: 0;" data-target-width="24.4%"><span class="bar-label">containers</span></div>
+              <div class="mem-bar bar-compose-vm" id="mem-compose-vm" style="width: 25%;" data-target-width="25%"><span class="bar-label">Docker Desktop VM</span></div>
+              <div class="mem-bar bar-compose-containers" id="mem-compose-bar" style="width: 24.4%;" data-target-width="24.4%"><span class="bar-label">containers</span></div>
             </div>
           </div>
           <div class="mem-row">
@@ -81,7 +81,7 @@ const base = import.meta.env.BASE_URL;
               <span class="mem-val-info"><span class="mem-val" id="mem-fuku-val">~60 MB total</span><span class="mem-val-dim" id="mem-fuku-note">No VM, no container runtime</span></span>
             </div>
             <div class="mem-track" id="mem-fuku-track">
-              <div style="height: 100%; background: #00ADD8; width: 0; transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);" data-target-width="0.6%"></div>
+              <div style="height: 100%; background: #00ADD8; width: 0.6%;" data-target-width="0.6%"></div>
             </div>
           </div>
         </div>
@@ -277,17 +277,17 @@ const base = import.meta.env.BASE_URL;
   }
 
   /* ── Scroll reveals ── */
-  .reveal, .reveal-left, .reveal-right {
+  :global(.js) .reveal, :global(.js) .reveal-left, :global(.js) .reveal-right {
     opacity: 0;
     transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
                 transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .reveal { transform: translateY(24px); }
-  .reveal-left { transform: translateX(-32px); }
-  .reveal-right { transform: translateX(32px); }
+  :global(.js) .reveal { transform: translateY(24px); }
+  :global(.js) .reveal-left { transform: translateX(-32px); }
+  :global(.js) .reveal-right { transform: translateX(32px); }
 
-  .reveal.visible, .reveal-left.visible, .reveal-right.visible {
+  :global(.js) .reveal.visible, :global(.js) .reveal-left.visible, :global(.js) .reveal-right.visible {
     opacity: 1;
     transform: translate(0, 0);
   }
@@ -868,6 +868,9 @@ const base = import.meta.env.BASE_URL;
 </style>
 
 <script>
+  // the markup holds the final values, so reduced motion and no script both show them
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   function easeOutExpo(t: number): number {
     return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
   }
@@ -878,10 +881,8 @@ const base = import.meta.env.BASE_URL;
       const target = parseInt(el.dataset.count!, 10);
       const suffix = el.dataset.suffix || "";
 
-      if (target === 0) {
-        el.textContent = "0" + suffix;
-        return;
-      }
+      if (target === 0 || reduceMotion) return;
+      el.textContent = "0" + suffix;
 
       const duration = target > 10 ? 2000 : 600;
       let start: number | null = null;
@@ -912,6 +913,11 @@ const base = import.meta.env.BASE_URL;
     const els = document.querySelectorAll<HTMLElement>(
       ".reveal, .reveal-left, .reveal-right"
     );
+
+    if (reduceMotion) {
+      els.forEach((el) => el.classList.add("visible"));
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -1006,23 +1012,31 @@ const base = import.meta.env.BASE_URL;
         const el = document.createElement("div");
         el.style.height = "100%";
         el.style.background = seg.color;
+        const width = (seg.mb / scale) * 100 + "%";
+        fukuTrack.appendChild(el);
+        if (reduceMotion) {
+          el.style.width = width;
+          continue;
+        }
         el.style.width = "0";
         el.style.transition = "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)";
-        fukuTrack.appendChild(el);
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            el.style.width = (seg.mb / scale) * 100 + "%";
+            el.style.width = width;
           });
         });
       }
     }
+
+    const bars = section.querySelectorAll<HTMLElement>("[data-target-width]");
+    if (!reduceMotion) bars.forEach((el) => (el.style.width = "0"));
 
     const growObserver = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
           growObserver.disconnect();
           requestAnimationFrame(() => {
-            section.querySelectorAll<HTMLElement>("[data-target-width]").forEach((el) => {
+            bars.forEach((el) => {
               el.style.transition = "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)";
               el.style.width = el.dataset.targetWidth!;
             });
@@ -1031,7 +1045,7 @@ const base = import.meta.env.BASE_URL;
       },
       { threshold: 0.3 }
     );
-    growObserver.observe(section);
+    if (!reduceMotion) growObserver.observe(section);
 
     document.getElementById("mem-toggles")!.addEventListener("click", (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>(".mem-toggle");

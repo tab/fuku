@@ -1,95 +1,63 @@
 ---
+import HeroAgentDemo from "./HeroAgentDemo.astro";
+
 const base = import.meta.env.BASE_URL;
 ---
 
 <section class="hero">
-  <div class="hero-inner">
-    <div class="hero-text">
-      <h1 class="title">
-        All services<br />
-        <span class="title-accent">one terminal</span>
-      </h1>
-      <p class="description">
-        Lightweight CLI tool for running and managing multiple local services.
-        Tier-based startup ordering, interactive TUI, hot-reload, and readiness
-        checks – all from a single YAML config.
-      </p>
-      <div class="actions">
-        <a href={`${base}docs/getting-started/`} class="btn btn-primary">Get Started <span class="arrow">&rarr;</span></a>
-        <a
-          href="https://github.com/tab/fuku"
-          target="_blank"
-          rel="noopener"
-          class="btn btn-ghost"
-        >
-          GitHub
-        </a>
-      </div>
-      <div class="install-hint">
-        <span class="dollar">$</span>
-        <span class="install-cmd">brew trust --formula tab/apps/fuku</span>
-      </div>
-      <div class="install-hint">
-        <span class="dollar">$</span>
-        <span class="install-cmd">brew install tab/apps/fuku</span>
-      </div>
+  <div class="hero-text">
+    <h1 class="title">
+      All services <span class="title-accent">one terminal</span>
+    </h1>
+    <p class="description">
+      Lightweight CLI tool for running and managing multiple local services.
+      Tier-based startup, readiness checks, hot reload and a live TUI from one
+      YAML file. AI agents drive it through MCP.
+    </p>
+    <div class="actions">
+      <a href={`${base}docs/getting-started/`} class="btn btn-primary">Get Started <span class="arrow">&rarr;</span></a>
+      <a
+        href="https://github.com/tab/fuku"
+        target="_blank"
+        rel="noopener"
+        class="btn btn-ghost"
+      >
+        GitHub
+      </a>
+      <span class="install-cmd">$ brew install tab/apps/fuku</span>
     </div>
-    <div class="hero-visual">
-      <slot />
-    </div>
+  </div>
+  <div class="hero-visual">
+    <HeroAgentDemo />
   </div>
 </section>
 
 <style>
   .hero {
-    padding: 72px 56px;
+    padding: 64px 24px 96px;
     max-width: 1320px;
     margin: 0 auto;
   }
 
-  .hero-inner {
-    display: grid;
-    grid-template-columns: 3fr 7fr;
-    gap: 64px;
+  .hero-text {
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    text-align: center;
   }
 
   .hero-visual {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    font-family: var(--mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--blue);
-    padding: 6px 12px;
-    border: 1px solid color-mix(in srgb, var(--blue) 25%, transparent);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--blue) 6%, transparent);
-    margin-bottom: 24px;
-    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-
-  .eyebrow-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--blue);
+    margin-top: 56px;
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
   }
 
   .title {
     font-family: var(--heading);
     font-weight: 600;
-    font-size: 3rem;
-    line-height: 1.0;
-    letter-spacing: -0.045em;
-    margin: 0 0 20px;
+    font-size: clamp(2.5rem, 5.4vw, 4.5rem);
+    line-height: 1;
+    letter-spacing: -0.04em;
+    margin: 0;
     color: var(--text);
     animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
   }
@@ -97,47 +65,35 @@ const base = import.meta.env.BASE_URL;
   .title-accent {
     font-family: var(--mono);
     font-weight: 500;
+    font-size: 0.94em;
+    letter-spacing: -0.05em;
     color: var(--blue);
   }
 
   .description {
-    font-size: 1.2rem;
-    line-height: 1.55;
+    font-size: 1.0625rem;
+    line-height: 1.6;
     color: var(--text-muted);
-    max-width: 480px;
-    margin: 0;
+    max-width: 640px;
+    margin: 22px 0 0;
     animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
   }
 
   .actions {
     display: flex;
-    gap: 12px;
-    margin-top: 36px;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 28px;
     flex-wrap: wrap;
     animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
   }
 
-  .install-hint {
-    margin-top: 24px;
+  .install-cmd {
     font-family: var(--mono);
     font-size: 0.8125rem;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
-  }
-
-  .install-hint + .install-hint {
-    margin-top: 8px;
-  }
-
-  .install-cmd {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border-radius: 6px;
     border: 1px solid var(--border);
     background: var(--bg-card);
     color: var(--text);
@@ -158,8 +114,8 @@ const base = import.meta.env.BASE_URL;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 13px 22px;
-    border-radius: 10px;
+    padding: 12px 18px;
+    border-radius: 6px;
     font-size: 0.875rem;
     font-weight: 500;
     text-decoration: none;
@@ -177,7 +133,7 @@ const base = import.meta.env.BASE_URL;
   }
 
   .btn-ghost {
-    background: transparent;
+    background: var(--bg-card);
     color: var(--text);
     border: 1px solid var(--border);
   }
@@ -186,28 +142,13 @@ const base = import.meta.env.BASE_URL;
     border-color: var(--text-muted);
   }
 
-  @media (max-width: 1024px) {
-    .hero-inner {
-      grid-template-columns: 1fr;
-      gap: 48px;
+  @media (max-width: 768px) {
+    .hero {
+      padding: 40px 16px 48px;
     }
 
     .hero-visual {
-      justify-content: center;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .hero {
-      padding: 48px 24px;
-    }
-
-    .title {
-      font-size: 2.25rem;
-    }
-
-    .description {
-      font-size: 1.05rem;
+      margin-top: 40px;
     }
   }
 </style>

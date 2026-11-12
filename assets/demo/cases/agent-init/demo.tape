@@ -1,5 +1,5 @@
 Output out/raw.mp4
-Set FontSize 16
+Set FontSize 22
 Source head.tape
 
 Ctrl+B
