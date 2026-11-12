@@ -6,7 +6,9 @@
 
 **fuku** is a lightweight CLI orchestrator for running and managing multiple local services in development environments.
 
-![screenshot](assets/demo.gif)
+![fuku and an AI agent fixing a crashed service](assets/demo.gif)
+
+More recordings on the [demo page](https://getfuku.sh/demo/).
 
 ## Features
 

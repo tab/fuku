@@ -1,0 +1,4 @@
+start 0 1 \$ fuku run
+failed 0 1 process exited
+prompt 1 1 find the bug and fix it
+done 1 1 done [0-9]
