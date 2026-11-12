@@ -30,6 +30,7 @@
 ### Homebrew
 
 ```bash
+brew trust --formula tab/apps/fuku
 brew install tab/apps/fuku
 ```
 

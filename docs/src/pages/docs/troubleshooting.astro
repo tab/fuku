@@ -204,6 +204,19 @@ fuku logs api auth`} />
 
   <hr />
 
+  <div class="section-eyebrow" id="homebrew">Homebrew</div>
+  <h2>Trust the Homebrew formula</h2>
+
+  <CodeTerminal code={`brew trust --formula tab/apps/fuku
+brew install tab/apps/fuku`} />
+
+  <p>This fixes these messages:</p>
+
+  <CodeTerminal code={`Skipping tab/apps because it is not trusted. Run \`brew trust tab/apps\` to trust it.
+Refusing to load formula tab/apps/fuku from untrusted tap tab/apps.`} />
+
+  <hr />
+
   <div class="section-eyebrow" id="agents">AI agents</div>
   <h2>The agent cannot reach fuku</h2>
 
