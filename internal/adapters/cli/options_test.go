@@ -107,6 +107,11 @@ func Test_CommandType_standalone(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "mcp is standalone",
+			cmd:      CommandMCP,
+			expected: true,
+		},
+		{
 			name:     "run is not standalone",
 			cmd:      CommandRun,
 			expected: false,
@@ -164,6 +169,11 @@ func Test_CommandType_RequiresServices(t *testing.T) {
 		{
 			name:     "init does not require services",
 			cmd:      CommandInit,
+			expected: false,
+		},
+		{
+			name:     "mcp does not require services",
+			cmd:      CommandMCP,
 			expected: false,
 		},
 	}

@@ -24,6 +24,7 @@ func Test_Server_handleConnection(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockHub := NewMockHub(ctrl)
+	mockRegistry := NewMockRegistry(ctrl)
 	mockControl := NewMockControl(ctrl)
 
 	log := slog.New(slog.DiscardHandler)
@@ -33,7 +34,7 @@ func Test_Server_handleConnection(t *testing.T) {
 	replay := model.ReplayOptions{Tail: &tail, NoFollow: true}
 	sub := &logs.Subscription{}
 
-	srv := NewServer(mockHub, nil, mockControl, identity, log)
+	srv := NewServer(mockHub, mockRegistry, mockControl, identity, Options{Mode: model.RunModeForeground}, log)
 	srv.profile = testProfile
 	srv.services = []string{"api", "web"}
 
@@ -48,6 +49,20 @@ func Test_Server_handleConnection(t *testing.T) {
 		Profile:       testProfile,
 		Services:      []string{"api", "web"},
 		PID:           os.Getpid(),
+		Mode:          model.RunModeForeground,
+		ReplayOptions: replay,
+	}) + "\n"
+
+	statusWithAPI := marshalLine(t, StatusMessage{
+		Type:          MessageStatus,
+		Version:       buildinfo.Version,
+		Instance:      identity.ID,
+		Fingerprint:   identity.Fingerprint,
+		Profile:       testProfile,
+		Services:      []string{"api", "web"},
+		API:           "127.0.0.1:9876",
+		PID:           os.Getpid(),
+		Mode:          model.RunModeForeground,
 		ReplayOptions: replay,
 	}) + "\n"
 
@@ -75,6 +90,29 @@ func Test_Server_handleConnection(t *testing.T) {
 		{
 			name: "announces the status, subscribes with the request and unsubscribes at the end",
 			before: func() (net.Conn, <-chan string) {
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{}))
+				mockHub.EXPECT().Subscribe([]string{"api"}, replay).Return(sub)
+				mockHub.EXPECT().Unsubscribe(sub)
+
+				return dial(`{"type":"subscribe","services":["api"],"tail":2,"noFollow":true}` + "\n")
+			},
+			expected: status,
+		},
+		{
+			name: "announces the bound API address once the API listens",
+			before: func() (net.Conn, <-chan string) {
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{API: model.API{Listening: true, Address: "127.0.0.1:9876"}}))
+				mockHub.EXPECT().Subscribe([]string{"api"}, replay).Return(sub)
+				mockHub.EXPECT().Unsubscribe(sub)
+
+				return dial(`{"type":"subscribe","services":["api"],"tail":2,"noFollow":true}` + "\n")
+			},
+			expected: statusWithAPI,
+		},
+		{
+			name: "leaves out an address the API does not listen on",
+			before: func() (net.Conn, <-chan string) {
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{API: model.API{Address: "127.0.0.1:9876"}}))
 				mockHub.EXPECT().Subscribe([]string{"api"}, replay).Return(sub)
 				mockHub.EXPECT().Unsubscribe(sub)
 
@@ -146,7 +184,7 @@ func Test_Server_handleConnection_DisconnectsBeforeSubscribing(t *testing.T) {
 	client, conn := net.Pipe()
 	client.Close()
 
-	srv := NewServer(mockHub, nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(mockHub, nil, nil, model.Instance{}, Options{}, mockLog)
 
 	mockLog.EXPECT().Debug("Client connected: client-1")
 	mockLog.EXPECT().Debug("Client client-1 disconnected before subscribing", "error", io.EOF)
@@ -160,7 +198,7 @@ func Test_Server_writePump(t *testing.T) {
 
 	mockLog := NewMockLogger(ctrl)
 
-	srv := NewServer(nil, nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(nil, nil, nil, model.Instance{}, Options{}, mockLog)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -260,7 +298,7 @@ func Test_Server_writePump_WriteError(t *testing.T) {
 	lines := make(chan model.LogLine, 1)
 	lines <- model.LogLine{Service: "api", Message: "hello"}
 
-	srv := NewServer(nil, nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(nil, nil, nil, model.Instance{}, Options{}, mockLog)
 
 	mockLog.EXPECT().Debug("Client client-1 disconnected", "error", gomock.Any())
 
@@ -272,6 +310,8 @@ func Test_Server_hello(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLog := NewMockLogger(ctrl)
+	mockRegistry := NewMockRegistry(ctrl)
+	mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{})).Times(2)
 
 	closed, _ := net.Pipe()
 	closed.Close()
@@ -288,7 +328,7 @@ func Test_Server_hello(t *testing.T) {
 
 	defer hungUp.Close()
 
-	srv := NewServer(nil, nil, nil, model.Instance{}, mockLog)
+	srv := NewServer(nil, mockRegistry, nil, model.Instance{}, Options{}, mockLog)
 
 	tests := []struct {
 		name   string

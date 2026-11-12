@@ -87,6 +87,7 @@ const readyJson = esc(`{ "status": "ready" }`);
 const notReadyJson = esc(`{ "status": "not ready" }`);
 
 const unauthorizedJson = esc(`{ "error": "unauthorized" }`);
+const badWaitJson = esc(`{ "error": "wait must be whole seconds from 1 to 60" }`);
 const notFoundJson = esc(`{ "error": "service not found" }`);
 const conflictStartJson = esc(`{ "error": "service cannot be started" }`);
 const conflictStopJson = esc(`{ "error": "service is not running" }`);
@@ -152,10 +153,12 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "start-service", method: "POST", path: "/api/v1/services/:id/start", apiPath: "/api/v1/services/:id/start",
-    description: "Starts a stopped or failed service while the instance starts up or runs. Asynchronous – poll GET /services/:id for completion.",
+    description: "Starts a stopped or failed service while the instance starts up or runs. Answers 202 at once. Poll GET /services/:id for completion. With the JSON body { \"wait\": 45 } (whole seconds, 1 to 60), the request waits for the action to end. It then answers 200 with the service, or 202 when the wait ends first.",
     hasId: true,
     responses: [
+      { status: "success", code: "200 (with wait)", body: serviceJson },
       { status: "accepted", code: "202", body: startJson },
+      { status: "error", code: "400", body: badWaitJson },
       { status: "error", code: "401", body: unauthorizedJson },
       { status: "error", code: "404", body: notFoundJson },
       { status: "error", code: "409", body: conflictStartJson },
@@ -165,10 +168,12 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "stop-service", method: "POST", path: "/api/v1/services/:id/stop", apiPath: "/api/v1/services/:id/stop",
-    description: "Stops a running service while the instance starts up or runs. Asynchronous – poll GET /services/:id for completion.",
+    description: "Stops a running service while the instance starts up or runs. Answers 202 at once. Poll GET /services/:id for completion. With the JSON body { \"wait\": 45 } (whole seconds, 1 to 60), the request waits for the action to end. It then answers 200 with the service, or 202 when the wait ends first.",
     hasId: true,
     responses: [
+      { status: "success", code: "200 (with wait)", body: serviceJson },
       { status: "accepted", code: "202", body: stopJson },
+      { status: "error", code: "400", body: badWaitJson },
       { status: "error", code: "401", body: unauthorizedJson },
       { status: "error", code: "404", body: notFoundJson },
       { status: "error", code: "409", body: conflictStopJson },
@@ -178,10 +183,12 @@ const endpoints: Endpoint[] = [
   },
   {
     id: "restart-service", method: "POST", path: "/api/v1/services/:id/restart", apiPath: "/api/v1/services/:id/restart",
-    description: "Restarts a running, stopped, or failed service while the instance starts up or runs. Asynchronous – poll GET /services/:id for completion.",
+    description: "Restarts a running, stopped, or failed service while the instance starts up or runs. Answers 202 at once. Poll GET /services/:id for completion. With the JSON body { \"wait\": 45 } (whole seconds, 1 to 60), the request waits for the action to end. It then answers 200 with the service, or 202 when the wait ends first.",
     hasId: true,
     responses: [
+      { status: "success", code: "200 (with wait)", body: serviceJson },
       { status: "accepted", code: "202", body: restartJson },
+      { status: "error", code: "400", body: badWaitJson },
       { status: "error", code: "401", body: unauthorizedJson },
       { status: "error", code: "404", body: notFoundJson },
       { status: "error", code: "409", body: conflictRestartJson },
@@ -322,6 +329,8 @@ const endpoints: Endpoint[] = [
             <table>
               <thead><tr><th>Status</th><th>Error</th><th>When</th></tr></thead>
               <tbody>
+                <tr><td><code>400</code></td><td>body must be a JSON object with an optional wait</td><td>The body is not one JSON object with only <code>wait</code>, or is larger than 1 KiB. The action is not admitted</td></tr>
+                <tr><td><code>400</code></td><td>wait must be whole seconds from 1 to 60</td><td>The <code>wait</code> field is outside 1 to 60. The action is not admitted</td></tr>
                 <tr><td><code>401</code></td><td>unauthorized</td><td>The config sets a token and the request lacks it or sends a wrong one</td></tr>
                 <tr><td><code>403</code></td><td>forbidden</td><td>The <code>Host</code> is not loopback or the request carries an <code>Origin</code> header</td></tr>
                 <tr><td><code>404</code></td><td>service not found</td><td>Unknown UUID</td></tr>

@@ -72,6 +72,7 @@ var api = fx.Options(
 // headless waits on the runtime as the command
 var headless = fx.Options(
 	fx.Provide(
+		func() logsocket.Options { return logsocket.Options{Mode: model.RunModeForeground} },
 		func(r *services.Runtime) cli.Runtime { return r },
 		func(r *cli.Run) lifecycle.Command { return r },
 		runParams.participants,
@@ -81,6 +82,7 @@ var headless = fx.Options(
 // child runs headless as the detached instance and reports its startup to the parent on the standard error
 var child = fx.Options(
 	fx.Provide(
+		func() logsocket.Options { return logsocket.Options{Mode: model.RunModeDetached} },
 		func(log *slog.Logger) detach.Logger { return log.With("component", "DETACH") },
 		func(s *logsocket.Server) detach.Relay { return s },
 		newChildAPI,
@@ -97,6 +99,7 @@ var child = fx.Options(
 // view runs the services view as the command, fed by the bridge, with the environment store the aside reads
 var view = fx.Options(
 	fx.Provide(
+		func() logsocket.Options { return logsocket.Options{Mode: model.RunModeTUI} },
 		func(log *slog.Logger) tui.Logger { return log.With("component", "UI") },
 		func(cmd *cli.Options, p model.Project) tui.Options {
 			return tui.Options{Profile: cmd.Profile, RetryAttempts: p.Retry.Attempts, RetryBackoff: p.Retry.Backoff}

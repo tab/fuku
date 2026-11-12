@@ -12,6 +12,8 @@ import (
 
 	"fuku/internal/adapters/cli"
 	"fuku/internal/adapters/detach"
+	"fuku/internal/adapters/mcp"
+	"fuku/internal/bootstrap/lifecycle"
 	"fuku/internal/bootstrap/modules"
 	"fuku/internal/model"
 )
@@ -116,6 +118,13 @@ func Test_Run(t *testing.T) {
 			outputContains: "Error: no services defined",
 		},
 		{
+			name:           "mcp with --config",
+			before:         untouched,
+			args:           []string{"--config", "fuku.yaml", "mcp"},
+			expectedExit:   1,
+			outputContains: "Error: --config flag is not supported for this command",
+		},
+		{
 			name:           "logs without an instance",
 			before:         untouched,
 			args:           []string{"logs", "--no-ui", "--no-follow"},
@@ -194,4 +203,22 @@ func Test_compose_Detached(t *testing.T) {
 
 	require.NoError(t, app.Err())
 	assert.IsType(t, &detach.Launcher{}, starter)
+}
+
+func Test_compose_MCPWithoutAConfig(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("FUKU_TELEMETRY_DISABLED", "1")
+
+	cmd := &cli.Options{Type: cli.CommandMCP}
+	buildDSN := fx.Supply(modules.SentryDSN(""))
+
+	var command lifecycle.Command
+
+	option, err := compose(cmd)
+	require.NoError(t, err)
+
+	app := fx.New(option, buildDSN, fx.Populate(&command))
+
+	require.NoError(t, app.Err())
+	assert.IsType(t, &mcp.Server{}, command)
 }

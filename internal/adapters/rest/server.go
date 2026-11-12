@@ -27,6 +27,7 @@ type Server struct {
 	publisher  contracts.Publisher
 	identity   model.Instance
 	httpServer *http.Server
+	cancel     context.CancelFunc
 	bound      chan struct{}
 	address    string
 	log        Logger
@@ -77,12 +78,16 @@ func (s *Server) Start(context.Context) error {
 		return nil
 	}
 
+	base, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+
 	s.httpServer = &http.Server{
 		Handler:           telemetryMiddleware(s.publisher, guardMiddleware(mux)),
+		BaseContext:       func(net.Listener) context.Context { return base },
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
-	s.log.Info("API server listening on " + addr)
+	s.log.Info("API server listening on http://" + addr)
 
 	s.publish(contracts.Message{
 		Type: contracts.EventAPIStarted,
@@ -115,6 +120,8 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	s.log.Debug("API server shutting down")
+
+	s.cancel()
 
 	//nolint:errcheck // best-effort graceful shutdown
 	s.httpServer.Shutdown(ctx)

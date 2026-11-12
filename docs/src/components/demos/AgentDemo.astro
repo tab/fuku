@@ -2,16 +2,20 @@
 import Terminal from "../Terminal.astro";
 ---
 
-<Terminal title="fuku · agent session">
-  <pre data-typewriter><span class="dim">$</span> fuku run default -d
- <span class="green">✔</span> auth <span class="green">Ready</span> <span class="muted">1.2s</span>
- <span class="green">✔</span> api <span class="green">Ready</span> <span class="muted">2.4s</span>
- <span class="green">✔</span> web <span class="green">Ready</span> <span class="muted">3.1s</span>
+<Terminal title="claude · fuku plugin">
+  <pre data-typewriter><span class="dim">&gt;</span> <span class="bold">the api returns 500 since my last change, fix it</span>
 
-Running detached <span class="dim">·</span> pid 76741 <span class="dim">·</span> 3 services <span class="dim">·</span> 3.1s
-API 127.0.0.1:3858
+<span class="purple">●</span> fuku.status<span class="dim">()</span>
+  <span class="dim">running · detached · default</span>
+  <span class="green">✔</span> api     <span class="muted">running</span>  <span class="dim">pid 76741 · watching</span>
+  <span class="green">✔</span> worker  <span class="muted">running</span>  <span class="dim">pid 76742</span>
+<span class="purple">●</span> fuku.logs<span class="dim">(&#123; services: ["api"], tail: 50 &#125;)</span>
+  <span class="red">api</span>  ERR panic: assignment to entry in nil map
+<span class="blue">●</span> Edit <span class="muted">api/handlers/users.go</span>
+<span class="purple">●</span> fuku.status<span class="dim">()</span>
+  <span class="green">✔</span> api     <span class="muted">running</span>  <span class="dim">pid 76803 · watching</span>  <span class="yellow">← new pid, the watch restarted it</span>
+<span class="blue">●</span> Bash <span class="muted">./e2e.sh</span>  <span class="green">PASS</span>
 
-<span class="dim">$</span> fuku logs --tail 100 --no-follow --no-ui api
-<span class="purple">api</span> <span class="dim">│</span> <span class="muted">10:23:05Z</span> <span class="blue">INF</span> server listening on :8080
+<span class="green">✔</span> Fixed the nil map. api restarted on its own and e2e passes.
 </pre>
 </Terminal>

@@ -1,20 +1,19 @@
 {
-  "prompt": "start services in fuku",
+  "prompt": "What command does the api service run in fuku?",
   "profile": "default",
   "setup": [
-    "start_fuku"
+    "override:api"
   ],
   "checks": [
-    "no_fuku_stop",
-    "no_kill",
-    "fuku_running",
-    "same_fuku_pid",
-    "same_service_pids",
-    "served_by_built_fuku"
+    "no_probe",
+    "config_read",
+    "no_config_file",
+    "no_fuku_run",
+    "no_fuku_stop"
   ],
   "budget": {
-    "tool_calls": 8,
-    "input_tokens": 150000,
+    "tool_calls": 4,
+    "input_tokens": 200000,
     "seconds": 60,
     "usd": 0.75
   }

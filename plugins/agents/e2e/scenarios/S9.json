@@ -1,0 +1,20 @@
+{
+  "prompt": "Stop fuku.",
+  "profile": "default",
+  "setup": [
+    "start_fuku"
+  ],
+  "checks": [
+    "no_probe",
+    "no_fuku_run",
+    "no_kill",
+    "no_api_restart",
+    "fuku_stopped"
+  ],
+  "budget": {
+    "tool_calls": 6,
+    "input_tokens": 200000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}

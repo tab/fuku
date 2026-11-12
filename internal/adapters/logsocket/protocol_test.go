@@ -207,6 +207,28 @@ func Test_StatusMessage_MarshalUnmarshal(t *testing.T) {
 			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"],"pid":4321}`,
 		},
 		{
+			name: "with the API address",
+			message: StatusMessage{
+				Type:     MessageStatus,
+				Version:  "0.17.0",
+				Profile:  "core",
+				Services: []string{"api"},
+				API:      "127.0.0.1:9876",
+			},
+			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"],"api":"127.0.0.1:9876"}`,
+		},
+		{
+			name: "with the run mode",
+			message: StatusMessage{
+				Type:     MessageStatus,
+				Version:  "0.17.0",
+				Profile:  "core",
+				Services: []string{"api"},
+				Mode:     model.RunModeDetached,
+			},
+			expected: `{"type":"status","version":"0.17.0","instance":"","fingerprint":"","profile":"core","services":["api"],"mode":"detached"}`,
+		},
+		{
 			name: "echoed bounded read options",
 			message: StatusMessage{
 				Type:          MessageStatus,

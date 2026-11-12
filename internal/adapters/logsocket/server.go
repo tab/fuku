@@ -34,7 +34,7 @@ type Hub interface {
 	Unsubscribe(sub *logs.Subscription)
 }
 
-// Registry supplies the resolved profile the server announces to its clients
+// Registry supplies the resolved profile and the API address the server announces to its clients
 type Registry interface {
 	WaitResolved(ctx context.Context)
 	Read(fn func(*model.Snapshot))
@@ -65,6 +65,7 @@ type Server struct {
 	bound       chan struct{}
 	bindErr     error
 	socketPath  string
+	mode        model.RunMode
 	profile     string
 	services    []string
 	listener    net.Listener
@@ -75,7 +76,7 @@ type Server struct {
 }
 
 // NewServer creates a new log streaming server
-func NewServer(hub Hub, registry Registry, control Control, identity model.Instance, log Logger) *Server {
+func NewServer(hub Hub, registry Registry, control Control, identity model.Instance, options Options, log Logger) *Server {
 	return &Server{
 		hub:         hub,
 		registry:    registry,
@@ -85,6 +86,7 @@ func NewServer(hub Hub, registry Registry, control Control, identity model.Insta
 		done:        make(chan struct{}),
 		bound:       make(chan struct{}),
 		socketPath:  instance.SocketPath(instance.SocketDir, identity.Fingerprint),
+		mode:        options.Mode,
 		log:         log,
 	}
 }

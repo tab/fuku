@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,13 +27,13 @@ func Test_Control_Actions(t *testing.T) {
 	svc := model.Service{ID: "test-id-api", Name: "api"}
 	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
 	alive := make(chan struct{})
+	start := time.Now()
 
 	tests := []struct {
 		name     string
 		before   func()
 		act      func(id string) (Admission, error)
 		expected Admission
-		err      error
 	}{
 		{
 			name: "start publishes the start command for an admitted service",
@@ -106,6 +108,44 @@ func Test_Control_Actions(t *testing.T) {
 			act:      control.Toggle,
 			expected: Admission{Service: svc, Action: contracts.ActionStart, Status: model.StatusStarting},
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.before()
+
+			admission, err := tt.act(svc.ID)
+
+			require.NoError(t, err)
+			assert.WithinRange(t, admission.At, start, time.Now())
+
+			tt.expected.At = admission.At
+			assert.Equal(t, tt.expected, admission)
+		})
+	}
+}
+
+func Test_Control_Actions_Rejected(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTracker := NewMockTracker(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+	mockProcess := NewMockProcess(ctrl)
+
+	guard := NewGuard(mockTracker)
+	control := NewControl(guard, mockPublisher)
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
+	alive := make(chan struct{})
+
+	tests := []struct {
+		name   string
+		before func()
+		act    func(id string) (Admission, error)
+		err    error
+	}{
 		{
 			name: "toggle of a busy service publishes nothing",
 			before: func() {
@@ -152,7 +192,7 @@ func Test_Control_Actions(t *testing.T) {
 			admission, err := tt.act(svc.ID)
 
 			require.ErrorIs(t, err, tt.err)
-			assert.Equal(t, tt.expected, admission)
+			assert.Zero(t, admission)
 		})
 	}
 }
@@ -181,6 +221,112 @@ func Test_Control_Start_ReleasesOnPublishFailure(t *testing.T) {
 
 	require.ErrorIs(t, err, contracts.ErrBusOverloaded)
 	assert.True(t, guard.reserve(svc.ID))
+}
+
+func Test_Control_Wait(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTracker := NewMockTracker(ctrl)
+	mockPublisher := NewMockPublisher(ctrl)
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
+
+	tests := []struct {
+		name   string
+		before func(guard *Guard)
+		id     string
+		err    error
+	}{
+		{
+			name:   "an unknown service",
+			before: func(*Guard) {},
+			id:     "test-id-unknown",
+			err:    contracts.ErrServiceNotFound,
+		},
+		{
+			name:   "a service that never held a token returns at once",
+			before: func(*Guard) {},
+			id:     svc.ID,
+		},
+		{
+			name: "a released token returns at once",
+			before: func(guard *Guard) {
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+			},
+			id: svc.ID,
+		},
+		{
+			name: "a held token waits until the context is done",
+			before: func(guard *Guard) {
+				guard.dispatch(svc.ID)
+			},
+			id:  svc.ID,
+			err: context.Canceled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guard := NewGuard(mockTracker)
+			guard.open()
+			guard.resolve(tiers)
+			tt.before(guard)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			err := NewControl(guard, mockPublisher).Wait(ctx, tt.id)
+
+			assert.ErrorIs(t, err, tt.err)
+		})
+	}
+}
+
+func Test_Control_Wait_ReturnsOnRelease(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+
+	guard := NewGuard(NewMockTracker(ctrl))
+	guard.open()
+	guard.resolve([]model.Tier{{Name: "platform", Services: []*model.Service{&svc}}})
+	guard.dispatch(svc.ID)
+
+	done := make(chan error)
+
+	go func() {
+		done <- NewControl(guard, NewMockPublisher(ctrl)).Wait(context.Background(), svc.ID)
+	}()
+
+	guard.release(svc.ID)
+
+	assert.NoError(t, <-done)
+}
+
+func Test_Control_Wait_EndedActionWinsOverEndedContext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+
+	guard := NewGuard(NewMockTracker(ctrl))
+	guard.open()
+	guard.resolve([]model.Tier{{Name: "platform", Services: []*model.Service{&svc}}})
+	guard.dispatch(svc.ID)
+	guard.release(svc.ID)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	control := NewControl(guard, NewMockPublisher(ctrl))
+
+	for range 200 {
+		assert.NoError(t, control.Wait(ctx, svc.ID))
+	}
 }
 
 func Test_Control_StopAll(t *testing.T) {

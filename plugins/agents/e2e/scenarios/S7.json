@@ -1,19 +1,22 @@
 {
-  "prompt": "run core profile with fuku",
-  "profile": "core",
-  "setup": [],
+  "prompt": "restart service api and check the logs",
+  "profile": "default",
+  "setup": [
+    "override:api",
+    "start_fuku"
+  ],
   "checks": [
-    "run_detached_once",
-    "no_default_run",
-    "fuku_running",
-    "services_running",
-    "service_stopped:worker",
+    "no_probe",
+    "service_log_read:api",
+    "service_pid_changed:api",
+    "other_service_pids_same:api",
+    "same_fuku_pid",
     "served_by_built_fuku"
   ],
   "budget": {
-    "tool_calls": 8,
-    "input_tokens": 150000,
-    "seconds": 60,
-    "usd": 0.75
+    "tool_calls": 6,
+    "input_tokens": 325000,
+    "seconds": 90,
+    "usd": 0.8
   }
 }

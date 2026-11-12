@@ -18,3 +18,8 @@ const (
 func (s Status) IsRunning() bool {
 	return s == StatusRunning
 }
+
+// IsSettled returns true if the status ends an action: running, failed or stopped
+func (s Status) IsSettled() bool {
+	return s == StatusRunning || s == StatusFailed || s == StatusStopped
+}

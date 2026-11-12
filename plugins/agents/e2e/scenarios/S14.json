@@ -1,0 +1,28 @@
+{
+  "prompt": "Quick experiment: make the api also log the line 'api experiment on' when it starts. Check the api logs for it, then put the config back the way it was.",
+  "profile": "default",
+  "setup": [
+    "override:api",
+    "start_fuku"
+  ],
+  "checks": [
+    "skill_loaded",
+    "no_config_argument",
+    "no_api_restart",
+    "run_detached_twice",
+    "service_log_read:api",
+    "fuku_pid_changed",
+    "override_restored",
+    "config_unchanged",
+    "service_command_is:api",
+    "fuku_running",
+    "services_running",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 20,
+    "input_tokens": 500000,
+    "seconds": 180,
+    "usd": 1.5
+  }
+}

@@ -13,14 +13,19 @@ import checks
 import hosts
 
 EXECUTABLE = "codex"
+MIN_VERSION = (0, 166, 0)
 INSTALL_SECONDS = 60
 EVENTS = {"thread.started", "turn.started", "turn.completed", "turn.failed", "item.started", "item.updated",
           "item.completed", "error"}
 TOOL_ITEMS = {"file_change", "mcp_tool_call", "web_search"}
 QUIET_ITEMS = {"agent_message", "reasoning", "todo_list", "error"}
+FUKU_SERVER = "fuku"
+APPROVE_FUKU_TOOLS = f'plugins.fuku@fuku.mcp_servers.{FUKU_SERVER}.default_tools_approval_mode="approve"'
 SKILL_READERS = checks.READERS | checks.BOUNDED | checks.SCRIPTED
 LINE_NUMBER = re.compile(r"^\s*(?:\d+[\t:]\s*)?")
-SKILL_FILE = pathlib.Path(__file__).resolve().parents[1] / "skills" / "fuku" / "SKILL.md"
+SKILLS_DIR = pathlib.Path(__file__).resolve().parents[1] / "skills"
+SKILL = "fuku-config"
+SKILL_NAMES = ["fuku", SKILL]
 
 
 class AdapterError(Exception):
@@ -34,13 +39,14 @@ def exec_command(project, prompt):
         "-s", "workspace-write",
         "-c", "sandbox_workspace_write.network_access=true",
         "-c", "allow_login_shell=false",
+        "-c", APPROVE_FUKU_TOOLS,
         prompt,
     ]
 
 
 def parse(lines, codex_home):
     """Reads `codex exec --json` lines into the normalised result; the skill counts when its SKILL.md was read"""
-    skill_path = re.compile(re.escape(str(codex_home)) + r"/plugins/cache/fuku/[^\s'\"]*/skills/fuku/SKILL\.md")
+    paths = {name: skill_pattern(codex_home, name) for name in SKILL_NAMES}
     calls, started, usage, turns, failure, errors, answer = [], {}, {}, 0, None, [], ""
     for number, line in enumerate(lines, 1):
         if not line.strip():
@@ -73,6 +79,11 @@ def parse(lines, codex_home):
                 "output": item.get("aggregated_output", ""),
                 "error": item.get("exit_code") not in (0, None) or item.get("status") == "failed",
             }
+        elif item_type == "mcp_tool_call" and item.get("server") == FUKU_SERVER:
+            call = {"tool": "mcp", "name": item.get("tool", ""),
+                    "command": json.dumps(item.get("arguments") or {}, sort_keys=True), "output": mcp_output(item),
+                    "error": item.get("status") == "failed" or bool(item.get("error"))
+                    or bool((item.get("result") or {}).get("is_error"))}
         elif item_type in TOOL_ITEMS:
             details = {k: v for k, v in item.items() if k not in ("id", "type")}
             call = {"tool": item_type, "command": json.dumps(details, sort_keys=True), "output": "",
@@ -91,8 +102,15 @@ def parse(lines, codex_home):
     kind = "api" if failure else None
     if failure is None and turns == 0:
         kind, failure = "crash", errors[-1] if errors else "no turn.completed event"
+    loaded = any(read_skill(c, paths[SKILL], SKILL) for c in calls)
+    counted, own_reads = set(), 0
+    for call in calls:
+        names = {n for n in SKILL_NAMES if read_skill(call, paths[n], n)} - counted
+        if names and len(checks.commands(call["command"])) == 1:
+            counted |= names
+            own_reads += 1
     totals = {
-        "tool_calls": len(calls),
+        "tool_calls": len(calls) - own_reads,
         "turns": turns,
         "input_tokens": usage.get("input_tokens", 0),
         "cached_input_tokens": usage.get("cached_input_tokens", 0),
@@ -101,7 +119,6 @@ def parse(lines, codex_home):
         "model": None,
         "host_version": None,
     }
-    loaded = any(read_skill(c, skill_path) for c in calls)
 
     result = hosts.AgentResult(calls, totals, loaded, answer=answer)
     if kind:
@@ -110,9 +127,22 @@ def parse(lines, codex_home):
     return result
 
 
-def read_skill(call, skill_path):
-    """Reports whether a successful shell call ran a reader on the installed SKILL.md and printed its every line"""
-    printed = printed_lines(call["output"]) >= printed_lines(SKILL_FILE.read_text(encoding="utf-8"))
+def mcp_output(item):
+    """Returns the text of an MCP call's result, or its error message when it has no result"""
+    content = (item.get("result") or {}).get("content") or []
+    text = "".join(block.get("text", "") for block in content if isinstance(block, dict))
+
+    return text or (item.get("error") or {}).get("message", "")
+
+
+def skill_pattern(codex_home, name):
+    """Returns the pattern of the installed SKILL.md of the named fuku skill under the Codex home"""
+    return re.compile(re.escape(str(codex_home)) + r"/plugins/cache/fuku/[^\s'\"]*/skills/" + re.escape(name) + r"/SKILL\.md")
+
+
+def read_skill(call, skill_path, name):
+    """Reports whether a successful shell call ran a reader on the named installed SKILL.md and printed its every line"""
+    printed = printed_lines(call["output"]) >= printed_lines((SKILLS_DIR / name / "SKILL.md").read_text(encoding="utf-8"))
     if call["tool"] != "shell" or call["error"] or not printed:
         return False
 
@@ -173,6 +203,7 @@ def install(repo, home, environ):
     home.mkdir()
     env, _ = hosts.host_env(environ, {"CODEX_HOME": str(home)})
     version = codex(["--version"], env).strip()
+    hosts.require_version(EXECUTABLE, version, MIN_VERSION)
     codex(["plugin", "marketplace", "add", str(repo)], env)
     try:
         installed = pathlib.Path(json.loads(codex(["plugin", "add", "fuku@fuku", "--json"], env))["installedPath"])

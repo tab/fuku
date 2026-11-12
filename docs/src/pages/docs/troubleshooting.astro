@@ -34,7 +34,7 @@ const nav = getDocsNav(base);
     <li><strong>Configuration</strong> &mdash; the config file was found and parsed, override-file merge status, schema validation, and resolved settings.</li>
     <li><strong>Services</strong> &mdash; per-service directories, <code>.env</code> files, and readiness configuration.</li>
     <li><strong>Topology</strong> &mdash; resolved tier order and whether the active profile resolves to a non-empty service list.</li>
-    <li><strong>Runtime</strong> &mdash; other running fuku instances, stale sockets, and readiness ports already bound by another process.</li>
+    <li><strong>Runtime</strong> &mdash; other running fuku instances, stale sockets, and readiness ports already in use (a note when this project's own fuku runs, a warning otherwise).</li>
   </ul>
 
   <CodeTerminal code={`# Full report for the default profile
@@ -201,4 +201,32 @@ fuku logs api auth`} />
     dir: noisy-service
     logs:
       output: [stderr]   # Only capture stderr, skip stdout`} />
+
+  <hr />
+
+  <div class="section-eyebrow" id="agents">AI agents</div>
+  <h2>The agent cannot reach fuku</h2>
+
+  <p>
+    The <a href={`${base}plugins/agents/`}>AI Agents plugin</a> starts <code>fuku mcp</code> with the agent session.
+    When the agent says the fuku tools are missing or not connected, check these in order:
+  </p>
+
+  <ul>
+    <li><strong><code>fuku</code> is on <code>PATH</code>.</strong> Run <code>fuku mcp</code> in the project. It prints a banner on stderr and waits for the agent</li>
+    <li><strong>The MCP server connected.</strong> In Claude Code, run <code>/mcp</code> and look for the fuku server of the plugin. It needs no authentication. When Claude Code says it does, remove the <code>plugin:fuku:fuku</code> entry from <code>~/.claude/mcp-needs-auth-cache.json</code> and start a new session</li>
+    <li><strong>The sandbox allows local access.</strong> <code>fuku mcp</code> uses fuku's Unix socket and its loopback API. In Codex, allow network access with <code>sandbox_workspace_write.network_access=true</code></li>
+  </ul>
+
+  <p>
+    A tool error about the socket or the API does not mean fuku is down. Before you restart anything, run
+    <code>fuku doctor</code> in your terminal. Its runtime section reports the running instance.
+  </p>
+
+  <h2>The agent says a tool is missing</h2>
+
+  <p>
+    This is on purpose. The agent controls fuku only through its tools and never works around a gap with the shell or a
+    script. Following logs live is one such gap: use <code>fuku logs</code> in your own terminal for it.
+  </p>
 </DocsLayout>

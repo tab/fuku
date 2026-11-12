@@ -1,9 +1,13 @@
 package rest
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"time"
 
 	"fuku/internal/app/services"
 	"fuku/internal/contracts"
@@ -16,12 +20,20 @@ type Control interface {
 	Start(id string) (services.Admission, error)
 	Stop(id string) (services.Admission, error)
 	Restart(id string) (services.Admission, error)
+	Wait(ctx context.Context, id string) error
 }
 
 // Registry exposes the runtime read model the handlers answer from
 type Registry interface {
 	Read(fn func(*model.Snapshot))
+	WaitSettled(ctx context.Context, id string, since time.Time) error
 }
+
+// maxWaitSeconds bounds how long an action request may hold its connection
+const maxWaitSeconds = 60
+
+// maxActionBody bounds the body of an action request
+const maxActionBody = 1024
 
 type handler struct {
 	registry Registry
@@ -115,16 +127,76 @@ func (h *handler) handleRestartService(w http.ResponseWriter, r *http.Request) {
 	h.handleAction(w, r, contracts.ActionRestart, h.control.Restart)
 }
 
-// handleAction admits one action through the control and answers 202 with the predicted status
+// handleAction admits one action and answers 202 with the predicted status, or 200 once the service settles
 func (h *handler) handleAction(w http.ResponseWriter, r *http.Request, action contracts.Action, admit func(string) (services.Admission, error)) {
-	admission, err := admit(r.PathValue("id"))
+	wait, err := parseWait(w, r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+
+		return
+	}
+
+	id := r.PathValue("id")
+
+	admission, err := admit(id)
 	if err != nil {
 		writeActionError(w, action, err)
 
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, toActionSerializer(admission))
+	if wait == 0 || !h.settle(r.Context(), id, wait, admission.At) {
+		writeJSON(w, http.StatusAccepted, toActionSerializer(admission))
+
+		return
+	}
+
+	h.handleGetService(w, r)
+}
+
+// settle reports whether the admitted action ended and the read model shows its outcome within the wait
+func (h *handler) settle(ctx context.Context, id string, wait time.Duration, since time.Time) bool {
+	ctx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+
+	// ponytail: an unrequested exit the watcher reports right after admission ends the wait early; require a transitional status at or after since to close it
+	if err := h.control.Wait(ctx, id); err != nil {
+		return false
+	}
+
+	// sync: the read model applies the action's last event after the token is released, so wait for it too
+	return h.registry.WaitSettled(ctx, id, since) == nil
+}
+
+// parseWait reads the optional wait of an action from its JSON body, in whole seconds from 1 up to maxWaitSeconds
+func parseWait(w http.ResponseWriter, r *http.Request) (time.Duration, error) {
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxActionBody))
+	if err != nil {
+		return 0, ErrAPIInvalidBody
+	}
+
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return 0, nil
+	}
+
+	var request ActionRequest
+
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&request); err != nil || !errors.Is(decoder.Decode(&struct{}{}), io.EOF) {
+		return 0, ErrAPIInvalidBody
+	}
+
+	if request.Wait == nil {
+		return 0, nil
+	}
+
+	if *request.Wait < 1 || *request.Wait > maxWaitSeconds {
+		return 0, ErrAPIInvalidWait
+	}
+
+	return time.Duration(*request.Wait) * time.Second, nil
 }
 
 // writeActionError maps a rejected admission onto the API's status codes and texts

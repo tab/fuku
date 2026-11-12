@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -10,6 +11,184 @@ import (
 	"fuku/internal/contracts"
 	"fuku/internal/model"
 )
+
+func Test_Guard_halt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTracker := NewMockTracker(ctrl)
+
+	tests := []struct {
+		name     string
+		before   func() *Guard
+		expected model.Phase
+		phase    model.Phase
+	}{
+		{
+			name: "leaves a guard without a run alone",
+			before: func() *Guard {
+				return NewGuard(mockTracker)
+			},
+		},
+		{
+			name: "closes a run in startup before the profile is resolved",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+
+				return guard
+			},
+			expected: model.PhaseStartup,
+			phase:    model.PhaseStopping,
+		},
+		{
+			name: "closes a running run",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.setPhase(model.PhaseRunning)
+
+				return guard
+			},
+			expected: model.PhaseRunning,
+			phase:    model.PhaseStopping,
+		},
+		{
+			name: "reports a run already stopping",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.setPhase(model.PhaseStopping)
+
+				return guard
+			},
+			expected: model.PhaseStopping,
+			phase:    model.PhaseStopping,
+		},
+		{
+			name: "reports a stopped run",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.setPhase(model.PhaseStopped)
+
+				return guard
+			},
+			expected: model.PhaseStopped,
+			phase:    model.PhaseStopped,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guard := tt.before()
+
+			found := guard.halt()
+
+			assert.Equal(t, tt.expected, found)
+			assert.Equal(t, tt.phase, guard.phase)
+		})
+	}
+}
+
+func Test_Guard_settle(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTracker := NewMockTracker(ctrl)
+
+	tests := []struct {
+		name     string
+		before   func() *Guard
+		expected model.Phase
+	}{
+		{
+			name: "moves a run in startup to running",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+
+				return guard
+			},
+			expected: model.PhaseRunning,
+		},
+		{
+			name: "keeps a run halted during startup stopping",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.halt()
+
+				return guard
+			},
+			expected: model.PhaseStopping,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guard := tt.before()
+
+			guard.settle()
+
+			assert.Equal(t, tt.expected, guard.phase)
+		})
+	}
+}
+
+func Test_Guard_release(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTracker := NewMockTracker(ctrl)
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
+
+	tests := []struct {
+		name   string
+		before func() *Guard
+	}{
+		{
+			name: "frees a dispatched service",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+
+				return guard
+			},
+		},
+		{
+			name: "frees an admitted service",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(nil, false)
+
+				_, err := guard.admit(svc.ID, contracts.ActionStart)
+				require.NoError(t, err)
+
+				return guard
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guard := tt.before()
+
+			guard.release(svc.ID)
+
+			assert.True(t, guard.reserve(svc.ID))
+		})
+	}
+}
 
 func Test_Guard_admit(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -22,6 +201,7 @@ func Test_Guard_admit(t *testing.T) {
 	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
 	alive := make(chan struct{})
 	exited := make(chan struct{})
+	start := time.Now()
 
 	close(exited)
 
@@ -31,7 +211,112 @@ func Test_Guard_admit(t *testing.T) {
 		id       string
 		action   contracts.Action
 		expected Admission
-		err      error
+	}{
+		{
+			name: "admits a start of a service without a child",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(nil, false)
+
+				return guard
+			},
+			id:       svc.ID,
+			action:   contracts.ActionStart,
+			expected: Admission{Service: svc, Action: contracts.ActionStart, Status: model.StatusStarting},
+		},
+		{
+			name: "admits a start of a service whose child has exited",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(mockProcess, true)
+				mockProcess.EXPECT().Done().Return(exited)
+
+				return guard
+			},
+			id:       svc.ID,
+			action:   contracts.ActionStart,
+			expected: Admission{Service: svc, Action: contracts.ActionStart, Status: model.StatusStarting},
+		},
+		{
+			name: "admits a stop of a live service during running",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+				guard.setPhase(model.PhaseRunning)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(mockProcess, true)
+				mockProcess.EXPECT().Done().Return(alive)
+
+				return guard
+			},
+			id:       svc.ID,
+			action:   contracts.ActionStop,
+			expected: Admission{Service: svc, Action: contracts.ActionStop, Status: model.StatusStopping},
+		},
+		{
+			name: "admits a restart of a stopped service during startup",
+			before: func() *Guard {
+				guard := NewGuard(mockTracker)
+				guard.open()
+				guard.resolve(tiers)
+				guard.dispatch(svc.ID)
+				guard.release(svc.ID)
+
+				mockTracker.EXPECT().Get(svc.ID).Return(nil, false)
+
+				return guard
+			},
+			id:       svc.ID,
+			action:   contracts.ActionRestart,
+			expected: Admission{Service: svc, Action: contracts.ActionRestart, Status: model.StatusRestarting},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guard := tt.before()
+
+			admission, err := guard.admit(tt.id, tt.action)
+
+			require.NoError(t, err)
+			assert.WithinRange(t, admission.At, start, time.Now())
+
+			tt.expected.At = admission.At
+			assert.Equal(t, tt.expected, admission)
+		})
+	}
+}
+
+func Test_Guard_admit_Rejected(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTracker := NewMockTracker(ctrl)
+	mockProcess := NewMockProcess(ctrl)
+
+	svc := model.Service{ID: "test-id-api", Name: "api"}
+	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
+	alive := make(chan struct{})
+
+	tests := []struct {
+		name   string
+		before func() *Guard
+		id     string
+		action contracts.Action
+		err    error
 	}{
 		{
 			name: "rejects every action before a run",
@@ -129,41 +414,6 @@ func Test_Guard_admit(t *testing.T) {
 			err:    contracts.ErrActionNotAllowed,
 		},
 		{
-			name: "admits a start of a service without a child",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-
-				mockTracker.EXPECT().Get(svc.ID).Return(nil, false)
-
-				return guard
-			},
-			id:       svc.ID,
-			action:   contracts.ActionStart,
-			expected: Admission{Service: svc, Action: contracts.ActionStart, Status: model.StatusStarting},
-		},
-		{
-			name: "admits a start of a service whose child has exited",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-
-				mockTracker.EXPECT().Get(svc.ID).Return(mockProcess, true)
-				mockProcess.EXPECT().Done().Return(exited)
-
-				return guard
-			},
-			id:       svc.ID,
-			action:   contracts.ActionStart,
-			expected: Admission{Service: svc, Action: contracts.ActionStart, Status: model.StatusStarting},
-		},
-		{
 			name: "rejects a stop of a service without a child",
 			before: func() *Guard {
 				guard := NewGuard(mockTracker)
@@ -180,42 +430,6 @@ func Test_Guard_admit(t *testing.T) {
 			action: contracts.ActionStop,
 			err:    contracts.ErrActionNotAllowed,
 		},
-		{
-			name: "admits a stop of a live service during running",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-				guard.setPhase(model.PhaseRunning)
-
-				mockTracker.EXPECT().Get(svc.ID).Return(mockProcess, true)
-				mockProcess.EXPECT().Done().Return(alive)
-
-				return guard
-			},
-			id:       svc.ID,
-			action:   contracts.ActionStop,
-			expected: Admission{Service: svc, Action: contracts.ActionStop, Status: model.StatusStopping},
-		},
-		{
-			name: "admits a restart of a stopped service during startup",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-
-				mockTracker.EXPECT().Get(svc.ID).Return(nil, false)
-
-				return guard
-			},
-			id:       svc.ID,
-			action:   contracts.ActionRestart,
-			expected: Admission{Service: svc, Action: contracts.ActionRestart, Status: model.StatusRestarting},
-		},
 	}
 
 	for _, tt := range tests {
@@ -225,7 +439,7 @@ func Test_Guard_admit(t *testing.T) {
 			admission, err := guard.admit(tt.id, tt.action)
 
 			require.ErrorIs(t, err, tt.err)
-			assert.Equal(t, tt.expected, admission)
+			assert.Zero(t, admission)
 		})
 	}
 }
@@ -404,184 +618,6 @@ func Test_Guard_reserve(t *testing.T) {
 			reserved := guard.reserve(tt.id)
 
 			assert.Equal(t, tt.expected, reserved)
-		})
-	}
-}
-
-func Test_Guard_release(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTracker := NewMockTracker(ctrl)
-
-	svc := model.Service{ID: "test-id-api", Name: "api"}
-	tiers := []model.Tier{{Name: "platform", Services: []*model.Service{&svc}}}
-
-	tests := []struct {
-		name   string
-		before func() *Guard
-	}{
-		{
-			name: "frees a dispatched service",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-
-				return guard
-			},
-		},
-		{
-			name: "frees an admitted service",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.resolve(tiers)
-				guard.dispatch(svc.ID)
-				guard.release(svc.ID)
-
-				mockTracker.EXPECT().Get(svc.ID).Return(nil, false)
-
-				_, err := guard.admit(svc.ID, contracts.ActionStart)
-				require.NoError(t, err)
-
-				return guard
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			guard := tt.before()
-
-			guard.release(svc.ID)
-
-			assert.True(t, guard.reserve(svc.ID))
-		})
-	}
-}
-
-func Test_Guard_halt(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTracker := NewMockTracker(ctrl)
-
-	tests := []struct {
-		name     string
-		before   func() *Guard
-		expected model.Phase
-		phase    model.Phase
-	}{
-		{
-			name: "leaves a guard without a run alone",
-			before: func() *Guard {
-				return NewGuard(mockTracker)
-			},
-		},
-		{
-			name: "closes a run in startup before the profile is resolved",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-
-				return guard
-			},
-			expected: model.PhaseStartup,
-			phase:    model.PhaseStopping,
-		},
-		{
-			name: "closes a running run",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.setPhase(model.PhaseRunning)
-
-				return guard
-			},
-			expected: model.PhaseRunning,
-			phase:    model.PhaseStopping,
-		},
-		{
-			name: "reports a run already stopping",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.setPhase(model.PhaseStopping)
-
-				return guard
-			},
-			expected: model.PhaseStopping,
-			phase:    model.PhaseStopping,
-		},
-		{
-			name: "reports a stopped run",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.setPhase(model.PhaseStopped)
-
-				return guard
-			},
-			expected: model.PhaseStopped,
-			phase:    model.PhaseStopped,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			guard := tt.before()
-
-			found := guard.halt()
-
-			assert.Equal(t, tt.expected, found)
-			assert.Equal(t, tt.phase, guard.phase)
-		})
-	}
-}
-
-func Test_Guard_settle(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTracker := NewMockTracker(ctrl)
-
-	tests := []struct {
-		name     string
-		before   func() *Guard
-		expected model.Phase
-	}{
-		{
-			name: "moves a run in startup to running",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-
-				return guard
-			},
-			expected: model.PhaseRunning,
-		},
-		{
-			name: "keeps a run halted during startup stopping",
-			before: func() *Guard {
-				guard := NewGuard(mockTracker)
-				guard.open()
-				guard.halt()
-
-				return guard
-			},
-			expected: model.PhaseStopping,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			guard := tt.before()
-
-			guard.settle()
-
-			assert.Equal(t, tt.expected, guard.phase)
 		})
 	}
 }

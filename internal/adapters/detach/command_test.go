@@ -73,7 +73,7 @@ func Test_Command_Run(t *testing.T) {
 					mockProcess.EXPECT().Release().Return(nil),
 				)
 			},
-			expectedStdout: "Running detached · pid 4242 · 1 services · 4.1s\nAPI 127.0.0.1:9090\n",
+			expectedStdout: "Running detached · pid 4242 · 1 services · 4.1s\nhttp://127.0.0.1:9090\n",
 		},
 		{
 			name: "a running child without an API prints no API line",

@@ -123,6 +123,13 @@ linters:
           deny:
             - pkg: fuku/internal/adapters/rest
               desc: the TUI reads API state from the registry snapshot, not from the REST server
+        mcp:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/mcp/**"
+          deny:
+            - pkg: fuku/internal/adapters/rest
+              desc: the MCP server calls the REST API through its own API interface, bound to rest.Client in bootstrap/modules
         process:
           list-mode: lax
           files:

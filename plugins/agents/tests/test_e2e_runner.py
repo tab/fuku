@@ -72,6 +72,7 @@ def gone(pid):
 
 FAKE_CLAUDE = r"""#!/bin/sh
 . "$(dirname "$0")/fake.conf"
+[ "$1" = --version ] && { echo "${FAKE_VERSION:-2.1.319} (Claude Code)"; exit 0; }
 printf '%s\n' "$@" > "$FAKE_DIR/argv"
 env > "$FAKE_DIR/env"
 case "$FAKE_MODE" in
@@ -92,7 +93,7 @@ FAKE_CODEX = r"""#!/bin/sh
 . "$(dirname "$0")/fake.conf"
 printf '%s\n' "$@" >> "$FAKE_DIR/argv"
 case "$1" in
---version) echo "codex-cli 0.0.0-fake" ;;
+--version) echo "codex-cli ${FAKE_VERSION:-0.166.0}" ;;
 plugin)
   [ "$2" = marketplace ] && exit 0
   case "$FAKE_TAMPER" in
@@ -103,10 +104,10 @@ plugin)
   dest="$CODEX_HOME/plugins/cache/fuku/fuku/0.1.0"
   mkdir -p "$dest" && cp -R "$FAKE_SKILLS" "$dest/skills"
   case "$FAKE_TAMPER" in
-  edit) echo tampered >> "$dest/skills/fuku/SKILL.md" ;;
+  edit) echo tampered >> "$dest/skills/fuku-config/SKILL.md" ;;
   extra) echo extra > "$dest/skills/fuku/EXTRA.md" ;;
-  missing) rm "$dest/skills/fuku/references/control-api.md" ;;
-  mode) chmod -x "$dest/skills/fuku/scripts/api.sh" ;;
+  missing) rm "$dest/skills/fuku-config/references/configuration.md" ;;
+  mode) chmod +x "$dest/skills/fuku-config/SKILL.md" ;;
   esac
   printf '{"installedPath": "%s"}\n' "$dest" ;;
 exec)
@@ -207,14 +208,23 @@ class RestartFuku:
         return runner.AgentResult()
 
 
+class StopFuku:
+    """Stand-in agent that stops the running fuku"""
+
+    def run(self, project, prompt, env, **_):
+        subprocess.run(["fuku", "stop", "default"], cwd=project, env=env, capture_output=True, check=True)
+        return runner.AgentResult()
+
+
 class ReportedRestart(RestartFuku):
     """Stand-in agent that restarts fuku and reports a transcript that also kills the service program by name"""
 
     def run(self, project, prompt, env, **_):
         super().run(project, prompt, env)
-        call = {"tool": "shell", "command": "pkill sleep; fuku stop default; fuku run default -d", "output": "",
-                "error": False}
-        return runner.AgentResult(calls=[call], skill_loaded=True)
+        calls = [{"tool": "shell", "command": "pkill sleep", "output": "", "error": False},
+                 {"tool": "mcp", "name": "stop", "command": "{}", "output": "", "error": False},
+                 {"tool": "mcp", "name": "run", "command": '{"profile": "default"}', "output": "", "error": False}]
+        return runner.AgentResult(calls=calls, skill_loaded=True)
 
 
 class StartOtherFuku:
@@ -285,7 +295,7 @@ class ScenarioTest(unittest.TestCase):
     def test_shipped_scenarios_validate(self):
         scenarios = runner.load_scenarios()
 
-        self.assertEqual(["S1", "S2", "S3", "S4", "S5", "S6", "S7"], sorted(scenarios))
+        self.assertEqual(["S1", "S10", "S11", "S12", "S13", "S14", "S15", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"], sorted(scenarios))
 
     def test_rejected_scenario(self):
         cases = [
@@ -308,7 +318,7 @@ class ScenarioTest(unittest.TestCase):
 
         for name, data, message in cases:
             with self.subTest(name), tempfile.TemporaryDirectory() as directory:
-                pathlib.Path(directory, "S9.json").write_text(json.dumps(data), encoding="utf-8")
+                pathlib.Path(directory, "S13.json").write_text(json.dumps(data), encoding="utf-8")
                 stderr = io.StringIO()
 
                 with contextlib.redirect_stderr(stderr):
@@ -322,7 +332,7 @@ class ScenarioTest(unittest.TestCase):
     def test_unreadable_scenario_directory(self):
         cases = [
             ("no scenario file", {}, "no scenario file in"),
-            ("not JSON", {"S9.json": "{not json"}, "S9.json: not valid JSON"),
+            ("not JSON", {"S13.json": "{not json"}, "S13.json: not valid JSON"),
         ]
 
         for name, files, message in cases:
@@ -461,6 +471,7 @@ class RunnerTest(unittest.TestCase):
         self.assertIn('listen: "127.0.0.1:40123"', override)
         self.assertIn('token: "0123456789abcdef0123456789abcdef"', override)
         self.assertNotIn("{{", override)
+        self.assertEqual(override, run.override)
         self.assertIn('command: echo "api ready"; exec sleep 3611', config)
         self.assertIn('command: echo "worker ready"; exec sleep 3602', config)
         self.assertEqual({"api": "sleep 3611"}, run.expected_commands)
@@ -473,9 +484,17 @@ class RunnerTest(unittest.TestCase):
         (directory / "fuku.yaml").write_text("services:\n  api:\n    command: echo hi\n", encoding="utf-8")
         hung = mock.Mock(side_effect=subprocess.TimeoutExpired(["fuku"], 30))
         running = mock.Mock(return_value=runner.Snapshot(7, {"worker": 99}))
+        idle = mock.Mock(return_value=runner.Snapshot())
+        hanging = mock.Mock(return_value=mock.Mock(pid=4242, **{"poll.return_value": None}))
+        self.addCleanup((directory.parent / "fuku.log").unlink, missing_ok=True)
         cases = [
             ("fuku run fails", "start_fuku", "", {}, "fuku run default -d exited 1: Error: no config"),
             ("fuku run hangs", "start_fuku", "", {"fuku": hung}, "fuku run default -d did not return within 30s"),
+            ("foreground fuku exits", "start_fuku_foreground", "", {},
+             "fuku run default --no-ui exited 1: Error: no config"),
+            ("foreground fuku never serves", "start_fuku_foreground", "",
+             {"WAIT_SECONDS": 0.3, "snapshot": idle, "Popen": hanging},
+             "fuku run default --no-ui did not serve the profile within 0.3s"),
             ("service never exits", "wait_service_exited", "worker", {"WAIT_SECONDS": 0.3, "snapshot": running},
              "service 'worker' still runs after 0.3s"),
             ("command without exec sleep", "edit_service_command", "api", {},
@@ -485,7 +504,8 @@ class RunnerTest(unittest.TestCase):
         for name, step, param, patches, message in cases:
             with self.subTest(name), contextlib.ExitStack() as stack:
                 for attribute, value in patches.items():
-                    stack.enter_context(mock.patch.object(runner, attribute, value))
+                    target = runner.subprocess if attribute == "Popen" else runner
+                    stack.enter_context(mock.patch.object(target, attribute, value))
                 run = runner.Run(directory, directory, directory / "fuku", "default",
                                  {"PATH": f"{directory}:/usr/bin:/bin"}, "0" * 16)
 
@@ -493,6 +513,7 @@ class RunnerTest(unittest.TestCase):
                     runner.SETUP_STEPS[step](run, param)
 
                 self.assertEqual(message, str(raised.exception))
+                runner.reap_foreground(run)
 
     def test_state_checks_without_fuku(self):
         running = runner.Snapshot(10, {"api": 11, "worker": 12})
@@ -501,6 +522,9 @@ class RunnerTest(unittest.TestCase):
         cases = [
             ("fuku_running", running, running, True),
             ("fuku_running", running, runner.Snapshot(), False),
+            ("fuku_stopped", runner.Snapshot(), runner.Snapshot(), True),
+            ("fuku_stopped", running, running, False),
+            ("fuku_stopped", runner.Snapshot(99999999, {"api": os.getpid()}), runner.Snapshot(), False),
             ("services_running", running, running, True),
             ("services_running", running, worker_stopped, False),
             ("services_running", running, runner.Snapshot(10, {}), False),
@@ -552,6 +576,9 @@ class RunnerTest(unittest.TestCase):
             ("service_command_is:api", "capture", {"return_value": "sleep 3601\n"},
              "api runs 'sleep 3601', expected 'sleep 3611'"),
             ("service_command_is:api", "capture", {"side_effect": probe}, "ps did not answer within 10s"),
+            ("service_command_is:worker", "capture", {"return_value": "sleep 3602\n"}, None),
+            ("service_command_is:worker", "capture", {"return_value": "sleep 3612\n"},
+             "worker runs 'sleep 3612', expected 'sleep 3602'"),
             ("served_by_built_fuku", "lsof_paths", {"return_value": {10: "/built/fuku"}}, None),
             ("served_by_built_fuku", "lsof_paths", {"return_value": {10: "/other/fuku"}},
              "fuku pid 10 runs '/other/fuku', not /built/fuku"),
@@ -563,9 +590,70 @@ class RunnerTest(unittest.TestCase):
             with self.subTest(f"{name}: {probed}"), mock.patch.object(runner, target, **probed):
                 run = runner.Run(pathlib.Path("/nowhere"), pathlib.Path("/nowhere"), pathlib.Path("/built/fuku"),
                                  "default", {}, "0" * 16, expected_commands={"api": "sleep 3611"},
-                                 after=runner.Snapshot(10, {"api": 11}))
+                                 after=runner.Snapshot(10, {"api": 11, "worker": 11}))
 
                 self.assertEqual(expected, runner.check_state(name, run))
+
+    def test_config_file_checks(self):
+        fixture = (runner.FIXTURE / "fuku.yaml").read_text(encoding="utf-8")
+        cases = [
+            ("override_restored", "server: {}\n", {"fuku.override.yaml": "server: {}\n"}, None),
+            ("override_restored", "server: {}\n", {"fuku.override.yaml": "server: {}\nexclude: [api]\n"},
+             "fuku.override.yaml differs from the one the setup wrote"),
+            ("override_restored", "server: {}\n", {}, "fuku.override.yaml is missing, the setup wrote one"),
+            ("override_restored", "server: {}\n", {"fuku.override.yaml": "server: {}\n", "fuku.override.yaml.bak": "x"},
+             "left behind: fuku.override.yaml.bak"),
+            ("override_restored", None, {}, None),
+            ("override_restored", None, {"fuku.override.yaml": "exclude: [api]\n"},
+             "fuku.override.yaml exists, the setup wrote none"),
+            ("config_unchanged", None, {"fuku.yaml": fixture}, None),
+            ("config_unchanged", None, {"fuku.yaml": fixture.replace("3601", "3611")}, "fuku.yaml differs from the fixture"),
+            ("config_unchanged", None, {}, "fuku.yaml differs from the fixture"),
+            ("config_unchanged", None, {"fuku.yaml": fixture, "fuku.yaml.bak": "x"}, "left behind: fuku.yaml.bak"),
+        ]
+
+        for name, override, files, expected in cases:
+            with self.subTest(f"{name}: {override!r} -> {files}"), tempfile.TemporaryDirectory() as directory:
+                project = pathlib.Path(directory)
+                for file, text in files.items():
+                    (project / file).write_text(text, encoding="utf-8")
+                config = project / "fuku.yaml"
+                mtime = config.stat().st_mtime_ns if config.is_file() else None
+                run = runner.Run(project, project, pathlib.Path("/built/fuku"), "default", {}, "0" * 16,
+                                 override=override, config_mtime=mtime)
+
+                self.assertEqual(expected, runner.check_state(name, run))
+
+    def test_config_unchanged_sees_a_rewrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = pathlib.Path(directory)
+            config = project / "fuku.yaml"
+            shutil.copy(runner.FIXTURE / "fuku.yaml", config)
+            mtime = config.stat().st_mtime_ns
+            run = runner.Run(project, project, pathlib.Path("/built/fuku"), "default", {}, "0" * 16, config_mtime=mtime)
+            config.write_text(config.read_text(encoding="utf-8"), encoding="utf-8")
+            os.utime(config, ns=(mtime + 1000, mtime + 1000))
+
+            self.assertEqual("fuku.yaml was written after the setup", runner.check_state("config_unchanged", run))
+
+    def test_project_e2e_check(self):
+        cases = [
+            ("the new greeting", "hello v2\n", None),
+            ("the old greeting", "hello v1\n", "e2e.sh exited 1: FAIL: api does not serve hello v2; it serves 'hello v1'"),
+            ("no served file", None, "e2e.sh exited 1: FAIL: api does not serve hello v2; it serves ''"),
+        ]
+
+        for name, served, expected in cases:
+            with self.subTest(name), tempfile.TemporaryDirectory() as directory:
+                project = pathlib.Path(directory)
+                (project / "e2e.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                (project / "e2e.sh").chmod(0o755)
+                (project / "api").mkdir()
+                if served is not None:
+                    (project / "api" / "served.txt").write_text(served, encoding="utf-8")
+                run = runner.Run(project, project, pathlib.Path("/built/fuku"), "default", {}, "0" * 16)
+
+                self.assertEqual(expected, runner.check_state("project_e2e_passes", run))
 
     def test_pid_alive(self):
         reaped = subprocess.Popen([sys.executable, "-c", "pass"])
@@ -623,7 +711,7 @@ class RunnerTest(unittest.TestCase):
         agent = mock.Mock()
         roots_before = temp_roots()
 
-        result = runner.run_scenario(runner.load_scenarios(ids=["S2"])["S2"], agent, directory / "fuku")
+        result = runner.run_scenario(runner.load_scenarios(ids=["S4"])["S4"], agent, directory / "fuku")
 
         self.assertEqual({"setup": "fuku run default -d exited 1: Error: no config", "teardown": None}, result.checks)
         agent.run.assert_not_called()
@@ -635,8 +723,7 @@ class RunnerTest(unittest.TestCase):
         result = runner.run_scenario(runner.load_scenarios(ids=["S1"])["S1"], Idle(), pathlib.Path(sys.executable))
 
         failed = sorted(name for name, reason in result.checks.items() if reason is not None)
-        self.assertEqual(["fuku_running", "run_detached_once", "served_by_built_fuku", "services_running",
-                          "skill_loaded"], failed)
+        self.assertEqual(["fuku_running", "run_detached_once", "served_by_built_fuku", "services_running"], failed)
         self.assertEqual(roots_before, temp_roots())
 
     def test_default_adapters(self):
@@ -647,6 +734,31 @@ class RunnerTest(unittest.TestCase):
         claude_adapter, codex_adapter = adapters["claude"](), adapters["codex"]()
         self.assertEqual(runner.PLUGIN, claude_adapter.plugin_dir)
         self.assertEqual((runner.REPO, environ), (codex_adapter.repo, codex_adapter.environ))
+
+    def test_old_host_stops_the_sweep(self):
+        cases = [
+            ("claude", FAKE_CLAUDE, "2.1.300", "runner: claude 2.1.300 is older than 2.1.319, the oldest version the "
+                                               "adapters were verified on; update claude"),
+            ("codex", FAKE_CODEX, "0.165.9", "runner: codex 0.165.9 is older than 0.166.0, the oldest version the "
+                                             "adapters were verified on; update codex"),
+        ]
+
+        for host, script, version, message in cases:
+            with self.subTest(host):
+                directory = fake_host(self, host, script, FAKE_MODE="ok", FAKE_VERSION=version)
+                (directory / "home").mkdir()
+                env = {"PATH": f"{directory}:/usr/bin:/bin", "HOME": str(directory / "home"),
+                       "FUKU_BIN": sys.executable, "HOST": host, "SCENARIO": "S1", "REPEATS": "1"}
+                stdout, stderr = io.StringIO(), io.StringIO()
+
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    code = runner.main(runner.SCENARIOS, env)
+
+                path = pathlib.Path(re.search(r"^report: (.+)$", stdout.getvalue(), re.M).group(1))
+                self.addCleanup(shutil.rmtree, path.parent)
+                self.assertEqual(1, code)
+                self.assertIn(message, stderr.getvalue().splitlines())
+                self.assertEqual("not run", json.loads(path.read_text())["summary"][f"{host}/S1"]["status"])
 
     def test_sigterm_cleans_up_the_sweep(self):
         directory = fake_host(self, "codex", FAKE_CODEX, FAKE_MODE="detach", FAKE_SKILLS=PLUGIN / "skills",
@@ -701,29 +813,41 @@ class FukuBackedTest(unittest.TestCase):
                 "fuku_running": False, "services_running": False, "served_by_built_fuku": False}),
             ("S1 other fuku", "S1", StartOtherFuku(other), {
                 "fuku_running": True, "services_running": True, "served_by_built_fuku": False}),
-            ("S2 attached", "S2", Idle(), {
+            ("S4 attached", "S4", Idle(), {
                 "fuku_running": True, "same_fuku_pid": True, "same_service_pids": True, "served_by_built_fuku": True}),
-            ("S2 restarted", "S2", RestartFuku(), {
+            ("S4 restarted", "S4", RestartFuku(), {
                 "fuku_running": True, "same_fuku_pid": False, "same_service_pids": False}),
-            ("S3 worker exited", "S3", Idle(), {
+            ("S5 worker exited", "S5", Idle(), {
                 "fuku_running": True, "same_fuku_pid": True, "same_service_pids": True}),
-            ("S4 api restarted", "S4", RestartApiService(), {
+            ("S7 api restarted", "S7", RestartApiService(), {
                 "service_pid_changed:api": True, "other_service_pids_same:api": True, "same_fuku_pid": True}),
-            ("S4 idle", "S4", Idle(), {
+            ("S7 idle", "S7", Idle(), {
                 "service_pid_changed:api": False, "other_service_pids_same:api": True, "same_fuku_pid": True}),
-            ("S4 profile restarted", "S4", RestartFuku(), {
+            ("S7 profile restarted", "S7", RestartFuku(), {
                 "service_pid_changed:api": True, "other_service_pids_same:api": False, "same_fuku_pid": False}),
-            ("S5 restarted", "S5", RestartFuku(), {
+            ("S12 restarted", "S12", RestartFuku(), {
                 "fuku_pid_changed": True, "service_command_is:api": True, "services_running": True}),
-            ("S5 not restarted", "S5", Idle(), {
+            ("S12 not restarted", "S12", Idle(), {
                 "fuku_pid_changed": False, "service_command_is:api": False}),
-            ("S6 left alone", "S6", Idle(), {
+            ("S9 stopped", "S9", StopFuku(), {"fuku_stopped": True}),
+            ("S9 idle", "S9", Idle(), {"fuku_stopped": False}),
+            ("S9 restarted", "S9", RestartFuku(), {"fuku_stopped": False}),
+            ("S2 left alone", "S2", Idle(), {
                 "same_fuku_pid": True, "same_service_pids": True}),
-            ("S7 core started", "S7", StartFuku("core"), {
+            ("S3 core started", "S3", StartFuku("core"), {
                 "fuku_running": True, "services_running": True, "service_stopped:worker": True,
                 "served_by_built_fuku": True}),
-            ("S7 default started", "S7", StartFuku(), {
+            ("S3 default started", "S3", StartFuku(), {
                 "fuku_running": True, "services_running": True, "service_stopped:worker": False}),
+            ("S13 left alone", "S13", Idle(), {
+                "fuku_running": True, "same_fuku_pid": True, "no_fuku_stop": True, "no_fuku_run": True}),
+            ("S13 restarted", "S13", RestartFuku(), {
+                "fuku_running": True, "same_fuku_pid": False}),
+            ("S14 restarted and restored", "S14", RestartFuku(), {
+                "fuku_pid_changed": True, "service_command_is:api": True, "override_restored": True,
+                "config_unchanged": True}),
+            ("S14 idle", "S14", Idle(), {
+                "fuku_pid_changed": False, "service_command_is:api": True, "override_restored": True}),
         ]
 
         for name, scenario_id, agent, expected in cases:
@@ -742,7 +866,7 @@ class FukuBackedTest(unittest.TestCase):
                 self.assertEqual(roots_before, temp_roots())
 
     def test_broad_kill_fails_a_valid_restart(self):
-        scenario = runner.load_scenarios(ids=["S5"])["S5"]
+        scenario = runner.load_scenarios(ids=["S12"])["S12"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
 
         result = runner.run_scenario(scenario, ReportedRestart(), fuku_bin)
@@ -752,7 +876,7 @@ class FukuBackedTest(unittest.TestCase):
         self.assertEqual("", fixture_sleeps())
 
     def test_teardown_kills_an_unmanaged_process_in_the_project(self):
-        scenario = runner.load_scenarios(ids=["S2"])["S2"]
+        scenario = runner.load_scenarios(ids=["S4"])["S4"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
         agent = LeaveProcess(self)
         tmp_before = sorted(glob.glob("/tmp/fuku-*"))
@@ -763,6 +887,18 @@ class FukuBackedTest(unittest.TestCase):
         self.assertIsNotNone(agent.process.wait(timeout=5))
         self.assertEqual("", fixture_sleeps())
         self.assertEqual(tmp_before, sorted(glob.glob("/tmp/fuku-*")))
+
+    def test_teardown_reaps_the_foreground_fuku(self):
+        fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
+        run = runner.prepare(fuku_bin, "default")
+        runner.SETUP_STEPS["override"](run, "api")
+        runner.SETUP_STEPS["start_fuku_foreground"](run, "")
+
+        reason = runner.teardown(run)
+
+        self.assertIsNone(reason)
+        self.assertIsNotNone(run.foreground.returncode)
+        self.assertEqual("", fixture_sleeps())
 
     def test_teardown_spares_a_foreign_process_it_saw(self):
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
@@ -779,7 +915,7 @@ class FukuBackedTest(unittest.TestCase):
         self.assertFalse(run.project.parent.exists())
 
     def test_teardown_spares_a_process_in_a_rewritten_service_dir(self):
-        scenario = runner.load_scenarios(ids=["S2"])["S2"]
+        scenario = runner.load_scenarios(ids=["S4"])["S4"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
         decoy_dir = tempfile.mkdtemp(prefix="fuku-decoy-")
         self.addCleanup(shutil.rmtree, decoy_dir)
@@ -796,7 +932,7 @@ class FukuBackedTest(unittest.TestCase):
         self.assertEqual(tmp_before, sorted(glob.glob("/tmp/fuku-*")))
 
     def test_teardown_after_an_agent_error(self):
-        scenario = runner.load_scenarios(ids=["S2"])["S2"]
+        scenario = runner.load_scenarios(ids=["S4"])["S4"]
         fuku_bin = runner.fuku_binary({"FUKU_BIN": FUKU_BIN})
         tmp_before = sorted(glob.glob("/tmp/fuku-*"))
         roots_before = temp_roots()
@@ -817,23 +953,23 @@ class ParseTest(unittest.TestCase):
     def test_claude_samples(self):
         cases = [
             ("claude-ok", "<REPO>/plugins/agents", {
-                "calls": [("Skill", '{"skill": "fuku:fuku"}', False),
+                "calls": [("Skill", '{"skill": "fuku:fuku-config"}', False),
                           ("shell", "ls; fuku version; fuku doctor default --json", False),
                           ("shell", 'fuku run default -d; echo "exit=$?"; fuku logs --tail 30 --no-follow', False)],
                 "skill_loaded": True, "host_error": None, "kind": None,
                 "answer": "The `default` profile is up, with both of its services running:\n\n| Service | State | PID |\n"
                           "|---|---|---|\n| `worker` | re…<cut>",
-                "totals": {"tool_calls": 3, "turns": 5, "input_tokens": 58445, "cached_input_tokens": 36140,
+                "totals": {"tool_calls": 2, "turns": 5, "input_tokens": 58445, "cached_input_tokens": 36140,
                            "output_tokens": 401, "usd": 0.47510499999999994, "model": "claude-fable-5-1",
                            "host_version": "2.1.289"}}),
             ("claude-ok", "/elsewhere/plugins/agents", {
-                "calls": [("Skill", '{"skill": "fuku:fuku"}', False),
+                "calls": [("Skill", '{"skill": "fuku:fuku-config"}', False),
                           ("shell", "ls; fuku version; fuku doctor default --json", False),
                           ("shell", 'fuku run default -d; echo "exit=$?"; fuku logs --tail 30 --no-follow', False)],
                 "skill_loaded": False, "host_error": None, "kind": None,
                 "answer": "The `default` profile is up, with both of its services running:\n\n| Service | State | PID |\n"
                           "|---|---|---|\n| `worker` | re…<cut>",
-                "totals": {"tool_calls": 3, "turns": 5, "input_tokens": 58445, "cached_input_tokens": 36140,
+                "totals": {"tool_calls": 2, "turns": 5, "input_tokens": 58445, "cached_input_tokens": 36140,
                            "output_tokens": 401, "usd": 0.47510499999999994, "model": "claude-fable-5-1",
                            "host_version": "2.1.289"}}),
             ("claude-error", "<REPO>/plugins/agents", {
@@ -859,6 +995,58 @@ class ParseTest(unittest.TestCase):
                 self.assertEqual(expected["totals"], totals)
                 self.assertEqual(expected["answer"], result.answer)
 
+    def test_mcp_samples(self):
+        failed = "no fuku instance is running in <PROJECT>; call run first"
+        cases = [
+            ("claude", claude.parse(sample("claude-mcp"), "<REPO>/plugins/agents"), ("Skill", None, False)),
+            ("codex", codex.parse(sample("codex-mcp"), "<CODEX_HOME>"), ("shell", None, False)),
+        ]
+
+        for host, result, skill in cases:
+            with self.subTest(host):
+                calls = [(c["tool"], c.get("name"), c["error"]) for c in result.calls]
+                fuku = [c for c in result.calls if c["tool"] == "mcp"]
+                self.assertEqual([skill, ("shell", None, False), ("mcp", "status", True), ("mcp", "run", False),
+                                  ("mcp", "status", False)], calls)
+                self.assertTrue(result.skill_loaded)
+                self.assertEqual(['{}', '{"profile": "default"}', '{}'], [c["command"] for c in fuku])
+                self.assertEqual(failed, fuku[0]["output"])
+                self.assertEqual("running", json.loads(fuku[2]["output"])["phase"])
+
+    def test_other_mcp_servers_stay_generic(self):
+        use = {"type": "tool_use", "id": "toolu_9", "name": "mcp__sentry__whoami", "input": {}}
+        claude_lines = sample("claude-ok")[:-1] + [json.dumps({"type": "assistant", "message": {"content": [use]}}),
+                                                     sample("claude-ok")[-1]]
+        item = {"id": "x", "type": "mcp_tool_call", "server": "sentry", "tool": "whoami", "arguments": {},
+                "result": None, "error": None, "status": "completed"}
+        codex_lines = sample("codex-ok")[:-1] + [json.dumps({"type": "item.completed", "item": item}),
+                                                 sample("codex-ok")[-1]]
+
+        self.assertEqual("mcp__sentry__whoami", claude.parse(claude_lines, "<REPO>/plugins/agents").calls[-1]["tool"])
+        self.assertEqual("mcp_tool_call", codex.parse(codex_lines, "<CODEX_HOME>").calls[-1]["tool"])
+
+    def test_codex_mcp_call_errors(self):
+        text = {"content": [{"type": "text", "text": "fuku is already running"}]}
+        cases = [
+            ("status failed", {"result": text, "error": None, "status": "failed"}, "fuku is already running", True),
+            ("error set", {"result": None, "error": {"message": "tool call timed out"}, "status": "completed"},
+             "tool call timed out", True),
+            ("result is_error", {"result": {**text, "is_error": True}, "error": None, "status": "completed"},
+             "fuku is already running", True),
+            ("success", {"result": text, "error": None, "status": "completed"}, "fuku is already running", False),
+        ]
+
+        for name, fields, output, error in cases:
+            with self.subTest(name):
+                item = {"id": "x", "type": "mcp_tool_call", "server": "fuku", "tool": "run",
+                        "arguments": {"profile": "x"}, **fields}
+                lines = [json.dumps({"type": "item.completed", "item": item}), sample("codex-ok")[-1]]
+
+                call = codex.parse(lines, "<CODEX_HOME>").calls[0]
+
+                self.assertEqual(("mcp", "run", output, error),
+                                 (call["tool"], call["name"], call["output"], call["error"]))
+
     def test_claude_answer_without_result_event(self):
         text = {"type": "text", "text": "Stopping fuku now."}
         message = {"model": "claude-fable-5-1", "type": "message", "role": "assistant", "content": [text]}
@@ -879,6 +1067,32 @@ class ParseTest(unittest.TestCase):
         self.assertFalse(result.skill_loaded)
         self.assertEqual("isolation", result.host_error_kind)
         self.assertIn("2 plugins named fuku", result.host_error)
+
+    def test_claude_other_mcp_servers(self):
+        cases = [
+            ("only fuku", [{"name": "plugin:fuku:fuku", "status": "connected", "source": "plugin"}], None),
+            ("none", [], None),
+            ("an extra server", [{"name": "plugin:fuku:fuku", "status": "connected", "source": "plugin"},
+                                 {"name": "sentry", "status": "connected", "source": "user"}], "isolation"),
+            ("fuku pending", [{"name": "plugin:fuku:fuku", "status": "pending", "source": "plugin"}], None),
+            ("fuku failed", [{"name": "plugin:fuku:fuku", "status": "failed", "source": "plugin"}], "mcp"),
+            ("fuku needs auth", [{"name": "plugin:fuku:fuku", "status": "needs-auth", "source": "plugin"}], "mcp"),
+        ]
+
+        for name, servers, kind in cases:
+            with self.subTest(name):
+                lines = sample("claude-mcp")
+                init = json.loads(lines[0])
+                init["mcp_servers"] = servers
+                lines[0] = json.dumps(init)
+
+                result = claude.parse(lines, "<REPO>/plugins/agents")
+
+                self.assertEqual(kind, result.host_error_kind)
+                if kind == "isolation":
+                    self.assertIn("MCP servers other than fuku: ['sentry']", result.host_error)
+                if kind == "mcp":
+                    self.assertIn(f"the fuku MCP server is {servers[0]['status']}", result.host_error)
 
     def test_claude_tool_result_blocks(self):
         events = [json.loads(line) for line in sample("claude-ok")]
@@ -917,13 +1131,13 @@ class ParseTest(unittest.TestCase):
     def test_codex_samples(self):
         cases = [
             ("codex-ok", {
-                "calls": [("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku/SKILL.md", False),
+                "calls": [("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku-config/SKILL.md", False),
                           ("shell", "fuku run default -d", False),
                           ("shell", "fuku logs --profile default --tail 30 --no-follow", False)],
                 "skill_loaded": True,
                 "answer": "Started the `default` profile in the background. Both services are running and ready:\n\n"
                           "- `api`\n- `worker`\n\nFuku is in the `running` phase (PID `1975`) and remains running.",
-                "totals": {"tool_calls": 3, "turns": 1, "input_tokens": 99290, "cached_input_tokens": 72448,
+                "totals": {"tool_calls": 2, "turns": 1, "input_tokens": 99290, "cached_input_tokens": 72448,
                            "output_tokens": 460, "usd": None}}),
             ("codex-error", {
                 "calls": [("shell", "fuku run default -d", True)],
@@ -989,15 +1203,17 @@ class ParseTest(unittest.TestCase):
         result = codex.parse(lines, "<CODEX_HOME>")
 
         calls = [(c["tool"], c["command"], c["error"]) for c in result.calls]
-        self.assertEqual([("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku/SKILL.md", False),
+        self.assertEqual([("shell", "cat <CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku-config/SKILL.md", False),
                           ("shell", "fuku run default", False)], calls)
 
     def test_codex_skill_read(self):
-        path = "<CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku/SKILL.md"
-        skill = (PLUGIN / "skills" / "fuku" / "SKILL.md").read_text(encoding="utf-8")
+        path = "<CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills/fuku-config/SKILL.md"
+        skill = (PLUGIN / "skills" / "fuku-config" / "SKILL.md").read_text(encoding="utf-8")
         numbered = "".join(f"{n:6}\t{line}\n" for n, line in enumerate(skill.splitlines(), 1))
         last = skill.rstrip().splitlines()[-1]
-        skipped = "".join(line for n, line in enumerate(skill.splitlines(keepends=True), 1) if n != 10)
+        body = skill.splitlines().index("---", 1) + 1
+        kept = next(n for n, line in enumerate(skill.splitlines(), 1) if n > body and line.strip())
+        skipped = "".join(line for n, line in enumerate(skill.splitlines(keepends=True), 1) if n != kept)
         cases = [
             ("cat", f"cat {path}", skill, 0, True),
             ("sed range", f"sed -n '1,200p' {path}", skill, 0, True),
@@ -1013,7 +1229,7 @@ class ParseTest(unittest.TestCase):
             ("cat to null", f"cat {path} > /dev/null", "", 0, False),
             ("sed past the frontmatter", f"sed -n '10,20p' {path}", "body\n", 0, False),
             ("sed of the first and last line", f"sed -n '2p;$p' {path}", f"name: fuku\n{last}\n", 0, False),
-            ("sed skipping a line", f"sed -n '1,9p;11,$p' {path}", skipped, 0, False),
+            ("sed skipping a line", f"sed -n '1,{kept - 1}p;{kept + 1},$p' {path}", skipped, 0, False),
         ]
         completed = json.dumps({"type": "turn.completed", "usage": {}})
 
@@ -1026,6 +1242,63 @@ class ParseTest(unittest.TestCase):
                                      "<CODEX_HOME>")
 
                 self.assertEqual(loaded, result.skill_loaded)
+
+    def test_codex_skill_read_count(self):
+        base = "<CODEX_HOME>/plugins/cache/fuku/fuku/0.1.0/skills"
+        path, control = f"{base}/fuku-config/SKILL.md", f"{base}/fuku/SKILL.md"
+        skill = (PLUGIN / "skills" / "fuku-config" / "SKILL.md").read_text(encoding="utf-8")
+        control_skill = (PLUGIN / "skills" / "fuku" / "SKILL.md").read_text(encoding="utf-8")
+        compound = f"cat {path}; cat fuku.yaml; fuku status"
+        cases = [
+            ("one read", [(f"cat {path}", skill)], 0, True),
+            ("a compound read", [(compound, skill)], 1, True),
+            ("a repeat read", [(f"cat {path}", skill), (f"sed -n 1,999p {path}", skill)], 1, True),
+            ("a compound and a plain read", [(compound, skill), (f"sed -n 1,999p {path}", skill)], 1, True),
+            ("the control skill alone", [(f"cat {control}", control_skill)], 0, False),
+            ("both skills in two calls", [(f"cat {control}", control_skill), (f"cat {path}", skill)], 0, True),
+            ("a repeat read of the control skill", [(f"cat {control}", control_skill)] * 2, 1, False),
+            ("both skills in one command", [(f"cat {control} {path}", control_skill + skill)], 0, True),
+        ]
+        completed = json.dumps({"type": "turn.completed", "usage": {}})
+
+        for name, reads, tool_calls, loaded in cases:
+            with self.subTest(name):
+                items = [{"id": f"c{n}", "type": "command_execution", "command": f"/bin/zsh -lc {shlex.quote(c)}",
+                          "aggregated_output": output, "exit_code": 0, "status": "completed"}
+                         for n, (c, output) in enumerate(reads)]
+                lines = [json.dumps({"type": "item.completed", "item": item}) for item in items] + [completed]
+
+                result = codex.parse(lines, "<CODEX_HOME>")
+
+                self.assertEqual((tool_calls, loaded), (result.totals["tool_calls"], result.skill_loaded))
+
+    def test_claude_skill_read_count(self):
+        fuku, other = {"skill": "fuku:fuku-config"}, {"skill": "other:skill"}
+        control = {"skill": "fuku:fuku"}
+        cases = [
+            ("the control skill alone", [(control, False)], 0, False),
+            ("both skills", [(control, False), (fuku, False)], 0, True),
+            ("a repeat read of the control skill", [(control, False), (control, False)], 1, False),
+            ("one read", [(fuku, False)], 0, True),
+            ("another skill", [(other, False)], 1, False),
+            ("a repeat read", [(fuku, False), (fuku, False)], 1, True),
+            ("a failed read", [(fuku, True)], 1, False),
+            ("a failed read, then a read", [(fuku, True), (fuku, False)], 1, True),
+        ]
+
+        for name, skills, tool_calls, loaded in cases:
+            with self.subTest(name):
+                lines = sample("claude-ok")[:1]
+                for n, (tool_input, error) in enumerate(skills):
+                    use = {"type": "tool_use", "id": f"toolu_{n}", "name": "Skill", "input": tool_input}
+                    done = {"type": "tool_result", "tool_use_id": f"toolu_{n}", "content": "x", "is_error": error}
+                    lines += [json.dumps({"type": "assistant", "message": {"content": [use]}}),
+                              json.dumps({"type": "user", "message": {"content": [done]}})]
+                lines.append(sample("claude-ok")[-1])
+
+                result = claude.parse(lines, "<REPO>/plugins/agents")
+
+                self.assertEqual((tool_calls, loaded), (result.totals["tool_calls"], result.skill_loaded))
 
     def test_unreadable_events(self):
         cases = [
@@ -1091,20 +1364,23 @@ class ClaudeAdapterTest(unittest.TestCase):
                "SHELL": "/bin/sh", "TMPDIR": tempfile.gettempdir(), "LANG": "C", "LC_ALL": "C", "TERM": "dumb",
                "OPENAI_API_KEY": "fake-openai", "ANTHROPIC_API_KEY": "fake-anthropic", "CLAUDECODE": "1",
                "CODEX_HOME": "/nowhere", "UNLISTED": "x"}
-        with claude.ClaudeAdapter("<REPO>/plugins/agents") as adapter:
+        with claude.ClaudeAdapter("<REPO>/plugins/agents", env) as adapter:
             result = adapter.run(directory, "Start the default profile.", env, budget={"usd": 1.5})
 
         argv = (directory / "argv").read_text(encoding="utf-8").splitlines()
         seen = (directory / "env").read_text()
         self.assertEqual(claude.command("Start the default profile.", "<REPO>/plugins/agents", 1.5)[1:], argv)
-        self.assertEqual({"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "TERM"},
-                         env_names(directory))
+        self.assertNotIn("--strict-mcp-config", argv)
+        self.assertIn("mcp__plugin_fuku_fuku", argv)
+        self.assertEqual({"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "TERM",
+                          "ENABLE_CLAUDEAI_MCP_SERVERS"}, env_names(directory))
+        self.assertIn("ENABLE_CLAUDEAI_MCP_SERVERS=false", seen.splitlines())
         self.assertNotIn("fake-openai", seen)
         self.assertNotIn("fake-anthropic", seen)
         self.assertTrue(result.skill_loaded)
         self.assertIsNone(result.host_error)
         self.assertFalse(result.timed_out)
-        self.assertEqual(3, result.totals["tool_calls"])
+        self.assertEqual(2, result.totals["tool_calls"])
 
     def test_secrets_are_redacted(self):
         directory = fake_host(self, "claude", FAKE_CLAUDE, FAKE_MODE="echo", FAKE_SAMPLE=SAMPLES / "claude-ok.jsonl",
@@ -1245,6 +1521,30 @@ class ClaudeAdapterTest(unittest.TestCase):
         self.assertEqual("leftover", result.host_error_kind)
         self.assertEqual("host process left behind", result.host_error)
 
+    def test_version_gate(self):
+        cases = [
+            ("older", "2.1.300", "claude 2.1.300 is older than 2.1.319, the oldest version the adapters were verified "
+                                 "on; update claude"),
+            ("equal", "2.1.319", None),
+            ("newer", "2.1.400", None),
+            ("unparsable", "unknown", "claude printed no version ('unknown (Claude Code)'), the adapters need 2.1.319 "
+                                      "or newer; update claude"),
+        ]
+
+        for name, version, message in cases:
+            with self.subTest(name):
+                directory = fake_host(self, "claude", FAKE_CLAUDE, FAKE_VERSION=version)
+                env = {"PATH": f"{directory}:/usr/bin:/bin", "HOME": str(directory)}
+                refused = None
+
+                try:
+                    with claude.ClaudeAdapter("<REPO>/plugins/agents", env):
+                        pass
+                except hosts.VersionError as err:
+                    refused = str(err)
+
+                self.assertEqual(message, refused)
+
 
 class CodexAdapterTest(unittest.TestCase):
     def test_session_model(self):
@@ -1346,9 +1646,15 @@ class CodexAdapterTest(unittest.TestCase):
                           "model": result.totals["model"], "login_rotated": result.login_rotated,
                           "credentials_read": result.credentials_read}
                 self.assertEqual(expected, actual)
-                self.assertEqual("codex-cli 0.0.0-fake", result.totals["host_version"])
-                self.assertEqual(codex.exec_command(project, "Start the default profile.")[1:], argv[-12:])
+                self.assertEqual("codex-cli 0.166.0", result.totals["host_version"])
+                self.assertEqual(codex.exec_command(project, "Start the default profile.")[1:], argv[-14:])
                 self.assertEqual("{}", (directory / ".codex" / "auth.json").read_text())
+
+    def test_exec_approves_the_fuku_tools(self):
+        argv = codex.exec_command(pathlib.Path("/tmp/p"), "Start the default profile.")
+
+        self.assertIn('plugins.fuku@fuku.mcp_servers.fuku.default_tools_approval_mode="approve"', argv)
+        self.assertEqual("-c", argv[argv.index(codex.APPROVE_FUKU_TOOLS) - 1])
 
     def test_unreadable_events_fail_the_run(self):
         cases = [
@@ -1507,8 +1813,8 @@ class CodexAdapterTest(unittest.TestCase):
             ("base64", {}, ["<redacted>"], True),
             ("command", {"FAKE_COMMAND": "cat $CODEX_HOME/auth.json"}, ["<redacted>"], True),
             ("command", {"FAKE_COMMAND": "ls $CODEX_HOME"}, ["<redacted>"], True),
-            ("command", {"FAKE_COMMAND": "$CODEX_HOME/plugins/cache/fuku/fuku/0.1.0/skills/fuku/scripts/api.sh GET "
-                                         "http://127.0.0.1:9/api/v1/services"}, ["visible output"], False),
+            ("command", {"FAKE_COMMAND": "cat $CODEX_HOME/plugins/cache/fuku/fuku/0.2.0/skills/fuku/references/"
+                                         "configuration.md"}, ["visible output"], False),
             ("command", {"FAKE_COMMAND": 'ls "${CODEX_HOME}/plugins/cache/fuku"'}, ["visible output"], False),
         ]
 
@@ -1548,10 +1854,10 @@ class CodexAdapterTest(unittest.TestCase):
 
     def test_installed_skill_must_match_the_tree(self):
         cases = [
-            ("edit", "fuku/SKILL.md"),
+            ("edit", "fuku-config/SKILL.md"),
             ("extra", "fuku/EXTRA.md"),
-            ("missing", "fuku/references/control-api.md"),
-            ("mode", "fuku/scripts/api.sh"),
+            ("missing", "fuku-config/references/configuration.md"),
+            ("mode", "fuku-config/SKILL.md"),
         ]
         roots_before = set(glob.glob(os.path.join(tempfile.gettempdir(), "fuku-agents-codex-*")))
 
@@ -1588,6 +1894,32 @@ class CodexAdapterTest(unittest.TestCase):
                         pass
 
                 self.assertTrue(str(raised.exception).startswith(message), str(raised.exception))
+        self.assertEqual(roots_before, set(glob.glob(os.path.join(tempfile.gettempdir(), "fuku-agents-codex-*"))))
+
+    def test_version_gate(self):
+        cases = [
+            ("older", "0.165.9", "codex 0.165.9 is older than 0.166.0, the oldest version the adapters were verified "
+                                 "on; update codex"),
+            ("equal", "0.166.0", None),
+            ("newer", "0.170.1", None),
+            ("unparsable", "unknown", "codex printed no version ('codex-cli unknown'), the adapters need 0.166.0 or "
+                                      "newer; update codex"),
+        ]
+        roots_before = set(glob.glob(os.path.join(tempfile.gettempdir(), "fuku-agents-codex-*")))
+
+        for name, version, message in cases:
+            with self.subTest(name):
+                directory = fake_host(self, "codex", FAKE_CODEX, FAKE_SKILLS=PLUGIN / "skills", FAKE_VERSION=version)
+                env = {"PATH": f"{directory}:/usr/bin:/bin", "HOME": str(directory)}
+                refused = None
+
+                try:
+                    with codex.CodexAdapter(runner.REPO, env):
+                        pass
+                except hosts.VersionError as err:
+                    refused = str(err)
+
+                self.assertEqual(message, refused)
         self.assertEqual(roots_before, set(glob.glob(os.path.join(tempfile.gettempdir(), "fuku-agents-codex-*"))))
 
     def test_surviving_group_is_a_host_error(self):

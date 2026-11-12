@@ -1,6 +1,6 @@
 {
   "name": "fuku",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run, inspect, debug and stop local services with fuku from Codex.",
   "author": {
     "name": "tab",
@@ -17,10 +17,11 @@
     "agent skills"
   ],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "fuku",
     "shortDescription": "Run, inspect, debug and stop local services with fuku",
-    "longDescription": "Let Codex drive fuku for local development: start a profile in the background, attach to a running fuku, read bounded logs, check and restart one service through the API and stop fuku.",
+    "longDescription": "Let Codex drive fuku for local development: start a profile in the background, attach to a running fuku, read bounded logs, check and restart one service and stop fuku, all through fuku's MCP tools.",
     "developerName": "tab",
     "category": "Developer Tools",
     "capabilities": [

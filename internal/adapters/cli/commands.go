@@ -35,6 +35,7 @@ func Parse(args []string) (*Options, error) {
 		buildLogsCommand(result),
 		buildVersionCommand(result),
 		buildDoctorCommand(result),
+		buildMCPCommand(result),
 	)
 
 	root.SetArgs(args)
@@ -236,6 +237,20 @@ func buildDoctorCommand(result *Options) *cobra.Command {
 
 	cmd.Flags().BoolVar(&summary, FlagSummary.String(), false, "Print a compact one-line-per-check report")
 	cmd.Flags().BoolVar(&asJSON, FlagJSON.String(), false, "Print the report as JSON")
+
+	return cmd
+}
+
+// buildMCPCommand creates the mcp subcommand
+func buildMCPCommand(result *Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   CommandMCP.String(),
+		Short: "Serve the fuku tools to an AI agent over stdio (MCP)",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			result.Type = CommandMCP
+		},
+	}
 
 	return cmd
 }

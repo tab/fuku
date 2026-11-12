@@ -1,0 +1,23 @@
+{
+  "prompt": "Start the services in fuku, then change the api greeting in api/greeting.txt to hello v2. Run ./e2e.sh, check the api logs and tell me the result. Leave fuku running when you are done.",
+  "profile": "default",
+  "setup": [
+    "override:greeting"
+  ],
+  "checks": [
+    "run_detached_once",
+    "service_applied:api",
+    "service_log_read:api",
+    "no_fuku_stop",
+    "fuku_running",
+    "services_running",
+    "project_e2e_passes",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 12,
+    "input_tokens": 400000,
+    "seconds": 150,
+    "usd": 1.0
+  }
+}

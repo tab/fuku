@@ -17,6 +17,7 @@ type Store struct {
 
 	mu       sync.RWMutex
 	snapshot *model.Snapshot
+	changed  chan struct{}
 }
 
 // NewStore creates a new runtime store
@@ -26,6 +27,7 @@ func NewStore(subscriber contracts.Subscriber, publisher contracts.Publisher) *S
 		publisher:  publisher,
 		resolved:   make(chan struct{}),
 		snapshot:   &model.Snapshot{},
+		changed:    make(chan struct{}),
 	}
 }
 
@@ -205,6 +207,7 @@ func applyServiceStopped(snapshot *model.Snapshot, msg contracts.Message) bool {
 	svc.Status = model.StatusStopped
 	svc.Process = model.Process{}
 	svc.Error = ""
+	svc.Watching = false
 
 	return true
 }

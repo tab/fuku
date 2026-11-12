@@ -1,0 +1,25 @@
+{
+  "prompt": "Change the api greeting in api/greeting.txt to hello v2. Run ./e2e.sh, check the api logs and tell me the result.",
+  "profile": "default",
+  "setup": [
+    "override:greeting-watch",
+    "start_fuku"
+  ],
+  "checks": [
+    "no_api_restart",
+    "no_fuku_run",
+    "no_fuku_stop",
+    "service_log_read:api",
+    "service_pid_changed:api",
+    "other_service_pids_same:api",
+    "same_fuku_pid",
+    "project_e2e_passes",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 12,
+    "input_tokens": 400000,
+    "seconds": 150,
+    "usd": 1.0
+  }
+}

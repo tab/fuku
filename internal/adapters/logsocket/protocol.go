@@ -33,13 +33,15 @@ type LogMessage struct {
 
 // StatusMessage is sent from server to client after subscribe with connection metadata
 type StatusMessage struct {
-	Type        MessageType `json:"type"`
-	Version     string      `json:"version"`
-	Instance    string      `json:"instance"`
-	Fingerprint string      `json:"fingerprint"`
-	Profile     string      `json:"profile"`
-	Services    []string    `json:"services"`
-	PID         int         `json:"pid,omitempty"`
+	Type        MessageType   `json:"type"`
+	Version     string        `json:"version"`
+	Instance    string        `json:"instance"`
+	Fingerprint string        `json:"fingerprint"`
+	Profile     string        `json:"profile"`
+	Services    []string      `json:"services"`
+	API         string        `json:"api,omitempty"`
+	PID         int           `json:"pid,omitempty"`
+	Mode        model.RunMode `json:"mode,omitempty"`
 	model.ReplayOptions
 }
 

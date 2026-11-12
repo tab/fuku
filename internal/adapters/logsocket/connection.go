@@ -120,6 +120,14 @@ func (s *Server) stop(conn net.Conn, clientID string) {
 }
 
 func (s *Server) hello(conn net.Conn, clientID string, replay model.ReplayOptions) {
+	var api string
+
+	s.registry.Read(func(snapshot *model.Snapshot) {
+		if snapshot.API.Listening {
+			api = snapshot.API.Address
+		}
+	})
+
 	status := StatusMessage{
 		Type:          MessageStatus,
 		Version:       buildinfo.Version,
@@ -127,7 +135,9 @@ func (s *Server) hello(conn net.Conn, clientID string, replay model.ReplayOption
 		Fingerprint:   s.fingerprint,
 		Profile:       s.profile,
 		Services:      s.services,
+		API:           api,
 		PID:           os.Getpid(),
+		Mode:          s.mode,
 		ReplayOptions: replay,
 	}
 

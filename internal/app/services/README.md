@@ -3,7 +3,7 @@
 The service workflow: tier startup, readiness, retry, admission, watch restarts and shutdown. This package decides.
 `adapters/process` launches and terminates. `adapters/readiness` probes. `adapters/watch` reports file changes.
 
-Every frontend calls `Control`. `Control` asks one `Guard`. The guard owns every fact the answer depends on.
+Every frontend calls `Control`. `Control` asks one `Guard`, which owns every fact the answer depends on.
 So the TUI, the REST API and the watcher cannot disagree about what a service may do.
 
 ## The run
@@ -25,11 +25,11 @@ The run:
 
 `fuku stop` runs step 3 alone, through `Cleaner`. No run opens.
 
-A run cancelled during startup returns `errStartupInterrupted`. A `StopAll` during startup is the same clean end. Any other failure reaches `Reporter.Fail`, which exits 1.
-A rejected lifecycle publish is only logged. The bus reports an overload itself.
+A run cancelled during startup, or ended by a `StopAll` during startup, returns `errStartupInterrupted`, a clean end.
+Any other failure reaches `Reporter.Fail`, which exits 1. A rejected lifecycle publish is only logged.
+The bus reports an overload itself.
 
-A start or restart cut short by the end of the run publishes `ServiceStopped`, never `ServiceFailed`.
-It applies while the service runs its readiness check or waits out a retry backoff, and while tier startup waits for a worker.
+When the run ends during a readiness check, a retry backoff or the wait of tier startup for a worker, the start publishes `ServiceStopped`, never `ServiceFailed`.
 A start or restart from a command or a file change publishes nothing when the run ends while it waits for a worker.
 
 One attempt at a service:
@@ -40,9 +40,7 @@ One attempt at a service:
 4. run the readiness check
 5. publish `ServiceReady` and start the exit watcher
 
-The resolved `model.Service` carries the ID, tier and configuration through every attempt.
-The launcher receives that one value, and lifecycle actions need no config lookup by name.
-
+The resolved `model.Service` carries the ID, tier and configuration through every attempt, so no action looks up the config by name.
 A child that never became ready is terminated before the backoff. `ServiceFailed` follows the last attempt.
 Every start runs inside the worker bound.
 
@@ -62,20 +60,21 @@ Every start runs inside the worker bound.
 4. no token is held, or `ErrServiceBusy`
 5. the action fits the live child: start needs none, stop needs one, restart needs nothing more. Otherwise `ErrActionNotAllowed`
 
-`Toggle` serves the TUI's `s` key. It picks stop for a service with a live child and start for one without.
-`Guard.admit` then checks that action like any other.
+`Toggle` serves the TUI's `s` key.
+It picks stop for a service with a live child and start for one without, then admits it like any other action.
+A rejected publish releases the token and returns the bus error. An admitted stop marks the service as stopped on purpose.
+An admitted start or restart clears the mark, and so does tier startup.
 
-A rejected publish releases the token and returns the bus error.
+The `Admission` carries the predicted status, which the REST `202` body and the TUI loader show.
+The lifecycle events say what happened. It also carries `At`, the time the guard reserved the service.
+The previous holder released the token before it, and every event of this action follows it.
+`Control.Wait(ctx, id)` blocks until the service holds no token, so a frontend can wait for an action to end.
+The token's release closes the service's idle channel. Every reservation opens a new one.
 
-An admitted stop marks the service as stopped on purpose. An admitted start or restart clears the mark, and so does tier startup.
-
-The `Admission` carries the predicted status. The REST `202` body and the TUI loader use it. `202` means admitted, not done.
-The lifecycle events say what happened.
-
-A `WatchTriggered` restart takes the token with `reserve`. It is dropped when the token is held. A watch never queues.
-It is also dropped for a service stopped on purpose, so a change that arrives after the stop never restarts it.
-A failed service carries no mark. The next change restarts it.
-`StopAll` closes admission and publishes `CommandStopAll`. The end of startup never reopens it.
+A `WatchTriggered` restart takes the token with `reserve`. A watch never queues.
+It is dropped when the token is held, or for a service stopped on purpose, so a change after the stop never restarts it.
+A failed service carries no mark. The next change restarts it. `StopAll` closes admission and publishes `CommandStopAll`.
+The end of startup never reopens it.
 
 Once a service is ready, `watchForExit` waits on the child. A child stopped on purpose was detached first. Its exit is ignored.
 An unexpected exit publishes `ServiceFailed{ErrUnexpectedExit}` for a watched service, so the next file change restarts it.

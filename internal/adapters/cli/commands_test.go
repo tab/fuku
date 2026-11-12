@@ -58,6 +58,13 @@ func Test_Parse(t *testing.T) {
 			expectedDetached: true,
 		},
 		{
+			name:             "a profile after -- stays a profile",
+			args:             []string{"run", detachedArg, "--", "--config=/other/fuku.yaml"},
+			expectedType:     CommandRun,
+			expectedProfile:  "--config=/other/fuku.yaml",
+			expectedDetached: true,
+		},
+		{
 			name:             "run -d",
 			args:             []string{"run", "-d"},
 			expectedType:     CommandRun,
@@ -438,6 +445,12 @@ func Test_Parse(t *testing.T) {
 			expectedProfile: model.ProfileDefault,
 			expectedFormat:  FormatJSON,
 		},
+		{
+			name:            "mcp command",
+			args:            []string{"mcp"},
+			expectedType:    CommandMCP,
+			expectedProfile: model.ProfileDefault,
+		},
 	}
 
 	for _, tt := range tests {
@@ -609,6 +622,10 @@ func Test_Parse_ConfigFlagNotSupported(t *testing.T) {
 		{
 			name: "-c with help flag",
 			args: []string{"-c", "custom.yaml", "-h"},
+		},
+		{
+			name: "--config with mcp command",
+			args: []string{"--config", "custom.yaml", "mcp"},
 		},
 	}
 

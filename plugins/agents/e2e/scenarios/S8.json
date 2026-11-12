@@ -1,0 +1,25 @@
+{
+  "prompt": "Stop the worker service in fuku. Keep api running.",
+  "profile": "default",
+  "setup": [
+    "override:api",
+    "start_fuku"
+  ],
+  "checks": [
+    "no_probe",
+    "service_applied:worker",
+    "no_fuku_run",
+    "no_fuku_stop",
+    "no_kill",
+    "service_stopped:worker",
+    "other_service_pids_same:worker",
+    "same_fuku_pid",
+    "served_by_built_fuku"
+  ],
+  "budget": {
+    "tool_calls": 6,
+    "input_tokens": 200000,
+    "seconds": 60,
+    "usd": 0.75
+  }
+}

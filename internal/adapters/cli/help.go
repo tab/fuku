@@ -33,6 +33,8 @@ const (
   fuku doctor --summary           Print a compact one-line-per-check report
   fuku doctor --json              Print the report as JSON
 
+  fuku mcp                        Serve the fuku tools to an AI agent over stdio (MCP)
+
   fuku --config <path>            Use custom config file, skip override merging (--config, -c)
 
   fuku help                       Show help (--help, -h, help)

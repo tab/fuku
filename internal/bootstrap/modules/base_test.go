@@ -78,6 +78,11 @@ func Test_Compositions(t *testing.T) {
 			absent: noProject,
 		},
 		{
+			name:   "mcp loads no project",
+			option: MCP(&cli.Options{Type: cli.CommandMCP}, model.Telemetry{}),
+			absent: noProject,
+		},
+		{
 			name:   "doctor runs no services",
 			option: Doctor(&cli.Options{Type: cli.CommandDoctor, DoctorFormat: cli.FormatSummary}, model.Config{}),
 			absent: noRuntime,
@@ -177,6 +182,7 @@ func Test_Projections(t *testing.T) {
 		GitHub    github.Options    `optional:"true"`
 		REST      rest.Options      `optional:"true"`
 		TUI       tui.Options       `optional:"true"`
+		Socket    logsocket.Options `optional:"true"`
 		Request   logs.Request      `optional:"true"`
 		Doctor    doctor.Options    `optional:"true"`
 	}
@@ -259,11 +265,15 @@ func Test_Projections(t *testing.T) {
 	headless.Updater = updater.Options{Enabled: true, Version: buildinfo.Version}
 	headless.GitHub = github.Options{CachePath: github.DefaultCachePath()}
 	headless.REST = rest.Options{Listen: "127.0.0.1:9876", Token: "secret"}
+	headless.Socket = logsocket.Options{Mode: model.RunModeForeground}
 	buildHeadless := headless
 	buildHeadless.Telemetry = buildTelemetry
 	buildHeadless.Resources = resources.Options{Enabled: true}
+	child := headless
+	child.Socket = logsocket.Options{Mode: model.RunModeDetached}
 	view := headless
 	view.TUI = tui.Options{Profile: profile, RetryAttempts: 3, RetryBackoff: 2 * time.Second}
+	view.Socket = logsocket.Options{Mode: model.RunModeTUI}
 	stream := shared
 	stream.Request = logs.Request{Profile: profile, Services: []string{"api"}, ReplayOptions: replay}
 	bare := options{Bus: shared.Bus, Telemetry: buildTelemetry}
@@ -302,6 +312,12 @@ func Test_Projections(t *testing.T) {
 			components: profiled,
 		},
 		{
+			name:       "run as the detached child",
+			option:     Run(&cli.Options{Type: cli.CommandRun, Profile: profile, NoUI: true, DetachedChild: true}, project),
+			options:    child,
+			components: profiled,
+		},
+		{
 			name:       "run under the view",
 			option:     Run(&cli.Options{Type: cli.CommandRun, Profile: profile}, project),
 			options:    view,
@@ -323,6 +339,12 @@ func Test_Projections(t *testing.T) {
 			name:       "doctor",
 			option:     Doctor(&cli.Options{Type: cli.CommandDoctor, Profile: profile, ConfigFile: "fuku.yaml"}, model.Config{Project: buildProject}),
 			options:    diagnosed,
+			components: minimal,
+		},
+		{
+			name:       "mcp",
+			option:     MCP(&cli.Options{Type: cli.CommandMCP}, buildProject.Telemetry),
+			options:    bare,
 			components: minimal,
 		},
 		{

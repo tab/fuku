@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,6 +32,29 @@ const testProject = "/Users/dev/projects/shop"
 func readFrom(snapshot *model.Snapshot) func(func(*model.Snapshot)) {
 	return func(fn func(*model.Snapshot)) {
 		fn(snapshot)
+	}
+}
+
+// assertDeadline stands in for Control.Wait and checks the handler bounded the wait by the requested length
+func assertDeadline(t *testing.T, wait time.Duration) func(context.Context, string) error {
+	return func(ctx context.Context, _ string) error {
+		deadline, bounded := ctx.Deadline()
+		assert.True(t, bounded, "the wait must carry a deadline")
+		assert.InDelta(t, wait.Seconds(), time.Until(deadline).Seconds(), 1, "the wait must last the requested seconds")
+
+		return nil
+	}
+}
+
+// assertDeadlineSince stands in for Registry.WaitSettled and checks the deadline and the admission time
+func assertDeadlineSince(t *testing.T, wait time.Duration, admittedAt time.Time) func(context.Context, string, time.Time) error {
+	return func(ctx context.Context, _ string, since time.Time) error {
+		deadline, bounded := ctx.Deadline()
+		assert.True(t, bounded, "the wait must carry a deadline")
+		assert.InDelta(t, wait.Seconds(), time.Until(deadline).Seconds(), 1, "the wait must last the requested seconds")
+		assert.Equal(t, admittedAt, since, "the wait must start at the admission time")
+
+		return nil
 	}
 }
 
@@ -274,8 +298,9 @@ func Test_HandleAction(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockControl := NewMockControl(ctrl)
+	mockRegistry := NewMockRegistry(ctrl)
 
-	h := &handler{control: mockControl}
+	h := &handler{registry: mockRegistry, control: mockControl}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/services/{id}/start", h.handleStartService)
@@ -283,6 +308,7 @@ func Test_HandleAction(t *testing.T) {
 	mux.HandleFunc("POST /api/v1/services/{id}/restart", h.handleRestartService)
 
 	api := model.Service{ID: "id-api", Name: "api"}
+	admittedAt := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name         string
@@ -391,6 +417,133 @@ func Test_HandleAction(t *testing.T) {
 			recorder:     httptest.NewRecorder(),
 			expectStatus: http.StatusConflict,
 			expectBody:   `{"error":"instance is not accepting actions"}`,
+		},
+		{
+			name: "restart settled within the wait answers 200 with the service",
+			before: func() {
+				mockControl.EXPECT().Restart("id-api").Return(services.Admission{Service: api, Action: contracts.ActionRestart, Status: model.StatusRestarting, At: admittedAt}, nil)
+				mockControl.EXPECT().Wait(gomock.Any(), "id-api").DoAndReturn(assertDeadline(t, 45*time.Second))
+				mockRegistry.EXPECT().WaitSettled(gomock.Any(), "id-api", gomock.Any()).DoAndReturn(assertDeadlineSince(t, 45*time.Second, admittedAt))
+				mockRegistry.EXPECT().Read(gomock.Any()).Do(readFrom(&model.Snapshot{Services: map[string]*model.Service{"id-api": {
+					ID: "id-api", Name: "api", Tier: "foundation", Status: model.StatusRunning, Process: model.Process{PID: 1234},
+				}}}))
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/restart", strings.NewReader(`{"wait":45}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusOK,
+			expectBody:   `{"id":"id-api","name":"api","tier":"foundation","status":"running","watching":false,"pid":1234,"cpu":0,"memory":0,"uptime":0}`,
+		},
+		{
+			name: "restart still running when the wait ends answers 202",
+			before: func() {
+				mockControl.EXPECT().Restart("id-api").Return(services.Admission{Service: api, Action: contracts.ActionRestart, Status: model.StatusRestarting}, nil)
+				mockControl.EXPECT().Wait(gomock.Any(), "id-api").DoAndReturn(func(ctx context.Context, _ string) error {
+					assertDeadline(t, time.Second)(ctx, "")
+
+					return context.DeadlineExceeded
+				})
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/restart", strings.NewReader(`{"wait":1}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusAccepted,
+			expectBody:   `{"id":"id-api","name":"api","action":"restart","status":"restarting"}`,
+		},
+		{
+			name: "wait of exactly 60 seconds is accepted",
+			before: func() {
+				mockControl.EXPECT().Start("id-api").Return(services.Admission{Service: api, Action: contracts.ActionStart, Status: model.StatusStarting}, nil)
+				mockControl.EXPECT().Wait(gomock.Any(), "id-api").DoAndReturn(func(ctx context.Context, _ string) error {
+					assertDeadline(t, 60*time.Second)(ctx, "")
+
+					return context.DeadlineExceeded
+				})
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"wait":60}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusAccepted,
+			expectBody:   `{"id":"id-api","name":"api","action":"start","status":"starting"}`,
+		},
+		{
+			name: "read model behind when the wait ends answers 202",
+			before: func() {
+				mockControl.EXPECT().Stop("id-api").Return(services.Admission{Service: api, Action: contracts.ActionStop, Status: model.StatusStopping, At: admittedAt}, nil)
+				mockControl.EXPECT().Wait(gomock.Any(), "id-api").Return(nil)
+				mockRegistry.EXPECT().WaitSettled(gomock.Any(), "id-api", gomock.Any()).DoAndReturn(func(ctx context.Context, id string, since time.Time) error {
+					assertDeadlineSince(t, time.Second, admittedAt)(ctx, id, since)
+
+					return context.DeadlineExceeded
+				})
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/stop", strings.NewReader(`{"wait":1}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusAccepted,
+			expectBody:   `{"id":"id-api","name":"api","action":"stop","status":"stopping"}`,
+		},
+		{
+			name: "body without wait answers 202 at once",
+			before: func() {
+				mockControl.EXPECT().Start("id-api").Return(services.Admission{Service: api, Action: contracts.ActionStart, Status: model.StatusStarting}, nil)
+			},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusAccepted,
+			expectBody:   `{"id":"id-api","name":"api","action":"start","status":"starting"}`,
+		},
+		{
+			name:         "wait that is not a number answers 400 and admits nothing",
+			before:       func() {},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"wait":"45s"}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusBadRequest,
+			expectBody:   `{"error":"body must be a JSON object with an optional wait"}`,
+		},
+		{
+			name:         "wait of a fraction of a second answers 400",
+			before:       func() {},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"wait":1.5}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusBadRequest,
+			expectBody:   `{"error":"body must be a JSON object with an optional wait"}`,
+		},
+		{
+			name:         "unknown field answers 400",
+			before:       func() {},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"timeout":5}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusBadRequest,
+			expectBody:   `{"error":"body must be a JSON object with an optional wait"}`,
+		},
+		{
+			name:         "body with trailing data answers 400",
+			before:       func() {},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"wait":5}{}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusBadRequest,
+			expectBody:   `{"error":"body must be a JSON object with an optional wait"}`,
+		},
+		{
+			name:         "body above the size bound answers 400",
+			before:       func() {},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"wait":5}`+strings.Repeat(" ", 1024))),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusBadRequest,
+			expectBody:   `{"error":"body must be a JSON object with an optional wait"}`,
+		},
+		{
+			name:         "wait above 60 seconds answers 400",
+			before:       func() {},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"wait":61}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusBadRequest,
+			expectBody:   `{"error":"wait must be whole seconds from 1 to 60"}`,
+		},
+		{
+			name:         "wait of zero answers 400",
+			before:       func() {},
+			request:      httptest.NewRequest(http.MethodPost, "/api/v1/services/id-api/start", strings.NewReader(`{"wait":0}`)),
+			recorder:     httptest.NewRecorder(),
+			expectStatus: http.StatusBadRequest,
+			expectBody:   `{"error":"wait must be whole seconds from 1 to 60"}`,
 		},
 		{
 			name: "bus overloaded",
@@ -603,6 +756,14 @@ func Test_OpenAPI_ResponseSchemas(t *testing.T) {
 			serializer: ActionSerializer{},
 		},
 		{
+			name:       "service action settled response",
+			method:     http.MethodPost,
+			path:       "/services/{id}/start",
+			status:     "200",
+			schema:     "Service",
+			serializer: ServiceSerializer{},
+		},
+		{
 			name:       "probe response",
 			method:     http.MethodGet,
 			path:       "/ready",
@@ -615,6 +776,14 @@ func Test_OpenAPI_ResponseSchemas(t *testing.T) {
 			method:     http.MethodGet,
 			path:       "/services/{id}",
 			status:     "404",
+			schema:     "Error",
+			serializer: ErrorSerializer{},
+		},
+		{
+			name:       "invalid wait response",
+			method:     http.MethodPost,
+			path:       "/services/{id}/start",
+			status:     "400",
 			schema:     "Error",
 			serializer: ErrorSerializer{},
 		},

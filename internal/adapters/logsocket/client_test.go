@@ -133,7 +133,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 
 	mockHandler := NewMockHandler(ctrl)
 
-	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321})
+	status := marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, API: "127.0.0.1:9876", PID: 4321})
 	line := marshalLine(t, LogMessage{Type: MessageLog, Service: "api", Message: "hello from api"})
 	c := &Client{conn: startScriptedServer(t, status, line)}
 
@@ -142,7 +142,7 @@ func Test_Client_Stream_ReceivesStatusAndLogs(t *testing.T) {
 	require.NoError(t, c.Subscribe(nil, model.ReplayOptions{}))
 
 	gomock.InOrder(
-		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, PID: 4321}).Return(nil),
+		mockHandler.EXPECT().HandleStatus(contracts.LogStatus{Version: "0.17.0", Profile: "default", Services: []string{"api", "web"}, API: "127.0.0.1:9876", PID: 4321}).Return(nil),
 		mockHandler.EXPECT().HandleLog(model.LogLine{Service: "api", Message: "hello from api"}),
 	)
 
@@ -609,6 +609,21 @@ func Test_Client_status(t *testing.T) {
 			name:     "reads the status frame the server sends first",
 			lines:    []string{marshalLine(t, StatusMessage{Type: MessageStatus, Version: "0.21.0", Profile: "core", Services: []string{"api"}, PID: 4242})},
 			expected: contracts.LogStatus{Version: "0.21.0", Profile: "core", Services: []string{"api"}, PID: 4242},
+		},
+		{
+			name:     "reads the API address of the status frame",
+			lines:    []string{marshalLine(t, StatusMessage{Type: MessageStatus, Profile: "core", API: "127.0.0.1:9876"})},
+			expected: contracts.LogStatus{Profile: "core", API: "127.0.0.1:9876"},
+		},
+		{
+			name:     "reads the run mode of the status frame",
+			lines:    []string{marshalLine(t, StatusMessage{Type: MessageStatus, Profile: "core", Mode: model.RunModeTUI})},
+			expected: contracts.LogStatus{Profile: "core", Mode: model.RunModeTUI},
+		},
+		{
+			name:     "an older server that omits the API address and the mode leaves them unknown",
+			lines:    []string{`{"type":"status","version":"0.20.0","profile":"core","services":["api"]}`},
+			expected: contracts.LogStatus{Version: "0.20.0", Profile: "core", Services: []string{"api"}},
 		},
 		{
 			name:        "a first frame that is not a status fails",

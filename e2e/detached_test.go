@@ -48,7 +48,7 @@ func Test_Detached_RunsUntilStopped(t *testing.T) {
 	assert.Regexp(t, `✔ api Ready \d+\.\ds`, result.Stdout)
 	assert.Contains(t, result.Stdout, "✔ worker Ready")
 	assert.Regexp(t, `Running detached · pid \d+ · 2 services · \d+\.\ds`, result.Stdout)
-	assert.Contains(t, result.Stdout, "API 127.0.0.1:19890")
+	assert.Contains(t, result.Stdout, "http://127.0.0.1:19890")
 	assert.NotContains(t, result.Stdout, "\x1b", "a pipe must never receive escape sequences")
 	assert.Empty(t, result.Stderr)
 
@@ -145,7 +145,7 @@ func Test_Detached_APIDisabled(t *testing.T) {
 
 	assert.Equal(t, 0, result.ExitCode)
 	assert.Regexp(t, `Running detached · pid \d+ · 2 services`, result.Stdout)
-	assert.NotRegexp(t, `(?m)^API `, result.Stdout)
+	assert.NotContains(t, result.Stdout, "http://")
 
 	stop := RunOnce(t, detachedDir, "stop")
 

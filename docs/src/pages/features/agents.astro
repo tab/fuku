@@ -21,7 +21,7 @@ const nav = getFeaturesNav(base);
   <h1>AI Agents</h1>
   <p class="lead">Let Claude Code or Codex run, inspect, debug and stop your local services with fuku.</p>
 
-  <p>The fuku plugin holds one Agent Skill. It teaches the agent to use the fuku CLI and the REST API.</p>
+  <p>The fuku plugin starts <code>fuku mcp</code>, an MCP server with seven typed tools. Its two Agent Skills tell the agent to use the tools, never the shell.</p>
 
   <AgentDemo />
 
@@ -29,11 +29,13 @@ const nav = getFeaturesNav(base);
   <h2>What the agent does</h2>
 
   <ul>
-    <li><strong>Runs fuku in detached mode.</strong> <code>fuku run &lt;profile&gt; -d</code> starts the profile in the background and returns once every service runs. The summary names each ready service, the PID and the API address</li>
-    <li><strong>Checks the status.</strong> <code>fuku doctor &lt;profile&gt; --json</code> reports whether fuku already runs, config errors, missing directories and busy ports. When fuku already runs, the agent attaches to it and never starts a second one</li>
-    <li><strong>Manages services.</strong> It lists, starts, stops and restarts services through the <a href={`${base}docs/api/`} target="_blank" rel="noopener">REST API</a>. The API token never reaches the agent's output</li>
-    <li><strong>Reads logs.</strong> <code>fuku logs --tail 100 --no-follow --no-ui</code> reads the recent output and exits. No log follower is left behind</li>
-    <li><strong>Helps with configuration.</strong> Shared changes go to <code>fuku.yaml</code>, local-only ones to <code>fuku.override.yaml</code>. The agent validates the result with <code>fuku doctor</code> and restarts the profile to apply it</li>
+    <li><strong>Checks before it acts.</strong> <code>status</code> reports the run mode and each service's state, PID, uptime and file watching. With nothing running, it returns the profiles to run. When fuku already runs, the agent uses it and never starts a second one</li>
+    <li><strong>Runs fuku in the background.</strong> <code>run</code> starts a profile detached and returns each service's state. The agent leaves fuku running when the task is done, and calls <code>stop</code> only when you ask</li>
+    <li><strong>Manages services.</strong> <code>service</code> starts, stops or restarts one service through the <a href={`${base}docs/api/`}>REST API</a> and returns once it settles. The token of the project's config never reaches the agent through a tool</li>
+    <li><strong>Follows your edits.</strong> After a code edit, the agent waits for a watched service to restart on its own, then tests it. It restarts a service that does not watch</li>
+    <li><strong>Reads logs and config.</strong> <code>logs</code> returns recent lines and never follows. <code>config</code> returns the effective config, <code>fuku.yaml</code> merged with <code>fuku.override.yaml</code>, without the API token</li>
+    <li><strong>Changes configuration.</strong> Shared changes go to <code>fuku.yaml</code>, local-only ones to <code>fuku.override.yaml</code>. The agent checks the result with <code>doctor</code>. It applies the change with <code>stop</code> and <code>run</code> only when fuku runs detached. When fuku runs in your terminal, it tells you to restart it</li>
+    <li><strong>Says what is missing.</strong> When no tool does what you ask, such as following logs live, the agent changes nothing and names the missing tool</li>
   </ul>
 
   <div class="section-eyebrow">Installation</div>
@@ -47,9 +49,22 @@ claude plugin install fuku@fuku`} />
   <CodeTerminal code={`codex plugin marketplace add tab/fuku
 codex plugin add fuku@fuku`} />
 
+  <div class="section-eyebrow">Upgrade</div>
+  <h2>Claude Code</h2>
+
+  <CodeTerminal code={`claude plugin marketplace update fuku
+claude plugin update fuku@fuku`} />
+
+  <h2>Codex</h2>
+
+  <CodeTerminal code={`codex plugin marketplace upgrade fuku
+codex plugin add fuku@fuku`} />
+
+  <p>Start a new session after the upgrade.</p>
+
   <p>
-    The <a href={`${base}plugins/agents/`}>AI Agents plugin</a> page has the requirements, the in-session install,
-    the upgrade commands and every rule the skill follows.
+    The <a href={`${base}plugins/agents/`}>AI Agents plugin</a> page has the requirements, the in-session install
+    and the details of each tool.
   </p>
 
   <GetStartedCTA />

@@ -1,0 +1,3 @@
+interface:
+  display_name: "fuku"
+  short_description: "Run, inspect and stop local services with fuku"

@@ -21,9 +21,14 @@ type files struct {
 
 // loadDefault loads configuration from the default config file with optional override merging
 func loadDefault() (*Config, *model.Topology, files, error) {
+	return loadDefaultIn(".")
+}
+
+// loadDefaultIn loads the default config file of dir with optional override merging
+func loadDefaultIn(dir string) (*Config, *model.Topology, files, error) {
 	cfg := initConfig()
 
-	path, err := resolveDefaultConfig()
+	path, err := resolveDefaultConfig(dir)
 	if err != nil {
 		return nil, nil, files{}, err
 	}
@@ -125,9 +130,11 @@ func initConfig() *Config {
 	return cfg
 }
 
-// resolveDefaultConfig tries fuku.yaml then fuku.yml in the current directory
-func resolveDefaultConfig() (string, error) {
-	for _, candidate := range []string{ConfigFile, ConfigFileAlt} {
+// resolveDefaultConfig tries fuku.yaml then fuku.yml in dir
+func resolveDefaultConfig(dir string) (string, error) {
+	for _, name := range []string{ConfigFile, ConfigFileAlt} {
+		candidate := filepath.Join(dir, name)
+
 		exists, err := fileExists(candidate)
 		if err != nil {
 			return "", fmt.Errorf("%w: %w", contracts.ErrFailedToReadConfig, err)
@@ -208,7 +215,7 @@ func fileExists(path string) (bool, error) {
 	}
 }
 
-// parseConfig runs the config pipeline on raw YAML bytes
+// parseConfig runs the config pipeline on YAML bytes, keeping an invalid config and the token of an undecodable one
 func parseConfig(cfg *Config, data []byte) (*Config, *model.Topology, error) {
 	topology, err := parseTierOrder(data)
 	if err != nil {
@@ -223,19 +230,31 @@ func parseConfig(cfg *Config, data []byte) (*Config, *model.Topology, error) {
 	}
 
 	if err := v.Unmarshal(cfg); err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", ErrFailedToParseConfig, err)
+		return tokenConfig(v.GetString(keyServerToken)), nil, fmt.Errorf("%w: %w", ErrFailedToParseConfig, err)
 	}
 
 	cfg.keepEmptyServices(v.GetStringMap(keyServices))
 
 	if err := cfg.validate(); err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", contracts.ErrInvalidConfig, err)
+		return cfg, topology, fmt.Errorf("%w: %w", contracts.ErrInvalidConfig, err)
 	}
 
 	cfg.applyDefaults()
 	cfg.normalizeExclude()
 
 	return cfg, topology, nil
+}
+
+// tokenConfig returns a config holding only the API token of a config viper cannot decode, or nil without one
+func tokenConfig(token string) *Config {
+	if token == "" {
+		return nil
+	}
+
+	cfg := &Config{}
+	cfg.Server.Auth.Token = token
+
+	return cfg
 }
 
 // keepEmptyServices adds back the services viper drops for a null body, so validation can reject them

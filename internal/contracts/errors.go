@@ -29,4 +29,9 @@ var (
 
 	ErrBusOverloaded = errors.New("bus overloaded")
 	ErrBusClosed     = errors.New("bus closed")
+
+	ErrAPIUnreachable  = errors.New("the fuku REST API is off or unreachable")
+	ErrAPIUnauthorized = errors.New("the fuku REST API rejected the token")
+	ErrAPIRejected     = errors.New("fuku rejected the action")
+	ErrAPIOverloaded   = errors.New("the running fuku is overloaded")
 )

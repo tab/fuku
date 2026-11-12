@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"fuku/internal/contracts"
 	"fuku/internal/model"
@@ -10,10 +11,11 @@ import (
 
 // coordination is what the guard knows about one resolved service
 type coordination struct {
-	service    model.Service
-	dispatched bool // tier startup handed the service to the pool
-	reserved   bool // a token is held by startup, an action or a watch restart
-	stopped    bool // the last admitted action stopped the service on purpose, so a file change must not restart it
+	service          model.Service
+	dispatched       bool
+	reserved         bool
+	stoppedOnPurpose bool
+	released         chan struct{}
 }
 
 // Guard owns the facts admission checks and the tokens that serialize work on a service
@@ -46,7 +48,7 @@ func (g *Guard) resolve(tiers model.Tiers) {
 	g.services = make(map[string]*coordination)
 
 	for _, svc := range tiers.Services() {
-		g.services[svc.ID] = &coordination{service: *svc}
+		g.services[svc.ID] = &coordination{service: *svc, released: closedChannel()}
 	}
 }
 
@@ -89,8 +91,8 @@ func (g *Guard) dispatch(id string) {
 
 	entry := g.services[id]
 	entry.dispatched = true
-	entry.reserved = true
-	entry.stopped = false
+	entry.stoppedOnPurpose = false
+	entry.take()
 }
 
 // release returns the service token
@@ -98,7 +100,22 @@ func (g *Guard) release(id string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	g.services[id].reserved = false
+	entry := g.services[id]
+	entry.reserved = false
+	close(entry.released)
+}
+
+// idle returns a channel that closes once the service holds no token
+func (g *Guard) idle(id string) (<-chan struct{}, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	entry, known := g.services[id]
+	if !known {
+		return nil, contracts.ErrServiceNotFound
+	}
+
+	return entry.released, nil
 }
 
 // admit validates an action against the run, the service and its token, and reserves the service when it passes
@@ -127,10 +144,10 @@ func (g *Guard) admit(id string, action contracts.Action) (Admission, error) {
 		return Admission{}, fmt.Errorf("%w: %s", contracts.ErrActionNotAllowed, action)
 	}
 
-	entry.reserved = true
-	entry.stopped = action == contracts.ActionStop
+	entry.stoppedOnPurpose = action == contracts.ActionStop
+	entry.take()
 
-	return Admission{Service: entry.service, Action: action, Status: predicted[action]}, nil
+	return Admission{Service: entry.service, Action: action, Status: predicted[action], At: time.Now()}, nil
 }
 
 // reserve takes the token of a dispatched service not stopped on purpose while the run accepts work, or reports false
@@ -139,13 +156,27 @@ func (g *Guard) reserve(id string) bool {
 	defer g.mu.Unlock()
 
 	entry, known := g.services[id]
-	if !known || !g.accepting() || !entry.dispatched || entry.reserved || entry.stopped {
+	if !known || !g.accepting() || !entry.dispatched || entry.reserved || entry.stoppedOnPurpose {
 		return false
 	}
 
-	entry.reserved = true
+	entry.take()
 
 	return true
+}
+
+// take holds the token and opens a new idle channel for its release
+func (c *coordination) take() {
+	c.reserved = true
+	c.released = make(chan struct{})
+}
+
+// closedChannel returns a channel that is already closed
+func closedChannel() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+
+	return ch
 }
 
 // accepting reports whether actions are allowed: the run is in startup or running and the profile is resolved

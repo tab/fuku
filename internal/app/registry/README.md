@@ -7,7 +7,6 @@ The TUI, the REST API, the log socket server and the resource sampler read it. N
 
 - `model.Snapshot` holds the phase, the profile, the start time, the API state, the tiers and the services
 - a tier and the `Services` map point at the same `*model.Service`. The order comes from `Tiers`
-- `Counts()` tallies the statuses on demand
 - one `sync.RWMutex` guards the snapshot. Nothing is copied on read
 
 ## Projection
@@ -21,7 +20,7 @@ flowchart LR
 
 - the subscription is required and filtered to the types in `projected`
 - `handle` runs each message through `apply` under the write lock. An `apply<Event>` handler in `store.go` changes the snapshot in place
-- `SnapshotChanged` carries nothing. It is not critical. A slow reader loses a notification, never a fact
+- `SnapshotChanged` carries nothing and is not critical. A slow reader loses a notification, never a fact
 
 The rules worth knowing:
 
@@ -34,6 +33,9 @@ The rules worth knowing:
 
 - `Read(fn)` runs `fn` under the read lock
 - `WaitResolved(ctx)` blocks until the first `ProfileResolved`. The log socket server waits on it before it binds
+- `WaitSettled(ctx, id, since)` blocks until an event stamped at or after `since` leaves the service running, failed or stopped.
+  A running service with a `watch` block also waits for `Watching`, so a settled start never answers `watching: false`.
+  It returns `ErrServiceNotFound` for an unknown id
 
 Each consumer reads what it needs inside `Read` and does the slow part outside:
 
@@ -44,15 +46,14 @@ Each consumer reads what it needs inside `Read` and does the slow part outside:
 
 ## Changing it
 
-- the bus loop is `handle`'s only caller. A new caller publishes the event and lets the projection apply it
-- a callback never calls `Read` or `handle`. The lock is not reentrant
-- nothing outside `handle` changes the snapshot
-- a stored service is a shallow copy. It shares the `Readiness`, `Watch` and `Environment` pointers and the `LogOutput` slice
-  with the project and the payload. Nothing writes through them
-- a callback reads through the snapshot only while it runs. It does no IO
-- a callback never calls `Control`, publishes or blocks
+- the bus loop is the only caller of `handle`, and nothing else changes the snapshot. A new writer publishes an event instead
+- a `Read` callback does no IO, never calls `Read`, `handle` or `Control`, never publishes and never blocks. The lock is not reentrant
+- a callback reads through the snapshot only while it runs
+- a stored service is a shallow copy.
+  It shares the `Readiness`, `Watch` and `Environment` pointers and the `LogOutput` slice with the project and the payload.
+  Nothing writes through them
 - a new projected type is a row in `projected` and one `apply` handler. The handler reports whether the visible state changed.
-  Returning true for an unchanged state publishes a useless notification. `applyWatching` is the exception: it returns true
-  whenever the service exists, without comparing the previous value
+  Returning true for an unchanged state publishes a useless notification.
+  `applyWatching` is the exception: it returns true whenever the service exists, without comparing the previous value
 - the store is the only projection. A frontend that needs a derived fact computes it inside `Read`
 - admission never reads the snapshot. `app/services` keeps its own facts

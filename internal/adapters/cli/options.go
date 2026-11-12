@@ -21,12 +21,13 @@ const (
 	CommandVersion CommandType = "version"
 	CommandHelp    CommandType = "help"
 	CommandDoctor  CommandType = "doctor"
+	CommandMCP     CommandType = "mcp"
 )
 
 // standalone returns true for commands that take no config file
 func (c CommandType) standalone() bool {
 	switch c {
-	case CommandInit, CommandVersion, CommandHelp:
+	case CommandInit, CommandVersion, CommandHelp, CommandMCP:
 		return true
 	default:
 		return false

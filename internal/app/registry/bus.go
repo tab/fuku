@@ -47,6 +47,11 @@ func (s *Store) Drain(ctx context.Context) error {
 func (s *Store) handle(msg contracts.Message) {
 	s.mu.Lock()
 	changed := s.apply(s.snapshot, msg)
+
+	if changed {
+		close(s.changed)
+		s.changed = make(chan struct{})
+	}
 	s.mu.Unlock()
 
 	if !changed {

@@ -425,7 +425,7 @@ func Test_RenderAppStats(t *testing.T) {
 			before: func() Model {
 				return Model{theme: theme, snapshot: &model.Snapshot{API: model.API{Listening: true, Address: "127.0.0.1:9876"}}}
 			},
-			want: theme.APIDotConnected.Render(terminal.IndicatorDot) + " " + theme.PanelMutedStyle.Render("127.0.0.1:9876"),
+			want: theme.APIDotConnected.Render(terminal.IndicatorDot) + " " + theme.PanelMutedStyle.Render("http://127.0.0.1:9876"),
 		},
 	}
 
