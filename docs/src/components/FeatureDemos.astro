@@ -1,0 +1,22 @@
+---
+import DemoCard from "./DemoCard.astro";
+import { getDemos } from "../data/demos";
+
+interface Props {
+  feature: string;
+}
+
+const { feature } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const demos = getDemos(base).filter((demo) => demo.feature.href === `${base}features/${feature}/`);
+---
+
+{demos.length > 0 && (
+  <>
+    <div class="section-eyebrow">Watch it</div>
+    <h2>{demos.length === 1 ? "Recorded demo" : "Recorded demos"}</h2>
+    <div class="card-grid two">
+      {demos.map((demo) => <DemoCard demo={demo} />)}
+    </div>
+  </>
+)}

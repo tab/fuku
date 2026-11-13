@@ -3,6 +3,7 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
 import CodeEditor from "../../components/CodeEditor.astro";
 import { getFeaturesNav } from "../../data/nav";
+import FeatureDemos from "../../components/FeatureDemos.astro";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -112,6 +113,8 @@ const nav = getFeaturesNav(base);
 <span class="dim">│</span> <span class="green">&#10003;</span> worker      <span class="muted">running</span>  <span class="dim">pid 76821</span>
 </pre>
   </Terminal>
+
+  <FeatureDemos feature="hot-reload" />
 
   <GetStartedCTA />
 </DocsLayout>

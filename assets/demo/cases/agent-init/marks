@@ -1,0 +1,3 @@
+prompt 1 1 services in examples/bookstore
+done 1 1 done [0-9]
+run 0 1 \$ fuku run

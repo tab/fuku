@@ -1,0 +1,54 @@
+---
+import type { Demo } from "../data/demos";
+
+interface Props {
+  demo: Demo;
+}
+
+const { demo } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+
+<a href={`${base}demo/${demo.slug}/`} class="card demo-card">
+  <img src={`${base}demo/${demo.slug}.jpg`} alt="" loading="lazy" width="1920" height="1080" />
+  <div class="demo-body">
+    <span class:list={["demo-tag", { agent: demo.agent }]}>{demo.agent ? "AI agent" : "CLI"}</span>
+    <h3>{demo.title}</h3>
+    <p>{demo.description}</p>
+  </div>
+</a>
+
+<style>
+  .demo-card {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .demo-card img {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .demo-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 20px 24px 24px;
+  }
+
+  .demo-tag {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .demo-tag.agent {
+    color: var(--blue);
+  }
+</style>

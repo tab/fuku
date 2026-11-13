@@ -1,0 +1,4 @@
+first 0 1 Start the core profile
+done1 0 1 done [0-9]
+second 0 1 Switch to minimal
+done2 0 2 done [0-9]

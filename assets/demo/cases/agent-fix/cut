@@ -1,0 +1,3 @@
+offset 0.4
+speed start+1 failed 1.5
+speed prompt+0.6 done-0.4 3

@@ -1,0 +1,9 @@
+#!/bin/sh
+export ENABLE_CLAUDEAI_MCP_SERVERS=false
+exec "@CLAUDE@" --plugin-dir "@PLUGIN@" \
+  --setting-sources project \
+  --model sonnet --effort low \
+  --tools Skill,Read,Edit,Write,Glob,Grep \
+  --allowed-tools Skill Read Edit Write Glob Grep mcp__plugin_fuku_fuku \
+  --permission-mode dontAsk \
+  "$@"

@@ -1,8 +1,10 @@
 ---
+import { version } from "../../data/version";
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import CodeTerminal from "../../components/CodeTerminal.astro";
 import KeyboardControls from "../../components/KeyboardControls.astro";
 import { getFeaturesNav } from "../../data/nav";
+import FeatureDemos from "../../components/FeatureDemos.astro";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -102,7 +104,7 @@ const nav = getFeaturesNav(base);
             <div class="border-bottom">
               <span class="stats"><span class="api-dot">&#9679;</span> http://127.0.0.1:3858 &bull; cpu 6.1% &bull; mem 204MB</span>
               <span class="border-spacer"></span>
-              <span class="version">v0.22.0</span>
+              <span class="version">v{version}</span>
             </div>
           </div>
 
@@ -182,6 +184,8 @@ const nav = getFeaturesNav(base);
   <CodeTerminal code={`fuku run core --no-ui`} />
 
   <p>This streams service logs directly to your terminal with service name prefixes – useful for CI, scripting, or when you want simple output.</p>
+
+  <FeatureDemos feature="tui" />
 
   <GetStartedCTA />
 </DocsLayout>

@@ -1,0 +1,58 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import DemoVideo from "../../components/DemoVideo.astro";
+import { getDemos } from "../../data/demos";
+import { getDemoNav } from "../../data/nav";
+
+export function getStaticPaths() {
+  return getDemos(import.meta.env.BASE_URL).map((demo) => ({ params: { slug: demo.slug }, props: { demo } }));
+}
+
+const { demo } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const current = `${base}demo/${demo.slug}/`;
+const nav = getDemoNav(base);
+---
+
+<DocsLayout
+  title={`${demo.title} - fuku`}
+  description={demo.description}
+  image={`demo/${demo.slug}.jpg`}
+  current={current}
+  nav={nav}
+  section="demo"
+  breadcrumb={[{ label: "Demo", href: `${base}demo/` }, { label: demo.title, href: current }]}
+>
+  <h1>{demo.title}</h1>
+  <p class="lead">{demo.description}</p>
+
+  <div class="demo-frame">
+    <DemoVideo slug={demo.slug} label={demo.title} />
+  </div>
+
+  <div class="section-eyebrow">Starting point</div>
+  <p>{demo.before}</p>
+
+  <div class="section-eyebrow">{demo.agent ? "You ask the agent" : "You type"}</div>
+  <pre class="demo-input"><code>{demo.agent ? demo.input : `$ ${demo.input}`}</code></pre>
+
+  <div class="section-eyebrow">What happens</div>
+  <ol>
+    {demo.steps.map((step) => <li>{step}</li>)}
+  </ol>
+
+  <div class="section-eyebrow">Why it helps</div>
+  <p>{demo.benefit}</p>
+
+  <p>More about this feature: <a href={demo.feature.href}>{demo.feature.label}</a>.</p>
+</DocsLayout>
+
+<style>
+  .demo-frame {
+    margin: 24px 0 32px;
+  }
+
+  .demo-input {
+    white-space: pre-wrap;
+  }
+</style>

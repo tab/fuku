@@ -4,6 +4,7 @@ import Terminal from "../../components/Terminal.astro";
 import CodeEditor from "../../components/CodeEditor.astro";
 import CodeTerminal from "../../components/CodeTerminal.astro";
 import { getFeaturesNav } from "../../data/nav";
+import FeatureDemos from "../../components/FeatureDemos.astro";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -111,6 +112,8 @@ fuku logs api frontend-api --profile core --no-ui --tail 100 --no-follow`} />
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`logs:
   buffer: 1000                  # Buffer size (default: 1000)`} />
+
+  <FeatureDemos feature="log-streaming" />
 
   <GetStartedCTA />
 </DocsLayout>

@@ -3,6 +3,7 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
 import CodeEditor from "../../components/CodeEditor.astro";
 import { getFeaturesNav } from "../../data/nav";
+import FeatureDemos from "../../components/FeatureDemos.astro";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -111,6 +112,8 @@ const nav = getFeaturesNav(base);
 
   <CodeEditor title="fuku.yaml" lang="yaml" code={`concurrency:
   workers: 5                    # Max concurrent service starts (default: 5)`} />
+
+  <FeatureDemos feature="orchestration" />
 
   <GetStartedCTA />
 </DocsLayout>

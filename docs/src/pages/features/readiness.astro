@@ -3,6 +3,7 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
 import Terminal from "../../components/Terminal.astro";
 import CodeEditor from "../../components/CodeEditor.astro";
 import { getFeaturesNav } from "../../data/nav";
+import FeatureDemos from "../../components/FeatureDemos.astro";
 import GetStartedCTA from "../../components/GetStartedCTA.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -128,6 +129,8 @@ const nav = getFeaturesNav(base);
   <CodeEditor title="fuku.yaml" lang="yaml" code={`retry:
   attempts: 3                   # Max retry attempts (default: 3)
   backoff: 500ms                # Initial backoff duration (default: 500ms)`} />
+
+  <FeatureDemos feature="readiness" />
 
   <GetStartedCTA />
 </DocsLayout>

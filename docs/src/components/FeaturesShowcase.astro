@@ -25,7 +25,7 @@ const leads: Record<string, string> = {
 <section class="features-showcase">
   <div class="container">
     <div class="section-eyebrow">// features</div>
-    <h2 class="section-title">One config. Seven superpowers.<br/>Zero context-switching.</h2>
+    <h2 class="section-title">One config file runs every service</h2>
 
     {features.map((f, i) => (
       <div class:list={["feature-row", { reverse: i % 2 === 1 }]}>
@@ -209,7 +209,6 @@ const leads: Record<string, string> = {
     font-weight: 600;
     margin: 0;
     color: var(--text);
-    max-width: 760px;
   }
 
   .feature-row {
@@ -232,39 +231,40 @@ const leads: Record<string, string> = {
     order: 1;
   }
 
-  /* Reveal animation – hidden state */
-  .reveal {
+  /* Reveal animation – hidden state, only when the script can reveal it */
+  :global(.js) .reveal {
     opacity: 0;
     transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
                 transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .feature-info.reveal {
+  :global(.js) .feature-info.reveal {
     transform: translateX(-30px);
   }
 
-  .feature-row.reverse .feature-info.reveal {
+  :global(.js) .feature-row.reverse .feature-info.reveal {
     transform: translateX(30px);
   }
 
-  .feature-demo.reveal {
+  :global(.js) .feature-demo.reveal {
     transform: translateX(30px);
     transition-delay: 0.15s;
   }
 
-  .feature-row.reverse .feature-demo.reveal {
+  :global(.js) .feature-row.reverse .feature-demo.reveal {
     transform: translateX(-30px);
   }
 
   /* Reveal animation – visible state */
-  .reveal.visible {
+  :global(.js) .reveal.visible,
+  :global(.js) .feature-row.reverse .reveal.visible {
     opacity: 1;
     transform: translateX(0);
   }
 
   /* Skip animation for users who prefer reduced motion */
   @media (prefers-reduced-motion: reduce) {
-    .reveal {
+    :global(.js) .reveal {
       opacity: 1;
       transform: none;
       transition: none;

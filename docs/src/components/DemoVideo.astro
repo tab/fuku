@@ -1,0 +1,52 @@
+---
+interface Props {
+  slug: string;
+  label: string;
+}
+
+const { slug, label } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+
+<video
+  class="demo-video"
+  src={`${base}demo/${slug}.mp4`}
+  poster={`${base}demo/${slug}.jpg`}
+  width="1920"
+  height="1080"
+  aria-label={label}
+  muted
+  loop
+  playsinline
+  controls
+  preload="metadata"
+></video>
+
+<script>
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const video = entry.target as HTMLVideoElement;
+        if (!entry.isIntersecting) {
+          video.pause();
+          return;
+        }
+        if (!reduce.matches) video.play().catch(() => {});
+      });
+    },
+    { threshold: 0.4 }
+  );
+  document.querySelectorAll<HTMLVideoElement>(".demo-video").forEach((video) => observer.observe(video));
+</script>
+
+<style>
+  .demo-video {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #1e1e2e;
+  }
+</style>

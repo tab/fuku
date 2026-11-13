@@ -7,14 +7,15 @@ import type { NavItem } from "../data/nav";
 interface Props {
   title: string;
   description: string;
+  image?: string;
   current?: string;
   nav?: NavItem[];
-  section?: "features" | "docs" | "plugins" | "about" | "why";
+  section?: "features" | "demo" | "docs" | "plugins" | "about" | "why";
   breadcrumb?: { label: string; href: string }[];
   wide?: boolean;
 }
 
-const { title, description, current, nav, section, breadcrumb, wide } = Astro.props;
+const { title, description, image, current, nav, section, breadcrumb, wide } = Astro.props;
 const hasNav = nav && nav.length > 0;
 
 let prev: NavItem | undefined;
@@ -29,7 +30,7 @@ if (hasNav && current) {
 }
 ---
 
-<Layout title={title} description={description}>
+<Layout title={title} description={description} image={image}>
   <div class="docs-shell">
     <Header section={section} sectionNav={nav} current={current} />
 
@@ -385,6 +386,18 @@ if (hasNav && current) {
 
     .prev-next-link {
       padding: 12px 16px;
+    }
+
+    .prose :global(table) {
+      display: block;
+      overflow-x: auto;
+    }
+
+    .prose :global(li code),
+    .prose :global(p code),
+    .prose :global(td code) {
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
   }
 </style>

@@ -1,0 +1,6 @@
+export PATH=/tmp/fuku-demo/bin:$PATH
+export PS1='$ '
+export BASH_SILENCE_DEPRECATION_WARNING=1
+export FUKU_TELEMETRY_DISABLED=1
+cd /private/tmp/fuku-demo/project
+clear
