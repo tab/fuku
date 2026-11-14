@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## v0.23.0
+
+### Features
+- **feat:** Add the `fuku mcp` server for AI agents
+- **feat:** Add a wait option to the service API
+
+### Fixes
+- **fix:** Clear the watch flag when a service stops
+- **fix:** Note ports held under this project's fuku in `fuku doctor`
+
+### Documentation
+- **docs:** Add the demo pages and the AI Agents feature to the site
+- **docs:** Trust the Homebrew formula before install
+
+### Chore
+- **ci:** Deploy the docs site only on a release
+
+### Build
+- **build:** Bump Go modules and goreleaser-action
+
 ## v0.22.0
 
 ### Features
