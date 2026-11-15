@@ -22,7 +22,7 @@ mkdir -p "$W/bin" "$W/out" "$W/project"
 # tracked files only, so no local .env file reaches a video
 git -C "$ROOT" archive HEAD fuku.yaml examples/bookstore | tar -x -C "$W/project"
 # the playground guide tells the agent the services are fake
-rm -f "$W/project/examples/bookstore/CLAUDE.md"
+rm -f "$W/project/examples/bookstore/AGENTS.md" "$W/project/examples/bookstore/CLAUDE.md"
 cp "$DEMO/lib/tmux.conf" "$DEMO/lib/rc" "$DEMO/lib/start.sh" "$DEMO/lib/watch.sh" "$DEMO/lib/head.tape" "$W/"
 cp "$CASE_DIR/case.env" "$CASE_DIR/marks" "$W/"
 sed "s#@CLAUDE@#$(command -v claude)#; s#@PLUGIN@#$ROOT/plugins/agents#" "$DEMO/lib/claude" > "$W/bin/claude"

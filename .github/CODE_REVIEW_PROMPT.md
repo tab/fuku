@@ -4,12 +4,12 @@ You are reviewing a pull request for **fuku**, a Go CLI orchestrator for local d
 
 Read all of these before reviewing:
 
-- **`CLAUDE.md`** — the code rules. Authoritative.
+- **`AGENTS.md`** — the code rules. Authoritative.
 - **`ARCHITECTURE.md`** — the layers, the features and their wiring.
 - **`.claude/skills/*/SKILL.md`** — procedures: `add-test`, `generate-mock`, `verify`, `config`.
 - **`.github/CODE_REVIEW.md`** — the review process: severity, PR hygiene, breaking changes, output format.
 
-External guides are not authoritative. Use them only as optional suggestions where `CLAUDE.md` is silent.
+External guides are not authoritative. Use them only as optional suggestions where `AGENTS.md` is silent.
 
 ---
 
@@ -23,11 +23,11 @@ Review in passes, in this order. Do not skip a pass.
 2. Compare the **PR Summary** with the **actual code diff**.
 3. Verify PR title follows conventional commit format `type(scope): description` (`CODE_REVIEW.md` Rule 2.2).
 4. Check commit messages follow conventional commit format (Rule 2.3).
-5. Check that changes stay within the declared scope — flag any unrelated modifications (CLAUDE.md > Primary Guidelines: "make surgical changes only").
+5. Check that changes stay within the declared scope — flag any unrelated modifications (AGENTS.md > Primary Guidelines: "make surgical changes only").
 
 ### Pass 2: Architecture and Design
 
-Walk through every rule under **CLAUDE.md > Architecture Guidelines** and check the diff for violations:
+Walk through every rule under **AGENTS.md > Architecture Guidelines** and check the diff for violations:
 
 - Dependency Injection with FX (BLOCKER if violated)
 - `module.go` Holds Wiring Only
@@ -37,13 +37,13 @@ Walk through every rule under **CLAUDE.md > Architecture Guidelines** and check 
 - Configuration Reaches Packages as Options
 - Styles Live in `terminal` Only (`lipgloss.NewStyle()` placement)
 
-Then **CLAUDE.md > Architecture > Dependency rules**. `depguard` enforces them; a `//nolint:depguard` is a BLOCKER.
+Then **AGENTS.md > Architecture > Dependency rules**. `depguard` enforces them; a `//nolint:depguard` is a BLOCKER.
 
-Also check **CLAUDE.md > Code Style Guidelines > Service Identifier Convention** (`ID` over `Name` across package boundaries).
+Also check **AGENTS.md > Code Style Guidelines > Service Identifier Convention** (`ID` over `Name` across package boundaries).
 
 ### Pass 3: Code Quality (file-by-file)
 
-For every changed file, check each function against **CLAUDE.md > Code Style Guidelines**:
+For every changed file, check each function against **AGENTS.md > Code Style Guidelines**:
 
 - Import Organization (stdlib / third-party / project)
 - Error Handling (`fmt.Errorf("...: %w", err)`, early return, errors checked immediately)
@@ -53,11 +53,11 @@ For every changed file, check each function against **CLAUDE.md > Code Style Gui
 - Code Structure (file 300–500 lines, focused responsibilities)
 - Code Layout (no nested `if`, no `else if`, no `goto`, cyclomatic < 30)
 
-Plus **CLAUDE.md > Logging Guidelines** and **CLAUDE.md > Important Workflow Notes** (no commented-out code, `//nolint` format with explanation + linter, no historical comments).
+Plus **AGENTS.md > Logging Guidelines** and **AGENTS.md > Important Workflow Notes** (no commented-out code, `//nolint` format with explanation + linter, no historical comments).
 
 ### Pass 4: Safety, Concurrency, and Security
 
-Walk through **CLAUDE.md > Concurrency & Resource Safety** and **CLAUDE.md > Security**. Key flags:
+Walk through **AGENTS.md > Concurrency & Resource Safety** and **AGENTS.md > Security**. Key flags:
 
 - goroutine leaks (no exit via context or channel)
 - unsafe shared state (no mutex / channel)
@@ -99,7 +99,7 @@ For each finding, provide:
 
 - **Severity**: BLOCKER / MAJOR / MINOR / OPTIONAL (criteria in `CODE_REVIEW.md` § 1)
 - **Location**: `file:line` reference (not required for PR metadata findings)
-- **Rule citation**: CLAUDE.md section heading (e.g. "CLAUDE.md > Architecture Guidelines > Event Bus"), skill name (e.g.
+- **Rule citation**: AGENTS.md section heading (e.g. "AGENTS.md > Architecture Guidelines > Event Bus"), skill name (e.g.
   `add-test`), or `CODE_REVIEW.md` rule number for process violations
 - **Issue**: concise description of what is wrong
 - **Fix**: concrete suggestion for how to fix it
@@ -123,4 +123,4 @@ See `CODE_REVIEW.md` § 4 for the output structure.
 - Group findings by file when multiple issues exist in the same file
 - Include a **concrete fix suggestion** for all BLOCKERS and MAJOR issues
 - If no issues are found in a section, write "None" instead of omitting the section
-- When citing a code rule, prefer the **CLAUDE.md section heading** over restating the rule
+- When citing a code rule, prefer the **AGENTS.md section heading** over restating the rule

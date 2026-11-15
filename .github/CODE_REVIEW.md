@@ -4,8 +4,8 @@
 
 This document defines the **PR review process** for the **fuku** repository.
 
-> Code rules live in `CLAUDE.md` and `.claude/skills/*/SKILL.md`. This document covers the review process only:
-> severity, PR hygiene, breaking changes, output format. Cite a code rule by its `CLAUDE.md` heading or its skill.
+> Code rules live in `AGENTS.md` and `.claude/skills/*/SKILL.md`. This document covers the review process only:
+> severity, PR hygiene, breaking changes, output format. Cite a code rule by its `AGENTS.md` heading or its skill.
 
 ---
 
@@ -22,10 +22,10 @@ PRs are not approved when BLOCKERS exist.
 
 Assignment:
 
-- CLAUDE.md rules marked **non-negotiable** or that name **BLOCKER** explicitly → **BLOCKER**
-- other CLAUDE.md / skill rule violations → **MAJOR**
+- AGENTS.md rules marked **non-negotiable** or that name **BLOCKER** explicitly → **BLOCKER**
+- other AGENTS.md / skill rule violations → **MAJOR**
 - undeclared breaking changes (see § 3) → **BLOCKER**
-- style notes not covered by CLAUDE.md → **MINOR** or **OPTIONAL**
+- style notes not covered by AGENTS.md → **MINOR** or **OPTIONAL**
 
 ---
 
@@ -82,11 +82,11 @@ If a breaking change is present but not declared in the PR summary → **BLOCKER
 - (Rule 2.3) Commit quality: …
 
 #### BLOCKERS
-- [file:line] (CLAUDE.md > <section> | skill `<name>` | Rule 2.x / 3) Description
+- [file:line] (AGENTS.md > <section> | skill `<name>` | Rule 2.x / 3) Description
   → Fix
 
 #### MAJOR
-- [file:line] (CLAUDE.md > <section> | skill `<name>`) Description
+- [file:line] (AGENTS.md > <section> | skill `<name>`) Description
   → Fix
 
 #### MINOR
@@ -110,8 +110,8 @@ APPROVE / REQUEST CHANGES / NEEDS DISCUSSION
 Rules:
 
 - code findings need `file:line`
-- BLOCKER and MAJOR findings cite the rule — a CLAUDE.md section heading, a skill name, or a rule number from this document
+- BLOCKER and MAJOR findings cite the rule — a AGENTS.md section heading, a skill name, or a rule number from this document
 - group findings by file
 - include a concrete fix for BLOCKER and MAJOR
 - if a section is empty, write `None`
-- prefer CLAUDE.md section headings over restating the rule
+- prefer AGENTS.md section headings over restating the rule

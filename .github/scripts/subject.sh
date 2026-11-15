@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Grades one commit or pull request subject against the CLAUDE.md commit rules
+# Grades one commit or pull request subject against the AGENTS.md commit rules
 set -euo pipefail
 
 subject="${1:-}"

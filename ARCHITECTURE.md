@@ -4,7 +4,7 @@ Every run of fuku executes one command, and every command gets its own Fx contai
 Every feature has the same shape: one core package with the rules, and adapters around it for the IO.
 When something happens, the package that did it publishes an event on the bus, and every package that cares reacts to it.
 
-This file is the map: the rings, the tree, the commands, the features and the bus messages. The coding rules are in `CLAUDE.md`.
+This file is the map: the rings, the tree, the commands, the features and the bus messages. The coding rules are in `AGENTS.md`.
 The details of a package are in its README.
 
 ## Rings

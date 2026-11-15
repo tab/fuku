@@ -7,13 +7,13 @@ applyTo: '**/*'
 
 For Go code generation and PR review in this repository, the canonical sources are:
 
-- **`CLAUDE.md`** — the code rules. **Authoritative.**
+- **`AGENTS.md`** — the code rules. **Authoritative.**
 - **`ARCHITECTURE.md`** — the layers, the features and their wiring.
 - **`.claude/skills/*/SKILL.md`** — procedures: `verify`, `add-test`, `generate-mock`, `config`.
 - **`.github/CODE_REVIEW.md`** — PR review process: severity model, PR hygiene, breaking-change detection, output format.
 - **`.github/CODE_REVIEW_PROMPT.md`** — the multi-pass review checklist.
 
-Do not rely on generic best practices or external style guides. When `CLAUDE.md` and another document disagree, `CLAUDE.md` wins.
+Do not rely on generic best practices or external style guides. When `AGENTS.md` and another document disagree, `AGENTS.md` wins.
 Report the drift.
 
 This applies to every LLM assistant in this repo: Copilot, Codex, Claude Code, Cursor.
@@ -40,10 +40,10 @@ Key technologies:
 
 ## Fallback Behavior
 
-When `CLAUDE.md` and the skills say nothing, decide in this order:
+When `AGENTS.md` and the skills say nothing, decide in this order:
 
 1. **Existing repository patterns.** How the codebase already solves it.
 2. **Idiomatic Go.** Naming, error handling, interfaces, concurrency primitives.
-3. **The [Uber Go Style Guide](https://github.com/uber-go/guide).** Guidance only. It never overrides `CLAUDE.md`.
+3. **The [Uber Go Style Guide](https://github.com/uber-go/guide).** Guidance only. It never overrides `AGENTS.md`.
 
 A suggestion from 2 or 3 is reported as **OPTIONAL**, never as a violation.
