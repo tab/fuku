@@ -45,12 +45,11 @@ Also check **AGENTS.md > Code Style Guidelines > Service Identifier Convention**
 
 For every changed file, check each function against **AGENTS.md > Code Style Guidelines**:
 
-- Import Organization (stdlib / third-party / project)
-- Error Handling (`fmt.Errorf("...: %w", err)`, early return, errors checked immediately)
-- Variable Naming (descriptive camelCase)
+- Error Handling (`fmt.Errorf("...: %w", err)`, sentinels in `errors.go`, matched with `errors.Is`/`errors.As`)
+- Constant Naming (`<Type><Value>`, `Event<Object><State>`, frozen wire values)
 - Function Parameters (3+ → consider input struct; FX constructors exempt; never `context` in a struct)
 - Documentation (one-line godoc starting with the element name, no ending period; no comment inside a body unless it starts with `no-op:`, `sync:`, `perf:` or `ponytail:`)
-- Code Structure (file 300–500 lines, focused responsibilities)
+- Code Structure (file 300–500 lines, struct fields in constructor order)
 - Code Layout (no nested `if`, no `else if`, no `goto`, cyclomatic < 30)
 
 Plus **AGENTS.md > Logging Guidelines** and **AGENTS.md > Important Workflow Notes** (no commented-out code, `//nolint` format with explanation + linter, no historical comments).

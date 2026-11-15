@@ -2,20 +2,13 @@
 
 ## Project Overview
 
-**Fuku** is a CLI orchestrator. It runs and manages local services in development. It is built for speed and simplicity.
-
-- service startup in tiers
-- process lifecycle with signal handling
-- one YAML config
-- structured logging with `log/slog` over a zerolog handler
-- dependency injection with Uber FX
-- clean architecture with interfaces and mocks
+**Fuku** is a CLI orchestrator. It runs and manages local services in development.
 
 `ARCHITECTURE.md` explains the system. This file holds the rules.
 
 ## Area guides
 
-Four directories carry their own guide. It loads when you work there.
+Four directories have their own guide. Read it before you change files there.
 
 - `e2e/AGENTS.md`: the subprocess suite, its fixtures, and why no test runs in parallel
 - `docs/AGENTS.md`: the Astro site and its Pages deployment
@@ -24,7 +17,7 @@ Four directories carry their own guide. It loads when you work there.
 
 ## Skills
 
-Workflows live in `.claude/skills/`. They load on demand.
+Workflows live in `.claude/skills/<name>/SKILL.md`. Claude Code loads them on demand. Other agents open the file before the task.
 
 - `add-test`: write tests with TDT and the mocks-once pattern
 - `generate-mock`: generate or regenerate a gomock mock
@@ -41,7 +34,7 @@ git config core.hooksPath .githooks
 
 - `commit-msg` rejects a subject that is not a scoped Conventional Commit.
   The form is `feat(ui): Add the aside panel`: imperative, capitalized, no trailing period. It also rejects any AI attribution
-- `pre-push` runs `make check` when Go moved, `make lint:plugin` when the JetBrains plugin moved, `make test:agents-plugin` when `plugins/agents/`, `.claude-plugin/` or `.agents/` moved, the Astro build when `docs/` moved, `make docs` when `ARCHITECTURE.md`, the backlog or a package README moved, then the spec drift check.
+- `pre-push` runs the check of each area that changed, then the spec drift check. `.githooks/pre-push` maps paths to checks.
   The hook skips the race detector and the e2e suite. `verify` and CI run them
 - push with `--no-verify`, or set `SKIP_VERIFY=1`, to skip it on purpose
 - `Conventions` in `conventions.yaml` and `Spec` in `checks.yaml` repeat the checks on the pull request.
@@ -185,7 +178,7 @@ Change an adapter only for new IO, input, transport or presentation.
   The one permitted "factory" creates many values of one kind (`adapters/process.Factory` starts a child per launch).
   Fx constructs it once
 - one interface = one implementation, plus a mock where a test asserts on it
-- tempted to add a factory, a base class or a generalization? Stop and ask if it is needed now
+- before you add a factory, a base class or a generalization, ask whether the task needs it now
 - concrete code over clever abstractions
 - solve the current problem. Do not build for hypothetical requirements
 - no error handling, validation or fallback for a case that cannot happen
@@ -216,37 +209,13 @@ Change an adapter only for new IO, input, transport or presentation.
 
 ## Code Style Guidelines
 
-### Import Organization
-
-Stdlib first, blank line, third-party, blank line, project imports:
-
-```go
-import (
-    "context"
-    "fmt"
-    "log/slog"
-
-    "go.uber.org/fx"
-
-    "fuku/internal/adapters/config"
-)
-```
-
 ### Error Handling
 
 - return errors. Do not panic
 - descriptive messages, wrapped: `fmt.Errorf("failed to process request: %w", err)`
 - a sentinel that crosses a layer lives in `internal/contracts/errors.go`.
   An adapter-local sentinel lives in an `errors.go` beside its package. Match with `errors.Is`/`errors.As`
-- check errors right after the call
-- return early. Avoid deep nesting
 - log errors with context: `c.log.Error(fmt.Sprintf("Failed to run profile '%s'", profile), "error", err)`
-
-### Variable Naming
-
-- descriptive camelCase (`serviceProcess`, not `sp`)
-- consistent abbreviations
-- short names are fine in a small scope (`cfg`)
 
 ### Constant Naming
 
@@ -298,12 +267,10 @@ import (
 
 ### Code Structure
 
-- modular, focused responsibilities
 - files of 300-500 lines when possible
 - order struct fields the way the constructor receives them: a `context.Context` first where a struct holds one, injected dependencies next, own state after, `log Logger` last.
   Constructor parameters follow the same order
 - keep related fields together (a channel and the function that closes it, a client and its address)
-- pass interfaces, return concrete types
 - do not keep old functions for imaginary compatibility
 - nested functions are fine when they simplify a complex function
 
@@ -353,9 +320,6 @@ import (
 - shared state is synchronized with a mutex or a channel
 - prefer the bounded worker pool (`internal/platform/worker`) over ad-hoc goroutines
 - pass `context.Context` through call chains. Never store it in a struct (exceptions: UI components under `internal/adapters/tui/`, the run-wide context of `lifecycle.Coordinator` and the work context of `services.Runtime`)
-- close what you open: files, sockets, channels, connections
-- a producer's `Stop` releases what its `Start` acquired. The coordinator is the one Fx hook
-- no sends on closed channels. Watch for unbuffered-channel deadlocks
 - trap SIGINT and SIGTERM. SIGKILL is a last resort we send to children, never something we handle
 
 ## Security
@@ -385,28 +349,12 @@ import (
 When a file has mixed tabs and spaces or other formatting problems:
 
 - do not read it and wait for a manual fix
-- fix it with Edit. For pervasive issues, rewrite with Write
+- fix it in place. Rewrite the whole file when the problems are everywhere
 - run `make fmt` after edits
 - include the formatting fix in the same commit as the code change
 
 ## Formatting Guidelines
 
 - always use `make fmt` (wraps `gofmt`, then `golangci-lint fmt`, whose `gci` formatter groups imports stdlib, third-party, `fuku`)
-- respect `.editorconfig`: tabs in Go files, `tab_width = 2` for display, UTF-8, LF, final newline, no trailing whitespace
-- when using Edit, keep the existing indentation
-
-## Commonly Used Libraries
-
-- dependency injection: `go.uber.org/fx`
-- CLI framework: `github.com/spf13/cobra`
-- configuration: `github.com/spf13/viper`
-- environment files: `github.com/joho/godotenv`
-- logging: `log/slog` over a `github.com/rs/zerolog` handler (`internal/platform/logging`)
-- error tracking: `github.com/getsentry/sentry-go`
-- testing: `github.com/stretchr/testify`
-- mock generation: `go.uber.org/mock`
-- TUI framework: `charm.land/bubbletea/v2`
-- TUI components: `charm.land/bubbles/v2`
-- TUI styling: `charm.land/lipgloss/v2`
-- process monitoring: `github.com/shirou/gopsutil/v4`
-- semver comparison: `golang.org/x/mod/semver`
+- respect `.editorconfig`
+- keep the existing indentation when you edit a file
