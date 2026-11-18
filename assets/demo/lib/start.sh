@@ -3,7 +3,8 @@ W=/tmp/fuku-demo
 . "$W/case.env"
 T="tmux -f $W/tmux.conf -L demo"
 $T new-session -d -s demo -x "$(tput cols)" -y "$(tput lines)" "bash --rcfile $W/rc"
-[ "$LAYOUT" = split ] && $T split-window -h -t demo "bash --rcfile $W/rc"
+# the left pane needs 76 columns, or the TUI metric headers run together
+[ "$LAYOUT" = split ] && $T split-window -h -l 40% -t demo "bash --rcfile $W/rc"
 if [ "$AGENT" = 1 ]; then
   pane=0
   [ "$LAYOUT" = split ] && pane=1
