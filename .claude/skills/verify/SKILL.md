@@ -36,7 +36,7 @@ make docs
 
 ## Audits
 
-`make lint` runs `depguard`. It enforces the dependency rules in `CLAUDE.md`. The other audits are one command each.
+`make lint` runs `depguard`. It enforces the dependency rules in `AGENTS.md`. The other audits are one command each.
 `deadcode` is installed once with `go install golang.org/x/tools/cmd/deadcode@latest`.
 Each must return nothing:
 

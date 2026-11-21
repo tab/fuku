@@ -61,12 +61,12 @@ What the order guarantees is in [`bootstrap/lifecycle/README.md`](../lifecycle/R
 - a lifecycle participant goes into the slices at the position its guarantee needs
 - a type that must be absent from a command gets a case in `base_test.go`
 
-The wiring rules are in [`CLAUDE.md`](../../../CLAUDE.md#dependency-injection-with-fx).
+The wiring rules are in [`AGENTS.md`](../../../AGENTS.md#dependency-injection-with-fx).
 
 ## Changing it
 
 - `base_test.go` validates every composition once with `fx.ValidateApp` and proves an absent type per command.
-  No package writes a `module_test.go`. The reason is in [`CLAUDE.md`](../../../CLAUDE.md#modulego-holds-wiring-only)
+  No package writes a `module_test.go`. The reason is in [`AGENTS.md`](../../../AGENTS.md#modulego-holds-wiring-only)
 - `Test_Projections` pins what each composition projects. A new `Options` type gets a field there
 - a block is unconditional. `Run` picks `view`, `headless` or `child`, and `api`. `newLogsView` and `newDoctorRenderer` pick a view.
   No package checks the command type or a listen address

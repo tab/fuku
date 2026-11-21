@@ -1,4 +1,4 @@
-// Command comments fails when a comment breaks the comment rules in CLAUDE.md
+// Command comments fails when a comment breaks the comment rules in AGENTS.md
 package main
 
 import (

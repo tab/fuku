@@ -8,7 +8,7 @@ It imports `model` and the standard library only, and no Fx. `platform/bus` move
 
 One file holds the messages of one object or protocol area (`service.go`, `tier.go`, `watch.go`).
 A message is a `MessageType` string plus a payload struct.
-The names follow the constant naming rules in [`CLAUDE.md`](../../CLAUDE.md#constant-naming).
+The names follow the constant naming rules in [`AGENTS.md`](../../AGENTS.md#constant-naming).
 
 - an event's payload is the struct of the same name minus the kind: `EventServiceStopped` carries `ServiceStopped`
 - a command's payload is the `model.Service` it targets. `CommandStopAll` targets every service and carries no payload
